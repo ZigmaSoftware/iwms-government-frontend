@@ -1,0 +1,235 @@
+/* =================== CARD =================== */
+.md-card {
+  /* max-width: 890px; */
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  background: var(--admin-surfaceAlt);
+  border-radius: 10px;
+  padding: 14px;
+  border: 1px solid var(--admin-border);
+  box-shadow: var(--admin-cardShadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--admin-text);
+}
+
+/* =================== PAGE HEADER =================== */
+.md-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+/* Force export top right */
+.md-page-header {
+  align-items: center !important;
+}
+.md-header-actions {
+  width: auto !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end !important;
+}
+
+.md-page-header h2 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 22px);
+  color: var(--admin-text);
+}
+
+.md-header-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+/* =================== SEARCH FIELD =================== */
+.md-search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+  width: 100%;
+}
+
+.md-search-field input {
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  background: var(--admin-surfaceAlt);
+  color: var(--admin-text);
+  width: 80%;
+}
+
+/* =================== EXPORT BUTTON =================== */
+.md-excel-button {
+  border: none;
+  border-radius: 12px;
+  padding: 8px 16px;
+  background: var(--green-custom);      /* Main green */
+  color: #fff;
+  font-weight: 600;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.2s ease-in-out;
+  white-space: nowrap;
+}
+
+/* =================== FORM TOOLBAR =================== */
+.md-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--admin-border);
+  padding-bottom: 10px;
+}
+
+.md-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 260px;
+  flex: 1;
+}
+
+.md-field-inline {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+/* =================== MONTH INPUT =================== */
+.md-field-inline input[type="month"] {
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 12px;
+  background: var(--admin-surfaceAlt);
+  color: var(--admin-text);
+  width: 30%;
+}
+
+.md-month-input {
+  border: 2px solid rgba(137, 139, 143, 0.5);
+  /* background: linear-gradient(145deg, rgba(37, 99, 235, 0.1), rgba(255, 255, 255, 0.04)); */
+  border-radius: 12px;
+  padding: 8px 14px;
+  color: var(--admin-text);
+  font-weight: 600;
+  min-width: 200px;
+}
+
+/* =================== MATCH GO BUTTON WITH EXPORT =================== */
+.md-go-button {
+  border: none !important;
+  background: var(--green-custom) !important;  /* Same green as Export */
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 12px !important;  /* Same roundness */
+  padding: 8px 16px !important;
+  height: 34px !important;         /* Match export button height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* =================== TABLE CARD =================== */
+.md-table-card {
+  border: 1px solid var(--admin-border);
+  border-radius: 18px;
+  background: var(--admin-surfaceAlt);
+  width: 100%;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.md-table-card .p-datatable-wrapper {
+  overflow-x: auto;
+  width: 100%;
+}
+
+/* =================== PAGINATION =================== */
+.md-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--admin-border);
+  background: var(--admin-surfaceAlt);
+  flex-wrap: wrap;
+}
+
+/* =================== RESPONSIVE =================== */
+@media (max-width: 992px) {
+  .md-header-actions {
+    justify-content: flex-start;
+  }
+
+  .md-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .md-field {
+    min-width: 100%;
+  }
+
+  .md-field-inline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 768px) {
+  .md-card {
+    padding: 12px;
+  }
+
+  .md-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .md-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .md-search-field {
+    width: 100%;
+  }
+
+  .md-table-card {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .md-excel-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .md-pagination {
+    justify-content: center;
+  }
+
+  .md-page-header h2 {
+    font-size: 18px;
+  }
+}

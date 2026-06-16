@@ -1,0 +1,558 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --app-font-family: "Poppins", "Noto Sans Tamil", "Noto Sans Devanagari",
+    "Nirmala UI", "Latha", "Kohinoor Tamil", "Tamil Sangam MN", "Mangal",
+    "Noto Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-sans: var(--app-font-family);
+  font-family: var(--app-font-family);
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.640 0.188 148);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.978 0.022 75);
+  --accent-foreground: oklch(0.553 0.156 48);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.640 0.188 148);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.640 0.188 148);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.978 0.022 75);
+  --sidebar-accent-foreground: oklch(0.553 0.156 48);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.640 0.188 148);
+  --green-custom: #22a855;
+  --green-custom-hover: #1a8a44;
+  /* Brand palette */
+  --brand-primary: #22a855;
+  --brand-primary-hover: #1a8a44;
+  --brand-primary-soft: #e8f8ee;
+  --brand-secondary: #f97316;
+  --brand-secondary-hover: #ea6c0a;
+  --brand-secondary-soft: #fff7ed;
+  --brand-blue: #2563eb;
+  --brand-blue-soft: #dbeafe;
+  /* Admin palette defaults (light) */
+  --admin-primary: #22a855;
+  --admin-primaryHover: #1a8a44;
+  --admin-primarySoft: #e8f8ee;
+  --admin-accent: #2563eb;
+  --admin-accentHover: #1d4ed8;
+  --admin-accentSoft: #dbeafe;
+  --admin-surface: #f6faf7;
+  --admin-surfaceMuted: #edf5ef;
+  --admin-surfaceAlt: #ffffff;
+  --admin-border: #d1fae5;
+  --admin-text: #14281a;
+  --admin-mutedText: #4b7a55;
+  --admin-cardShadow: 0 15px 40px rgba(34, 168, 85, 0.12);
+}
+
+html[lang="ta"] {
+  --app-font-family: "Noto Sans Tamil", "Poppins", "Nirmala UI", "Latha",
+    "Kohinoor Tamil", "Tamil Sangam MN", "Noto Sans", system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: var(--app-font-family);
+  font-size: 90%;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.723 0.190 145);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.300 0.035 48);
+  --accent-foreground: oklch(0.750 0.183 48);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.723 0.190 145);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.300 0.035 48);
+  --sidebar-accent-foreground: oklch(0.750 0.183 48);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.723 0.190 145);
+  --green-custom: #22a855;
+  --green-custom-hover: #1a8a44;
+  /* Admin palette overrides (dark) */
+  --admin-primary: #34c46a;
+  --admin-primaryHover: #22a855;
+  --admin-primarySoft: rgba(34, 168, 85, 0.18);
+  --admin-accent: #3b82f6;
+  --admin-accentHover: #60a5fa;
+  --admin-accentSoft: rgba(37, 99, 235, 0.2);
+  --admin-surface: #071209;
+  --admin-surfaceMuted: #0d1e10;
+  --admin-surfaceAlt: #0f2314;
+  --admin-border: #1a3d22;
+  --admin-text: #f0faf3;
+  --admin-mutedText: #7fc992;
+  --admin-cardShadow: 0 25px 45px rgba(0, 10, 3, 0.85);
+}
+
+
+/* Google Material Symbols baseline */
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined", sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  font-size: 1.25rem; /* default size, override per component if needed */
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(150%);
+  }
+}
+
+.card-shimmer {
+  animation: shimmer-slide 6s ease-in-out infinite;
+}
+
+@keyframes rainbow-border-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes language-icon-glow {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes language-icon-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+
+.language-icon-badge {
+  position: relative;
+  display: grid;
+  height: 28px;
+  width: 28px;
+  place-items: center;
+  border-radius: 9999px;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--admin-primary),
+    var(--admin-accent)
+  );
+  box-shadow: 0 10px 22px rgba(1, 62, 126, 0.25);
+  overflow: hidden;
+  transition: transform 200ms ease;
+}
+
+.language-icon-badge::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0.1)
+  );
+  opacity: 0.4;
+}
+
+.language-icon-badge::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: linear-gradient(
+    120deg,
+    rgba(14, 116, 233, 0.35),
+    rgba(37, 99, 235, 0.35)
+  );
+  opacity: 0.45;
+  filter: blur(10px);
+  animation: language-icon-glow 3.6s ease-in-out infinite;
+}
+
+.language-icon-badge > * {
+  position: relative;
+  z-index: 1;
+}
+
+.language-icon-badge--animate {
+  animation: language-icon-float 4.2s ease-in-out infinite;
+}
+
+.language-icon-badge:hover {
+  transform: translateY(-1px) scale(1.04);
+}
+
+.header-gradient-pill {
+  position: relative;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--admin-surfaceAlt), var(--admin-surfaceAlt)) padding-box,
+    linear-gradient(
+        135deg,
+        var(--admin-primary),
+        var(--admin-accent),
+        var(--admin-primaryHover)
+      )
+      border-box;
+}
+
+.rainbow-border {
+  position: relative;
+  z-index: 0;
+  border-color: transparent !important;
+  isolation: isolate;
+}
+
+.rainbow-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    90deg,
+    #ff4b4b,
+    #ff9f1c,
+    #fff35a,
+    #4cd964,
+    #38d9ff,
+    #4c6ef5,
+    #b36bff,
+    #ff4b4b
+  );
+  background-size: 300% 300%;
+  animation: rainbow-border-flow 14s linear infinite;
+  -webkit-mask: linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--app-font-family);
+    --font-family: var(--app-font-family);
+  }
+
+  body .p-component,
+  body .swal2-container,
+  body .swal2-popup,
+  body .leaflet-container,
+  body .leaflet-popup-content,
+  body .leaflet-tooltip {
+    font-family: var(--app-font-family);
+  }
+
+  body .leaflet-container,
+  body .leaflet-control,
+  body .leaflet-control * {
+    font-family: var(--app-font-family) !important;
+  }
+}
+
+@layer utilities {
+  .bg-green-custom {
+    background-color: var(--green-custom);
+  }
+
+  .bg-green-custom:hover {
+    background-color: var(--green-custom-hover);
+  }
+
+  .border-green-custom {
+    border-color: var(--green-custom);
+  }
+
+  .focus\:border-green-custom:focus {
+    border-color: var(--green-custom);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--green-custom) 60%, transparent);
+  }
+}
+
+/* ============================================================
+   GLOBAL THEME BRIDGE (forms, lists, tables across the app)
+   Only active when `.dark` is applied to the root element
+   ============================================================ */
+
+.dark body,
+.dark .app-shell,
+.dark .admin-shell {
+  background: var(--admin-surface) !important;
+  color: var(--admin-text) !important;
+}
+
+.dark .themed-card,
+.dark .bg-white,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-indigo-50,
+.dark .bg-white\/90,
+.dark .bg-white\/80,
+.dark .bg-white\/70,
+.dark .p-component,
+.dark .p-card,
+.dark .p-dialog,
+.dark .p-sidebar,
+.dark .p-panel,
+.dark .p-toast {
+  background: var(--admin-surfaceAlt) !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-border) !important;
+  box-shadow: var(--admin-cardShadow) !important;
+}
+
+.dark .text-gray-700,
+.dark .text-gray-800,
+.dark .text-black,
+.dark .text-slate-700,
+.dark .text-slate-800,
+.dark .text-slate-900,
+.dark .text-slate-950,
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6,
+.dark label,
+.dark .p-component label {
+  color: var(--admin-text) !important;
+}
+
+.dark .text-gray-500,
+.dark .text-gray-600,
+.dark .text-slate-500,
+.dark .text-slate-600,
+.dark .p-muted,
+.dark .text-muted-foreground,
+.dark .p-text-secondary,
+.dark .p-subheader {
+  color: var(--admin-mutedText) !important;
+}
+
+.dark .border,
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .p-inputtext,
+.dark .p-dropdown,
+.dark .p-multiselect,
+.dark .p-inputnumber,
+.dark .p-fieldset,
+.dark .p-panel,
+.dark .p-datatable,
+.dark .p-table,
+.dark .p-dialog,
+.dark .p-sidebar {
+  border-color: var(--admin-border) !important;
+}
+
+.dark input,
+.dark textarea,
+.dark select,
+.dark .p-inputtext,
+.dark .p-dropdown,
+.dark .p-multiselect,
+.dark .p-inputnumber,
+.dark .p-autocomplete-input,
+.dark .p-calendar input {
+  background: var(--admin-surfaceMuted) !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-border) !important;
+}
+
+.dark .p-datatable,
+.dark .p-datatable-header,
+.dark .p-datatable-wrapper,
+.dark .p-datatable .p-datatable-thead > tr > th,
+.dark .p-datatable .p-datatable-tbody > tr,
+.dark .p-datatable .p-datatable-tfoot > tr,
+.dark .p-datatable .p-paginator,
+.dark .p-table,
+.dark .p-gridtable {
+  background: var(--admin-surfaceAlt) !important;
+  color: var(--admin-text) !important;
+  border-color: var(--admin-border) !important;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr:nth-child(even) {
+  background: var(--admin-surfaceMuted) !important;
+}
+
+.dark .p-button,
+.dark .bg-green-custom,
+.dark .btn-primary,
+.dark .p-chip {
+  background-image: linear-gradient(135deg, var(--admin-primary), var(--admin-accent));
+  border: none;
+  color: #fff !important;
+}
+
+.dark .p-button.p-button-text,
+.dark .p-button.p-button-outlined,
+.dark .btn-outline,
+.dark .fuel-outline-btn,
+.dark .text-blue-600,
+.dark .text-red-600,
+.dark .bg-red-400,
+.dark .bg-red-500 {
+  color: var(--admin-text) !important;
+  border-color: var(--admin-border) !important;
+  background: transparent !important;
+}
+
+.dark .shadow,
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl,
+.dark .shadow-2xl {
+  box-shadow: var(--admin-cardShadow) !important;
+}
+
+.dark .swal2-popup,
+.dark .p-dialog,
+.dark .p-confirm-dialog,
+.dark .p-sidebar {
+  background: var(--admin-surfaceAlt) !important;
+  color: var(--admin-text) !important;
+}
+
+/* Admin form save buttons */
+.admin-shell form button[type="submit"] {
+  background-image: none;
+  background-color: var(--green-custom);
+  border-color: var(--green-custom);
+  color: #fff;
+}
+
+.admin-shell form button[type="submit"]:hover:not(:disabled) {
+  background-color: var(--green-custom-hover);
+  border-color: var(--green-custom-hover);
+}
+
+.admin-shell form .justify-end button[type="button"] {
+  background-image: none;
+  background-color: #ef4444;
+  border: 1px solid #ef4444;
+  color: #fff;
+}
+
+.admin-shell form .justify-end button[type="button"]:hover:not(:disabled) {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}

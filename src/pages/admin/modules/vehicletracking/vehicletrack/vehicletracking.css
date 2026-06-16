@@ -1,0 +1,317 @@
+@import "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+
+/* ================= LAYOUT ================= */
+/* .tracking-page {
+  background: #f8fafc;
+  color: #0f172a;
+  padding: 16px;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+} */
+
+.tracking-page.dark-mode {
+  background: #0b1120;
+  color: #e2e8f0;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+}
+
+/* ================= MAP ================= */
+.map-wrap {
+  position: relative;
+  width: 100%;
+  height: 55vh;
+  min-height: 420px;
+  border-radius: 18px;
+  border: 1px solid var(--admin-border, #e2e8f0);
+  background: var(--admin-surfaceAlt, #ffffff);
+  overflow: hidden;
+}
+
+.map-wrap .map-canvas {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+}
+
+.map-wrap .admin-map-panel {
+  z-index: 10;
+}
+
+/* ================= STATUS FILTER ================= */
+.leaflet-control.vehicle-status-control {
+  position: absolute !important;
+  top: 12px !important;
+  left: 1600% !important;
+  transform: translateX(-50%) !important;
+  background: transparent;
+  padding: 10px 20px;
+  border-radius: 10px;
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.vehicle-status-control label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.vehicle-status-control .running { color: #16a34a; }
+.vehicle-status-control .idle { color: #f59e0b; }
+.vehicle-status-control .parked { color: #3b82f6; }
+.vehicle-status-control .nodata { color: #ef4444; }
+
+.tracking-page.dark-mode .vehicle-status-control {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 16px 40px rgba(2, 6, 23, 0.65);
+}
+
+.tracking-page.dark-mode .vehicle-status-control label input {
+  accent-color: #38bdf8;
+}
+
+/* ================= POPUP ================= */
+.leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  padding: 0;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+}
+
+.vehicle-popup {
+  min-width: 180px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.popup-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.popup-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.popup-label {
+  color: #475569;
+}
+
+.popup-value {
+  font-weight: 600;
+}
+
+.tracking-page.dark-mode .leaflet-popup-content-wrapper {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+/* ================= ICON ================= */
+@keyframes vehiclePulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes vehicleBounce {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+.vehicle-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  border: 2px solid #fff;
+  position: relative;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.25);
+}
+
+.vehicle-icon.running { background: #16a34a; --accent: #16a34a; }
+.vehicle-icon.idle { background: #f59e0b; --accent: #f59e0b; }
+.vehicle-icon.parked { background: #3b82f6; --accent: #3b82f6; }
+.vehicle-icon.nodata { background: #ef4444; --accent: #ef4444; }
+
+.vehicle-icon .vehicle-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.35;
+  transform: translate(-50%, -50%);
+  animation: vehiclePulse 1.4s ease-out infinite;
+}
+
+.vehicle-icon.focused {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85), 0 10px 18px rgba(15, 23, 42, 0.3);
+  animation: vehicleBounce 0.6s ease-out;
+}
+
+.vehicle-emoji {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.vehicle-icon.focused .vehicle-emoji {
+  font-size: 19px;
+}
+
+/* ================= CAROUSEL ================= */
+.carousel-wrap {
+  position: relative;
+  background: #fff;
+  padding: 14px 56px;
+  border-radius: 18px;
+  box-shadow: 0 18px 30px rgba(15, 23, 42, 0.08);
+}
+
+.tracking-page.dark-mode .carousel-wrap {
+  background: #111827;
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.65);
+}
+
+.carousel-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.vehicle-search-group {
+  display: flex;
+  gap: 8px;
+}
+
+.vehicle-search,
+.vehicle-dropdown {
+  height: 34px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.tracking-page.dark-mode .vehicle-search,
+.tracking-page.dark-mode .vehicle-dropdown {
+  background: #0f172a;
+  border-color: rgba(148, 163, 184, 0.45);
+  color: #e2e8f0;
+}
+
+.vehicle-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.vehicle-card {
+  min-width: 320px;
+  background: #fafafa;
+  border-radius: 12px;
+  padding: 10px;
+  border-left: 5px solid transparent;
+  color: inherit;
+}
+
+.vehicle-card .status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.vehicle-card.running { border-left-color: #16a34a; }
+.vehicle-card.idle { border-left-color: #f59e0b; }
+.vehicle-card.parked { border-left-color: #3b82f6; }
+.vehicle-card.nodata { border-left-color: #ef4444; }
+
+.tracking-page.dark-mode .vehicle-card {
+  background: transparent;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.tracking-page.dark-mode .vehicle-card .status {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.tracking-page.dark-mode .vehicle-card.running .status {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.65);
+}
+
+.tracking-page.dark-mode .vehicle-card.idle .status {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.5);
+}
+
+.tracking-page.dark-mode .vehicle-card.parked .status {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.55);
+}
+
+.tracking-page.dark-mode .vehicle-card.nodata .status {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+/* ================= BUTTONS ================= */
+.carousel-btn {
+  position: absolute;
+  top: 55%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.carousel-btn.left { left: 10px; }
+.carousel-btn.right { right: 10px; }
+
+.tracking-page.dark-mode .carousel-btn {
+  border-color: rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.85);
+  color: #e2e8f0;
+  box-shadow: 0 10px 25px rgba(2, 6, 23, 0.65);
+}
