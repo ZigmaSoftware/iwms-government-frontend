@@ -28,7 +28,7 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   mainscreens: "mainScreens",
   userscreens: "userScreens",
   "userscreen-action": "userScreenActions",
-  userscreenpermissions: "companyWiseScreenPermissions",
+  userscreenpermissions: "userScreenPermissions",
   "user-type": "userTypes",
   "staff-user-type": "staffUserTypes",
   "staff-creation": "staffCreation",

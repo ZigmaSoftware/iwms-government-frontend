@@ -28,10 +28,19 @@ export type CityMeta = {
   isActive: boolean;
 };
 
+export type GeoCoordinate = {
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+};
+
 export type ZoneRecord = {
   zone_name?: string;
   is_active?: boolean;
   description?: string;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  geofencing_type?: string | null;
+  coordinates?: GeoCoordinate[] | null;
   continent_id?: string | number | null;
   country_id?: string | number | null;
   state_id?: string | number | null;
@@ -51,6 +60,10 @@ export type ZoneListRecord = CompanyProjectFields & {
   district_name: string;
   state_name: string;
   is_active: boolean;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  geofencing_type?: string | null;
+  coordinates?: GeoCoordinate[] | null;
 };
 
 
@@ -65,6 +78,10 @@ export type ZoneWithRelations = {
   remarks?: string | null;
   notes?: string | null;
   is_active?: boolean;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  geofencing_type?: string | null;
+  coordinates?: GeoCoordinate[] | null;
   continent_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   country_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   state_id?: string | number | { unique_id?: string | number; id?: string | number } | null;

@@ -24,7 +24,6 @@ export interface CreateColumnPermissionPayload {
   usertype_id?: string;
   is_active?: boolean;
   order_no?: number;
-  company_id?: string;
 }
 
 export interface UpdateColumnPermissionPayload {
@@ -50,8 +49,7 @@ const isContractorRoleId = (value: string): boolean =>
  */
 export async function getColumnPermissions(
   userscreenId: string,
-  staffuserTypeId: string,
-  companyId?: string
+  staffuserTypeId: string
 ): Promise<ColumnPermissionsResponse> {
   const roleParam = isContractorRoleId(staffuserTypeId)
     ? { contractorusertype_id: staffuserTypeId }
@@ -61,7 +59,6 @@ export async function getColumnPermissions(
     params: {
       userscreen_id: userscreenId,
       ...roleParam,
-      ...(companyId ? { company_id: companyId } : {}),
     },
   });
   // Backend returns { userscreen_id, column_permissions } — cast from the

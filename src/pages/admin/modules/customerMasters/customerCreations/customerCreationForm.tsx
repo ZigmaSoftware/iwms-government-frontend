@@ -1,7 +1,7 @@
 import type { FormDataType, Option } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 
@@ -15,6 +15,7 @@ import {
   stateApi,
   subPropertiesApi,
   wardApi,
+  wasteTypeApi,
   zoneApi,
 } from "@/helpers/admin";
 
@@ -31,7 +32,6 @@ import {
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 /* ===============================
@@ -63,6 +63,7 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   sqft: ["sqft"],
   property_id: ["property_id", "property"],
   sub_property_id: ["sub_property_id", "sub_property"],
+  waste_type_ids: ["waste_type_ids", "waste_types", "waste_type"],
   id_proof_type: ["id_proof_type"],
   id_no: ["id_no"],
   country_id: ["country_id", "country"],
@@ -80,6 +81,16 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   villa_no: ["villa_no"],
   industry_name: ["industry_name"],
   industry_type: ["industry_type"],
+};
+
+const normalizeIdArray = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeEntityId(item))
+      .filter(Boolean);
+  }
+  return [normalizeEntityId(value)].filter(Boolean);
 };
 
 
@@ -181,6 +192,55 @@ const FormInput = ({
     />
   </div>
 );
+
+const MultiSelectCheckboxes = ({
+  label,
+  values,
+  onChange,
+  options,
+  isRequired = true,
+}: {
+  label: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: Option[];
+  isRequired?: boolean;
+}) => {
+  const selected = new Set(values);
+
+  const toggle = (value: string) => {
+    if (selected.has(value)) {
+      onChange(values.filter((item) => item !== value));
+      return;
+    }
+    onChange([...values, value]);
+  };
+
+  return (
+    <div className="space-y-2 md:col-span-2">
+      <Label className="text-sm font-medium text-gray-700">
+        {label}
+        {isRequired && <span className="text-red-500 ml-1">*</span>}
+      </Label>
+      <div className="grid max-h-44 gap-2 overflow-y-auto rounded-md border border-gray-300 bg-white p-3 md:grid-cols-2">
+        {options.length > 0 ? (
+          options.map((option) => (
+            <label key={option.value} className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={selected.has(option.value)}
+                onChange={() => toggle(option.value)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))
+        ) : (
+          <p className="text-sm text-gray-500">No options available</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const PasswordInput = ({
   label,
@@ -475,20 +535,6 @@ export default function CustomerCreationForm() {
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
   const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCustomerMaster, encCustomerCreation);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
-
   const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
     const value = t(key);
@@ -519,8 +565,7 @@ export default function CustomerCreationForm() {
     zone_id: "",
     ward_id: "",
     panchayat_id: "",
-    company_id: "",
-    project_id: "",
+    waste_type_ids: [],
     is_active: true,
     is_bulkwaste_generator: false,
     // Property type specific fields
@@ -538,14 +583,6 @@ export default function CustomerCreationForm() {
   const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
   const [customerCreatedAt, setCustomerCreatedAt] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  // Holds the raw project candidates from the record so we can re-apply after the
-  // hook finishes loading the project list (the hook may auto-select options[0] otherwise)
-  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string;
-    projectId: string;
-    projectName: string;
-  } | null>(null);
-
   const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
   const normalize = (arr: any[]) =>
     arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
@@ -584,6 +621,7 @@ export default function CustomerCreationForm() {
   const [rawProperties, setRawProperties] = useState<any[]>([]);
   const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
   const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
+  const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -598,8 +636,9 @@ export default function CustomerCreationForm() {
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       panchayatApi.readAll(),
+      wasteTypeApi.readAll(),
     ])
-      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats]) => {
+      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats, wasteTypes]) => {
         if (cancelled) return;
         setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
         setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
@@ -610,6 +649,7 @@ export default function CustomerCreationForm() {
         setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
         setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
         setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
+        setRawWasteTypes(Array.isArray(wasteTypes) ? wasteTypes : (wasteTypes as any)?.results ?? []);
         setDropdownsLoaded(true);
       })
       .catch((err) => {
@@ -632,8 +672,9 @@ export default function CustomerCreationForm() {
       properties: normalize(rawProperties),
       subProperties: normalize(rawSubProperties),
       panchayats: normalize(rawPanchayats),
+      wasteTypes: normalize(rawWasteTypes),
     }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats]
+    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
   );
 
   /* ===============================
@@ -646,15 +687,7 @@ export default function CustomerCreationForm() {
     customerCreationApi.read(id)
       .then((data: any) => {
         if (cancelled) return;
-        applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
         setPendingEditData(data);
-        // Store all project identifiers so we can re-apply the correct one after
-        // the hook finishes loading the project list for this company
-        setPendingProjectCandidates({
-          projectUniqueId: String(data.project_unique_id ?? data.project?.unique_id ?? ""),
-          projectId: String(data.project_id ?? ""),
-          projectName: String(data.project_name ?? data.project?.name ?? ""),
-        });
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -662,7 +695,7 @@ export default function CustomerCreationForm() {
         Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to load customer", "error");
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
+  }, [id, isEdit, t]);
 
   /* ===============================
      FLUSH PENDING EDIT DATA
@@ -681,6 +714,7 @@ export default function CustomerCreationForm() {
     const panchayatId = resolveOptionValue(rawPanchayats, data.panchayat_id, "panchayat_name", data.panchayat_name);
     const propertyId    = resolveOptionValue(rawProperties,    data.property_id,     "property_name",     data.property_name);
     const subPropertyId = resolveOptionValue(rawSubProperties, data.sub_property_id, "sub_property_name", data.sub_property_name);
+    const wasteTypeIds = normalizeIdArray(data.waste_type_ids ?? data.waste_types);
 
     setPasswordCrtDate(data.password_crt_date ?? null);
     setCustomerCreatedAt(data.created_at ?? null);
@@ -710,8 +744,7 @@ export default function CustomerCreationForm() {
       zone_id: zoneId,
       ward_id: wardId,
       panchayat_id: panchayatId,
-      company_id: String(data.company_id ?? ""),
-      project_id: String(data.project_id ?? ""),
+      waste_type_ids: wasteTypeIds,
       is_active: Boolean(data.is_active),
       is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
       apartment_name: String(data.apartment_name ?? ""),
@@ -723,28 +756,6 @@ export default function CustomerCreationForm() {
     }));
     setPendingEditData(null);
   }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
-
-  /* ===============================
-     RE-APPLY PROJECT AFTER HOOK LOADS PROJECT LIST
-     The hook auto-selects options[0] when the stored projectId doesn't match any
-     option (format mismatch: integer PK vs unique_id). Re-apply the correct one
-     using unique_id → id → name fallback once the project list is available.
-  ================================ */
-  useEffect(() => {
-    if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawProjectId, projectName } = pendingProjectCandidates;
-
-    // Try unique_id match first (most reliable)
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
-    // Then try integer PK match
-    if (!match) match = projects.find((p) => rawProjectId && p.value === rawProjectId);
-    // Finally fall back to name match
-    if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
-
-    if (match) setProjectId(match.value);
-    setPendingProjectCandidates(null);
-  }, [projects, pendingProjectCandidates, setProjectId]);
 
   /* ===============================
      FILTERS
@@ -808,12 +819,11 @@ export default function CustomerCreationForm() {
      VALIDATION
   ================================ */
   const validateForm = (): boolean => {
-    // Check required fields (company_id and project_id are mandatory)
     const requiredFields = [
       "customer_name", "contact_no", "email", "username",
        "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
       "country_id", "state_id", "district_id", "city_id",
-      "property_id", "sub_property_id",
+      "property_id", "sub_property_id", "waste_type_ids",
       ...(!isEdit ? ["password"] : []),
     ].flat();
 
@@ -830,8 +840,8 @@ export default function CustomerCreationForm() {
       }
     }
 
-    if (!companyUniqueId || !projectId) {
-      Swal.fire(t("common.warning") || "Warning", "Company and project are required", "warning");
+    if (showField("waste_type_ids") && formData.waste_type_ids.length === 0) {
+      Swal.fire(t("common.warning") || "Warning", "waste type is required", "warning");
       return false;
     }
 
@@ -902,14 +912,12 @@ export default function CustomerCreationForm() {
 
     const rawPayload = {
       ...formData,
-      company_id: companyUniqueId,
-      project_id: projectId,
       latitude: showField("latitude") ? String(parseFloat(formData.latitude)) : formData.latitude,
       longitude: showField("longitude") ? String(parseFloat(formData.longitude)) : formData.longitude,
       sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
       ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
     };
-    const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
+    const payload = filterPayload(rawPayload);
 
     setIsSubmitting(true);
     try {
@@ -924,7 +932,7 @@ export default function CustomerCreationForm() {
         t("admin.customer_creation.save_success") || "Saved successfully",
         "success"
       );
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (err) {
       console.error("Submit error:", err);
       Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
@@ -1298,6 +1306,18 @@ export default function CustomerCreationForm() {
               isRequired={false}
             />
           )}
+
+          {showField("waste_type_ids") && (
+            <MultiSelectCheckboxes
+              label={tOrFallback("common.waste_type", "Waste Type")}
+              values={formData.waste_type_ids}
+              onChange={(values) => update("waste_type_ids", values)}
+              options={dropdowns.wasteTypes.map((wasteType: any) => ({
+                value: resolveId(wasteType),
+                label: wasteType.waste_type_name || wasteType.name || resolveId(wasteType),
+              }))}
+            />
+          )}
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.identification") || "Identification"}>
@@ -1326,29 +1346,6 @@ export default function CustomerCreationForm() {
               />
             </div>
           )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.company_project_info") || "Company & Project Information"}>
-          <ShadcnSelect
-            label={t("admin.nav.company") || "Company"}
-            value={companyUniqueId}
-            onChange={(v: string) => {
-              onCompanyChange(v);
-            }}
-            options={companies}
-            placeholder={t("admin.nav.company_placeholder") || "Select company"}
-            isRequired={true}
-            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId)}
-          />
-          <ShadcnSelect
-            label={t("admin.nav.project") || "Project"}
-            value={projectId}
-            onChange={setProjectId}
-            options={projects}
-            placeholder={t("admin.nav.project_placeholder") || "Select project"}
-            isRequired={true}
-            disabled={!companyUniqueId || projects.length === 0}
-          />
         </FormSection>
 
         <FormSection title={t("admin.customer_creation.location_details") || "Location Details"}>
@@ -1529,7 +1526,7 @@ export default function CustomerCreationForm() {
             )}
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(ENC_LIST_PATH)}
               className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
             >
               {t("common.cancel") || "Cancel"}

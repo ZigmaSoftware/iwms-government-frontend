@@ -133,7 +133,7 @@ const SCREEN_ALIASES: Record<string, string[]> = {
   "sub-properties": ["subproperties"],
   "staff-user-type": ["staffusertypes"],
   "mainscreen-type": ["mainscreentype"],
-  userscreenpermissions: ["companywisescreenpermissions"],
+  userscreenpermissions: ["userscreenpermissions", "companywisescreenpermissions"],
   "company-creation": ["company"],
   "project-creation": ["project"],
   "customer-creation": ["customercreations"],

@@ -444,24 +444,26 @@ export const useCreateUserScreenActionMutation = () => useCreate("userScreenActi
 export const useUpdateUserScreenActionMutation = () => useUpdate("userScreenActions");
 export const useDeleteUserScreenActionMutation = () => useDelete("userScreenActions");
 
-export const useUserScreenPermissionsByCompanyQuery = (companyId?: string) =>
+export const useUserScreenPermissionsQuery = () =>
   useList<AdminRecord>(
-    "companyWiseScreenPermissions",
-    companyId ? { company_id: companyId, limit: 6000, offset: 0 } : null
+    "userScreenPermissions",
+    { limit: 6000, offset: 0 }
   );
 
+export const useUserScreenPermissionsByCompanyQuery = () =>
+  useUserScreenPermissionsQuery();
+
 export const useUserScreenPermissionFormattedQuery = (
-  companyId?: string,
   staffTypeId?: string,
   mainScreenId?: string
 ) =>
   useDirectQuery<any>(
     () =>
       userScreenPermissionApi.read(
-        `by-staff-format/?company_id=${encodeURIComponent(companyId ?? "")}&staffusertype_id=${encodeURIComponent(staffTypeId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
+        `by-staff-format/?staffusertype_id=${encodeURIComponent(staffTypeId ?? "")}&mainscreen_id=${encodeURIComponent(mainScreenId ?? "")}`
       ),
-    [companyId, staffTypeId, mainScreenId],
-    Boolean(companyId && staffTypeId && mainScreenId)
+    [staffTypeId, mainScreenId],
+    Boolean(staffTypeId && mainScreenId)
   );
 
 export const useSyncUserScreenPermissionMutation = () =>
@@ -476,13 +478,13 @@ export const useSyncUserScreenPermissionMutation = () =>
           : `bulk-sync-multi/${staffTypeId}`,
         payload
       ),
-    ["companyWiseScreenPermissions"]
+    ["userScreenPermissions"]
   );
 
 export const useDeleteUserScreenPermissionMutation = () =>
   useMutationAction<string, void>(
     (path) => userScreenPermissionApi.delete(path),
-    ["companyWiseScreenPermissions"]
+    ["userScreenPermissions"]
   );
 
 export const useCustomerCreationsQuery = () => useList<CustomerCreationRecord>("customerCreations");

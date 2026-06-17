@@ -1,6 +1,6 @@
 import type { ApiUserScreen, MainScreen, Option, PermissionResponse, PermissionScreen, ScreenMatrixRow, StaffUserType, UserScreenAction, UserScreenColumnRecord } from "./types";
 import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
-import { useNavigate, useParams, useSearchParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -26,7 +26,6 @@ import {
   type ColumnPermissionsResponse,
 } from "@/helpers/admin/columnPermissionService";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
@@ -118,23 +117,9 @@ export default function UserScreenPermissionForm() {
   const params = useParams();
 
   const staffTypeId = params.id;
-  const companyIdFromQuery = searchParams.get("company_unique_id") ?? "";
   const mainScreenIdFromQuery = searchParams.get("mainscreen_id") ?? "";
 
   const isEdit = Boolean(staffTypeId);
-
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    onCompanyChange,
-    setProjectId,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
     isEdit && staffTypeId ? String(staffTypeId) : ""
@@ -176,22 +161,6 @@ export default function UserScreenPermissionForm() {
   const [formattedPermissionData, setFormattedPermissionData] = useState<any>(null);
   const [formattedPermissionError, setFormattedPermissionError] = useState<any>(null);
   const [formattedPermissionLoading, setFormattedPermissionLoading] = useState(false);
-
-  const effectiveCompanyId = companyIdFromQuery || companyUniqueId;
-
-  const isEditContextLocked =
-    isEdit && Boolean(companyIdFromQuery) && Boolean(mainScreenIdFromQuery);
-  const isCompanyLocked =
-    Boolean(loggedInCompanyUniqueId) ||
-    Boolean(companyIdFromQuery) ||
-    isEditContextLocked;
-  const selectedCompanyLabel =
-    companies.find((company) => company.value === companyUniqueId)?.label ||
-    companyUniqueId;
-  const companyOptions =
-    isCompanyLocked && companyUniqueId
-      ? [{ value: companyUniqueId, label: selectedCompanyLabel }]
-      : companies;
 
   /* -----------------------------------------------------------
      LOAD DROPDOWNS
@@ -287,15 +256,15 @@ export default function UserScreenPermissionForm() {
      LOAD FORMATTED PERMISSIONS (replaces useUserScreenPermissionFormattedQuery)
   ----------------------------------------------------------- */
   useEffect(() => {
-    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
+    if (!staffUserTypeId || !mainScreenId) return;
 
     let cancelled = false;
     setFormattedPermissionLoading(true);
     setFormattedPermissionData(null);
     setFormattedPermissionError(null);
 
-    adminApi.companyWiseScreenPermissions.read(
-      `by-staff-format/?company_id=${encodeURIComponent(effectiveCompanyId)}&staffusertype_id=${encodeURIComponent(staffUserTypeId)}&mainscreen_id=${encodeURIComponent(mainScreenId)}`
+    adminApi.userScreenPermissions.read(
+      `by-staff-format/?staffusertype_id=${encodeURIComponent(staffUserTypeId)}&mainscreen_id=${encodeURIComponent(mainScreenId)}`
     )
       .then((res: any) => {
         if (cancelled) return;
@@ -309,7 +278,7 @@ export default function UserScreenPermissionForm() {
       });
 
     return () => { cancelled = true; };
-  }, [effectiveCompanyId, staffUserTypeId, mainScreenId]);
+  }, [staffUserTypeId, mainScreenId]);
 
   useEffect(() => {
     if (!isEdit || !staffUserTypeId) return;
@@ -336,20 +305,6 @@ export default function UserScreenPermissionForm() {
   ]);
 
   /* -----------------------------------------------------------
-     PREFILL COMPANY
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (!companyIdFromQuery) return;
-    if (companyUniqueId === companyIdFromQuery) return;
-    onCompanyChange(companyIdFromQuery);
-  }, [
-    companyIdFromQuery,
-    companyUniqueId,
-    onCompanyChange,
-  ]);
-
-  /* -----------------------------------------------------------
      EDIT MODE
   ----------------------------------------------------------- */
 
@@ -372,7 +327,7 @@ export default function UserScreenPermissionForm() {
   ----------------------------------------------------------- */
 
   useEffect(() => {
-    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId) return;
+    if (!staffUserTypeId || !mainScreenId) return;
 
     if (formattedPermissionError) {
       const err = formattedPermissionError;
@@ -470,7 +425,6 @@ export default function UserScreenPermissionForm() {
       }
   }, [
     allUserScreens,
-    effectiveCompanyId,
     formattedPermissionData,
     formattedPermissionError,
     formattedPermissionLoading,
@@ -509,7 +463,7 @@ export default function UserScreenPermissionForm() {
             `/permissions/userscreen/${screenId}/columns/`
           ),
           staffUserTypeId
-            ? getColumnPermissions(screenId, staffUserTypeId, effectiveCompanyId || undefined)
+            ? getColumnPermissions(screenId, staffUserTypeId)
             : Promise.resolve<ColumnPermissionsResponse>({
                 userscreen_id: screenId,
                 column_permissions: [],
@@ -557,7 +511,7 @@ export default function UserScreenPermissionForm() {
         })
       );
     });
-  }, [screenIdsKey, staffUserTypeId, effectiveCompanyId]);
+  }, [screenIdsKey, staffUserTypeId]);
 
   /* -----------------------------------------------------------
      FILTER ROLES BY SELECTED USER TYPE CATEGORY
@@ -668,7 +622,7 @@ export default function UserScreenPermissionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!effectiveCompanyId || !staffUserTypeId || !mainScreenId || !userTypeId) {
+    if (!staffUserTypeId || !mainScreenId || !userTypeId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -710,7 +664,6 @@ export default function UserScreenPermissionForm() {
 
     const isContractorRole = isContractorRoleId(staffUserTypeId);
     const payload = {
-      company_id: effectiveCompanyId,
       staffusertype_id: isContractorRole ? null : staffUserTypeId,
       contractorusertype_id: isContractorRole ? staffUserTypeId : null,
       permission_for: isContractorRole ? "contractor" : "staff",
@@ -724,12 +677,12 @@ export default function UserScreenPermissionForm() {
 
     try {
       if (isEdit) {
-        await adminApi.companyWiseScreenPermissions.action(
+        await adminApi.userScreenPermissions.action(
           `update-by-staffusertype/${staffUserTypeId}`,
           payload
         );
       } else {
-        await adminApi.companyWiseScreenPermissions.action(
+        await adminApi.userScreenPermissions.action(
           `bulk-sync-multi/${staffUserTypeId}`,
           payload
         );
@@ -760,7 +713,6 @@ export default function UserScreenPermissionForm() {
                 contractorusertype_id: isContractorRole ? staffUserTypeId : undefined,
                 usertype_id: userTypeId,
                 is_active: true,
-                company_id: effectiveCompanyId,
               })
             );
           }
@@ -775,7 +727,7 @@ export default function UserScreenPermissionForm() {
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (err: unknown) {
       if (getErrorStatus(err) === 403) {
         Swal.fire({
@@ -794,7 +746,6 @@ export default function UserScreenPermissionForm() {
       Swal.fire(
         t("common.save_failed"),
         firstErrorMessage(errorData.detail) ||
-          firstErrorMessage(errorData.company_id) ||
           firstErrorMessage(errorData.staffusertype_id) ||
           firstErrorMessage(errorData.mainscreen_id) ||
           firstErrorMessage(errorData.screens) ||
@@ -834,67 +785,7 @@ export default function UserScreenPermissionForm() {
       }
     >
       <form onSubmit={handleSubmit}>
-        <div className="grid md:grid-cols-4 gap-6">
-          <div>
-            <Label>{t("admin.nav.company")} *</Label>
-            <Select
-              value={companyUniqueId}
-              onValueChange={(value) => {
-                onCompanyChange(value);
-                setMainScreenId("");
-                setScreenMatrix([]);
-                setScreenColumns({});
-                setColumnPermissionIds({});
-                setDescription("");
-                if (!isEdit) setStaffUserTypeId("");
-              }}
-              disabled={
-                isCompanyLocked ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companyOptions.length === 0
-              }
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.company"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {companyOptions.map((company) => (
-                  <SelectItem key={company.value} value={company.value}>
-                    {company.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>{t("admin.nav.project")}</Label>
-            <Select
-              value={projectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projects.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.project"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => (
-                  <SelectItem key={project.value} value={project.value}>
-                    {project.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
+        <div className="grid md:grid-cols-3 gap-6">
           <div>
             <Label>{t("admin.nav.user_type")} *</Label>
             <Select
@@ -909,7 +800,7 @@ export default function UserScreenPermissionForm() {
                   setDescription("");
                 }
               }}
-              disabled={isEdit || !companyUniqueId}
+              disabled={isEdit}
             >
               <SelectTrigger>
                 <SelectValue
@@ -957,7 +848,6 @@ export default function UserScreenPermissionForm() {
             <Select
               value={mainScreenId}
               onValueChange={handleMainScreenChange}
-              disabled={!companyUniqueId}
             >
               <SelectTrigger>
                 <SelectValue
@@ -1212,7 +1102,7 @@ export default function UserScreenPermissionForm() {
           <Button
             type="submit"
             disabled={
-              loading || !companyUniqueId || !staffUserTypeId || !mainScreenId
+              loading || !staffUserTypeId || !mainScreenId
             }
           >
             {loading
@@ -1224,7 +1114,7 @@ export default function UserScreenPermissionForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
           >
             {t("common.cancel")}
           </Button>
