@@ -1,7 +1,6 @@
 import type { TableFilters } from "./types";
 import type { ApartmentRow, BlockRow, CustomerCreationRecord, FlatRow, UserRow, ViewLevel } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,7 +13,6 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
 
@@ -57,41 +55,12 @@ export default function ApartmentListPage() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-
   const filteredCustomers = useMemo<CustomerCreationRecord[]>(() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
     return allCustomers.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
       const apartmentName = readCustomerText(row, "apartment_name");
-
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return Boolean(apartmentName) && companyMatches && projectMatches;
+      return Boolean(apartmentName);
     });
-  }, [
-    companies.length,
-    companyUniqueId,
-    allCustomers,
-    isSuperAdmin,
-    projectId,
-  ]);
+  }, [allCustomers]);
 
   const apartments = useMemo<ApartmentRow[]>(() => {
     const byApartment = new Map<
@@ -189,7 +158,7 @@ export default function ApartmentListPage() {
     setSelectedBlock("");
     setSelectedFlat("");
     setViewLevel("apartment");
-  }, [companyUniqueId, projectId]);
+  }, [allCustomers]);
 
   /* ---- filter ---- */
 
@@ -373,31 +342,7 @@ export default function ApartmentListPage() {
           <p className="text-gray-500 text-sm">{subtitle}</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-        </div>
+        <div />
       </div>
 
       {/* BREADCRUMB */}

@@ -134,7 +134,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encAdmins}/${encMainScreen}`, nameKey: "admin.nav.main_screen", parentNameKey: "admin.nav.screenManagements" },
     { path: `/${encAdmins}/${encUserScreen}`, nameKey: "admin.nav.user_screen", parentNameKey: "admin.nav.screenManagements" },
     { path: `/${encAdmins}/${encUserScreenAction}`, nameKey: "admin.nav.user_screen_action", parentNameKey: "admin.nav.screenManagements" },
-    { path: `/${encAdmins}/${encUserScreenPermission}`, nameKey: "admin.nav.companywise_user_screen_permission", parentNameKey: "admin.nav.screenManagements" },
+    { path: `/${encAdmins}/${encUserScreenPermission}`, nameKey: "admin.nav.user_screen_permission", parentNameKey: "admin.nav.screenManagements" },
     // Role Assigns
     { path: `/${encAdmins}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.roleAssigns" },
     { path: `/${encAdmins}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.roleAssigns" },

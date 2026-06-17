@@ -23,6 +23,12 @@ import { useTranslation } from "react-i18next";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi, stateApi, districtApi, cityApi, zoneApi, wardApi } from "@/helpers/admin";
+import GeoFenceCoordinates, {
+  emptyCoordinate,
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 const WARD_FORM_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -32,6 +38,10 @@ const WARD_FORM_FIELDS: Record<string, string[]> = {
   city_id:      ["city_id"],
   zone_id:      ["zone_id"],
   ward_name:    ["ward_name"],
+  latitude:     ["latitude"],
+  longitude:    ["longitude"],
+  geofencing_type: ["geofencing_type"],
+  coordinates:  ["coordinates"],
   is_active:    ["is_active"],
   description:  ["description"],
 };
@@ -118,6 +128,10 @@ export default function WardForm() {
   const [zoneId, setZoneId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [description, setDescription] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [geofencingType, setGeofencingType] = useState("polygon");
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>([emptyCoordinate()]);
 
   /* PENDING CHAINS (Edit Support) */
   const [pendingContinent, setPendingContinent] = useState("");
@@ -454,6 +468,15 @@ export default function WardForm() {
     setWardName(data.ward_name ?? data.name ?? "");
     setIsActive(Boolean(data.is_active));
     setDescription(data.description ?? data.remarks ?? data.notes ?? "");
+    setLatitude(data.latitude == null ? "" : String(data.latitude));
+    setLongitude(data.longitude == null ? "" : String(data.longitude));
+    setGeofencingType(data.geofencing_type ?? "polygon");
+    setCoordinates(
+      normalizeCoordinateDrafts(data.coordinates, {
+        latitude: data.latitude == null ? "" : String(data.latitude),
+        longitude: data.longitude == null ? "" : String(data.longitude),
+      }),
+    );
 
     let cont = resolveMetaId(
       continents.map((c) => ({ id: c.value, name: c.label })),
@@ -743,6 +766,13 @@ export default function WardForm() {
       return;
     }
 
+    const coordinatePayload = serializeCoordinateDrafts(coordinates);
+    if (geofencingType === "polygon" && coordinatePayload.length > 0 && coordinatePayload.length < 3) {
+      Swal.fire("Warning", "Polygon geofence needs at least 3 coordinate points.", "warning");
+      return;
+    }
+
+    const firstPoint = coordinatePayload[0];
     const rawPayload = {
       ward_name: wardName.trim(),
       continent_id: continentId,
@@ -751,6 +781,10 @@ export default function WardForm() {
       district_id: effectiveDistrictId || null,
       city_id: effectiveCityId || null,
       zone_id: effectiveZoneId || null,
+      latitude: latitude || firstPoint?.latitude || null,
+      longitude: longitude || firstPoint?.longitude || null,
+      geofencing_type: geofencingType,
+      coordinates: coordinatePayload,
       description,
       is_active: isActive,
       company_id: companyUniqueId,
@@ -950,6 +984,41 @@ export default function WardForm() {
             <Label>{t("common.item_name", { item: t("admin.nav.ward") })} *</Label>
             <Input value={wardName} onChange={(e) => setWardName(e.target.value)} placeholder={t("common.enter_item_name", { item: t("admin.nav.ward") })} required />
           </div>
+          )}
+
+          {showField("latitude") && (
+          <div>
+            <Label>Latitude</Label>
+            <Input inputMode="decimal" value={latitude} onChange={(e) => setLatitude(e.target.value)} />
+          </div>
+          )}
+
+          {showField("longitude") && (
+          <div>
+            <Label>Longitude</Label>
+            <Input inputMode="decimal" value={longitude} onChange={(e) => setLongitude(e.target.value)} />
+          </div>
+          )}
+
+          {showField("geofencing_type") && (
+          <div>
+            <Label>GeoFencing Type</Label>
+            <Select value={geofencingType} onValueChange={setGeofencingType}>
+              <SelectTrigger className="input-validate w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="polygon">Polygon</SelectItem>
+                <SelectItem value="circle">Circle</SelectItem>
+                <SelectItem value="rectangle">Rectangle</SelectItem>
+                <SelectItem value="square">Square</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          )}
+
+          {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
           )}
 
           {/* Active Status */}

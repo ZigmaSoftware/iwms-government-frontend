@@ -47,6 +47,7 @@ export interface FormDataType {
   sqft: string;
   property_id: string;
   sub_property_id: string;
+  waste_type_ids: string[];
   id_proof_type: string;
   id_no: string;
   country_id: string;
@@ -56,8 +57,6 @@ export interface FormDataType {
   zone_id: string;
   ward_id: string;
   panchayat_id: string;
-  company_id: string;
-  project_id: string;
   is_active: boolean;
   is_bulkwaste_generator: boolean;
 
@@ -89,6 +88,8 @@ export type Customer = {
   country_name: string;
   property_name: string;
   sub_property_name: string;
+  waste_types?: Array<{ unique_id: string; waste_type_name: string }>;
+  waste_type_ids?: string[];
   id_proof_type: string;
   id_no: string;
   is_active: boolean;
@@ -96,12 +97,6 @@ export type Customer = {
   apartment_name?: string;
   block_no?: string;
   flat_no?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
 };
 
 import type { FilterMatchMode } from "primereact/api";

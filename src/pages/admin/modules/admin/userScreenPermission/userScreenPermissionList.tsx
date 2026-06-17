@@ -1,7 +1,7 @@
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -21,8 +21,6 @@ import { userScreenPermissionApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "../types/admin.types";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
 /* -----------------------------------------------------------
    COMPONENT
 ----------------------------------------------------------- */
@@ -33,29 +31,12 @@ export default function UserScreenPermissionList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    onCompanyChange,
-    setProjectId,
-    isSuperAdmin,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const [permissionRows, setPermissionRows] = useState<StaffUserType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     staffusertype_name: {
-      value: null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    company_name: {
       value: null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
@@ -69,17 +50,13 @@ export default function UserScreenPermissionList() {
   const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
   const { newPath: permissionNewPath, editPath: permissionEditPath } =
     createCrudRoutePaths(encAdmins, encUserScreenPermission);
-  const ENC_NEW_PATH = appendRouteQuery(permissionNewPath, {
-    company_unique_id: companyUniqueId,
-  });
+  const ENC_NEW_PATH = permissionNewPath;
 
   const ENC_EDIT_PATH = (
     staffTypeId: string,
-    companyId: string,
     mainScreenId: string
   ) =>
     appendRouteQuery(permissionEditPath(staffTypeId), {
-      company_unique_id: companyId,
       mainscreen_id: mainScreenId,
     });
 
@@ -87,15 +64,10 @@ export default function UserScreenPermissionList() {
     let mounted = true;
 
     const loadPermissions = async () => {
-      if (!companyUniqueId && !isSuperAdmin) {
-        setPermissionRows([]);
-        return;
-      }
-
       setIsLoading(true);
       try {
         const data = await userScreenPermissionApi.readAll({
-          params: { company_id: companyUniqueId, limit: 6000, offset: 0 },
+          params: { limit: 6000, offset: 0 },
         });
         if (mounted) setPermissionRows(data as StaffUserType[]);
       } catch {
@@ -110,52 +82,18 @@ export default function UserScreenPermissionList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, t]);
+  }, [t]);
 
   const records = useMemo<StaffUserType[]>(() => {
-    if (!companyUniqueId && !isSuperAdmin) return [];
-    const data = permissionRows;
-      const selectedCompanyLabel = (
-        companies.find((company) => company.value === companyUniqueId)?.label ?? ""
-      )
-        .trim()
-        .toLowerCase();
-
-      const selectedProjectLabel =
-        projects.find((p) => p.value === projectId)?.label ?? "";
-
-      const filteredData = data.filter((item) => {
-        const itemCompanyId = String(item.company_id ?? "").trim();
-        const itemCompanyUniqueId = String(item.company_unique_id ?? "").trim();
-        const itemCompanyName = String(item.company_name ?? "")
-          .trim()
-          .toLowerCase();
-
-        if (itemCompanyId && itemCompanyId === companyUniqueId) return true;
-        if (itemCompanyUniqueId && itemCompanyUniqueId === companyUniqueId) return true;
-        if (!itemCompanyId && !itemCompanyUniqueId && selectedCompanyLabel) {
-          return itemCompanyName === selectedCompanyLabel;
-        }
-
-        return false;
-      });
-
-      // Group by company + staff type + mainscreen to prevent cross-company merge.
-      const groupedObj: Record<string, any> = filteredData.reduce((acc, item) => {
-        const companyId = String(item.company_id ?? item.company_unique_id ?? "");
-        const companyKeyFallback = String(item.company_name ?? "").trim().toLowerCase();
-        const companyKey = companyId || companyKeyFallback || companyUniqueId;
+      const groupedObj: Record<string, any> = permissionRows.reduce((acc, item) => {
         const staffTypeId = String(item.staffusertype_id ?? "");
         const screenId = String(item.mainscreen_id ?? "");
-        const key = `${companyKey}__${staffTypeId}__${screenId}`;
+        const key = `${staffTypeId}__${screenId}`;
 
         if (!acc[key]) {
           acc[key] = {
             unique_id: staffTypeId,
             composite_key: key,
-            company_id: companyId || companyUniqueId,
-            company_name: item.company_name ?? t("common.unknown"),
-            project_name: item.project_name || selectedProjectLabel,
             usertype_name: item.usertype_name ?? "",
             staffusertype_name: item.staffusertype_name ?? t("common.unknown"),
             mainscreen_name: item.mainscreen_name ?? t("common.unknown"),
@@ -175,7 +113,7 @@ export default function UserScreenPermissionList() {
       }, {} as Record<string, any>);
 
       return Object.values(groupedObj);
-  }, [companies, companyUniqueId, permissionRows, projects, projectId, t]);
+  }, [permissionRows, t]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
@@ -193,10 +131,7 @@ export default function UserScreenPermissionList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      const deletePath =
-        row?.company_id && row?.mainscreen_id
-          ? `delete-by-staffusertype/${row.unique_id}/?company_id=${row.company_id}&mainscreen_id=${row.mainscreen_id}`
-          : `delete-by-staffusertype/${row.unique_id}`;
+      const deletePath = `delete-by-staffusertype/${row.unique_id}/?mainscreen_id=${row.mainscreen_id}`;
 
       await userScreenPermissionApi.delete(deletePath);
       setPermissionRows((current) =>
@@ -237,7 +172,6 @@ export default function UserScreenPermissionList() {
           navigate(
             ENC_EDIT_PATH(
               row.unique_id,
-              String(row.company_id ?? ""),
               String(row.mainscreen_id ?? "")
             )
           )
@@ -294,48 +228,13 @@ export default function UserScreenPermissionList() {
         </div>
 
         <div className="flex gap-3 items-center">
-          {isSuperAdmin && (
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-
-              {companies.map((c: any) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {companyUniqueId && (
-            <select
-              value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Projects</option>
-
-              {projects.map((p: any) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          )}
-
           <Button
             label={t("common.add_item", {
               item: t("admin.user_screen_permission.permission_label"),
             })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -348,7 +247,7 @@ export default function UserScreenPermissionList() {
         loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["staffusertype_name", "company_name", "mainscreen_name"]}
+        globalFilterFields={["staffusertype_name", "mainscreen_name", "usertype_name"]}
         header={header}
         stripedRows
         showGridlines
@@ -361,18 +260,6 @@ export default function UserScreenPermissionList() {
           header={t("common.s_no")}
           body={indexTemplate}
           style={{ width: 80 }}
-        />
-
-        <Column
-          field="company_name"
-          header={t("admin.nav.company")}
-          sortable
-        />
-
-        <Column
-          field="project_name"
-          header={t("admin.nav.project")}
-          sortable
         />
 
         <Column

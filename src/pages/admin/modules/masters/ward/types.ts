@@ -35,10 +35,19 @@ export type ZoneMeta = {
   isActive: boolean;
 };
 
+export type GeoCoordinate = {
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+};
+
 export type WardRecord = {
   name?: string;
   is_active?: boolean;
   description?: string;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  geofencing_type?: string | null;
+  coordinates?: GeoCoordinate[] | null;
   continent_id?: string | number | null;
   country_id?: string | number | null;
   state_id?: string | number | null;
@@ -62,6 +71,10 @@ export type WardListRecord = CompanyProjectFields & {
   district_name: string;
   state_name: string;
   country_name: string;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  geofencing_type?: string | null;
+  coordinates?: GeoCoordinate[] | null;
 };
 
 export type WardRouteState = {
@@ -76,6 +89,10 @@ export type WardWithRelations = {
   remarks?: string | null;
   notes?: string | null;
   is_active?: boolean;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  geofencing_type?: string | null;
+  coordinates?: GeoCoordinate[] | null;
   company_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   project_id?: string | number | { unique_id?: string | number; id?: string | number } | null;
   company_unique_id?: string | number | null;

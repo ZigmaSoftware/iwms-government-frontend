@@ -55,7 +55,7 @@ export const mainScreenTypeApi = adminApi.mainScreenTypes;
 export const mainScreenApi = adminApi.mainScreens;
 export const userScreenApi = adminApi.userScreens;
 export const userScreenActionApi = adminApi.userScreenActions;
-export const userScreenPermissionApi = adminApi.companyWiseScreenPermissions;
+export const userScreenPermissionApi = adminApi.userScreenPermissions;
 export const columnPermissionApi = adminApi.columnPermissions;
 
 /* =========================
