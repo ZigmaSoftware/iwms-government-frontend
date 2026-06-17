@@ -374,10 +374,10 @@ const screenManagementItems: NavItem[] = [
         screen: "userscreen-action",
       },
       {
-        nameKey: "admin.nav.companywise_user_screen_permission",
+        nameKey: "admin.nav.user_screen_permission",
         path: `/${encAdmins}/${encUserScreenPermission}`,
         module: "screen-managements",
-        screen: "companywisescreenpermissions",
+        screen: "userscreenpermissions",
       },
     ],
   },

@@ -21,6 +21,12 @@ import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { panchayatApi, stateApi, districtApi, cityApi, blockPanchayatUnionApi } from "@/helpers/admin";
 import type { SelectOption } from "@/types";
+import GeoFenceCoordinates, {
+  emptyCoordinate,
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 const PANCHAYAT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
@@ -34,6 +40,7 @@ const PANCHAYAT_FIELDS: Record<string, string[]> = {
   latitude: ["latitude"],
   longitude: ["longitude"],
   geofencing_type: ["geofencing_type"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -128,6 +135,7 @@ export default function PanchayatForm() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [geofencingType, setGeofencingType] = useState("polygon");
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>([emptyCoordinate()]);
   const [isActive, setIsActive] = useState(true);
 
   /* ── pending IDs for edit-mode cascade (applied once list loads) ── */
@@ -344,6 +352,12 @@ export default function PanchayatForm() {
     setLatitude(data.latitude ?? "");
     setLongitude(data.longitude ?? "");
     setGeofencingType(data.geofencing_type ?? "polygon");
+    setCoordinates(
+      normalizeCoordinateDrafts(data.coordinates, {
+        latitude: data.latitude == null ? "" : String(data.latitude),
+        longitude: data.longitude == null ? "" : String(data.longitude),
+      }),
+    );
     setIsActive(Boolean(data.is_active));
 
     /* company + project via hook (handles locked/superadmin correctly) */
@@ -395,6 +409,13 @@ export default function PanchayatForm() {
       return;
     }
 
+    const coordinatePayload = serializeCoordinateDrafts(coordinates);
+    if (geofencingType === "polygon" && coordinatePayload.length > 0 && coordinatePayload.length < 3) {
+      Swal.fire("Warning", "Polygon geofence needs at least 3 coordinate points.", "warning");
+      return;
+    }
+
+    const firstPoint = coordinatePayload[0];
     const rawPayload = {
       panchayat_name: panchayatName,
       company_id: companyUniqueId,
@@ -406,9 +427,10 @@ export default function PanchayatForm() {
       agreed_weight_kg: agreedWeightKg || "0",
       weight_unit: weightUnit || "kg",
       effective_from: effectiveFrom || null,
-      latitude,
-      longitude,
+      latitude: latitude || firstPoint?.latitude || null,
+      longitude: longitude || firstPoint?.longitude || null,
       geofencing_type: geofencingType,
+      coordinates: coordinatePayload,
       is_active: isActive,
     };
     const basePayload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
@@ -700,9 +722,15 @@ export default function PanchayatForm() {
               <SelectContent>
                 <SelectItem value="polygon">Polygon</SelectItem>
                 <SelectItem value="circle">Circle</SelectItem>
+                <SelectItem value="rectangle">Rectangle</SelectItem>
+                <SelectItem value="square">Square</SelectItem>
               </SelectContent>
             </Select>
           </div>
+        )}
+
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         )}
 
         {/* Status */}

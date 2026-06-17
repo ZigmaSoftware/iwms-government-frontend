@@ -74,7 +74,8 @@ export const adminEndpoints = {
   mainScreens: "screen-managements/mainscreens",
   userScreens: "screen-managements/userscreens",
   userScreenActions: "screen-managements/userscreen-action",
-  companyWiseScreenPermissions: "screen-managements/companywisescreenpermissions",
+  userScreenPermissions: "screen-managements/userscreenpermissions",
+  companyWiseScreenPermissions: "screen-managements/userscreenpermissions",
   columnPermissions: "screen-managements/column-permissions",
 
   /* =========================

@@ -2,7 +2,7 @@ import type { TableFilters } from "./types";
 import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -19,7 +19,6 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
@@ -31,9 +30,6 @@ import {
 } from "@/utils/exportExcel";
 
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
   contact_no: ["contact_no", "mobile"],
@@ -44,6 +40,7 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   city_name: ["city_id", "city_name"],
   state_name: ["state_id", "state_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
+  waste_types: ["waste_type_ids", "waste_types", "waste_type"],
   qr_code: ["qr_code"],
   is_active: ["is_active"],
 };
@@ -67,6 +64,7 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "country_name", header: "country_name", required: true, sample: "India" },
   { field: "property_name", header: "property_name", required: true, sample: "Residential" },
   { field: "sub_property_name", header: "sub_property_name", required: true, sample: "Apartment" },
+  { field: "waste_type_ids", header: "waste_type_ids", required: true, sample: "wst-2026abcd01,wst-2026efgh02" },
   { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
   { field: "block_no", header: "block_no", sample: "A" },
   { field: "flat_no", header: "flat_no", sample: "101" },
@@ -102,20 +100,6 @@ export default function CustomerCreationListPage() {
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
 
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
     encCustomerMaster,
     encCustomerCreation,
@@ -143,21 +127,11 @@ export default function CustomerCreationListPage() {
   }, [t, refetchTrigger]);
 
   const customers = useMemo<Customer[]>(() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
     return allCustomers
-      .filter((row) => {
-        const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-        const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-        const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-        const projectMatches = !projectId || rowProjectId === projectId;
-        return companyMatches && projectMatches;
-      })
       .sort((a, b) =>
         String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
       );
-  }, [allCustomers, companies.length, companyUniqueId, isSuperAdmin, projectId]);
+  }, [allCustomers]);
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -192,8 +166,6 @@ export default function CustomerCreationListPage() {
       const csvFile = await excelFileToCsvFile(file, "customer_bulk_upload.csv");
       const formDataObj = new FormData();
       formDataObj.append("file", csvFile);
-      formDataObj.append("company_id", companyUniqueId || "");
-      formDataObj.append("project_id", projectId || "");
 
       const result = await customerCreationApi.action<Record<string, unknown>>(
         "bulk-upload",
@@ -236,8 +208,7 @@ export default function CustomerCreationListPage() {
           label={t("admin.customer_creation.add")}
           icon="pi pi-plus"
           className="p-button-success"
-          disabled={!companyUniqueId || !projectId}
-          onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+          onClick={() => navigate(ENC_NEW_PATH)}
         />
         <Button
           label="Download Template"
@@ -249,7 +220,7 @@ export default function CustomerCreationListPage() {
           label="Upload Excel"
           icon="pi pi-upload"
           className="p-button-info"
-          disabled={!companyUniqueId || !projectId || isUploading}
+          disabled={isUploading}
           onClick={() => document.getElementById("excelUpload")?.click()}
         />
       </div>
@@ -304,7 +275,7 @@ export default function CustomerCreationListPage() {
         const rawPayload = { ...row, is_active: value };
         await customerCreationApi.update(
           row.unique_id,
-          filterPayload(rawPayload, ["company_id", "project_id"]) as Record<string, unknown>
+          filterPayload(rawPayload) as Record<string, unknown>
         );
         setAllCustomers((current) =>
           current.map((item) =>
@@ -333,14 +304,7 @@ export default function CustomerCreationListPage() {
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(customer.unique_id), {
-            state: {
-              companyUniqueId: customer.company_unique_id ?? customer.company_id,
-              projectId: customer.project_unique_id ?? customer.project_id,
-            },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(customer.unique_id))}
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -363,35 +327,7 @@ export default function CustomerCreationListPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <div />
       </div>
 
       <DataTable
@@ -406,7 +342,7 @@ export default function CustomerCreationListPage() {
         globalFilterFields={[
           "customer_name", "contact_no", "apartment_name",
           "block_no", "flat_no", "ward_name", "zone_name",
-          "city_name", "company_name", "project_name",
+          "city_name", "waste_types",
         ]}
         header={header}
         emptyMessage={t("admin.customer_creation.empty_message")}
@@ -456,6 +392,17 @@ export default function CustomerCreationListPage() {
             header={t("admin.nav.panchayat")}
             body={(row: Customer) => row.panchayat_name || "-"}
             sortable
+          />
+        )}
+        {showCol("waste_types") && (
+          <Column
+            field="waste_types"
+            header={t("common.waste_type")}
+            body={(row: Customer) =>
+              row.waste_types?.length
+                ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
+                : "-"
+            }
           />
         )}
         {showCol("qr_code") && (
