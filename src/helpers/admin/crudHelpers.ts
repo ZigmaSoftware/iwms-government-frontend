@@ -8,6 +8,44 @@ const normalizePath = (path: string): string => {
   return `/${cleaned}/`;
 };
 
+const isRemovedScopeKey = (key: string): boolean => {
+  const normalized = key.replace(/[^a-z]/gi, "").toLowerCase();
+  return (
+    (normalized.startsWith("company") || normalized.startsWith("project")) &&
+    (normalized.endsWith("id") || normalized.endsWith("uniqueid") || normalized.endsWith("idinput"))
+  );
+};
+
+const stripTenancyKeys = <T>(value: T): T => {
+  if (!value || typeof value !== "object") return value;
+
+  if (value instanceof FormData) {
+    Array.from(value.keys()).forEach((key) => {
+      if (isRemovedScopeKey(key)) value.delete(key);
+    });
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => stripTenancyKeys(item)) as T;
+  }
+
+  const cleaned: Record<string, unknown> = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, item]) => {
+    if (isRemovedScopeKey(key)) return;
+    cleaned[key] = stripTenancyKeys(item);
+  });
+  return cleaned as T;
+};
+
+const cleanConfig = (config?: AxiosRequestConfig): AxiosRequestConfig | undefined => {
+  if (!config) return config;
+  return {
+    ...config,
+    params: stripTenancyKeys(config.params),
+  };
+};
+
 /* -----------------------------------------
    Types
 ----------------------------------------- */
@@ -94,7 +132,7 @@ export const createCrudHelpers = <T = any>(
     url: string,
     config?: AxiosRequestConfig,
   ) => {
-    const { data } = await api.get<T[] | PaginatedResponse<T>>(url, config);
+    const { data } = await api.get<T[] | PaginatedResponse<T>>(url, cleanConfig(config));
     return data;
   };
 
@@ -158,14 +196,14 @@ export const createCrudHelpers = <T = any>(
     readAllForExport: readAllPages,
 
     readAllwithPaginated: async (page = 1, limit = 5, config) => {
-      const { data } = await api.get<PaginatedResponse<T>>(resource, {
+      const { data } = await api.get<PaginatedResponse<T>>(resource, cleanConfig({
         ...config,
         params: {
           page,
           limit,
           ...config?.params,
         },
-      });
+      }));
 
       return data;
     },
@@ -178,28 +216,32 @@ export const createCrudHelpers = <T = any>(
 
       const url = isRaw ? `${resource}${path}` : `${resource}${path}/`;
 
-      const { data } = await api.get<T>(url, config);
+      const { data } = await api.get<T>(url, cleanConfig(config));
       return data;
     },
 
     /* ---------- MUTATIONS ---------- */
 
     create: async (payload, config) => {
-      const { data } = await api.post<T>(resource, payload, config);
+      const { data } = await api.post<T>(resource, stripTenancyKeys(payload), cleanConfig(config));
       return data;
     },
 
     update: async (id, payload, config) => {
-      const { data } = await api.patch<T>(`${resource}${id}/`, payload, config);
+      const { data } = await api.patch<T>(
+        `${resource}${id}/`,
+        stripTenancyKeys(payload),
+        cleanConfig(config),
+      );
       return data;
     },
 
     delete: async (id, config) => {
-      await api.delete(`${resource}${id}/`, config);
+      await api.delete(`${resource}${id}/`, cleanConfig(config));
     },
 
     metadata: async (config) => {
-      const { data } = await api.options<CrudMetadata>(resource, config);
+      const { data } = await api.options<CrudMetadata>(resource, cleanConfig(config));
       return data;
     },
 
@@ -212,8 +254,8 @@ export const createCrudHelpers = <T = any>(
       }`;
 
       const { data } = payload
-        ? await api.post(url, payload, config)
-        : await api.get(url, config);
+        ? await api.post(url, stripTenancyKeys(payload), cleanConfig(config))
+        : await api.get(url, cleanConfig(config));
 
       return data;
     },
@@ -221,8 +263,8 @@ export const createCrudHelpers = <T = any>(
     /* ---------- FILE UPLOADS ---------- */
 
     upload: async (payload, config) => {
-      const { data } = await api.post(resource, payload, {
-        ...config,
+      const { data } = await api.post(resource, stripTenancyKeys(payload), {
+        ...cleanConfig(config),
         headers: {
           "Content-Type": "multipart/form-data",
           ...config?.headers,
@@ -232,8 +274,8 @@ export const createCrudHelpers = <T = any>(
     },
 
     uploadUpdate: async (id, payload, config) => {
-      const { data } = await api.patch(`${resource}${id}/`, payload, {
-        ...config,
+      const { data } = await api.patch(`${resource}${id}/`, stripTenancyKeys(payload), {
+        ...cleanConfig(config),
         headers: {
           "Content-Type": "multipart/form-data",
           ...config?.headers,

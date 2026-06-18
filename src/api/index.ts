@@ -8,6 +8,36 @@ const API_ROOT = IS_PROD
   ? import.meta.env.VITE_API_PROD
   : import.meta.env.VITE_API_LOCAL;
 
+const isRemovedScopeKey = (key: string): boolean => {
+  const normalized = key.replace(/[^a-z]/gi, "").toLowerCase();
+  return (
+    (normalized.startsWith("company") || normalized.startsWith("project")) &&
+    (normalized.endsWith("id") || normalized.endsWith("uniqueid") || normalized.endsWith("idinput"))
+  );
+};
+
+const stripTenancyKeys = <T>(value: T): T => {
+  if (!value || typeof value !== "object") return value;
+
+  if (value instanceof FormData) {
+    Array.from(value.keys()).forEach((key) => {
+      if (isRemovedScopeKey(key)) value.delete(key);
+    });
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => stripTenancyKeys(item)) as T;
+  }
+
+  const cleaned: Record<string, unknown> = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, item]) => {
+    if (isRemovedScopeKey(key)) return;
+    cleaned[key] = stripTenancyKeys(item);
+  });
+  return cleaned as T;
+};
+
 /* --------------------------------------------------------
    CREATE INSTANCE
 -------------------------------------------------------- */
@@ -36,6 +66,8 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
       config.headers = config.headers ?? {};
       config.headers.Authorization = `Bearer ${token}`;
     }
+    config.params = stripTenancyKeys(config.params);
+    config.data = stripTenancyKeys(config.data);
     return config;
   });
 

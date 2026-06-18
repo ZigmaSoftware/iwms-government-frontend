@@ -33,8 +33,6 @@ const VEHICLE_CREATION_FIELDS: Record<string, string[]> = {
   vehicle_condition: ["vehicle_condition"],
   fuel_tank_capacity: ["fuel_tank_capacity"],
   is_active: ["is_active", "status", "active_status"],
-  company_id_input: ["company_id_input", "company_id", "company"],
-  project_id_input: ["project_id_input", "project_id", "project"],
   rc_upload: ["rc_upload"],
   vehicle_insurance_file: ["vehicle_insurance_file"],
 };
@@ -377,8 +375,6 @@ export default function VehicleCreationForm() {
     const missingFields: string[] = [];
     if (showField("vehicle_no") && !form.vehicleNo.trim())
       missingFields.push(t("admin.vehicle_creation.vehicle_no"));
-    if (showField("company_id_input") && !companyUniqueId) missingFields.push(t("admin.nav.company"));
-    if (showField("project_id_input") && !projectId) missingFields.push(t("admin.nav.project"));
 
     if (missingFields.length > 0) {
       Swal.fire(
@@ -401,13 +397,8 @@ export default function VehicleCreationForm() {
       vehicle_condition: form.vehicleCondition,
       fuel_tank_capacity: form.fuelTankCapacity || null,
       is_active: form.isActive === "true",
-      company_id_input: companyUniqueId,
-      project_id_input: projectId || null,
     };
-    const basePayload = filterPayload(rawPayload, [
-      "company_id_input",
-      "project_id_input",
-    ]) as unknown as VehicleCreationPayload;
+    const basePayload = filterPayload(rawPayload) as unknown as VehicleCreationPayload;
 
     const hasFiles = Boolean(
       (showField("rc_upload") && rcFile) ||
@@ -506,81 +497,6 @@ export default function VehicleCreationForm() {
               placeholder={t("common.select_status")}
               className="input-validate w-full"
             />
-          </div>
-          )}
-
-          {/* Company */}
-          {showField("company_id_input") && (
-          <div>
-            <Label htmlFor="company">
-              {t("admin.nav.company")}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <select
-              id="company"
-              value={companyUniqueId}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={
-                Boolean(loggedInCompanyUniqueId) ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companies.length === 0
-              }
-              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                !companyUniqueId
-                  ? "border-red-400 focus:ring-red-200"
-                  : "border-green-400 focus:ring-green-200"
-              }`}
-            >
-              <option value="">
-                {loggedInCompanyUniqueId
-                  ? t("common.company_from_profile")
-                  : t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-              </option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          )}
-
-          {/* Project */}
-          {showField("project_id_input") && (
-          <div>
-            <Label htmlFor="project">
-              {t("admin.nav.project")}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <select
-              id="project"
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={!companyUniqueId || projects.length === 0}
-              className={`w-full px-3 py-2 border rounded-sm focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                !projectId
-                  ? "border-red-400 focus:ring-red-200"
-                  : "border-green-400 focus:ring-green-200"
-              }`}
-            >
-              <option value="">
-                {companyUniqueId
-                  ? t("common.select_item_placeholder", { item: t("admin.nav.project") })
-                  : t("common.select_company_first", { defaultValue: "Select a company first" })}
-              </option>
-              {projects.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-            {companyUniqueId && projects.length === 0 && (
-              <p className="text-xs text-amber-600 mt-1">
-                {t("common.no_projects_found", {
-                  defaultValue: "No projects found for the selected company.",
-                })}
-              </p>
-            )}
           </div>
           )}
 

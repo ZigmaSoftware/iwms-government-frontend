@@ -402,8 +402,7 @@ export default function DailyTripAssignmentForm() {
     e.preventDefault();
     const binWasteMissing = hasBinStops && !formData.waste_type_id;
     const hhWasteMissing = hasHouseholdStops && formData.household_waste_type_ids.length === 0;
-    if (!companyUniqueId || !projectId ||
-      !formData.trip_plan_id || !formData.staff_template_id ||
+    if (!formData.trip_plan_id || !formData.staff_template_id ||
       (!formData.panchayat_id && !formData.ward_id) ||
       binWasteMissing || hhWasteMissing ||
       !formData.trip_date || !formData.scheduled_time) {
@@ -412,8 +411,6 @@ export default function DailyTripAssignmentForm() {
     }
 
     const payload: Record<string, unknown> = {
-      company_id_input: companyUniqueId,
-      project_id_input: projectId,
       trip_plan_id: formData.trip_plan_id,
       staff_template_id: formData.staff_template_id,
       panchayat_id: formData.panchayat_id || undefined,

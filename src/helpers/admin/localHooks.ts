@@ -388,12 +388,12 @@ export const useFuelQuery = (id: string | number | null | undefined) => useDetai
 export const useCreateFuelMutation = () => useCreate<FuelPayload, FuelRecord>("fuels");
 export const useUpdateFuelMutation = () => useUpdate<FuelPayload, FuelRecord>("fuels");
 
-export const useMainCategoriesQuery = (companyId?: string) => useList<AdminRecord>("mainCategory", companyId ? { company_id: companyId } : undefined);
+export const useMainCategoriesQuery = (_companyId?: string) => useList<AdminRecord>("mainCategory");
 export const useMainCategoryQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("mainCategory", id);
 export const useCreateMainCategoryMutation = (_companyId?: string) => useCreate("mainCategory");
 export const useUpdateMainCategoryMutation = (_companyId?: string) => useUpdate("mainCategory");
 
-export const useSubCategoriesQuery = (companyId?: string) => useList<AdminRecord>("subCategory", companyId ? { company_id: companyId } : undefined);
+export const useSubCategoriesQuery = (_companyId?: string) => useList<AdminRecord>("subCategory");
 export const useSubCategoryQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("subCategory", id);
 export const useCreateSubCategoryMutation = (_companyId?: string) => useCreate("subCategory");
 export const useUpdateSubCategoryMutation = (_companyId?: string) => useUpdate("subCategory");
@@ -521,23 +521,23 @@ export const useComplaintCustomers = () =>
     [],
     true
   );
-export const useComplaintMainCategories = (companyId: string) =>
+export const useComplaintMainCategories = (_companyId: string) =>
   useDirectQuery<any[]>(
     async () =>
-      toList<AdminRecord>(await mainCategoryApi.readAll({ params: { company_id: companyId } })).filter(
+      toList<AdminRecord>(await mainCategoryApi.readAll()).filter(
         (row) => row?.is_active !== false
       ),
-    [companyId],
-    Boolean(companyId)
+    [],
+    true
   );
-export const useComplaintAllSubCategories = (companyId: string) =>
+export const useComplaintAllSubCategories = (_companyId: string) =>
   useDirectQuery<any[]>(
     async () =>
-      toList<AdminRecord>(await subCategoryApi.readAll({ params: { company_id: companyId } })).filter(
+      toList<AdminRecord>(await subCategoryApi.readAll()).filter(
         (row) => row?.is_active !== false
       ),
-    [companyId],
-    Boolean(companyId)
+    [],
+    true
   );
 export const useComplaintZones = (customerId: string) => useZonesQuery(customerId);
 export const useComplaintWards = (zoneId: string) => useWardsQuery(zoneId);

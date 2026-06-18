@@ -167,18 +167,12 @@ export default function FeedBackForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!companyUniqueId || !projectId) {
-      Swal.fire(t("common.warning"), "Company and project are required", "warning");
-      return;
-    }
     if (!customerId) {
       Swal.fire(t("common.warning"), t("admin.citizen_grievance.feedback_form.customer_required"), "warning");
       return;
     }
 
     const payload = {
-      company_id_input: companyUniqueId,
-      project_id_input: projectId,
       customer: customerId,
       category: feedbackCategory,
       feedback_details: feedbackDetails,

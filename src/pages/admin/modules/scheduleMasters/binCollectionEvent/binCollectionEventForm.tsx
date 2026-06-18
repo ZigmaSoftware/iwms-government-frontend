@@ -387,10 +387,6 @@ export default function BinCollectionEventForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!companyUniqueId || !projectId) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
-      return;
-    }
     if (!form.trip_assignment_id || !form.bin_id) {
       Swal.fire(t("common.warning"), "Trip Assignment and Bin are required.", "warning");
       return;
@@ -402,8 +398,6 @@ export default function BinCollectionEventForm() {
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
-        company_id_input: companyUniqueId,
-        project_id_input: projectId,
         trip_assignment_id: form.trip_assignment_id,
         bin_id: form.bin_id,
       };
