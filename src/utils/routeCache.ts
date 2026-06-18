@@ -57,8 +57,6 @@ export type EncryptedRoutes = {
   encDayReport: string;
   encWorkforceManagement: string;
   encZones: string;
-  encSupervisorZoneMap: string;
-  encSupervisorZoneAccessAudit: string;
   encTransportMaster: string;
   encMainScreenType: string;
   encUserScreenAction: string;
@@ -171,8 +169,6 @@ const plainRoutes: EncryptedRoutes = {
   encDayReport: "day-report",
   encWorkforceManagement: "workforce-management",
   encZones: "zones",
-  encSupervisorZoneMap: "supervisor-zone-map",
-  encSupervisorZoneAccessAudit: "supervisor-zone-access-audit",
   encTransportMaster: "transport-master",
   encMainScreenType: "mainscreen-type",
   encUserScreenAction: "userscreen-action",

@@ -34,6 +34,17 @@ export default function Select({
   disabled,
   required,
 }: SelectProps) {
+  const normalizedId = id?.replace(/[^a-z]/gi, "").toLowerCase();
+  if (
+    normalizedId &&
+    (normalizedId === "companyid" ||
+      normalizedId === "projectid" ||
+      normalizedId === "companyidinput" ||
+      normalizedId === "projectidinput")
+  ) {
+    return null;
+  }
+
   const normalizedValue = value === null || value === undefined ? "" : String(value);
   const finalPlaceholder = placeholder ?? "Select an option";
   const optionValues = options.map((option) => String(option.value));

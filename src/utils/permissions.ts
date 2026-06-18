@@ -62,6 +62,17 @@ export type ColumnPermissionsPayload = {
 export type FieldPermissionMap = Record<string, string[]>;
 export type PayloadRecord = Record<string, unknown>;
 
+const isRemovedScopeKey = (key: string): boolean => {
+  const normalized = key.replace(/[^a-z]/gi, "").toLowerCase();
+  if (normalized === "company" || normalized === "project") return true;
+  return (
+    (normalized.startsWith("company") || normalized.startsWith("project")) &&
+    (normalized.endsWith("id") ||
+      normalized.endsWith("uniqueid") ||
+      normalized.endsWith("idinput"))
+  );
+};
+
 // ============================================================
 // Constants
 // ============================================================
@@ -146,7 +157,6 @@ const SCREEN_ALIASES: Record<string, string[]> = {
     "alternative-stafftemplate",
     "alternative staff template",
   ],
-  "supervisor-zone-map": ["supervisorzonemap", "supervisor-zone-map", "supervisor zone map"],
   "unassigned-staff-pool": ["unassignedstaffpool", "unassigned-staff-pool", "unassigned staff pool"],
   "trip-attendance": ["tripattendance", "tripattendances", "trip-attendance", "trip attendance"],
   "collection-monitoring": ["collectionmonitoring", "collection-monitoring", "collection monitoring"],
@@ -652,9 +662,12 @@ export const isFieldVisibleByPermission = (
   fieldPermissionMap: FieldPermissionMap,
   hasColumnPermissionForField: (fieldName: string) => boolean,
 ): boolean => {
+  if (isRemovedScopeKey(fieldKey)) return false;
   const mappedFields = fieldPermissionMap[fieldKey];
   const fieldsToCheck = mappedFields?.length ? mappedFields : [fieldKey];
-  return fieldsToCheck.some((fieldName) => hasColumnPermissionForField(fieldName));
+  return fieldsToCheck.some(
+    (fieldName) => !isRemovedScopeKey(fieldName) && hasColumnPermissionForField(fieldName),
+  );
 };
 
 const isBlankFieldValue = (value: unknown): boolean =>

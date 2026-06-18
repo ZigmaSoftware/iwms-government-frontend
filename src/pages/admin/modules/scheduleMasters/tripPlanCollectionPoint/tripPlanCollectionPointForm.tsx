@@ -582,39 +582,6 @@ export default function TripPlanCollectionPointForm() {
         title={isEdit ? "Edit Trip Plan Collection Point" : "Add Trip Plan Collection Point"}
       >
         <form onSubmit={handleSubmit} className="space-y-5">
-          {isSuperAdmin && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Company</Label>
-                <select
-                  value={companyUniqueId || ""}
-                  onChange={(e) => onCompanyChange(e.target.value)}
-                  disabled={isEdit}
-                  className="w-full rounded border px-3 py-2 text-sm"
-                >
-                  <option value="" disabled>Select Company</option>
-                  {companies.map((c) => (
-                    <option key={c.value} value={c.value}>{c.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label>Project</Label>
-                <select
-                  value={projectId || ""}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  disabled={isEdit || !companyUniqueId}
-                  className="w-full rounded border px-3 py-2 text-sm"
-                >
-                  <option value="" disabled>Select Project</option>
-                  {projects.map((p) => (
-                    <option key={p.value} value={p.value}>{p.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
           {/* Collection Type + Trip Plan */}
           <div className="grid grid-cols-2 gap-4">
             <div>

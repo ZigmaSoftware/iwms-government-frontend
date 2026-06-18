@@ -441,36 +441,6 @@ export default function BinCollectionEventForm() {
       <ComponentCard title={title} desc={isEdit ? "Update the bin collection scan record" : "Record a bin collection scan event manually"}>
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* Company / Project (superadmin) */}
-          {isSuperAdmin && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>{t("admin.nav.company")}</Label>
-                <select
-                  value={companyUniqueId || ""}
-                  onChange={(e) => onCompanyChange(e.target.value)}
-                  disabled={Boolean(loggedInCompanyUniqueId) || companies.length === 0}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
-                >
-                  <option value="">{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
-                  {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>{t("admin.nav.project")}</Label>
-                <select
-                  value={projectId || ""}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  disabled={!companyUniqueId || projects.length === 0}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
-                >
-                  <option value="">{companyUniqueId ? t("common.select_item_placeholder", { item: t("admin.nav.project") }) : "Select a company first"}</option>
-                  {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-
           {/* Location filters — cascade: District → City → Zone → Ward (or Panchayat) */}
           <div className="grid grid-cols-2 gap-4">
             {/* District */}

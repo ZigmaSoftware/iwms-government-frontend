@@ -74,7 +74,6 @@ export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
-export const supervisorZoneMapApi = adminApi.supervisorZoneMap;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 
 /* =========================
@@ -127,7 +126,6 @@ export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 export const vehicleTripAuditApi = adminApi.vehicleTripAudits;
 export const tripExceptionLogApi = adminApi.tripExceptionLogs;
 export const binLoadLogApi = adminApi.binLoadLogs;
-export const supervisorZoneAccessAuditApi = adminApi.supervisorZoneAccessAudits;
 export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
