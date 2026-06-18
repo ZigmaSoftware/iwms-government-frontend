@@ -220,35 +220,7 @@ export default function BlockPanchayatUnionForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Block / Panchayat Union" : "Add Block / Panchayat Union"}>
-      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
-
-        <div>
-          <Label>Company *</Label>
-          <Select
-            value={companyUniqueId}
-            onValueChange={(value) => { onCompanyChange(value); setStateId(""); setDistrictId(""); setFilteredDistricts([]); }}
-            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={loggedInCompanyUniqueId ? "Company from logged-in profile" : isSuperAdmin ? "Select Company" : "Only super admin can select company"} />
-            </SelectTrigger>
-            <SelectContent>
-              {companies.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>Project *</Label>
-          <Select value={projectId} onValueChange={setProjectId} disabled={!companyUniqueId || projects.length === 0}>
-            <SelectTrigger><SelectValue placeholder="Select Project" /></SelectTrigger>
-            <SelectContent>
-              {projects.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {showField("state_id") && (
+      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">{showField("state_id") && (
           <div>
             <Label>State *</Label>
             <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setFilteredDistricts([]); setPendingDistrict(""); }}>

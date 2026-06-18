@@ -721,42 +721,6 @@ export default function StaffTemplateForm() {
           ) : null}
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            {/* COMPANY */}
-            {showField("company_id") && (
-              <div>
-                <Label htmlFor="company_id">
-                  {t("admin.nav.company") || "Company"}
-                  <span className="text-red-500 ml-1">*</span>
-                </Label>
-                <Select
-                  id="company_id"
-                  value={selectedCompanyId}
-                  onChange={(value) => handleCompanyChange(value)}
-                  options={companyOptions}
-                  placeholder={t("admin.nav.company_placeholder") || "Select company"}
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
-            {/* PROJECT */}
-            {showField("project_id") && (
-              <div>
-                <Label htmlFor="project_id">
-                  {t("admin.nav.project") || "Project"}
-                  <span className="text-red-500 ml-1">*</span>
-                </Label>
-                <Select
-                  id="project_id"
-                  value={selectedProjectId}
-                  onChange={(value) => handleProjectChange(value)}
-                  options={projectOptions}
-                  placeholder={t("admin.nav.project_placeholder") || "Select project"}
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
             {/* DRIVER */}
             {showField("driver_id") && (
               <div>

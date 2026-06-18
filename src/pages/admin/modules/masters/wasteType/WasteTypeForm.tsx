@@ -177,64 +177,6 @@ export default function WasteTypeForm() {
       }
     >
       <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6" noValidate>
-        {/* Company */}
-        <div>
-          <Label>{t("admin.nav.company")} *</Label>
-          <Select
-            value={companyUniqueId}
-            onValueChange={onCompanyChange}
-            disabled={
-              Boolean(loggedInCompanyUniqueId) ||
-              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-              companies.length === 0
-            }
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={
-                  loggedInCompanyUniqueId
-                    ? "Company from logged-in profile"
-                    : isSuperAdmin
-                    ? "Select Company"
-                    : "Only super admin can select company"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {companies.map((c) => (
-                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!loggedInCompanyUniqueId && !isSuperAdmin && (
-            <p className="mt-1 text-xs text-red-500">
-              Company is not mapped to this login. Only super admin can view all companies.
-            </p>
-          )}
-        </div>
-
-        {/* Project */}
-        <div>
-          <Label>{t("admin.nav.project")} *</Label>
-          <Select
-            value={projectId}
-            onValueChange={setProjectId}
-            disabled={!companyUniqueId || projects.length === 0}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select Project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((p) => (
-                <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {companyUniqueId && projects.length === 0 && (
-            <p className="mt-1 text-xs text-red-500">No projects found for this company.</p>
-          )}
-        </div>
-
         {/* Waste Type Name */}
         {showField("waste_type_name") && (
           <div>

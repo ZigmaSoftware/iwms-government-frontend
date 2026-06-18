@@ -829,8 +829,6 @@ const hiResource = {
           "vehicle_history": "वाहन इतिहास",
           "process_items": "प्रोसेस आइटम्स",
           "route_plans": "रूट प्लान्स",
-          "supervisor_zone_map": "सुपरवाइज़र ज़ोन मैप",
-          "supervisor_zone_access_audit": "सुपरवाइज़र ज़ोन एक्सेस ऑडिट",
           "unassigned_staff_pool": "Unassigned Staff Pool",
           "bin_master": "बिन मास्टर",
           "bin_creation": "बिन निर्माण",
@@ -977,23 +975,6 @@ const hiResource = {
           "detail_title": "Audit Details",
           "previous_data": "Previous Data",
           "new_data": "New Data"
-        },
-        "supervisor_zone_map": {
-          "title": "सुपरवाइज़र ज़ोन मैप",
-          "subtitle": "सुपरवाइज़रों को ज़ोन असाइन करें और स्थिति प्रबंधित करें।",
-          "list_title": "सुपरवाइज़र ज़ोन मैप्स",
-          "list_subtitle": "सुपरवाइज़र ज़ोन असाइनमेंट",
-          "create_button": "ज़ोन मैप बनाएँ",
-          "empty_message": "कोई सुपरवाइज़र ज़ोन मैप नहीं मिला",
-          "mapping_id": "मैपिंग आईडी",
-          "supervisor": "सुपरवाइज़र",
-          "district": "ज़िला",
-          "city": "शहर",
-          "zones": "ज़ोन्स",
-          "status": "स्थिति",
-          "no_zones": "कोई ज़ोन चयनित नहीं",
-          "remarks": "टिप्पणियाँ",
-          "update_hint": "अपडेट करने पर नया मैप बनेगा और पिछला सक्रिय मैप निष्क्रिय होगा।"
         },
         "trip_plans": {
           "title_add": "ट्रिप प्लान जोड़ें",
@@ -1171,20 +1152,6 @@ const hiResource = {
           "pickup_time": "पिकअप समय",
           "weight_kg": "वजन (किग्रा)",
           "source": "स्रोत"
-        },
-        "supervisor_zone_access_audit": {
-          "title": "सुपरवाइज़र ज़ोन एक्सेस ऑडिट",
-          "subtitle": "एडमिन द्वारा किए गए ज़ोन एक्सेस बदलाव देखें।",
-          "list_title": "सुपरवाइज़र ज़ोन एक्सेस ऑडिट",
-          "list_subtitle": "सुपरवाइज़र ज़ोन एक्सेस बदलावों का ऑडिट लॉग",
-          "empty_message": "कोई सुपरवाइज़र ज़ोन एक्सेस ऑडिट रिकॉर्ड नहीं मिला",
-          "supervisor": "सुपरवाइज़र",
-          "performed_by": "किया गया द्वारा",
-          "performed_role": "भूमिका",
-          "old_zones": "पुराने ज़ोन्स",
-          "new_zones": "नए ज़ोन्स",
-          "remarks": "टिप्पणियाँ",
-          "created_at": "बनाया गया"
         },
         "unassigned_staff_pool": {
           "title_add": "Add Unassigned Staff Pool",

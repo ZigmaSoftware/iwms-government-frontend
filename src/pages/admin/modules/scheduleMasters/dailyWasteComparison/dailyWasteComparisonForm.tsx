@@ -43,7 +43,9 @@ const ShadcnSelect = ({
   placeholder?: string;
   isRequired?: boolean;
   disabled?: boolean;
-}) => (
+}) => {
+  if (/^(company|project)$/i.test(label.trim())) return null;
+  return (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">
       {label}
@@ -67,6 +69,7 @@ const ShadcnSelect = ({
     </Select>
   </div>
 );
+};
 
 const FormSection = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="mb-8 bg-white rounded-lg">
@@ -427,30 +430,6 @@ export default function DailyWasteComparisonForm() {
             Only <strong>submitted</strong> and <strong>verified</strong> trip logs are included.
           </span>
         </div>
-
-        {/* ── Company & Project ── */}
-        <FormSection title="Company & Project Information">
-          <ShadcnSelect
-            label={t("admin.nav.company")}
-            value={effectiveCompanyId}
-            onChange={onCompanyChange}
-            options={companyOptions}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            disabled={
-              Boolean(loggedInCompanyUniqueId) ||
-              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-              companyOptions.length === 0
-            }
-          />
-          <ShadcnSelect
-            label={t("admin.nav.project")}
-            value={effectiveProjectId}
-            onChange={setProjectId}
-            options={projectOptions}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            disabled={!effectiveCompanyId || projectOptions.length === 0}
-          />
-        </FormSection>
 
         {/* ── Report criteria ── */}
         <FormSection title="Report Criteria">

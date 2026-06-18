@@ -425,74 +425,7 @@ export default function AreaTypeForm() {
           : t("common.add_item", { item: t("admin.nav.area_type") })
       }
     >
-      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
-        <div>
-          <Label>Company *</Label>
-          <Select
-            value={companyUniqueId}
-            onValueChange={onCompanyChange}
-            disabled={
-              Boolean(loggedInCompanyUniqueId) ||
-              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-              companies.length === 0
-            }
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={
-                  loggedInCompanyUniqueId
-                    ? "Company from logged-in profile"
-                    : isSuperAdmin
-                      ? "Select Company"
-                      : "Only super admin can select company"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {companies.map((company) => (
-                <SelectItem key={company.value} value={company.value}>
-                  {company.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!loggedInCompanyUniqueId && !isSuperAdmin && (
-            <p className="mt-1 text-xs text-red-500">
-              Company is not mapped to this login. Only super admin can view
-              all companies.
-            </p>
-          )}
-          {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
-            <p className="mt-1 text-xs text-red-500">No companies found.</p>
-          )}
-        </div>
-
-        <div>
-          <Label>Project *</Label>
-          <Select
-            value={projectId}
-            onValueChange={setProjectId}
-            disabled={!companyUniqueId || projects.length === 0}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select Project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.value} value={project.value}>
-                  {project.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {companyUniqueId && projects.length === 0 && (
-            <p className="mt-1 text-xs text-red-500">
-              No projects found for this company.
-            </p>
-          )}
-        </div>
-
-        {showField("state_id") && (
+      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">{showField("state_id") && (
           <div>
             <Label htmlFor="state">
               State <span className="text-red-500">*</span>

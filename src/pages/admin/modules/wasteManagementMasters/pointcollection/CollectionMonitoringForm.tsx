@@ -37,7 +37,9 @@ const ShadcnSelect = ({
   placeholder?: string;
   isRequired?: boolean;
   disabled?: boolean;
-}) => (
+}) => {
+  if (/^(company|project)$/i.test(label.trim())) return null;
+  return (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">
       {label}
@@ -61,6 +63,7 @@ const ShadcnSelect = ({
     </Select>
   </div>
 );
+};
 
 const FormSection = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="mb-8 bg-white rounded-lg">
@@ -359,25 +362,6 @@ function CollectionMonitoringForm() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <FormSection title="Company & Project Information">
-          <ShadcnSelect
-            label={t("admin.nav.company")}
-            value={companyUniqueId}
-            onChange={onCompanyChange}
-            options={companies.map((item) => ({ value: item.value, label: item.label }))}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0}
-          />
-          <ShadcnSelect
-            label={t("admin.nav.project")}
-            value={projectId}
-            onChange={setProjectId}
-            options={projects.map((item) => ({ value: item.value, label: item.label }))}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            disabled={!companyUniqueId || projects.length === 0}
-          />
-        </FormSection>
-
         <FormSection title="Trip Collection Point">
           <ShadcnSelect
             label="Trip Collection Point"

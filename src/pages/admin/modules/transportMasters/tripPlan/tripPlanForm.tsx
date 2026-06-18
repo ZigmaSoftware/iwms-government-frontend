@@ -349,20 +349,6 @@ export default function TripPlanForm() {
       <ComponentCard title={isEdit ? "Edit Trip Plan" : "New Trip Plan"} desc="Configure route geography, staff, vehicle, schedule, and stop list">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <Label>{t("admin.nav.company")}</Label>
-              <select value={companyUniqueId} onChange={(e) => onCompanyChange(e.target.value)} disabled={Boolean(loggedInCompanyUniqueId) || (!isSuperAdmin && !loggedInCompanyUniqueId) || companies.length === 0} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                <option value="">{t("common.select_item_placeholder", { item: t("admin.nav.company") })}</option>
-                {companies.map((company) => <option key={company.value} value={company.value}>{company.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>{t("admin.nav.project")}</Label>
-              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} disabled={!companyUniqueId || projects.length === 0} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50">
-                <option value="">{t("common.select_item_placeholder", { item: t("admin.nav.project") })}</option>
-                {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
-              </select>
-            </div>
             <div><Label>District</Label><Select value={formData.district_id} onChange={setField("district_id")} options={options.districts} disabled={loading || !projectId} /></div>
             <div><Label>City</Label><Select value={formData.city_id} onChange={setField("city_id")} options={options.cities} disabled={loading || !formData.district_id} /></div>
             <div><Label>Zone</Label><Select value={formData.zone_id} onChange={setField("zone_id")} options={options.zones} disabled={loading || !formData.city_id || Boolean(formData.panchayat_id)} /></div>

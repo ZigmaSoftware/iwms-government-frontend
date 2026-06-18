@@ -270,63 +270,6 @@ export default function PanchayatLeaderForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
 
-            {/* ── Company ── */}
-            <div>
-              <Label htmlFor="company_id">
-                Company <span className="text-red-500 ml-1">*</span>
-              </Label>
-              <Select
-                id="company_id"
-                value={companyUniqueId}
-                onChange={(value) => {
-                  onCompanyChange(value);
-                  setFormData((prev) => ({ ...prev, panchayat_id: "" }));
-                }}
-                options={companyOptions}
-                placeholder={
-                  loggedInCompanyUniqueId
-                    ? "Company from logged-in profile"
-                    : isSuperAdmin
-                      ? "Select Company"
-                      : "Only super admin can select company"
-                }
-                disabled={
-                  Boolean(loggedInCompanyUniqueId) ||
-                  (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                  companies.length === 0 ||
-                  fetching
-                }
-              />
-              {!loggedInCompanyUniqueId && !isSuperAdmin && (
-                <p className="mt-1 text-xs text-red-500">
-                  Company is not mapped to this login.
-                </p>
-              )}
-            </div>
-
-            {/* ── Project ── */}
-            <div>
-              <Label htmlFor="project_id">
-                Project <span className="text-red-500 ml-1">*</span>
-              </Label>
-              <Select
-                id="project_id"
-                value={projectId}
-                onChange={(value) => {
-                  setProjectId(value);
-                  setFormData((prev) => ({ ...prev, panchayat_id: "" }));
-                }}
-                options={projectOptions}
-                placeholder="Select Project"
-                disabled={!companyUniqueId || projects.length === 0 || fetching}
-              />
-              {companyUniqueId && projects.length === 0 && (
-                <p className="mt-1 text-xs text-red-500">
-                  No projects found for this company.
-                </p>
-              )}
-            </div>
-
             {/* ── Panchayat ── */}
             <div>
               <Label htmlFor="panchayat_id">

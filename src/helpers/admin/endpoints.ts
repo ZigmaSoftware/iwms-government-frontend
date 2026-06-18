@@ -92,7 +92,6 @@ export const adminEndpoints = {
   ========================= */
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
-  supervisorZoneMap: "user-creations/supervisor-zone-map",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================
@@ -134,7 +133,6 @@ export const adminEndpoints = {
   vehicleTripAudits: "audits/vehicle-trip-audit",
   tripExceptionLogs: "audits/trip-exception-log",
   binLoadLogs: "audits/bin-load-log",
-  supervisorZoneAccessAudits: "audits/supervisor-zone-access-audit",
   staffTemplateAuditLogs: "audits/stafftemplate-audit-log",
    loginAudits: "audits/login-audit",
    commonAudits: "audits/common-audit",

@@ -1346,42 +1346,6 @@ export default function StaffCreationForm() {
 
   const renderOfficialSection = () => (
     <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-      {/* ── Company ── */}
-      {showField("company_id") && (
-        <div>
-          <Label htmlFor="company_id">
-            {t("admin.nav.company") || "Company"}
-            <span className="text-red-500 ml-1">*</span>
-          </Label>
-          <Select
-            id="company_id"
-            value={companyUniqueId}
-            onChange={(value) => {
-              handleSelectChange("company_id", value);
-              handleSelectChange("project_id", "");
-            }}
-            options={hookCompanies}
-            placeholder={t("admin.nav.company_placeholder") || "Select company"}
-          />
-        </div>
-      )}
-
-      {/* ── Project ── */}
-      {showField("project_id") && (
-        <div>
-          <Label htmlFor="project_id">
-            {t("admin.nav.project") || "Project"}
-            <span className="text-red-500 ml-1">*</span>
-          </Label>
-          <Select
-            id="project_id"
-            value={hookProjectId}
-            onChange={(value) => handleSelectChange("project_id", value)}
-            options={hookProjects}
-            placeholder={t("admin.nav.project_placeholder") || "Select project"}
-          />
-        </div>
-      )}
       {showField("employee_name") && (
         <div>
           <Label htmlFor="employee_name">

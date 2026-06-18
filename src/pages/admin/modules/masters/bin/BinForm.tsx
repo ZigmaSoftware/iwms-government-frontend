@@ -660,59 +660,6 @@ export default function BinForm() {
       }
     >
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6" noValidate>
-        <div>
-          <Label>{t("admin.nav.company")} *</Label>
-          <Select
-            value={companyUniqueId}
-            onValueChange={(value) => {
-              onCompanyChange(value);
-              resetLocationFields();
-            }}
-            disabled={
-              Boolean(loggedInCompanyUniqueId) ||
-              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-              companies.length === 0
-            }
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue
-                placeholder={
-                  loggedInCompanyUniqueId ? "Company from logged-in profile" : "Select Company"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {companies.map((company) => (
-                <SelectItem key={company.value} value={company.value}>
-                  {company.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label>{t("admin.nav.project")} *</Label>
-          <Select
-            value={projectId}
-            onValueChange={(value) => {
-              setProjectId(value);
-              resetLocationFields();
-            }}
-            disabled={!companyUniqueId || projects.length === 0}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder="Select Project" />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.value} value={project.value}>
-                  {project.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         {showField("district_id") && (
           <div>
             <Label>{t("common.district")} *</Label>
