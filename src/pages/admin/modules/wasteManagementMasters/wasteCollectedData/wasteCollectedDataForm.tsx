@@ -230,10 +230,6 @@ export default function WasteCollectedForm() {
     }
 
     const payload: Record<string, unknown> = {
-      // company_id_input / project_id_input are read by CompanyScopedViewSet
-      // to set the FK fields — required for superadmin; non-superadmin uses request.user.company
-      company_id_input: companyUniqueId,
-      project_id_input: projectId,
       customer: customerId,
       wet_waste: wetWaste,
       dry_waste: dryWaste,

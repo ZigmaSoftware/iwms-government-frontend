@@ -30,8 +30,6 @@ const toStr = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
 const VEHICLE_TYPE_FIELDS: Record<string, string[]> = {
-  company_id_input: ["company_id_input", "company_id", "company"],
-  project_id_input: ["project_id_input", "project_id", "project"],
   vehicleType: ["vehicleType", "vehicle_type", "vehicleTypeName"],
   description: ["description"],
   is_active: ["is_active", "status", "active_status"],
@@ -144,8 +142,6 @@ export default function VehicleTypeCreationForm() {
 
     // Validate required fields
     const missingFields: string[] = [];
-    if (showField("company_id_input") && !companyUniqueId) missingFields.push(t("admin.nav.company"));
-    if (showField("project_id_input") && !projectId) missingFields.push(t("admin.nav.project"));
     if (showField("vehicleType") && !vehicleTypeName.trim())
       missingFields.push(t("admin.vehicle_type.label"));
 
@@ -162,13 +158,8 @@ export default function VehicleTypeCreationForm() {
       vehicleType: vehicleTypeName.trim(),
       description: description.trim() || null,
       is_active: isActive,
-      company_id_input: companyUniqueId,
-      project_id_input: projectId,
     };
-    const payload = filterPayload(rawPayload, [
-      "company_id_input",
-      "project_id_input",
-    ]) as unknown as VehicleTypePayload;
+    const payload = filterPayload(rawPayload) as unknown as VehicleTypePayload;
 
     setIsSubmitting(true);
     try {
@@ -211,72 +202,6 @@ export default function VehicleTypeCreationForm() {
         className="grid grid-cols-1 md:grid-cols-2 gap-6"
         noValidate
       >
-        {/* Company */}
-        {showField("company_id_input") && (
-        <div>
-          <Label>
-            {t("admin.nav.company")} <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={companyUniqueId}
-            onValueChange={onCompanyChange}
-            disabled={
-              Boolean(loggedInCompanyUniqueId) ||
-              (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-              companies.length === 0
-            }
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue
-                placeholder={
-                  loggedInCompanyUniqueId
-                    ? t("common.company_from_profile")
-                    : t("common.select_item_placeholder", {
-                        item: t("admin.nav.company"),
-                      })
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {companies.map((company) => (
-                <SelectItem key={company.value} value={company.value}>
-                  {company.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        )}
-
-        {/* Project */}
-        {showField("project_id_input") && (
-        <div>
-          <Label>
-            {t("admin.nav.project")} <span className="text-red-500">*</span>
-          </Label>
-          <Select
-            value={projectId}
-            onValueChange={setProjectId}
-            disabled={!companyUniqueId || projects.length === 0}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue
-                placeholder={t("common.select_item_placeholder", {
-                  item: t("admin.nav.project"),
-                })}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {projects.map((project) => (
-                <SelectItem key={project.value} value={project.value}>
-                  {project.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        )}
-
         {/* Vehicle Type Name */}
         {showField("vehicleType") && (
         <div>

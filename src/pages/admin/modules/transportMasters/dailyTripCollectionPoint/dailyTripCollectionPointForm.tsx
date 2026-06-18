@@ -307,14 +307,12 @@ export default function DailyTripCollectionPointForm() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!companyUniqueId || !projectId || !tripAssignmentId || !collectionPointId || !binId) {
+    if (!tripAssignmentId || !collectionPointId || !binId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
 
     const payload = {
-      company_id_input: companyUniqueId,
-      project_id_input: projectId,
       trip_assignment_id: tripAssignmentId,
       collection_point_id: collectionPointId,
       bin_id: binId,

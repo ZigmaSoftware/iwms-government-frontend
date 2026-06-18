@@ -319,8 +319,6 @@ export default function TripPlanForm() {
     }
 
     const payload = {
-      company_id_input: companyUniqueId,
-      project_id_input: projectId,
       ...formData,
       zone_id: formData.zone_id || null,
       panchayat_id: formData.panchayat_id || null,

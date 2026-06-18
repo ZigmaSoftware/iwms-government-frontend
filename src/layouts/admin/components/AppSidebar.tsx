@@ -79,9 +79,6 @@ const {
   encCommonAudit,
   encTripPlans,
   encTripPlanCollectionPoints,
-  encCompanyCreation,
-  encProjectCreation,
-  encSuperAdminMaster,
   encPanchayats,
   encPanchayatLeaders,
   encAreaTypes,
@@ -156,28 +153,6 @@ const attendanceItems: NavItem[] = [
   },
 ];
 
-const superadminMasterItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.superAdmin_masters",
-    icon: <Settings size={18} />,
-    module: "admin",
-    screen: "SuperAdminMasters",
-    subItems: [
-      {
-        nameKey: "admin.nav.company",
-        path: `/${encSuperAdminMaster}/${encCompanyCreation}`,
-        module: "admin",
-        screen: "CompanyCreation",
-      },
-      {
-        nameKey: "admin.nav.project",
-        path: `/${encSuperAdminMaster}/${encProjectCreation}`,
-        module: "admin",
-        screen: "ProjectCreation",
-      },
-    ],
-  },
-];
 
 const commonMasterItems: NavItem[] = [
   {
@@ -209,7 +184,7 @@ const commonMasterItems: NavItem[] = [
 ];
 
 const masterItems: NavItem[] = [
-  {
+  { 
     nameKey: "admin.nav.masters",
     icon: <Layers3 size={18} />,
     module: "masters",
@@ -625,30 +600,6 @@ const auditItems: NavItem[] = [
         module: "audits",
         screen: "login-audit",
       },
-      // {
-      //   nameKey: "admin.nav.vehicle_trip_audit",
-      //   path: `/${encTransportMaster}/${encVehicleTripAudit}`,
-      //   module: "audits",
-      //   screen: "vehicle-trip-audit",
-      // },
-      // {
-      //   nameKey: "admin.nav.trip_exception_log",
-      //   path: `/${encTransportMaster}/${encTripExceptionLog}`,
-      //   module: "audits",
-      //   screen: "trip-exception-log",
-      // },
-      // {
-      //   nameKey: "admin.nav.supervisor_zone_access_audit",
-      //   path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`,
-      //   module: "audits",
-      //   screen: "supervisor-zone-access-audit",
-      // },
-      // {
-      //   nameKey: "admin.nav.staff_template_audit",
-      //   path: `/${encStaffMasters}/${encStaffTemplateAudit}`,
-      //   module: "audits",
-      //   screen: "stafftemplate-audit-log",
-      // },
     ],
   },
 ];
@@ -791,7 +742,6 @@ const AppSidebar: React.FC = () => {
       const allSections = [
         { key: "main" as const, items: navItems },
         { key: "attendance" as const, items: attendanceItems },
-        { key: "superadminMaster" as const, items: superadminMasterItems },
         { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },
