@@ -245,8 +245,6 @@ export default function VehicleCreationListPage() {
       const csvFile = await excelFileToCsvFile(file, "vehicle_bulk_upload.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
-      if (companyUniqueId) formData.append("company_id_input", companyUniqueId);
-      if (projectId) formData.append("project_id_input", projectId);
 
       const res = await adminApi.vehicleCreations.action(
         "bulk-upload",

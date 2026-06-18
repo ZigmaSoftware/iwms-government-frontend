@@ -143,9 +143,7 @@ export default function VehicleTypeCreationList() {
             vehicleType: row.vehicleType,
             description: row.description,
             is_active: value,
-            company_id_input: row.company_id || row.company_unique_id,
-            project_id_input: row.project_id || row.project_unique_id,
-          }, ["company_id_input", "project_id_input"]) as Record<string, unknown>
+          }) as Record<string, unknown>
         );
         setAllVehicleTypes((current) =>
           current.map((item) =>
