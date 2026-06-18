@@ -831,8 +831,6 @@ const taResource = {
           "vehicle_history": "வாகன வரலாறு",
           "process_items": "செயல்முறை உருப்படிகள்",
           "route_plans": "வழித் திட்டங்கள்",
-          "supervisor_zone_map": "மேற்பார்வையாளர் மண்டல வரைபடம்",
-          "supervisor_zone_access_audit": "மேற்பார்வையாளர் மண்டல அணுகல் ஆய்வு",
           "unassigned_staff_pool": "Unassigned Staff Pool",
           "bin_master": "குப்பைத்தொட்டி மாஸ்டர்",
           "bin_creation": "குப்பைத்தொட்டி உருவாக்கம்",
@@ -978,23 +976,6 @@ const taResource = {
           "detail_title": "Audit Details",
           "previous_data": "Previous Data",
           "new_data": "New Data"
-        },
-        "supervisor_zone_map": {
-          "title": "மேற்பார்வையாளர் மண்டல வரைபடம்",
-          "subtitle": "மேற்பார்வையாளர்களுக்கு மண்டலங்களை ஒதுக்கி நிலையை நிர்வகிக்கவும்.",
-          "list_title": "மேற்பார்வையாளர் மண்டல வரைபடங்கள்",
-          "list_subtitle": "மேற்பார்வையாளர் மண்டல ஒதுக்கீடுகள்",
-          "create_button": "மண்டல வரைபடம் உருவாக்கு",
-          "empty_message": "மேற்பார்வையாளர் மண்டல வரைபடங்கள் இல்லை",
-          "mapping_id": "வரைபட ஐடி",
-          "supervisor": "மேற்பார்வையாளர்",
-          "district": "மாவட்டம்",
-          "city": "நகரம்",
-          "zones": "மண்டலங்கள்",
-          "status": "நிலை",
-          "no_zones": "மண்டலங்கள் தேர்ந்தெடுக்கப்படவில்லை",
-          "remarks": "குறிப்புகள்",
-          "update_hint": "புதுப்பிப்புகள் புதிய வரைபடத்தை உருவாக்கும் மற்றும் முந்தைய செயலில் இருந்ததை செயலிழக்கச் செய்யும்."
         },
         "trip_plans": {
           "title_add": "பயண திட்டங்கள் சேர்க்கவும்",
@@ -1172,20 +1153,6 @@ const taResource = {
           "pickup_time": "சேகரிப்பு நேரம்",
           "weight_kg": "எடை (கிலோ)",
           "source": "மூலம்"
-        },
-        "supervisor_zone_access_audit": {
-          "title": "மேற்பார்வையாளர் மண்டல அணுகல் ஆய்வு",
-          "subtitle": "நிர்வாகிகள் செய்த மண்டல அணுகல் மாற்றங்களைப் பார்வையிடவும்.",
-          "list_title": "மேற்பார்வையாளர் மண்டல அணுகல் ஆய்வு",
-          "list_subtitle": "மேற்பார்வையாளர் மண்டல அணுகல் மாற்றங்களுக்கான ஆய்வு பதிவு",
-          "empty_message": "மேற்பார்வையாளர் மண்டல அணுகல் ஆய்வு பதிவுகள் இல்லை",
-          "supervisor": "மேற்பார்வையாளர்",
-          "performed_by": "செய்தவர்",
-          "performed_role": "செய்த பங்கு",
-          "old_zones": "முந்தைய மண்டலங்கள்",
-          "new_zones": "புதிய மண்டலங்கள்",
-          "remarks": "குறிப்புகள்",
-          "created_at": "உருவாக்கப்பட்டது"
         },
         "unassigned_staff_pool": {
           "title_add": "Add Unassigned Staff Pool",

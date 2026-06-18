@@ -821,74 +821,7 @@ export default function WardForm() {
       }
     >
       <form onSubmit={handleSubmit} noValidate>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <Label>Company *</Label>
-            <Select
-              value={companyUniqueId}
-              onValueChange={onCompanyChange}
-              disabled={
-                Boolean(loggedInCompanyUniqueId) ||
-                (!isSuperAdmin && !loggedInCompanyUniqueId) ||
-                companies.length === 0
-              }
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    loggedInCompanyUniqueId
-                      ? "Company from logged-in profile"
-                      : isSuperAdmin
-                        ? "Select Company"
-                        : "Only super admin can select company"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.value} value={company.value}>
-                    {company.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!loggedInCompanyUniqueId && !isSuperAdmin && (
-              <p className="mt-1 text-xs text-red-500">
-                Company is not mapped to this login. Only super admin can view
-                all companies.
-              </p>
-            )}
-            {isSuperAdmin && !loggedInCompanyUniqueId && companies.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">No companies found.</p>
-            )}
-          </div>
-
-          <div>
-            <Label>Project *</Label>
-            <Select
-              value={effectiveProjectId}
-              onValueChange={setProjectId}
-              disabled={!companyUniqueId || projectOptions.length === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Project" />
-              </SelectTrigger>
-              <SelectContent>
-                {projectOptions.map((project) => (
-                  <SelectItem key={project.value} value={project.value}>
-                    {project.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {companyUniqueId && projects.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">
-                No projects found for this company.
-              </p>
-            )}
-          </div>
-
-          {/* Continent */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{/* Continent */}
           {showField("continent_id") && (
           <div>
             <Label>{t("admin.nav.continent")} *</Label>

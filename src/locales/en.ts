@@ -819,7 +819,6 @@ const enResource = {
           "staff_template": "Staff Template",
           "alternative_staff_template": "Alternative Staff Template",
           "staff_template_audit": "Staff Template Audit",
-          "supervisor_zone_map": "Supervisor Zone Map",
           "unassigned_staff_pool": "Unassigned Staff Pool",
           "process_items": "Process Items",
           "route_plans": "Route Plans",
@@ -856,7 +855,6 @@ const enResource = {
           "vehicle_trip_audit": "Vehicle Trip Audit",
           "trip_exception_log": "Trip Exception Log",
           "bin_load_log": "Bin Load Log",
-          "supervisor_zone_access_audit": "Supervisor Zone Access Audit",
           "fleet_reports": "Fleet & Reports",
           "vehicle_tracking": "Vehicle Tracking",
           "vehicle_history": "Vehicle History",
@@ -986,23 +984,6 @@ const enResource = {
           "detail_title": "Audit Details",
           "previous_data": "Previous Data",
           "new_data": "New Data"
-        },
-        "supervisor_zone_map": {
-          "title": "Supervisor Zone Map",
-          "subtitle": "Assign zones to supervisors and manage status.",
-          "list_title": "Supervisor Zone Maps",
-          "list_subtitle": "Supervisor zone assignments",
-          "create_button": "Create Zone Map",
-          "empty_message": "No supervisor zone mappings found",
-          "mapping_id": "Mapping ID",
-          "supervisor": "Supervisor",
-          "district": "District",
-          "city": "City",
-          "zones": "Zones",
-          "status": "Status",
-          "no_zones": "No zones selected",
-          "remarks": "Remarks",
-          "update_hint": "Updates create a new mapping and deactivate the previous active one."
         },
         "trip_plans": {
           "title_add": "Add Trip Plans",
@@ -1181,21 +1162,6 @@ const enResource = {
           "pickup_time": "Pickup Time",
           "weight_kg": "Weight (kg)",
           "source": "Source"
-        },
-        "supervisor_zone_access_audit": {
-          "title": "Supervisor Zone Access Audit",
-          "subtitle": "Review zone access changes made by admins.",
-          "list_title": "Supervisor Zone Access Audit",
-          "list_subtitle": "Audit log for supervisor zone access changes",
-          "empty_message": "No supervisor zone access audit records found",
-          "supervisor": "Supervisor",
-          "performed_by": "Performed By",
-          "performed_role": "Performed Role",
-          "old_zones": "Old Zones",
-          "new_zones": "New Zones",
-          "remarks": "Remarks",
-          "created_at": "Created At",
-          "select_district_city_first": "Select district and city first to filter zones."
         },
         "unassigned_staff_pool": {
           "title_add": "Add Unassigned Staff Pool",

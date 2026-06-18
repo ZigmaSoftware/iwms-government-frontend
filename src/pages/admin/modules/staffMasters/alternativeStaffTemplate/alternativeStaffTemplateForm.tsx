@@ -724,63 +724,6 @@ export default function AlternativeStaffTemplateForm() {
 
           <div className="grid md:grid-cols-2 gap-5">
 
-            {/* COMPANY — always first so user sets scope before other fields */}
-            {showField("company_id") && (
-              <div>
-                <Label htmlFor="company_id">
-                  {t("admin.nav.company") || "Company"}
-                  <span className="text-red-500 ml-1">*</span>
-                </Label>
-                <Select
-                  id="company_id"
-                  value={selectedCompanyId}
-                  options={companyOptions}
-                  placeholder={
-                    t("admin.nav.company_placeholder") || "Select company"
-                  }
-                  onChange={(value) => {
-                    setSelectedCompanyId(value);
-                    setSelectedProjectId("");
-                    // update global selection so other pages reflect this choice
-                    try {
-                      onGlobalCompanyChange(value);
-                    } catch {
-                      /* ignore */
-                    }
-                    editDataLoaded.current = false;
-                  }}
-                />
-              </div>
-            )}
-
-            {/* PROJECT */}
-            {showField("project_id") && (
-              <div>
-                <Label htmlFor="project_id">
-                  {t("admin.nav.project") || "Project"}
-                  <span className="text-red-500 ml-1">*</span>
-                </Label>
-                <Select
-                  id="project_id"
-                  value={selectedProjectId}
-                  options={projectOptions}
-                  placeholder={
-                    t("admin.nav.project_placeholder") || "Select project"
-                  }
-                  onChange={(value) => {
-                    setSelectedProjectId(value);
-                    // reflect in global selection
-                    try {
-                      setGlobalProjectId(value);
-                    } catch {
-                      /* ignore */
-                    }
-                    editDataLoaded.current = false;
-                  }}
-                />
-              </div>
-            )}
-
             {/* STAFF TEMPLATE — scoped to selected company + project */}
             {showField("staff_template") && (
               <div>

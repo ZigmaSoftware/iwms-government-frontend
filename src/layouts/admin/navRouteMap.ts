@@ -68,8 +68,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encAlternativeStaffTemplate,
     encStaffTemplateAudit,
     encCommonAudit,
-    encSupervisorZoneMap,
-    encSupervisorZoneAccessAudit,
     encTripPlans,
     encZonePropertyLoadTracker,
     encVehicleTripAudit,
@@ -142,7 +140,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encStaffMasters}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
-    { path: `/${encStaffMasters}/${encSupervisorZoneMap}`, nameKey: "admin.nav.supervisor_zone_map", parentNameKey: "admin.nav.user_creations" },
     // Process Items
     { path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`, nameKey: "admin.nav.zone_property_load_tracker", parentNameKey: "admin.nav.process_items" },
     // Customer Masters
@@ -175,7 +172,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encTransportMaster}/${encTripExceptionLog}`, nameKey: "admin.nav.trip_exception_log", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encStaffMasters}/${encSupervisorZoneAccessAudit}`, nameKey: "admin.nav.supervisor_zone_access_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encStaffMasters}/${encStaffTemplateAudit}`, nameKey: "admin.nav.staff_template_audit", parentNameKey: "admin.nav.audit_items" },
     // Vehicle Tracking
     { path: `/${encVehicleTracking}/${encVehicleTrack}`, nameKey: "admin.nav.vehicle_tracking", parentNameKey: "admin.nav.vehicle_tracking" },

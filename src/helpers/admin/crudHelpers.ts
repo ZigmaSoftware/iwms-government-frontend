@@ -10,6 +10,7 @@ const normalizePath = (path: string): string => {
 
 const isRemovedScopeKey = (key: string): boolean => {
   const normalized = key.replace(/[^a-z]/gi, "").toLowerCase();
+  if (normalized === "company" || normalized === "project") return true;
   return (
     (normalized.startsWith("company") || normalized.startsWith("project")) &&
     (normalized.endsWith("id") || normalized.endsWith("uniqueid") || normalized.endsWith("idinput"))

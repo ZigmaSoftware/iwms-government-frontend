@@ -559,12 +559,6 @@ export const useCreateStaffTemplate = () => useCreate("staffTemplateCreation");
 export const useUpdateStaffTemplate = () => useUpdate("staffTemplateCreation");
 export const useDeleteStaffTemplate = () => useDelete("staffTemplateCreation");
 
-export const useSupervisorZoneMapList = (params?: Record<string, any>) => useList("supervisorZoneMap", params);
-export const useSupervisorZoneMapQuery = (id?: string | number | null) => useDetail("supervisorZoneMap", id);
-export const useCreateSupervisorZoneMap = () => useCreate("supervisorZoneMap");
-export const useUpdateSupervisorZoneMap = () => useUpdate("supervisorZoneMap");
-export const useDeleteSupervisorZoneMap = () => useDelete("supervisorZoneMap");
-
 export const useUnassignedStaffPoolList = (params?: Record<string, any>) => useList("unassignedStaffPool", params);
 export const useUnassignedStaffPoolQuery = (id?: string | number | null) => useDetail("unassignedStaffPool", id);
 export const useCreateUnassignedStaffPool = () => useCreate("unassignedStaffPool");

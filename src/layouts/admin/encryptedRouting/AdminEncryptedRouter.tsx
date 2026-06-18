@@ -138,10 +138,6 @@ import DailyWasteComparisonList from "@/pages/admin/modules/scheduleMasters/dail
 import DailyWasteComparisonForm from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditList";
 import StaffTemplateAuditForm from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditForm";
-import SupervisorZoneMapList from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapList";
-import SupervisorZoneMapForm from "@/pages/admin/modules/staffMasters/supervisorZoneMap/supervisorZoneMapForm";
-import SupervisorZoneAccessAuditList from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditList";
-import SupervisorZoneAccessAuditForm from "@/pages/admin/modules/staffMasters/supervisorZoneAccessAudit/supervisorZoneAccessAuditForm";
 import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
 import LoginAuditList from "@/pages/admin/modules/audits/loginAudit/loginAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
@@ -211,8 +207,6 @@ const ROUTES: RouteMap = {
   "staff-masters": {
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
-    "supervisor-zone-map": { list: SupervisorZoneMapList, form: SupervisorZoneMapForm },
-    "supervisor-zone-access-audit": { list: SupervisorZoneAccessAuditList, form: SupervisorZoneAccessAuditForm },
     "unassigned-staff-pool": { list: UnassignedStaffPoolList, form: UnassignedStaffPoolForm },
   },
   "transport-master": {
