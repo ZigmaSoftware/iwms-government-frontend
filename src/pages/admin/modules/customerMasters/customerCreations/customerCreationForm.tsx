@@ -6,17 +6,18 @@ import Swal from "@/lib/notify";
 import { api } from "@/api";
 
 import {
-  cityApi,
+  corporationApi,
   countryApi,
   customerCreationApi,
   districtApi,
+  municipalityApi,
   panchayatApi,
+  panchayatUnionApi,
   propertiesApi,
   stateApi,
   subPropertiesApi,
-  wardApi,
+  townPanchayatApi,
   wasteTypeApi,
-  zoneApi,
 } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -69,9 +70,10 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   country_id: ["country_id", "country"],
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
-  city_id: ["city_id", "city"],
-  zone_id: ["zone_id", "zone"],
-  ward_id: ["ward_id", "ward"],
+  corporation_id: ["corporation_id", "corporation"],
+  municipality_id: ["municipality_id", "municipality"],
+  town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
+  panchayat_union_id: ["panchayat_union_id", "panchayat_union"],
   panchayat_id: ["panchayat_id", "panchayat"],
   is_active: ["is_active"],
   is_bulkwaste_generator: ["is_bulkwaste_generator"],
@@ -92,6 +94,15 @@ const normalizeIdArray = (value: unknown): string[] => {
   }
   return [normalizeEntityId(value)].filter(Boolean);
 };
+
+type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
+const hierarchyLevels: Array<{ value: HierarchyLevel; label: string; optionLabel: string }> = [
+  { value: "corporation_id", label: "Corporation", optionLabel: "corporation_name" },
+  { value: "municipality_id", label: "Municipality", optionLabel: "municipality_name" },
+  { value: "town_panchayat_id", label: "Town Panchayat", optionLabel: "town_panchayat_name" },
+  { value: "panchayat_union_id", label: "Panchayat Union", optionLabel: "union_name" },
+  { value: "panchayat_id", label: "Panchayat", optionLabel: "panchayat_name" },
+];
 
 
 /* ===============================
@@ -564,9 +575,10 @@ export default function CustomerCreationForm() {
     country_id: "",
     state_id: "",
     district_id: "",
-    city_id: "",
-    zone_id: "",
-    ward_id: "",
+    corporation_id: "",
+    municipality_id: "",
+    town_panchayat_id: "",
+    panchayat_union_id: "",
     panchayat_id: "",
     waste_type_ids: [],
     is_active: true,
@@ -615,14 +627,15 @@ export default function CustomerCreationForm() {
   /* ===============================
      DROPDOWNS
   ================================ */
-  const [rawWards, setRawWards] = useState<any[]>([]);
-  const [rawZones, setRawZones] = useState<any[]>([]);
-  const [rawCities, setRawCities] = useState<any[]>([]);
   const [rawDistricts, setRawDistricts] = useState<any[]>([]);
   const [rawStates, setRawStates] = useState<any[]>([]);
   const [rawCountries, setRawCountries] = useState<any[]>([]);
   const [rawProperties, setRawProperties] = useState<any[]>([]);
   const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
+  const [rawCorporations, setRawCorporations] = useState<any[]>([]);
+  const [rawMunicipalities, setRawMunicipalities] = useState<any[]>([]);
+  const [rawTownPanchayats, setRawTownPanchayats] = useState<any[]>([]);
+  const [rawPanchayatUnions, setRawPanchayatUnions] = useState<any[]>([]);
   const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
   const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
 
@@ -630,27 +643,29 @@ export default function CustomerCreationForm() {
     let cancelled = false;
 
     Promise.all([
-      wardApi.readAll(),
-      zoneApi.readAll(),
-      cityApi.readAll(),
       districtApi.readAll(),
       stateApi.readAll(),
       countryApi.readAll(),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
       wasteTypeApi.readAll(),
     ])
-      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats, wasteTypes]) => {
+      .then(([districts, states, countries, properties, subProperties, corporations, municipalities, townPanchayats, panchayatUnions, panchayats, wasteTypes]) => {
         if (cancelled) return;
-        setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
-        setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
-        setRawCities(Array.isArray(cities) ? cities : (cities as any)?.results ?? []);
         setRawDistricts(Array.isArray(districts) ? districts : (districts as any)?.results ?? []);
         setRawStates(Array.isArray(states) ? states : (states as any)?.results ?? []);
         setRawCountries(Array.isArray(countries) ? countries : (countries as any)?.results ?? []);
         setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
         setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
+        setRawCorporations(Array.isArray(corporations) ? corporations : (corporations as any)?.results ?? []);
+        setRawMunicipalities(Array.isArray(municipalities) ? municipalities : (municipalities as any)?.results ?? []);
+        setRawTownPanchayats(Array.isArray(townPanchayats) ? townPanchayats : (townPanchayats as any)?.results ?? []);
+        setRawPanchayatUnions(Array.isArray(panchayatUnions) ? panchayatUnions : (panchayatUnions as any)?.results ?? []);
         setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
         setRawWasteTypes(Array.isArray(wasteTypes) ? wasteTypes : (wasteTypes as any)?.results ?? []);
         setDropdownsLoaded(true);
@@ -666,18 +681,19 @@ export default function CustomerCreationForm() {
 
   const dropdowns = useMemo(
     () => ({
-      wards: normalize(rawWards),
-      zones: normalize(rawZones),
-      cities: normalize(rawCities),
       districts: normalize(rawDistricts),
       states: normalize(rawStates),
       countries: normalize(rawCountries),
       properties: normalize(rawProperties),
       subProperties: normalize(rawSubProperties),
+      corporations: normalize(rawCorporations),
+      municipalities: normalize(rawMunicipalities),
+      townPanchayats: normalize(rawTownPanchayats),
+      panchayatUnions: normalize(rawPanchayatUnions),
       panchayats: normalize(rawPanchayats),
       wasteTypes: normalize(rawWasteTypes),
     }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
+    [rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawCorporations, rawMunicipalities, rawTownPanchayats, rawPanchayatUnions, rawPanchayats, rawWasteTypes]
   );
 
   /* ===============================
@@ -711,9 +727,10 @@ export default function CustomerCreationForm() {
     const countryId  = resolveOptionValue(rawCountries,  data.country_id,  "name",          data.country_name);
     const stateId    = resolveOptionValue(rawStates,     data.state_id,    "name",          data.state_name);
     const districtId = resolveOptionValue(rawDistricts,  data.district_id, "name",          data.district_name);
-    const cityId     = resolveOptionValue(rawCities,     data.city_id,     "name",          data.city_name ?? data.city);
-    const zoneId     = resolveOptionValue(rawZones,      data.zone_id,     "zone_name",     data.zone_name);
-    const wardId     = resolveOptionValue(rawWards,      data.ward_id,     "ward_name",     data.ward_name);
+    const corporationId = resolveOptionValue(rawCorporations, data.corporation_id, "corporation_name", data.corporation_name);
+    const municipalityId = resolveOptionValue(rawMunicipalities, data.municipality_id, "municipality_name", data.municipality_name);
+    const townPanchayatId = resolveOptionValue(rawTownPanchayats, data.town_panchayat_id, "town_panchayat_name", data.town_panchayat_name);
+    const panchayatUnionId = resolveOptionValue(rawPanchayatUnions, data.panchayat_union_id, "union_name", data.panchayat_union_name);
     const panchayatId = resolveOptionValue(rawPanchayats, data.panchayat_id, "panchayat_name", data.panchayat_name);
     const propertyId    = resolveOptionValue(rawProperties,    data.property_id,     "property_name",     data.property_name);
     const subPropertyId = resolveOptionValue(rawSubProperties, data.sub_property_id, "sub_property_name", data.sub_property_name);
@@ -743,9 +760,10 @@ export default function CustomerCreationForm() {
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
-      city_id: cityId,
-      zone_id: zoneId,
-      ward_id: wardId,
+      corporation_id: corporationId,
+      municipality_id: municipalityId,
+      town_panchayat_id: townPanchayatId,
+      panchayat_union_id: panchayatUnionId,
       panchayat_id: panchayatId,
       waste_type_ids: wasteTypeIds,
       is_active: Boolean(data.is_active),
@@ -758,7 +776,7 @@ export default function CustomerCreationForm() {
       industry_type: String(data.industry_type ?? ""),
     }));
     setPendingEditData(null);
-  }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
+  }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCorporations, rawMunicipalities, rawTownPanchayats, rawPanchayatUnions, rawPanchayats, rawProperties, rawSubProperties]);
 
   /* ===============================
      FILTERS
@@ -773,30 +791,52 @@ export default function CustomerCreationForm() {
     [dropdowns.districts, formData.state_id]
   );
 
-  const filteredCities = useMemo(
-    () => dropdowns.cities.filter((c: any) => !formData.district_id || normalizeEntityId(c.district_id ?? c.district) === formData.district_id),
-    [dropdowns.cities, formData.district_id]
-  );
-
-  const filteredZones = useMemo(
-    () => dropdowns.zones.filter((z: any) => !formData.city_id || normalizeEntityId(z.city_id ?? z.city) === formData.city_id),
-    [dropdowns.zones, formData.city_id]
-  );
-
-  const filteredWards = useMemo(
-    () => dropdowns.wards.filter((w: any) => !formData.zone_id || normalizeEntityId(w.zone_id ?? w.zone) === formData.zone_id),
-    [dropdowns.wards, formData.zone_id]
-  );
-
   const filteredPanchayats = useMemo(
     () =>
       dropdowns.panchayats.filter(
         (p: any) =>
-          (!formData.district_id || normalizeEntityId(p.district_id ?? p.district) === formData.district_id) &&
-          (!formData.city_id || normalizeEntityId(p.city_id ?? p.city) === formData.city_id)
+          (!formData.district_id || normalizeEntityId(p.district_id ?? p.district) === formData.district_id)
       ),
-    [dropdowns.panchayats, formData.district_id, formData.city_id]
+    [dropdowns.panchayats, formData.district_id]
   );
+  const selectedHierarchyLevel = useMemo<HierarchyLevel>(() => {
+    return hierarchyLevels.find((item) => Boolean(formData[item.value]))?.value ?? "corporation_id";
+  }, [formData]);
+  const selectedHierarchyId = formData[selectedHierarchyLevel] || "";
+  const hierarchyDropdowns: Record<HierarchyLevel, any[]> = {
+    corporation_id: dropdowns.corporations,
+    municipality_id: dropdowns.municipalities,
+    town_panchayat_id: dropdowns.townPanchayats,
+    panchayat_union_id: dropdowns.panchayatUnions,
+    panchayat_id: dropdowns.panchayats,
+  };
+  const filteredHierarchyOptions = useMemo(
+    () => hierarchyDropdowns[selectedHierarchyLevel].filter(
+      (item: any) => !formData.district_id || normalizeEntityId(item.district_id ?? item.district) === formData.district_id
+    ),
+    [dropdowns, formData.district_id, selectedHierarchyLevel]
+  );
+  const setHierarchyValue = (level: HierarchyLevel, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      corporation_id: "",
+      municipality_id: "",
+      town_panchayat_id: "",
+      panchayat_union_id: "",
+      panchayat_id: "",
+      [level]: value,
+    }));
+  };
+  const resetHierarchy = () => {
+    setFormData((prev) => ({
+      ...prev,
+      corporation_id: "",
+      municipality_id: "",
+      town_panchayat_id: "",
+      panchayat_union_id: "",
+      panchayat_id: "",
+    }));
+  };
 
   /* ===============================
      SUB_PROPERTY TYPE DETECTION
@@ -813,10 +853,7 @@ export default function CustomerCreationForm() {
   const isApartment = subName.includes("apartment");
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
-  // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
-  // const panchayatSelected   = Boolean(formData.panchayat_id);
-  const isPanchayatSelected = Boolean(formData.panchayat_id);
-  const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
+  const isHierarchySelected = Boolean(selectedHierarchyId);
 
   /* ===============================
      VALIDATION
@@ -825,7 +862,7 @@ export default function CustomerCreationForm() {
     const requiredFields = [
       "customer_name", "contact_no", "email", "username",
        "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
-      "country_id", "state_id", "district_id", "city_id",
+      "country_id", "state_id", "district_id",
       "property_id", "sub_property_id", "waste_type_ids",
       ...(!isEdit ? ["password"] : []),
     ].flat();
@@ -841,6 +878,11 @@ export default function CustomerCreationForm() {
         Swal.fire(t("common.warning") || "Warning", `${fieldLabel} is required`, "warning");
         return false;
       }
+    }
+
+    if (!isHierarchySelected) {
+      Swal.fire(t("common.warning") || "Warning", "hierarchy is required", "warning");
+      return false;
     }
 
     if (showField("waste_type_ids") && formData.waste_type_ids.length === 0) {
@@ -1211,7 +1253,7 @@ export default function CustomerCreationForm() {
                   label={t("common.area") || "Area"}
                   value={formData.area}
                   onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Industrial Zone"
+                  placeholder="e.g., Industrial Area"
                 />
               )}
             </>
@@ -1360,10 +1402,7 @@ export default function CustomerCreationForm() {
                 update("country_id", v);
                 update("state_id", "");
                 update("district_id", "");
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
+                resetHierarchy();
               }}
               options={dropdowns.countries.map((c: any) => ({
                 value: resolveId(c),
@@ -1379,10 +1418,7 @@ export default function CustomerCreationForm() {
               onChange={(v: string) => {
                 update("state_id", v);
                 update("district_id", "");
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
+                resetHierarchy();
               }}
               options={filteredStates.map((s: any) => ({
                 value: resolveId(s),
@@ -1397,10 +1433,7 @@ export default function CustomerCreationForm() {
               value={formData.district_id}
               onChange={(v: string) => {
                 update("district_id", v);
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
+                resetHierarchy();
               }}
               options={filteredDistricts.map((d: any) => ({
                 value: resolveId(d),
@@ -1409,93 +1442,23 @@ export default function CustomerCreationForm() {
               placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
             />
           )}
-          {showField("city_id") && (
+          <ShadcnSelect
+            label="Hierarchy Level"
+            value={selectedHierarchyLevel}
+            onChange={(v: string) => setHierarchyValue(v as HierarchyLevel, "")}
+            options={hierarchyLevels.map((item) => ({ value: item.value, label: item.label }))}
+            placeholder="Select hierarchy level"
+          />
+          {showField(selectedHierarchyLevel) && (
             <ShadcnSelect
-              label={t("common.city") || "City"}
-              value={formData.city_id}
-              onChange={(v: string) => {
-                update("city_id", v);
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredCities.map((c: any) => ({
-                value: resolveId(c),
-                label: c.name,
+              label={hierarchyLevels.find((item) => item.value === selectedHierarchyLevel)?.label || "Hierarchy"}
+              value={selectedHierarchyId}
+              onChange={(v: string) => setHierarchyValue(selectedHierarchyLevel, v)}
+              options={filteredHierarchyOptions.map((item: any) => ({
+                value: resolveId(item),
+                label: item[hierarchyLevels.find((level) => level.value === selectedHierarchyLevel)?.optionLabel || "name"] || item.name,
               }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
-            />
-          )}
-          {/* ── ZONE ── */}
-          {showField("zone_id") && (
-            <ShadcnSelect
-              label={t("common.zone") || "Zone"}
-              value={formData.zone_id || "__none__"}
-              disabled={isPanchayatSelected}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("zone_id", next);
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredZones.map((z: any) => ({
-                  value: resolveId(z),
-                  label: z.zone_name || z.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("common.zone") }) || "Select zone"}
-              isRequired={false}
-            />
-          )}
-
-          {/* ── WARD ── */}
-          {showField("ward_id") && (
-            <ShadcnSelect
-              label={t("common.ward") || "Ward"}
-              value={formData.ward_id || "__none__"}
-              disabled={isPanchayatSelected}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("ward_id", next);
-                if (next) update("panchayat_id", "");
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredWards.map((w: any) => ({
-                  value: resolveId(w),
-                  label: w.ward_name || w.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
-              isRequired={false}
-            />
-          )}
-
-          {/* ── PANCHAYAT ── */}
-          {showField("panchayat_id") && (
-            <ShadcnSelect
-              label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
-              value={formData.panchayat_id || "__none__"}
-              disabled={isZoneOrWardSelected}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("panchayat_id", next);
-                if (next) {
-                  update("zone_id", "");
-                  update("ward_id", "");
-                }
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredPanchayats.map((p: any) => ({
-                  value: resolveId(p),
-                  label: p.panchayat_name || p.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
-              isRequired={false}
+              placeholder="Select hierarchy"
             />
           )}
         </FormSection>

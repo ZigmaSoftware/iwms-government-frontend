@@ -1,564 +1,199 @@
-import type { AreaTypeCityMeta, AreaTypePayload, CityRecordWithRelations } from "./types";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
-import { useTranslation } from "react-i18next";
+
+import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import ComponentCard from "@/components/common/ComponentCard";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import type { SelectOption } from "@/types";
-import type { AreaTypeRecord, DistrictMeta, StateMeta } from "./types";
-import { adminApi } from "@/helpers/admin/registry";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { areaTypeApi, corporationApi, districtApi, municipalityApi, panchayatApi, panchayatUnionApi, stateApi, townPanchayatApi } from "@/helpers/admin";
 
+type Option = { value: string; label: string; stateId?: string; districtId?: string; areaTypeName?: string };
+type RecordRow = Record<string, any>;
 
-const { encMasters, encAreaTypes } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encAreaTypes);
-
-const AREA_TYPE_FIELDS: Record<string, string[]> = {
-  state_id: ["state_id", "state"],
-  district_id: ["district_id", "district"],
-  city_id: ["city_id", "city"],
-  name: ["name", "area_type_name"],
-  is_active: ["is_active"],
+const normalizeNullable = (value: any): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return normalizeNullable(value.unique_id ?? value.id ?? value.value);
+  return String(value).trim();
 };
 
-const normalizeNullable = (v: unknown): string | null => {
-  if (v === undefined || v === null) return null;
-  if (typeof v === "object") {
-    const record = v as { unique_id?: unknown; id?: unknown };
-    return normalizeNullable(record.unique_id ?? record.id);
+const toRecordList = (value: unknown): RecordRow[] => {
+  if (Array.isArray(value)) return value as RecordRow[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: RecordRow[] }).results;
   }
-  return String(v);
+  return [];
 };
 
+const textOf = (row: RecordRow, ...keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value);
+  }
+  return "";
+};
+
+const toOption = (row: RecordRow, labelKey: string): Option => ({
+  value: normalizeNullable(row.unique_id ?? row.id),
+  label: textOf(row, labelKey, "name", "state_name", "district_name", "area_type_name", "union_name"),
+  stateId: normalizeNullable(row.state_id ?? row.state),
+  districtId: normalizeNullable(row.district_id ?? row.district),
+  areaTypeName: textOf(row, "area_type_name", "name"),
+});
+
+const AREA_TYPE_FILTER = null;
 
 export default function AreaTypeForm() {
-  const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "area-types", AREA_TYPE_FIELDS);
-  const [name, setName] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const { encMasters, encAreaTypes } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encAreaTypes);
 
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
-  const [cityId, setCityId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [panchayatUnionId, setPanchayatUnionId] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const [pendingState, setPendingState] = useState("");
-  const [pendingDistrict, setPendingDistrict] = useState("");
-  const [pendingCity, setPendingCity] = useState("");
+  const [states, setStates] = useState<Option[]>([]);
+  const [districts, setDistricts] = useState<Option[]>([]);
+  const [areaTypes, setAreaTypes] = useState<Option[]>([]);
+  const [panchayatUnions, setPanchayatUnions] = useState<Option[]>([]);
 
-  const [allStates, setAllStates] = useState<StateMeta[]>([]);
-  const [filteredStates, setFilteredStates] = useState<SelectOption[]>([]);
-
-  const [allDistricts, setAllDistricts] = useState<DistrictMeta[]>([]);
-  const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
-
-  const [allCities, setAllCities] = useState<AreaTypeCityMeta[]>([]);
-  const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
-
-  const [recordData, setRecordData] = useState<AreaTypeRecord | null>(null);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
-
-  const extractErr = (e: unknown): string => {
-    const data = (e as { response?: { data?: unknown } })?.response?.data;
-
-    if (typeof data === "string") return data;
-    if (Array.isArray(data)) return data.join(", ");
-    if (data && typeof data === "object") {
-      return Object.entries(data as Record<string, unknown>)
-        .map(([key, value]) =>
-          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
-        )
-        .join("\n");
-    }
-
-    if (e instanceof Error && e.message) return e.message;
-    return t("common.unexpected_error");
-  };
-
-  // Fetch states list
   useEffect(() => {
     let cancelled = false;
-    adminApi.states.readAll()
-      .then((res: any) => {
+    Promise.all([
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      panchayatUnionApi.readAll(),
+    ])
+      .then(([stateRes, districtRes, areaTypeRes, unionRes]) => {
         if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : [];
-        setAllStates(
-          data.map((s) => ({
-            id: String(s.unique_id),
-            name: s.name,
-            isActive: Boolean(s.is_active),
-          }))
-        );
+        setStates(toRecordList(stateRes).map((row) => toOption(row, "state_name")).filter((item) => item.value && item.label));
+        setDistricts(toRecordList(districtRes).map((row) => toOption(row, "district_name")).filter((item) => item.value && item.label));
+        setAreaTypes(toRecordList(areaTypeRes).map((row) => toOption(row, "area_type_name")).filter((item) => item.value && item.label));
+        setPanchayatUnions(toRecordList(unionRes).map((row) => toOption(row, "union_name")).filter((item) => item.value && item.label));
       })
-      .catch((err: any) => {
-        if (cancelled) return;
-        Swal.fire(t("common.error"), extractErr(err), "error");
-      });
+      .catch(() => Swal.fire("Error", "Failed to load dropdown data", "error"));
     return () => { cancelled = true; };
-  }, [t]);
+  }, []);
 
-  // Fetch districts list
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.districts.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: any[] = Array.isArray(res) ? res : [];
-        setAllDistricts(
-          data.map((d) => ({
-            id: String(d.unique_id),
-            name: d.name,
-            stateId: normalizeNullable(d.state_id),
-            isActive: Boolean(d.is_active),
-          }))
-        );
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        Swal.fire(t("common.error"), extractErr(err), "error");
-      });
-    return () => { cancelled = true; };
-  }, [t]);
-
-  // Fetch cities list
-  useEffect(() => {
-    let cancelled = false;
-    adminApi.cities.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const data: CityRecordWithRelations[] = Array.isArray(res) ? res : [];
-        setAllCities(
-          data.map((c) => ({
-            id: String(c.unique_id),
-            name: c.name,
-            stateId: normalizeNullable(c.state_id ?? c.state_unique_id ?? c.state),
-            districtId: normalizeNullable(c.district_id ?? c.district_unique_id ?? c.district),
-            isActive: Boolean(c.is_active),
-          }))
-        );
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        Swal.fire(t("common.error"), extractErr(err), "error");
-      });
-    return () => { cancelled = true; };
-  }, [t]);
-
-  // Fetch area type record in edit mode
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    setLoadingRecord(true);
-    adminApi.areatypes.read(id)
-      .then((res: any) => {
+    areaTypeApi.read(id)
+      .then((record: RecordRow) => {
         if (cancelled) return;
-        const record = res as AreaTypeRecord;
-        setRecordData(record);
-        setLoadingRecord(false);
-
-        setName(record.name ?? record.area_type_name ?? "");
-        setIsActive(Boolean(record.is_active));
-
-        let ste = normalizeNullable(record.state_id);
-        let dis = normalizeNullable(record.district_id);
-        const cty = normalizeNullable(record.city_id);
-        const selectedCity = cty ? allCities.find((city) => city.id === cty) : undefined;
-
-        dis = dis || selectedCity?.districtId || null;
-        ste = ste || selectedCity?.stateId || (dis ? allDistricts.find((district) => district.id === dis)?.stateId ?? null : null);
-
-        if (ste) {
-          setStateId(ste);
-          setPendingState(ste);
-        }
-        if (dis) {
-          setDistrictId(dis);
-          setPendingDistrict(dis);
-        }
-        if (cty) {
-          setCityId(cty);
-          setPendingCity(cty);
-        }
-
-        applyCompanyProjectFromRecord(
-          record as unknown as Record<string, unknown>
-        );
+        setName(textOf(record, "name", "name", "state_name", "district_name", "area_type_name"));
+        setCode(textOf(record, ""));
+        setStateId(normalizeNullable(record.state_id ?? record.state));
+        setDistrictId(normalizeNullable(record.district_id ?? record.district));
+        setAreaTypeId(normalizeNullable(record.area_type_id ?? record.area_type));
+        setPanchayatUnionId(normalizeNullable(record.panchayat_union_id ?? record.panchayat_union));
+        setIsActive(record.is_active !== false);
       })
-      .catch((err: any) => {
-        if (cancelled) return;
-        setLoadingRecord(false);
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: extractErr(err),
-        });
-      });
+      .catch(() => Swal.fire("Error", "Failed to load Area Type", "error"));
     return () => { cancelled = true; };
-  }, [id, isEdit, allCities, allDistricts, applyCompanyProjectFromRecord]);
+  }, [id, isEdit]);
 
-  useEffect(() => {
-    const filt = allStates
-      .filter((s) => s.isActive)
-      .map((s) => ({ value: s.id, label: s.name }));
+  const filteredDistricts = useMemo(
+    () => districts.filter((item) => !stateId || !item.stateId || item.stateId === stateId),
+    [districts, stateId],
+  );
 
-    if (pendingState && !filt.some((o) => o.value === pendingState)) {
-      const found = allStates.find((s) => s.id === pendingState);
-      if (found) filt.push({ value: found.id, label: found.name });
+  const filteredAreaTypes = useMemo(
+    () => areaTypes.filter((item) =>
+      (!stateId || !item.stateId || item.stateId === stateId) &&
+      (!districtId || !item.districtId || item.districtId === districtId) &&
+      (!AREA_TYPE_FILTER || item.label === AREA_TYPE_FILTER)
+    ),
+    [areaTypes, districtId, stateId],
+  );
+
+  const filteredPanchayatUnions = useMemo(
+    () => panchayatUnions.filter((item) => !districtId || !item.districtId || item.districtId === districtId),
+    [districtId, panchayatUnions],
+  );
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) {
+      Swal.fire("Missing details", "Area Type is required", "warning");
+      return;
     }
-
-    setFilteredStates(filt);
-  }, [allStates, pendingState]);
-
-  useEffect(() => {
-    if (!stateId) {
-      setFilteredDistricts([]);
+    if (!stateId || !districtId) {
+      Swal.fire("Missing details", "State, District required", "warning");
       return;
     }
 
-    const filt = allDistricts
-      .filter((d) => d.isActive && d.stateId === stateId)
-      .map((d) => ({ value: d.id, label: d.name }));
-
-    if (pendingDistrict && !filt.some((o) => o.value === pendingDistrict)) {
-      const found = allDistricts.find((d) => d.id === pendingDistrict);
-      if (found) filt.push({ value: found.id, label: found.name });
-    }
-
-    setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrict]);
-
-  useEffect(() => {
-    if (!districtId) {
-      setFilteredCities([]);
-      return;
-    }
-
-    const filt = allCities
-      .filter((c) => c.isActive && c.districtId === districtId)
-      .map((c) => ({ value: c.id, label: c.name }));
-
-    if (pendingCity && !filt.some((o) => o.value === pendingCity)) {
-      const found = allCities.find((c) => c.id === pendingCity);
-      if (found) filt.push({ value: found.id, label: found.name });
-    }
-
-    setFilteredCities(filt);
-  }, [districtId, allCities, pendingCity]);
-
-  useEffect(() => {
-    if (
-      pendingState &&
-      filteredStates.length > 0 &&
-      filteredStates.some((o) => o.value === pendingState)
-    ) {
-      setStateId(pendingState);
-      setPendingState("");
-    }
-  }, [pendingState, filteredStates]);
-
-  useEffect(() => {
-    if (
-      pendingDistrict &&
-      filteredDistricts.length > 0 &&
-      filteredDistricts.some((o) => o.value === pendingDistrict)
-    ) {
-      setDistrictId(pendingDistrict);
-      setPendingDistrict("");
-    }
-  }, [pendingDistrict, filteredDistricts]);
-
-  useEffect(() => {
-    if (
-      pendingCity &&
-      filteredCities.length > 0 &&
-      filteredCities.some((o) => o.value === pendingCity)
-    ) {
-      setCityId(pendingCity);
-      setPendingCity("");
-    }
-  }, [pendingCity, filteredCities]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const fieldValues: Record<string, unknown> = {
+    const payload: RecordRow = {
       name: name.trim(),
-      state_id: stateId,
-      district_id: districtId,
-      city_id: cityId,
+      is_active: isActive,
     };
+    
+    payload.state_id = stateId;
+    payload.district_id = districtId;
 
-    if (getMissingRequiredFields(["name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.missing_fields"),
-      });
-      return;
-    }
-
-    if (
-      getMissingRequiredFields(
-        ["state_id", "district_id", "city_id"],
-        (fieldKey) => fieldValues[fieldKey],
-      ).length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: "State, District, and City are required",
-      });
-      return;
-    }
-
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
-
-    if (!projectId) {
-      Swal.fire("Error", "Project is required", "error");
-      return;
-    }
-
+    setSubmitting(true);
     try {
-      setLoading(true);
-      setIsSubmitting(true);
-
-      const rawPayload = {
-        name: name.trim(),
-        is_active: isActive,
-        company_id: companyUniqueId,
-        project_id: projectId,
-        state_id: stateId,
-        district_id: districtId,
-        city_id: cityId,
-      };
-      const basePayload = filterPayload(rawPayload, [
-        "company_id",
-        "project_id",
-      ]) as AreaTypePayload;
-
-      if (isEdit) {
-        await adminApi.areatypes.update(id as string, basePayload);
-        Swal.fire({
-          icon: "success",
-          title: t("common.updated_success"),
-          timer: 1500,
-          showConfirmButton: false,
-        });
-      } else {
-        await adminApi.areatypes.create(basePayload);
-        Swal.fire({
-          icon: "success",
-          title: t("common.added_success"),
-          timer: 1500,
-          showConfirmButton: false,
-        });
-      }
-
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
-    } catch (error: unknown) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.save_failed"),
-        text: extractErr(error) || t("common.save_failed_desc"),
-      });
+      if (isEdit && id) await areaTypeApi.update(id, payload);
+      else await areaTypeApi.create(payload);
+      Swal.fire("Success", "Area Type saved successfully", "success");
+      navigate(LIST_PATH);
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to save Area Type"), "error");
     } finally {
-      setLoading(false);
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
-  if (isEdit && loadingRecord && !recordData) {
-    return (
-      <ComponentCard
-        title={t("common.edit_item", { item: t("admin.nav.area_type") })}
-      >
-        <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
-      </ComponentCard>
-    );
-  }
-
   return (
-    <ComponentCard
-      title={
-        isEdit
-          ? t("common.edit_item", { item: t("admin.nav.area_type") })
-          : t("common.add_item", { item: t("admin.nav.area_type") })
-      }
-    >
-      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">{showField("state_id") && (
-          <div>
-            <Label htmlFor="state">
-              State <span className="text-red-500">*</span>
-            </Label>
-            <Select value={stateId} onValueChange={setStateId}>
-              <SelectTrigger id="state">
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredStates.map((state) => (
-                  <SelectItem key={state.value} value={state.value}>
-                    {state.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {showField("district_id") && (
-          <div>
-            <Label htmlFor="district">
-              District <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={districtId}
-              onValueChange={setDistrictId}
-              disabled={!stateId || filteredDistricts.length === 0}
-            >
-              <SelectTrigger id="district">
-                <SelectValue placeholder="Select District" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredDistricts.map((district) => (
-                  <SelectItem key={district.value} value={district.value}>
-                    {district.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {stateId && filteredDistricts.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">
-                No districts found for this state.
-              </p>
-            )}
-          </div>
-        )}
-
-        {showField("city_id") && (
-          <div>
-            <Label htmlFor="city">
-              City <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={cityId}
-              onValueChange={setCityId}
-              disabled={!districtId || filteredCities.length === 0}
-            >
-              <SelectTrigger id="city">
-                <SelectValue placeholder="Select City" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredCities.map((city) => (
-                  <SelectItem key={city.value} value={city.value}>
-                    {city.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {districtId && filteredCities.length === 0 && (
-              <p className="mt-1 text-xs text-red-500">
-                No cities found for this district.
-              </p>
-            )}
-          </div>
-        )}
-
-        {showField("name") && (
-          <div>
-            <Label htmlFor="name">
-              {t("common.item_name", { item: t("admin.nav.area_type") })}{" "}
-              <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("common.enter_item_name", {
-                item: t("admin.nav.area_type"),
-              })}
-              required
-            />
-          </div>
-        )}
-
-        {showField("is_active") && (
-          <div>
-            <Label htmlFor="isActive">
-              {t("common.status")} <span className="text-red-500">*</span>
-            </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
-            >
-              <SelectTrigger id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <div className="md:col-span-2 flex justify-end gap-3">
-          <Button type="submit" disabled={loading || isSubmitting}>
-            {loading
-              ? isEdit
-                ? t("common.updating")
-                : t("common.saving")
-              : isEdit
-                ? t("common.update")
-                : t("common.save")}
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
-          >
-            {t("common.cancel")}
-          </Button>
+    <ComponentCard title={isEdit ? "Edit Area Type" : "Add Area Type"}>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label>State *</Label>
+          <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setAreaTypeId(""); setPanchayatUnionId(""); }}>
+            <SelectTrigger><SelectValue placeholder="Select State" /></SelectTrigger>
+            <SelectContent>{states.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>District *</Label>
+          <Select value={districtId} onValueChange={(value) => { setDistrictId(value); setAreaTypeId(""); setPanchayatUnionId(""); }} disabled={!stateId}>
+            <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
+            <SelectContent>{filteredDistricts.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        
+        
+        <div>
+          <Label>Area Type *</Label>
+          <Select value={name} onValueChange={setName}>
+            <SelectTrigger><SelectValue placeholder="Select Area Type" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Urban Local Body">Urban Local Body</SelectItem>
+              <SelectItem value="Rural Local Body">Rural Local Body</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="flex items-center gap-3 md:col-span-2">
+          <Switch checked={isActive} onCheckedChange={setIsActive} />
+          <Label>Active</Label>
+        </div>
+        <div className="flex justify-end gap-2 md:col-span-2">
+          <Button type="button" variant="outline" onClick={() => navigate(LIST_PATH)}>Cancel</Button>
+          <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
         </div>
       </form>
     </ComponentCard>

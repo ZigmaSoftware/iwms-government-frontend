@@ -6,10 +6,7 @@ export type StopRow = { collection_point_id: string; bin_id: string; sequence: n
 
 export type FormState = {
   district_id: string;
-  city_id: string;
-  zone_id: string;
   panchayat_id: string;
-  ward_id: string;
   staff_template_id: string;
   vehicle_id: string;
   supervisor_id: string;
@@ -29,9 +26,7 @@ export type TripPlanRecord = {
   company_id?: string | null;
   project_id?: string | null;
   district?: { name?: string };
-  city?: { name?: string };
   panchayat?: { panchayat_name?: string };
-  ward?: { ward_name?: string };
   staff_template?: { display_code?: string };
   vehicle?: { vehicle_no?: string };
   waste_type?: { waste_type_name?: string };

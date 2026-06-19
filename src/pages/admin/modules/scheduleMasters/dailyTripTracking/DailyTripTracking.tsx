@@ -78,7 +78,7 @@ function formatTravelTime(seconds?: number) {
 }
 
 function locationLabel(cp?: Row["collection_point"]) {
-  return [cp?.panchayat_name, cp?.ward_name, cp?.zone_name].filter(Boolean).join(" · ") || null;
+  return cp?.panchayat_name || null;
 }
 
 function statusLabel(status: string) {
@@ -353,8 +353,6 @@ export default function DailyTripTracking() {
     if (assignmentId) params.trip_assignment_id = assignmentId;
     if (date && !assignmentId) params.date = date;
     if (search) params.search = search;
-    if (locations.zoneId) params.zone_id = locations.zoneId;
-    if (locations.wardId) params.ward_id = locations.wardId;
     if (locations.panchayatId) params.panchayat_id = locations.panchayatId;
     if (staffTemplateId) params.staff_template_id = staffTemplateId;
     if (altStaffTemplateId) params.alt_staff_template_id = altStaffTemplateId;
@@ -388,8 +386,6 @@ export default function DailyTripTracking() {
     companyUniqueId,
     date,
     locations.panchayatId,
-    locations.wardId,
-    locations.zoneId,
     page,
     projectId,
     search,
@@ -868,30 +864,6 @@ export default function DailyTripTracking() {
               placeholder="Search CP…"
               className="rounded-lg border border-gray-200 p-2 text-sm"
             />
-            <select
-              value={locations.zoneId}
-              onChange={(e) => locations.setZoneId(e.target.value)}
-              className="rounded-lg border border-gray-200 p-2 text-sm"
-            >
-              <option value="">Zone</option>
-              {locations.zones.map((x) => (
-                <option key={x.value} value={x.value}>
-                  {x.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={locations.wardId}
-              onChange={(e) => locations.setWardId(e.target.value)}
-              className="rounded-lg border border-gray-200 p-2 text-sm"
-            >
-              <option value="">Ward</option>
-              {locations.wards.map((x) => (
-                <option key={x.value} value={x.value}>
-                  {x.label}
-                </option>
-              ))}
-            </select>
             <select
               value={locations.panchayatId}
               onChange={(e) => locations.setPanchayatId(e.target.value)}

@@ -101,31 +101,6 @@ const normalizeId = (value: unknown): string => {
   return String(value).trim();
 };
 
-const getZoneName = (record: any, plan?: TripPlanRecord): string =>
-  String(
-    record?.zone?.zone_name ??
-      record?.zone?.name ??
-      record?.ward?.zone_name ??
-      record?.ward?.zone?.zone_name ??
-      record?.trip_plan?.zone?.zone_name ??
-      plan?.zone?.zone_name ??
-      plan?.zone?.name ??
-      plan?.ward?.zone_name ??
-      ""
-  ).trim();
-
-const getWardName = (record: any, plan?: TripPlanRecord): string =>
-  String(
-    record?.ward?.ward_name ??
-      record?.ward?.name ??
-      record?.trip_plan?.ward?.ward_name ??
-      plan?.ward?.ward_name ??
-      plan?.ward?.name ??
-      record?.ward_id ??
-      plan?.ward_id ??
-      ""
-  ).trim();
-
 const getPanchayatName = (record: any, plan?: TripPlanRecord): string =>
   String(
     record?.panchayat?.panchayat_name ??
@@ -220,7 +195,7 @@ export default function DailyTripAssignmentList() {
         ...rec,
         _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
         _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
-        _location: rec.panchayat?.panchayat_name ?? (rec.ward as any)?.ward_name ?? rec.panchayat_id ?? rec.ward_id ?? "",
+        _location: rec.panchayat?.panchayat_name ?? rec.panchayat_id ?? "",
         _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
         _collection_type: getCollectionTypeKey(rec),
       }));
@@ -357,18 +332,6 @@ export default function DailyTripAssignmentList() {
           filter showFilterMatchModes={false}
         />
         <Column
-          field="_zone"
-          header="Zone"
-          body={(row: any) => row._zone || "—"}
-          filter showFilterMatchModes={false}
-        />
-        <Column
-          field="_ward"
-          header="Ward"
-          body={(row: any) => row._ward || "—"}
-          filter showFilterMatchModes={false}
-        />
-        <Column
           field="_location"
           header="Location"
           filter
@@ -380,14 +343,6 @@ export default function DailyTripAssignmentList() {
                 <span className="text-sm text-gray-800">
                   {row.panchayat.panchayat_name}
                   <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
-                </span>
-              );
-            }
-            if ((row.ward as any)?.ward_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {(row.ward as any).ward_name}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
                 </span>
               );
             }

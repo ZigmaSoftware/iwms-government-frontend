@@ -792,6 +792,8 @@ const enResource = {
           "municipality": "Municipality",
           "town_panchayat": "Town Panchayat",
           "block_panchayat_union": "Block / Panchayat Union",
+          "panchayat_union": "Panchayat Union",
+          "corporation": "Corporation",
           "department": "Department Master",
           "designation": "Designation Master",
           "hierarchy": "Hierarchy",

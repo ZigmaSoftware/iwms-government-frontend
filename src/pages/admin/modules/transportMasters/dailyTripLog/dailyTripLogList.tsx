@@ -203,7 +203,7 @@ function TripLogModal({
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
             )}
 
-            {/* Location — panchayat or ward */}
+            {/* Location */}
             {row.panchayat?.panchayat_name ? (
               <div className="flex gap-2 text-sm">
                 <span className="text-gray-500 w-36 shrink-0">Location</span>
@@ -212,20 +212,7 @@ function TripLogModal({
                   <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(PLB)</span>
                 </span>
               </div>
-            ) : row.ward?.ward_name ? (
-              <div className="flex gap-2 text-sm">
-                <span className="text-gray-500 w-36 shrink-0">Location</span>
-                <span className="font-medium text-gray-800">
-                  {row.ward.ward_name}
-                  <span className="ml-1.5 text-xs text-teal-500 font-semibold">(Ward)</span>
-                </span>
-              </div>
             ) : null}
-
-            {/* Zone */}
-            {row.trip_assignment?.zone?.zone_name && (
-              <InfoRow label="Zone" value={row.trip_assignment.zone.zone_name} />
-            )}
           </div>
         </div>
 
@@ -494,7 +481,7 @@ export default function DailyTripLogList() {
     _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
     _base_template: rec.staff_template?.base?.display_code ?? "",
     _alt_template: rec.staff_template?.alt?.display_code ?? "",
-    _location: rec.panchayat?.panchayat_name ?? rec.ward?.ward_name ?? "",
+    _location: rec.panchayat?.panchayat_name ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
     _computed_weight: computeCollectedWeight(rec.collection_points),
@@ -794,15 +781,7 @@ export default function DailyTripLogList() {
                 </span>
               );
             }
-            if (row.ward?.ward_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {row.ward.ward_name}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">(Ward)</span>
-                </span>
-              );
-            }
-            return <span className="text-sm text-gray-400">-</span>;
+            return <span className="text-sm text-gray-400">—</span>;
           }}
         />
         <Column

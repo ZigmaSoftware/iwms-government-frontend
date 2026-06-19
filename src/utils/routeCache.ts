@@ -4,11 +4,9 @@ export type EncryptedRoutes = {
   encAttendance: string;
   encAdmins: string;
   encAudits: string;
-  encCities: string;
   encCitizenGrivence: string;
   encCollectionMonitoring: string;
   encPanchayatBaseCollection: string;
-  encWardBaseCollection: string;
   encComplaint: string;
   encContinents: string;
   encCountries: string;
@@ -50,13 +48,11 @@ export type EncryptedRoutes = {
   encWasteCollectedSummary: string;
   encMonthlyWasteComparison: string;
   encWasteManagementMaster: string;
-  encWards: string;
   encCollectionPoints: string;
   encWasteTypes: string;
   encDateReport: string;
   encDayReport: string;
   encWorkforceManagement: string;
-  encZones: string;
   encTransportMaster: string;
   encMainScreenType: string;
   encUserScreenAction: string;
@@ -74,7 +70,6 @@ export type EncryptedRoutes = {
   encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
-  encZonePropertyLoadTracker: string;
   encUnassignedStaffPool: string;
   encTripAttendance: string;
   encVehicleTripAudit: string;
@@ -103,20 +98,19 @@ export type EncryptedRoutes = {
   encAreaTypes: string;
   encHierarchies: string;
   encPanchayatLeaders: string;
+  encCorporations: string;
   encMunicipalities: string;
   encTownPanchayats: string;
-  encBlockPanchayatUnions: string;
+  encPanchayatUnions: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
   encAttendance: "attendance",
   encAdmins: "admins",
   encAudits: "audits",
-  encCities: "cities",
   encCitizenGrivence: "citizen-grievance",
   encCollectionMonitoring: "collection-monitoring",
   encPanchayatBaseCollection: "panchayat-base-collection",
-  encWardBaseCollection: "ward-base-collection",
   encComplaint: "complaint",
   encContinents: "continents",
   encCountries: "countries",
@@ -162,13 +156,11 @@ const plainRoutes: EncryptedRoutes = {
   encWasteCollectedSummary: "waste-collected-summary",
   encMonthlyWasteComparison: "monthly-waste-comparison",
   encWasteManagementMaster: "waste-management",
-  encWards: "wards",
   encCollectionPoints: "collection-points",
   encWasteTypes: "waste-types",
   encDateReport: "date-report",
   encDayReport: "day-report",
   encWorkforceManagement: "workforce-management",
-  encZones: "zones",
   encTransportMaster: "transport-master",
   encMainScreenType: "mainscreen-type",
   encUserScreenAction: "userscreen-action",
@@ -187,7 +179,6 @@ const plainRoutes: EncryptedRoutes = {
   encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",
-  encZonePropertyLoadTracker: "zone-property-load-tracker",
   encUnassignedStaffPool: "unassigned-staff-pool",
   encTripAttendance: "trip-attendance",
   encVehicleTripAudit: "vehicle-trip-audit",
@@ -199,9 +190,10 @@ const plainRoutes: EncryptedRoutes = {
   encAreaTypes: "area-types",
   encHierarchies: "hierarchies",
   encPanchayatLeaders: "panchayat-leaders",
+  encCorporations: "corporations",
   encMunicipalities: "municipalities",
   encTownPanchayats: "town-panchayats",
-  encBlockPanchayatUnions: "block-panchayat-unions",
+  encPanchayatUnions: "panchayat-unions",
 
   //dashboard
 

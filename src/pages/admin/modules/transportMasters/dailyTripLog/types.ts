@@ -19,10 +19,7 @@ export type StaffTemplateInfo = {
 export type DailyTripLogRecord = {
   unique_id: string;
   trip_assignment_id?: string;
-  trip_assignment?: NamedRef & {
-    display_code?: string;
-    zone?: { unique_id?: string; zone_name?: string } | null;
-  };
+  trip_assignment?: NamedRef & { display_code?: string };
   staff_template?: StaffTemplateInfo | null;
   company_id?: string | null;
   company_unique_id?: string | null;
@@ -31,7 +28,6 @@ export type DailyTripLogRecord = {
   project_unique_id?: string | null;
   project_name?: string | null;
   panchayat?: { unique_id?: string; panchayat_name?: string } | null;
-  ward?: { unique_id?: string; ward_name?: string } | null;
   collection_points?: {
     unique_id?: string;
     cp_name?: string;

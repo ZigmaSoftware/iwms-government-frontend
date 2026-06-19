@@ -793,6 +793,8 @@ const hiResource = {
           "municipality": "नगर पालिका",
           "town_panchayat": "नगर पंचायत",
           "block_panchayat_union": "ब्लॉक / पंचायत संघ",
+          "panchayat_union": "पंचायत संघ",
+          "corporation": "निगम",
           "property": "प्रॉपर्टी",
           "sub_property": "सब-प्रॉपर्टी",
           "staff_master": "स्टाफ मास्टर",

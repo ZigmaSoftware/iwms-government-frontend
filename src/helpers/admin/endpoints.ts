@@ -26,18 +26,16 @@ export const adminEndpoints = {
      MASTERS
   ========================= */
   districts: "masters/districts",
-  cities: "masters/cities",
-  zones: "masters/zones",
-  wards: "masters/wards",
   departments: "masters/departments",
   designations: "masters/designations",
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
+  corporations: "masters/corporations",
   municipalities: "masters/municipalities",
   townPanchayats: "masters/town-panchayats",
-  blockPanchayatUnions: "masters/block-panchayat-unions",
+  panchayatUnions: "masters/panchayat-unions",
 
   /* =========================
      WASTE TYPES
@@ -95,11 +93,6 @@ export const adminEndpoints = {
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================
-     PROCESS
-  ========================= */
-  zonePropertyLoadTrackers: "process-items/zone-property-load-tracker",
-
-  /* =========================
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
@@ -110,7 +103,6 @@ export const adminEndpoints = {
      COLLECTIONS
   ========================= */
   panchayatWiseCollections: "collections/panchayat-wise",
-  wardWiseCollections: "collections/ward-wise",
 
   /* =========================
      GRIEVANCES

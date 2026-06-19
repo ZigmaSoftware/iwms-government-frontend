@@ -793,6 +793,8 @@ const taResource = {
           "municipality": "நகராட்சி",
           "town_panchayat": "நகர் பஞ்சாயத்து",
           "block_panchayat_union": "வட்டம் / பஞ்சாயத்து யூனியன்",
+          "panchayat_union": "பஞ்சாயத்து யூனியன்",
+          "corporation": "மாநகராட்சி",
           "property": "சொத்து",
           "sub_property": "உப சொத்து",
           "staff_master": "பணியாளர் மாஸ்டர்",

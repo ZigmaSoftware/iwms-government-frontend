@@ -48,7 +48,7 @@ const extractRows = (
   if (Array.isArray(response)) return response;
   return scope === "panchayat"
     ? (response.panchayat_collections ?? [])
-    : (response.ward_collections ?? []);
+    : [];
 };
 
 /* ================= COMPONENT ================= */
@@ -58,7 +58,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const collectionApi =
     scope === "panchayat"
       ? adminApi.panchayatWiseCollections
-      : adminApi.wardWiseCollections;
+      : adminApi.panchayatWiseCollections;
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const {

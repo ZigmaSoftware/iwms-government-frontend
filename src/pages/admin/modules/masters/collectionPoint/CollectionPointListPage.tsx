@@ -34,9 +34,7 @@ const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   project_name: ["project_id", "project_name"],
   state_name: ["state_id", "state_name"],
   district_name: ["district_id", "district_name"],
-  city_name: ["city_id", "city_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
-  ward_name: ["ward_id", "ward_name"],
   latitude: ["latitude"],
   longitude: ["longitude"],
   is_active: ["is_active"],
@@ -57,9 +55,7 @@ export default function CollectionPointListPage() {
     project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     state_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
   const location = useLocation();
   const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
@@ -273,12 +269,8 @@ export default function CollectionPointListPage() {
           "state_name",
           "district_id",
           "district_name",
-          "city_id",
-          "city_name",
           "panchayat_id",
           "panchayat_name",
-          "ward_id",
-          "ward_name",
         ]}
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
@@ -333,16 +325,6 @@ export default function CollectionPointListPage() {
             body={(row: CollectionPointRecord) => cap(toOptionalString(row.district_name))}
           />
         )}
-        {showCol("city_name") && (
-          <Column
-            field="city_name"
-            header={t("common.city")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(toOptionalString(row.city_name))}
-          />
-        )}
         {showCol("panchayat_name") && (
           <Column
             field="panchayat_name"
@@ -351,16 +333,6 @@ export default function CollectionPointListPage() {
             filter
             showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => toDisplay(row.panchayat_name)}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => toDisplay(row.ward_name)}
           />
         )}
         {showCol("latitude") && (

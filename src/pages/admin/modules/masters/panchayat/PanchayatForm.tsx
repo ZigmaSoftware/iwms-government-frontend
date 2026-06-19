@@ -1,699 +1,207 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { areaTypeApi, corporationApi, districtApi, municipalityApi, panchayatApi, panchayatUnionApi, stateApi, townPanchayatApi } from "@/helpers/admin";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { panchayatApi, stateApi, districtApi, cityApi, blockPanchayatUnionApi } from "@/helpers/admin";
-import type { SelectOption } from "@/types";
-import GeoFenceCoordinates, {
-  emptyCoordinate,
-  normalizeCoordinateDrafts,
-  serializeCoordinateDrafts,
-  type GeoCoordinateDraft,
-} from "../shared/GeoFenceCoordinates";
+type Option = { value: string; label: string; stateId?: string; districtId?: string; areaTypeName?: string };
+type RecordRow = Record<string, any>;
 
-const PANCHAYAT_FIELDS: Record<string, string[]> = {
-  state_id: ["state_id", "state"],
-  district_id: ["district_id", "district"],
-  city_id: ["city_id", "city"],
-  block_id: ["block_id", "block"],
-  panchayat_name: ["panchayat_name", "name"],
-  agreed_weight_kg: ["agreed_weight_kg"],
-  weight_unit: ["weight_unit"],
-  effective_from: ["effective_from"],
-  latitude: ["latitude"],
-  longitude: ["longitude"],
-  geofencing_type: ["geofencing_type"],
-  coordinates: ["coordinates"],
-  is_active: ["is_active"],
+const normalizeNullable = (value: any): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") return normalizeNullable(value.unique_id ?? value.id ?? value.value);
+  return String(value).trim();
 };
 
-const normalizeNullable = (v: any): string | null => {
-  if (v === undefined || v === null) return null;
-  if (typeof v === "object") {
-    return normalizeNullable(v.unique_id ?? v.id ?? v.value);
+const toRecordList = (value: unknown): RecordRow[] => {
+  if (Array.isArray(value)) return value as RecordRow[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: RecordRow[] }).results;
   }
-
-  const raw = String(v).trim();
-  if (!raw) return null;
-
-  const inParentheses = raw.match(/\(([A-Za-z0-9_-]+)\)\s*$/);
-  return inParentheses?.[1] ?? raw;
-};
-
-const normalizeLabel = (v: string | null | undefined) =>
-  (v ?? "").trim().toLowerCase();
-
-const toRecordList = (value: unknown): Record<string, unknown>[] => {
-  if (Array.isArray(value)) {
-    return value.filter(
-      (item): item is Record<string, unknown> =>
-        !!item && typeof item === "object" && !Array.isArray(item)
-    );
-  }
-
-  if (value && typeof value === "object") {
-    const maybeResults = (value as { results?: unknown }).results;
-    if (Array.isArray(maybeResults)) {
-      return maybeResults.filter(
-        (item): item is Record<string, unknown> =>
-          !!item && typeof item === "object" && !Array.isArray(item)
-      );
-    }
-  }
-
   return [];
 };
 
-/** Try to match by id first; fall back to name match */
-const resolveId = (
-  items: SelectOption[],
-  id: string | null,
-  name?: string | null
-): string | null => {
-  if (id && items.some((x) => x.value === id)) return id;
-  if (!name) return id;
-  return (
-    items.find((x) => normalizeLabel(x.label) === normalizeLabel(name))
-      ?.value ?? id
-  );
+const textOf = (row: RecordRow, ...keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value);
+  }
+  return "";
 };
 
+const toOption = (row: RecordRow, labelKey: string): Option => ({
+  value: normalizeNullable(row.unique_id ?? row.id),
+  label: textOf(row, labelKey, "name", "state_name", "district_name", "area_type_name", "union_name"),
+  stateId: normalizeNullable(row.state_id ?? row.state),
+  districtId: normalizeNullable(row.district_id ?? row.district),
+  areaTypeName: textOf(row, "area_type_name", "name"),
+});
+
+const AREA_TYPE_FILTER = "Rural Local Body";
+
 export default function PanchayatForm() {
-  const { showField, filterPayload } = useFieldVisibility(
-    "masters",
-    "panchayats",
-    PANCHAYAT_FIELDS,
-  );
   const navigate = useNavigate();
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
+  const { encMasters, encPanchayats } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayats);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
-
-  /* ── form fields ── */
-  const [panchayatName, setPanchayatName] = useState("");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
-  const [cityId, setCityId] = useState("");
-  const [blockId, setBlockId] = useState("");
-  const [agreedWeightKg, setAgreedWeightKg] = useState("0");
-  const [weightUnit, setWeightUnit] = useState("kg");
-  const [effectiveFrom, setEffectiveFrom] = useState("");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [geofencingType, setGeofencingType] = useState("polygon");
-  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>([emptyCoordinate()]);
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [panchayatUnionId, setPanchayatUnionId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  /* ── pending IDs for edit-mode cascade (applied once list loads) ── */
-  const [pendingState, setPendingState] = useState("");
-  const [pendingDistrict, setPendingDistrict] = useState("");
-  const [pendingCity, setPendingCity] = useState("");
-  const [pendingBlock, setPendingBlock] = useState("");
+  const [states, setStates] = useState<Option[]>([]);
+  const [districts, setDistricts] = useState<Option[]>([]);
+  const [areaTypes, setAreaTypes] = useState<Option[]>([]);
+  const [panchayatUnions, setPanchayatUnions] = useState<Option[]>([]);
 
-  /* ── filtered lists ── */
-  const [allStates, setAllStates] = useState<SelectOption[]>([]);
-  const [allDistricts, setAllDistricts] = useState<SelectOption[]>([]);
-  const [allCities, setAllCities] = useState<SelectOption[]>([]);
-  const [allBlocks, setAllBlocks] = useState<SelectOption[]>([]);
-  const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
-  const [filteredCities, setFilteredCities] = useState<SelectOption[]>([]);
-  const [filteredBlocks, setFilteredBlocks] = useState<SelectOption[]>([]);
-
-  const { encMasters, encPanchayats: encPanchayat } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayat);
-
-  /* ── load master data ── */
   useEffect(() => {
     let cancelled = false;
-    stateApi.readAll()
-      .then((res: any) => {
+    Promise.all([
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      panchayatUnionApi.readAll(),
+    ])
+      .then(([stateRes, districtRes, areaTypeRes, unionRes]) => {
         if (cancelled) return;
-        const list = toRecordList(res);
-        setAllStates(
-          list
-            .map((x: any) => ({
-              value: normalizeNullable(x.unique_id) ?? "",
-              label: String(x.name ?? ""),
-            }))
-            .filter((x) => x.value && x.label)
-        );
+        setStates(toRecordList(stateRes).map((row) => toOption(row, "state_name")).filter((item) => item.value && item.label));
+        setDistricts(toRecordList(districtRes).map((row) => toOption(row, "district_name")).filter((item) => item.value && item.label));
+        setAreaTypes(toRecordList(areaTypeRes).map((row) => toOption(row, "area_type_name")).filter((item) => item.value && item.label));
+        setPanchayatUnions(toRecordList(unionRes).map((row) => toOption(row, "union_name")).filter((item) => item.value && item.label));
       })
-      .catch(() => {});
+      .catch(() => Swal.fire("Error", "Failed to load dropdown data", "error"));
     return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const config = companyUniqueId && projectId
-      ? { params: { company_id: companyUniqueId, project_id: projectId } }
-      : undefined;
-
-    districtApi.readAll(config)
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = toRecordList(res);
-        setAllDistricts(
-          list
-            .map((x: any) => ({
-              value: normalizeNullable(x.unique_id) ?? "",
-              label: String(x.name ?? ""),
-              stateId: normalizeNullable(x.state_id ?? x.state),
-            } as SelectOption & { stateId: string | null }))
-            .filter((x) => x.value && x.label)
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const config = companyUniqueId && projectId
-      ? { params: { company_id: companyUniqueId, project_id: projectId } }
-      : undefined;
-
-    cityApi.readAll(config)
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = toRecordList(res);
-        setAllCities(
-          list
-            .map((x: any) => ({
-              value: normalizeNullable(x.unique_id) ?? "",
-              label: String(x.name ?? x.city_name ?? ""),
-              districtId: normalizeNullable(x.district_id ?? x.district),
-            } as SelectOption & { districtId: string | null }))
-            .filter((x) => x.value && x.label)
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]);
-
-  /* ── load block/panchayat unions ── */
-  useEffect(() => {
-    let cancelled = false;
-    const config = companyUniqueId && projectId
-      ? { params: { company_id: companyUniqueId, project_id: projectId } }
-      : undefined;
-    blockPanchayatUnionApi.readAll(config)
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = toRecordList(res);
-        setAllBlocks(
-          list
-            .map((x: any) => ({
-              value: normalizeNullable(x.unique_id) ?? "",
-              label: String(x.block_name ?? ""),
-              districtId: normalizeNullable(x.district_id ?? x.district),
-            } as SelectOption & { districtId: string | null }))
-            .filter((x) => x.value && x.label)
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]);
-
-  /* ── cascade: districts filtered by state ── */
-  useEffect(() => {
-    if (!stateId) { setFilteredDistricts([]); return; }
-    const filt = (allDistricts as any[]).filter((d) => d.stateId === stateId).map(
-      (d) => ({ value: d.value, label: d.label })
-    );
-    if (pendingDistrict && !filt.some((d) => d.value === pendingDistrict)) {
-      const found = allDistricts.find((d) => d.value === pendingDistrict);
-      if (found) filt.push(found);
-    }
-    setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrict]);
-
-  /* ── cascade: cities filtered by district ── */
-  useEffect(() => {
-    if (!districtId) { setFilteredCities([]); return; }
-    const filt = (allCities as any[]).filter((c) => c.districtId === districtId).map(
-      (c) => ({ value: c.value, label: c.label })
-    );
-    if (pendingCity && !filt.some((c) => c.value === pendingCity)) {
-      const found = allCities.find((c) => c.value === pendingCity);
-      if (found) filt.push(found);
-    }
-    setFilteredCities(filt);
-  }, [districtId, allCities, pendingCity]);
-
-  /* ── cascade: blocks filtered by district ── */
-  useEffect(() => {
-    if (!districtId) { setFilteredBlocks([]); return; }
-    const filt = (allBlocks as any[]).filter((b) => b.districtId === districtId).map(
-      (b) => ({ value: b.value, label: b.label })
-    );
-    if (pendingBlock && !filt.some((b) => b.value === pendingBlock)) {
-      const found = allBlocks.find((b) => b.value === pendingBlock);
-      if (found) filt.push(found);
-    }
-    setFilteredBlocks(filt);
-  }, [districtId, allBlocks, pendingBlock]);
-
-  /* ── apply pending state once list loads ── */
-  useEffect(() => {
-    if (pendingState && allStates.length > 0 && allStates.some((s) => s.value === pendingState)) {
-      setStateId(pendingState);
-      setPendingState("");
-    }
-  }, [pendingState, allStates]);
-
-  /* ── apply pending district once filtered list loads ── */
-  useEffect(() => {
-    if (pendingDistrict && filteredDistricts.length > 0 && filteredDistricts.some((d) => d.value === pendingDistrict)) {
-      setDistrictId(pendingDistrict);
-      setPendingDistrict("");
-    }
-  }, [pendingDistrict, filteredDistricts]);
-
-  /* ── apply pending city once filtered list loads ── */
-  useEffect(() => {
-    if (pendingCity && filteredCities.length > 0 && filteredCities.some((c) => c.value === pendingCity)) {
-      setCityId(pendingCity);
-      setPendingCity("");
-    }
-  }, [pendingCity, filteredCities]);
-
-  /* ── apply pending block once filtered list loads ── */
-  useEffect(() => {
-    if (pendingBlock && filteredBlocks.length > 0 && filteredBlocks.some((b) => b.value === pendingBlock)) {
-      setBlockId(pendingBlock);
-      setPendingBlock("");
-    }
-  }, [pendingBlock, filteredBlocks]);
-
-  /* ── edit mode: prefill ── */
-  const [recordData, setRecordData] = useState<any>(null);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-  useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    setLoadingRecord(true);
     panchayatApi.read(id)
-      .then((res: any) => {
+      .then((record: RecordRow) => {
         if (cancelled) return;
-        setRecordData(res);
-        setLoadingRecord(false);
+        setName(textOf(record, "panchayat_name", "name", "state_name", "district_name", "area_type_name"));
+        setCode(textOf(record, ""));
+        setStateId(normalizeNullable(record.state_id ?? record.state));
+        setDistrictId(normalizeNullable(record.district_id ?? record.district));
+        setAreaTypeId(normalizeNullable(record.area_type_id ?? record.area_type));
+        setPanchayatUnionId(normalizeNullable(record.panchayat_union_id ?? record.panchayat_union));
+        setIsActive(record.is_active !== false);
       })
-      .catch((err: any) => {
-        if (cancelled) return;
-        setLoadingRecord(false);
-        Swal.fire({ icon: "error", title: "Error", text: String(err?.response?.data ?? err?.message ?? "Failed to load record") });
-      });
+      .catch(() => Swal.fire("Error", "Failed to load Panchayat", "error"));
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
-  useEffect(() => {
-    if (!isEdit || !recordData) return;
+  const filteredDistricts = useMemo(
+    () => districts.filter((item) => !stateId || !item.stateId || item.stateId === stateId),
+    [districts, stateId],
+  );
 
-    const data = recordData as any;
+  const filteredAreaTypes = useMemo(
+    () => areaTypes.filter((item) =>
+      (!stateId || !item.stateId || item.stateId === stateId) &&
+      (!districtId || !item.districtId || item.districtId === districtId) &&
+      (!AREA_TYPE_FILTER || item.label === AREA_TYPE_FILTER)
+    ),
+    [areaTypes, districtId, stateId],
+  );
 
-    setPanchayatName(data.panchayat_name ?? "");
-    setAgreedWeightKg(String(data.agreed_weight_kg ?? "0"));
-    setWeightUnit(data.weight_unit ?? "kg");
-    setEffectiveFrom(data.effective_from ?? "");
-    setLatitude(data.latitude ?? "");
-    setLongitude(data.longitude ?? "");
-    setGeofencingType(data.geofencing_type ?? "polygon");
-    setCoordinates(
-      normalizeCoordinateDrafts(data.coordinates, {
-        latitude: data.latitude == null ? "" : String(data.latitude),
-        longitude: data.longitude == null ? "" : String(data.longitude),
-      }),
-    );
-    setIsActive(Boolean(data.is_active));
+  const filteredPanchayatUnions = useMemo(
+    () => panchayatUnions.filter((item) => !districtId || !item.districtId || item.districtId === districtId),
+    [districtId, panchayatUnions],
+  );
 
-    /* company + project via hook (handles locked/superadmin correctly) */
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-
-    /* state_id / district_id / city_id from API are integer PKs;
-       resolve by name against unique_id-based option lists */
-    const rawStateId = normalizeNullable(data.state_id ?? data.state);
-    const stateName = data.state_name ?? null;
-    const resolvedState = resolveId(allStates, rawStateId, stateName);
-
-    const rawDistrictId = normalizeNullable(data.district_id ?? data.district);
-    const districtName = data.district_name ?? null;
-    const resolvedDistrict = resolveId(allDistricts, rawDistrictId, districtName);
-
-    const rawCityId = normalizeNullable(data.city_id ?? data.city);
-    const cityName = data.city_name ?? null;
-    const resolvedCity = resolveId(allCities, rawCityId, cityName);
-
-    const rawBlockId = normalizeNullable(data.block_id ?? data.block);
-    const blockName = data.block_name ?? null;
-    const resolvedBlock = resolveId(allBlocks, rawBlockId, blockName);
-
-    if (resolvedState) { setStateId(resolvedState); setPendingState(resolvedState); }
-    if (resolvedDistrict) { setDistrictId(resolvedDistrict); setPendingDistrict(resolvedDistrict); }
-    if (resolvedCity) { setCityId(resolvedCity); setPendingCity(resolvedCity); }
-    if (resolvedBlock) { setBlockId(resolvedBlock); setPendingBlock(resolvedBlock); }
-  }, [isEdit, recordData, applyCompanyProjectFromRecord, allStates, allDistricts, allCities, allBlocks]);
-
-  /* ── submit ── */
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) {
+      Swal.fire("Missing details", "Panchayat Name is required", "warning");
+      return;
+    }
+    if (!stateId || !districtId || !areaTypeId || !panchayatUnionId) {
+      Swal.fire("Missing details", "State, District, Area Type, Panchayat Union required", "warning");
       return;
     }
 
-    if (!projectId) {
-      Swal.fire("Error", "Project is required", "error");
-      return;
-    }
-
-    const coordinatePayload = serializeCoordinateDrafts(coordinates);
-    if (geofencingType === "polygon" && coordinatePayload.length > 0 && coordinatePayload.length < 3) {
-      Swal.fire("Warning", "Polygon geofence needs at least 3 coordinate points.", "warning");
-      return;
-    }
-
-    const firstPoint = coordinatePayload[0];
-    const rawPayload = {
-      panchayat_name: panchayatName,
-      company_id: companyUniqueId,
-      project_id: projectId,
-      state_id: stateId,
-      district_id: districtId,
-      city_id: cityId,
-      block_id: blockId || null,
-      agreed_weight_kg: agreedWeightKg || "0",
-      weight_unit: weightUnit || "kg",
-      effective_from: effectiveFrom || null,
-      latitude: latitude || firstPoint?.latitude || null,
-      longitude: longitude || firstPoint?.longitude || null,
-      geofencing_type: geofencingType,
-      coordinates: coordinatePayload,
+    const payload: RecordRow = {
+      panchayat_name: name.trim(),
       is_active: isActive,
     };
-    const basePayload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    
+    payload.state_id = stateId;
+    payload.district_id = districtId;
+    payload.area_type_id = areaTypeId;
+    payload.panchayat_union_id = panchayatUnionId || null;
 
-    setIsSubmitting(true);
+    setSubmitting(true);
     try {
-      if (isEdit && id) {
-        await panchayatApi.update(id, basePayload);
-        Swal.fire("Success", "Updated successfully", "success");
-      } else {
-        await panchayatApi.create(basePayload);
-        Swal.fire("Success", "Created successfully", "success");
-      }
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
-    } catch {
-      Swal.fire("Error", "Something went wrong", "error");
+      if (isEdit && id) await panchayatApi.update(id, payload);
+      else await panchayatApi.create(payload);
+      Swal.fire("Success", "Panchayat saved successfully", "success");
+      navigate(LIST_PATH);
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to save Panchayat"), "error");
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <ComponentCard title={isEdit ? "Edit PLB" : "Add PLB"}>
-      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">
-
-        {/* State */}
-        {showField("state_id") && (
-          <div>
-            <Label>State *</Label>
-            <Select
-              value={stateId}
-              onValueChange={(value) => {
-                setStateId(value);
-                setDistrictId("");
-                setCityId("");
-                setFilteredDistricts([]);
-                setFilteredCities([]);
-                setPendingDistrict("");
-                setPendingCity("");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              <SelectContent>
-                {allStates.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* District */}
-        {showField("district_id") && (
-          <div>
-            <Label>District *</Label>
-            <Select
-              value={districtId}
-              onValueChange={(value) => {
-                setDistrictId(value);
-                setCityId("");
-                setBlockId("");
-                setFilteredCities([]);
-                setFilteredBlocks([]);
-                setPendingCity("");
-                setPendingBlock("");
-              }}
-              disabled={!stateId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select District" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredDistricts.map((d) => (
-                  <SelectItem key={d.value} value={d.value}>
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* City */}
-        {showField("city_id") && (
-          <div>
-            <Label>City *</Label>
-            <Select value={cityId} onValueChange={setCityId} disabled={!districtId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select City" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredCities.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Block / Panchayat Union (optional) */}
-        {showField("block_id") && (
-          <div>
-            <Label>Block / Panchayat Union</Label>
-            <Select
-              value={blockId || "none"}
-              onValueChange={(value) => setBlockId(value === "none" ? "" : value)}
-              disabled={!districtId}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Block / PU (optional)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— None —</SelectItem>
-                {filteredBlocks.map((b) => (
-                  <SelectItem key={b.value} value={b.value}>
-                    {b.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Panchayat Name */}
-        {showField("panchayat_name") && (
-          <div>
-            <Label>PLB Name *</Label>
-            <Input
-              value={panchayatName}
-              onChange={(e) => setPanchayatName(e.target.value)}
-              required
-            />
-          </div>
-        )}
-
-        {/* Agreed Weight */}
-        {showField("agreed_weight_kg") && (
-          <div>
-            <Label>Agreed Weight *</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={agreedWeightKg}
-              onChange={(e) => setAgreedWeightKg(e.target.value)}
-              required
-            />
-          </div>
-        )}
-
-        {/* Weight Unit */}
-        {showField("weight_unit") && (
-          <div>
-            <Label>Weight Unit *</Label>
-            <Select value={weightUnit} onValueChange={setWeightUnit}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="kg">Kg</SelectItem>
-                <SelectItem value="tonne">Tonne</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {/* Effective From */}
-        {showField("effective_from") && (
-          <div>
-            <Label>Effective From</Label>
-            <Input
-              type="date"
-              value={effectiveFrom}
-              onChange={(e) => setEffectiveFrom(e.target.value)}
-            />
-          </div>
-        )}
-
-        {/* Latitude */}
-        {showField("latitude") && (
-          <div>
-            <Label>Latitude *</Label>
-            <Input
-              value={latitude}
-              onChange={(e) => setLatitude(e.target.value)}
-              required
-            />
-          </div>
-        )}
-
-        {/* Longitude */}
-        {showField("longitude") && (
-          <div>
-            <Label>Longitude *</Label>
-            <Input
-              value={longitude}
-              onChange={(e) => setLongitude(e.target.value)}
-              required
-            />
-          </div>
-        )}
-
-        {/* GeoFencing Type */}
-        {showField("geofencing_type") && (
-          <div>
-            <Label>GeoFencing Type *</Label>
-            <Select value={geofencingType} onValueChange={setGeofencingType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="polygon">Polygon</SelectItem>
-                <SelectItem value="circle">Circle</SelectItem>
-                <SelectItem value="rectangle">Rectangle</SelectItem>
-                <SelectItem value="square">Square</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {showField("coordinates") && (
-          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
-        )}
-
-        {/* Status */}
-        {showField("is_active") && (
-          <div>
-            <Label>Status</Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(v) => setIsActive(v === "true")}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Active</SelectItem>
-                <SelectItem value="false">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        <div className="md:col-span-2 flex justify-end gap-3">
-          <Button
-            type="submit"
-            disabled={isSubmitting || loadingRecord}
-          >
-            {isEdit ? "Update" : "Save"}
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
-          >
-            Cancel
-          </Button>
+    <ComponentCard title={isEdit ? "Edit Panchayat" : "Add Panchayat"}>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label>State *</Label>
+          <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setAreaTypeId(""); setPanchayatUnionId(""); }}>
+            <SelectTrigger><SelectValue placeholder="Select State" /></SelectTrigger>
+            <SelectContent>{states.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>District *</Label>
+          <Select value={districtId} onValueChange={(value) => { setDistrictId(value); setAreaTypeId(""); setPanchayatUnionId(""); }} disabled={!stateId}>
+            <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
+            <SelectContent>{filteredDistricts.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Area Type *</Label>
+          <Select value={areaTypeId} onValueChange={setAreaTypeId} disabled={!districtId}>
+            <SelectTrigger><SelectValue placeholder="Select Area Type" /></SelectTrigger>
+            <SelectContent>{filteredAreaTypes.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Panchayat Union *</Label>
+          <Select value={panchayatUnionId} onValueChange={setPanchayatUnionId} disabled={!districtId}>
+            <SelectTrigger><SelectValue placeholder="Select Panchayat Union" /></SelectTrigger>
+            <SelectContent>{filteredPanchayatUnions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Panchayat Name *</Label>
+          <Input value={name} onChange={(event) => setName(event.target.value)} />
+        </div>
+        
+        <div className="flex items-center gap-3 md:col-span-2">
+          <Switch checked={isActive} onCheckedChange={setIsActive} />
+          <Label>Active</Label>
+        </div>
+        <div className="flex justify-end gap-2 md:col-span-2">
+          <Button type="button" variant="outline" onClick={() => navigate(LIST_PATH)}>Cancel</Button>
+          <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
         </div>
       </form>
     </ComponentCard>

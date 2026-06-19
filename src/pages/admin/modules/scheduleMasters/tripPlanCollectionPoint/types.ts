@@ -24,7 +24,7 @@ export type TripPlanCPRecord = {
   bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
   // household
   customer_id?: string;
-  customer?: { customer_name?: string; ward_name?: string; zone_name?: string };
+  customer?: { customer_name?: string };
   sequence?: number;
   is_active?: boolean;
   company_id?: string;

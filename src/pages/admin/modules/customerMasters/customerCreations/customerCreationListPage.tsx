@@ -35,9 +35,6 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   contact_no: ["contact_no", "mobile"],
   apartment_name: ["apartment_name"],
   unit: ["block_no", "flat_no"],
-  ward_name: ["ward_id", "ward_name"],
-  zone_name: ["zone_id", "zone_name"],
-  city_name: ["city_id", "city_name"],
   state_name: ["state_id", "state_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
   waste_types: ["waste_type_ids", "waste_types", "waste_type"],
@@ -56,9 +53,6 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "pincode", header: "pincode", sample: "600040" },
   { field: "latitude", header: "latitude", sample: "13.0827" },
   { field: "longitude", header: "longitude", sample: "80.2707" },
-  { field: "ward_name", header: "ward_name", sample: "Ward 10" },
-  { field: "zone_name", header: "zone_name", sample: "North Zone" },
-  { field: "city_name", header: "city_name", required: true, sample: "Chennai" },
   { field: "district_name", header: "district_name", required: true, sample: "Chennai" },
   { field: "state_name", header: "state_name", required: true, sample: "Tamil Nadu" },
   { field: "country_name", header: "country_name", required: true, sample: "India" },
@@ -90,9 +84,6 @@ export default function CustomerCreationListPage() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -341,8 +332,7 @@ export default function CustomerCreationListPage() {
         filters={filters}
         globalFilterFields={[
           "customer_name", "contact_no", "apartment_name",
-          "block_no", "flat_no", "ward_name", "zone_name",
-          "city_name", "waste_types",
+          "block_no", "flat_no", "waste_types",
         ]}
         header={header}
         emptyMessage={t("admin.customer_creation.empty_message")}
@@ -373,15 +363,6 @@ export default function CustomerCreationListPage() {
               row.block_no && row.flat_no ? `${row.block_no}-${row.flat_no}` : "-"
             }
           />
-        )}
-        {showCol("ward_name") && (
-          <Column field="ward_name" header={t("common.ward")} body={(row: Customer) => row.ward_name || "-"} sortable />
-        )}
-        {showCol("zone_name") && (
-          <Column field="zone_name" header={t("common.zone")} body={(row: Customer) => row.zone_name || "-"} sortable />
-        )}
-        {showCol("city_name") && (
-          <Column field="city_name" header={t("common.city")} sortable />
         )}
         {showCol("state_name") && (
           <Column field="state_name" header={t("common.state")} sortable />
