@@ -34,7 +34,6 @@ const columns = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
-  { field: "panchayat_union_name", header: "Panchayat Union" },
   { field: "panchayat_name", header: "Panchayat Name" },
 ];
 

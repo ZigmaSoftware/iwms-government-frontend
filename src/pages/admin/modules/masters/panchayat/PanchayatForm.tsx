@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { areaTypeApi, corporationApi, districtApi, municipalityApi, panchayatApi, panchayatUnionApi, stateApi, townPanchayatApi } from "@/helpers/admin";
+import { areaTypeApi, districtApi, panchayatApi, stateApi } from "@/helpers/admin";
 
 type Option = { value: string; label: string; stateId?: string; districtId?: string; areaTypeName?: string };
 type RecordRow = Record<string, any>;
@@ -60,14 +60,12 @@ export default function PanchayatForm() {
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
   const [areaTypeId, setAreaTypeId] = useState("");
-  const [panchayatUnionId, setPanchayatUnionId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
   const [areaTypes, setAreaTypes] = useState<Option[]>([]);
-  const [panchayatUnions, setPanchayatUnions] = useState<Option[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,14 +73,12 @@ export default function PanchayatForm() {
       stateApi.readAll(),
       districtApi.readAll(),
       areaTypeApi.readAll(),
-      panchayatUnionApi.readAll(),
     ])
-      .then(([stateRes, districtRes, areaTypeRes, unionRes]) => {
+      .then(([stateRes, districtRes, areaTypeRes]) => {
         if (cancelled) return;
         setStates(toRecordList(stateRes).map((row) => toOption(row, "state_name")).filter((item) => item.value && item.label));
         setDistricts(toRecordList(districtRes).map((row) => toOption(row, "district_name")).filter((item) => item.value && item.label));
         setAreaTypes(toRecordList(areaTypeRes).map((row) => toOption(row, "area_type_name")).filter((item) => item.value && item.label));
-        setPanchayatUnions(toRecordList(unionRes).map((row) => toOption(row, "union_name")).filter((item) => item.value && item.label));
       })
       .catch(() => Swal.fire("Error", "Failed to load dropdown data", "error"));
     return () => { cancelled = true; };
@@ -99,7 +95,6 @@ export default function PanchayatForm() {
         setStateId(normalizeNullable(record.state_id ?? record.state));
         setDistrictId(normalizeNullable(record.district_id ?? record.district));
         setAreaTypeId(normalizeNullable(record.area_type_id ?? record.area_type));
-        setPanchayatUnionId(normalizeNullable(record.panchayat_union_id ?? record.panchayat_union));
         setIsActive(record.is_active !== false);
       })
       .catch(() => Swal.fire("Error", "Failed to load Panchayat", "error"));
@@ -120,19 +115,14 @@ export default function PanchayatForm() {
     [areaTypes, districtId, stateId],
   );
 
-  const filteredPanchayatUnions = useMemo(
-    () => panchayatUnions.filter((item) => !districtId || !item.districtId || item.districtId === districtId),
-    [districtId, panchayatUnions],
-  );
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
       Swal.fire("Missing details", "Panchayat Name is required", "warning");
       return;
     }
-    if (!stateId || !districtId || !areaTypeId || !panchayatUnionId) {
-      Swal.fire("Missing details", "State, District, Area Type, Panchayat Union required", "warning");
+    if (!stateId || !districtId || !areaTypeId) {
+      Swal.fire("Missing details", "State, District, Area Type required", "warning");
       return;
     }
 
@@ -144,7 +134,6 @@ export default function PanchayatForm() {
     payload.state_id = stateId;
     payload.district_id = districtId;
     payload.area_type_id = areaTypeId;
-    payload.panchayat_union_id = panchayatUnionId || null;
 
     setSubmitting(true);
     try {
@@ -164,14 +153,14 @@ export default function PanchayatForm() {
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Label>State *</Label>
-          <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setAreaTypeId(""); setPanchayatUnionId(""); }}>
+          <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setAreaTypeId(""); }}>
             <SelectTrigger><SelectValue placeholder="Select State" /></SelectTrigger>
             <SelectContent>{states.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div>
           <Label>District *</Label>
-          <Select value={districtId} onValueChange={(value) => { setDistrictId(value); setAreaTypeId(""); setPanchayatUnionId(""); }} disabled={!stateId}>
+          <Select value={districtId} onValueChange={(value) => { setDistrictId(value); setAreaTypeId(""); }} disabled={!stateId}>
             <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
             <SelectContent>{filteredDistricts.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
@@ -181,13 +170,6 @@ export default function PanchayatForm() {
           <Select value={areaTypeId} onValueChange={setAreaTypeId} disabled={!districtId}>
             <SelectTrigger><SelectValue placeholder="Select Area Type" /></SelectTrigger>
             <SelectContent>{filteredAreaTypes.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label>Panchayat Union *</Label>
-          <Select value={panchayatUnionId} onValueChange={setPanchayatUnionId} disabled={!districtId}>
-            <SelectTrigger><SelectValue placeholder="Select Panchayat Union" /></SelectTrigger>
-            <SelectContent>{filteredPanchayatUnions.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div>
