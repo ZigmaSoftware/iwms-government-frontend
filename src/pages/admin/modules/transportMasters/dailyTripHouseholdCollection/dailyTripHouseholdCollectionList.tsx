@@ -151,7 +151,7 @@ export default function DailyTripHouseholdCollectionList() {
     _location:
       nestedText(rec.panchayat as NamedRef, ["panchayat_name"]) !== "-"
         ? nestedText(rec.panchayat as NamedRef, ["panchayat_name"])
-        : nestedText(rec.ward as NamedRef, ["ward_name"]),
+        : "",
     company_name: text(
       (rec as any).company_name ??
         (rec as any).company_id?.name ??
@@ -317,7 +317,7 @@ export default function DailyTripHouseholdCollectionList() {
         />
         <Column
           field="_location"
-          header="Location (PLB / Ward)"
+          header="Location"
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 180 }}
@@ -332,17 +332,7 @@ export default function DailyTripHouseholdCollectionList() {
                 </span>
               );
             }
-            if (row.ward && (row.ward as any).ward_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {String((row.ward as any).ward_name)}
-                  <span className="ml-1 text-xs text-teal-500 font-medium">
-                    (Ward)
-                  </span>
-                </span>
-              );
-            }
-            return <span className="text-sm text-gray-400">-</span>;
+            return <span className="text-sm text-gray-400">—</span>;
           }}
         />
         <Column

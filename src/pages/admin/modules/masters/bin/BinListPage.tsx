@@ -36,7 +36,6 @@ const normalizeId = (value: unknown): string =>
 const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   bin_name: ["bin_name", "name"],
   bin_capacity: ["bin_capacity", "capacity_liters"],
-  ward_name: ["ward_id", "ward", "ward_name"],
   panchayat_name: ["panchayat_id", "panchayat", "panchayat_name"],
   waste_type_name: ["wastetype_id", "waste_type_id", "waste_type", "waste_type_name"],
   qr_code: ["bin_qr", "qr_code"],
@@ -66,7 +65,6 @@ export default function BinList() {
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -134,8 +132,6 @@ export default function BinList() {
       project_name: row.project_name ? String(row.project_name) : null,
       panchayat_name: row.panchayat_name ? String(row.panchayat_name) : undefined,
       panchayat: row.panchayat ? String(row.panchayat) : undefined,
-      ward_name: String(row.ward_name ?? row.ward ?? ""),
-      ward: row.ward ? String(row.ward) : undefined,
       bin_type: row.bin_type ? String(row.bin_type) : undefined,
       waste_type_name: row.waste_type_name ? String(row.waste_type_name) : undefined,
       wastetype_name: row.wastetype_name ? String(row.wastetype_name) : undefined,
@@ -311,7 +307,6 @@ export default function BinList() {
           "bin_name",
           "panchayat_name",
           "panchayat",
-          "ward_name",
           "waste_type_name",
           "wastetype_name",
           "waste_type",
@@ -344,17 +339,6 @@ export default function BinList() {
             filter
             showFilterMatchModes={false}
             style={{ minWidth: "150px" }}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            style={{ minWidth: "120px" }}
           />
         )}
         {showCol("panchayat_name") && (

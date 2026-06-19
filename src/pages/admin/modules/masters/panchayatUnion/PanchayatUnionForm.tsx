@@ -1,5 +1,6 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,17 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { areaTypeApi, districtApi, panchayatUnionApi, stateApi } from "@/helpers/admin";
+import { areaTypeApi, corporationApi, districtApi, municipalityApi, panchayatApi, panchayatUnionApi, stateApi, townPanchayatApi } from "@/helpers/admin";
 
-type Option = {
-  value: string;
-  label: string;
-  stateId?: string;
-  districtId?: string;
-  continentId?: string;
-  countryId?: string;
-  areaTypeName?: string;
-};
+type Option = { value: string; label: string; stateId?: string; districtId?: string; areaTypeName?: string };
 type RecordRow = Record<string, any>;
 
 const normalizeNullable = (value: any): string => {
@@ -50,19 +43,17 @@ const toOption = (row: RecordRow, labelKey: string): Option => ({
   label: textOf(row, labelKey, "name", "state_name", "district_name", "area_type_name", "union_name"),
   stateId: normalizeNullable(row.state_id ?? row.state),
   districtId: normalizeNullable(row.district_id ?? row.district),
-  continentId: normalizeNullable(row.continent_id ?? row.continent),
-  countryId: normalizeNullable(row.country_id ?? row.country),
   areaTypeName: textOf(row, "area_type_name", "name"),
 });
 
-const AREA_TYPE_FILTER = null;
+const AREA_TYPE_FILTER = "Rural Local Body";
 
-export default function DistrictForm() {
+export default function PanchayatUnionForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const { encMasters, encDistricts } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDistricts);
+  const { encMasters, encPanchayatUnions } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayatUnions);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -100,18 +91,18 @@ export default function DistrictForm() {
   useEffect(() => {
     if (!isEdit || !id) return;
     let cancelled = false;
-    districtApi.read(id)
+    panchayatUnionApi.read(id)
       .then((record: RecordRow) => {
         if (cancelled) return;
-        setName(textOf(record, "district_name", "name", "state_name", "district_name", "area_type_name"));
-        setCode(textOf(record, "district_code"));
+        setName(textOf(record, "union_name", "name", "state_name", "district_name", "area_type_name"));
+        setCode(textOf(record, ""));
         setStateId(normalizeNullable(record.state_id ?? record.state));
         setDistrictId(normalizeNullable(record.district_id ?? record.district));
         setAreaTypeId(normalizeNullable(record.area_type_id ?? record.area_type));
         setPanchayatUnionId(normalizeNullable(record.panchayat_union_id ?? record.panchayat_union));
         setIsActive(record.is_active !== false);
       })
-      .catch(() => Swal.fire("Error", "Failed to load District", "error"));
+      .catch(() => Swal.fire("Error", "Failed to load Panchayat Union", "error"));
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
@@ -137,44 +128,38 @@ export default function DistrictForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!name.trim()) {
-      Swal.fire("Missing details", "District Name is required", "warning");
+      Swal.fire("Missing details", "Union Name is required", "warning");
       return;
     }
-    if (!stateId) {
-      Swal.fire("Missing details", "State required", "warning");
-      return;
-    }
-    const selectedState = states.find((item) => item.value === stateId);
-    if (!selectedState?.continentId || !selectedState?.countryId) {
-      Swal.fire("Missing details", "Selected state does not have continent and country details.", "warning");
+    if (!stateId || !districtId || !areaTypeId) {
+      Swal.fire("Missing details", "State, District, Area Type required", "warning");
       return;
     }
 
     const payload: RecordRow = {
-      name: name.trim(),
-      district_name: name.trim(),
-      continent_id: selectedState.continentId,
-      country_id: selectedState.countryId,
-      state_id: stateId,
+      union_name: name.trim(),
       is_active: isActive,
     };
-    if (code.trim()) payload.district_code = code.trim();
+    
+    payload.state_id = stateId;
+    payload.district_id = districtId;
+    payload.area_type_id = areaTypeId;
 
     setSubmitting(true);
     try {
-      if (isEdit && id) await districtApi.update(id, payload);
-      else await districtApi.create(payload);
-      Swal.fire("Success", "District saved successfully", "success");
+      if (isEdit && id) await panchayatUnionApi.update(id, payload);
+      else await panchayatUnionApi.create(payload);
+      Swal.fire("Success", "Panchayat Union saved successfully", "success");
       navigate(LIST_PATH);
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to save District"), "error");
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to save Panchayat Union"), "error");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <ComponentCard title={isEdit ? "Edit District" : "Add District"}>
+    <ComponentCard title={isEdit ? "Edit Panchayat Union" : "Add Panchayat Union"}>
       <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Label>State *</Label>
@@ -183,17 +168,26 @@ export default function DistrictForm() {
             <SelectContent>{states.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
           </Select>
         </div>
-        
-        
+        <div>
+          <Label>District *</Label>
+          <Select value={districtId} onValueChange={(value) => { setDistrictId(value); setAreaTypeId(""); setPanchayatUnionId(""); }} disabled={!stateId}>
+            <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
+            <SelectContent>{filteredDistricts.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Area Type *</Label>
+          <Select value={areaTypeId} onValueChange={setAreaTypeId} disabled={!districtId}>
+            <SelectTrigger><SelectValue placeholder="Select Area Type" /></SelectTrigger>
+            <SelectContent>{filteredAreaTypes.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         
         <div>
-          <Label>District Name *</Label>
+          <Label>Union Name *</Label>
           <Input value={name} onChange={(event) => setName(event.target.value)} />
         </div>
-        <div>
-          <Label>District Code</Label>
-          <Input value={code} onChange={(event) => setCode(event.target.value)} />
-        </div>
+        
         <div className="flex items-center gap-3 md:col-span-2">
           <Switch checked={isActive} onCheckedChange={setIsActive} />
           <Label>Active</Label>

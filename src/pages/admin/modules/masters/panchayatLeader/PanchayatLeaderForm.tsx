@@ -257,9 +257,6 @@ export default function PanchayatLeaderForm() {
     }
   };
 
-  /* ── company options for display ── */
-  const companyOptions = companies.map((c) => ({ value: c.value, label: c.label }));
-  const projectOptions = projects.map((p) => ({ value: p.value, label: p.label }));
 
   return (
     <div className="p-6">

@@ -14,6 +14,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
+const feedbackApi = adminApi.feedbacks;
+
 const CATEGORY_OPTIONS = [
   { value: "Excellent", label: "Excellent" },
   { value: "Satisfied", label: "Satisfied" },

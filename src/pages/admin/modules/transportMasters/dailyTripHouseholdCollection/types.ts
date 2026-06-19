@@ -8,7 +8,6 @@ export type DailyTripHouseholdCollectionRecord = {
   customer?: NamedRef;
   waste_collection_id?: string | null;
   panchayat?: { unique_id?: string; panchayat_name?: string } | null;
-  ward?: { unique_id?: string; ward_name?: string } | null;
   sequence?: number;
   is_collected?: boolean;
   collected_at?: string | null;

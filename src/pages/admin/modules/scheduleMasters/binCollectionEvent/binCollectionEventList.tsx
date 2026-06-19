@@ -71,8 +71,6 @@ export default function BinCollectionEventList() {
     _bin: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _panchayat: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _ward: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _zone: { value: null, matchMode: FilterMatchMode.CONTAINS },
     collection_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
@@ -106,8 +104,6 @@ export default function BinCollectionEventList() {
         _waste_type: r.waste_type?.waste_type_name ?? "-",
         _vehicle: r.vehicle?.vehicle_no ?? "-",
         _panchayat: r.panchayat_name ?? r.panchayat_id ?? "-",
-        _ward: r.ward_name ?? r.ward_id ?? "-",
-        _zone: r.zone_name ?? "-",
         collection_date: r.collection_date ?? "",
       })),
     [records],
@@ -116,7 +112,7 @@ export default function BinCollectionEventList() {
   /* ── apply filters locally to get the visible subset ─────────────────────
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date"] as const;
+  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "collection_date"] as const;
   type FilterableField = (typeof GLOBAL_FIELDS)[number];
   const isFilterableField = (field: string): field is FilterableField =>
     (GLOBAL_FIELDS as readonly string[]).includes(field);
@@ -235,7 +231,7 @@ export default function BinCollectionEventList() {
         loading={loading}
         filters={filters}
         onFilter={(e: DataTableFilterEvent) => setFilters(e.filters as TableFilters)}
-        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_ward", "_zone", "collection_date"]}
+        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "collection_date"]}
         header={header}
         stripedRows
         showGridlines
@@ -246,8 +242,6 @@ export default function BinCollectionEventList() {
         <Column field="_trip_plan" header="Trip Plan" filter showFilterMatchModes={false} />
         <Column field="_collection_point" header="Collection Point" filter showFilterMatchModes={false} />
         <Column field="_panchayat" header="PLB" filter showFilterMatchModes={false} />
-        <Column field="_ward" header="Ward" filter showFilterMatchModes={false} />
-        <Column field="_zone" header="Zone" filter showFilterMatchModes={false} />
         <Column field="_bin" header="Bin" filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
         <Column field="_vehicle" header="Vehicle" />

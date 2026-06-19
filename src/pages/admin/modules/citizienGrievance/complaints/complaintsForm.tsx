@@ -74,13 +74,6 @@ export default function ComplaintAddForm() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [customer, setCustomer] = useState<any>(null);
 
-  const [zones, setZones] = useState<any[]>([]);
-  const [wards, setWards] = useState<any[]>([]);
-  const [zone, setZone] = useState("");
-  const [ward, setWard] = useState("");
-  const [selectedZone, setSelectedZone] = useState<any>(null);
-  const [selectedWard, setSelectedWard] = useState<any>(null);
-
   const [contact, setContact] = useState("");
   const [address, setAddress] = useState("");
 
@@ -127,30 +120,6 @@ export default function ComplaintAddForm() {
     return () => { cancelled = true; };
   }, [companyUniqueId]);
 
-  /* ---------------- CUSTOMER → ZONE → WARD ---------------- */
-
-  const loadZones = async (cid: string) => {
-    try {
-      const res = await adminApi.zones.readAll({ params: { customer_id: cid } });
-      const normalized = listFromResponse(res);
-      const filtered = filterActiveRecords(normalized);
-      setZones(filtered);
-    } catch {
-      setZones([]);
-    }
-  };
-
-  const loadWards = async (zid: string) => {
-    try {
-      const res = await adminApi.wards.readAll({ params: { zone_id: zid } });
-      const normalized = listFromResponse(res);
-      const filtered = filterActiveRecords(normalized);
-      setWards(filtered);
-    } catch {
-      setWards([]);
-    }
-  };
-
   const onCustomerChange = (id: string) => {
     const c = customers.find((x) => resolveCustomerId(x) === id);
     setCustomer(c);
@@ -172,14 +141,6 @@ export default function ComplaintAddForm() {
     const fullAddress = addressParts.join(", ");
     setAddress(fullAddress);
 
-    setZone("");
-    setWard("");
-    setWards([]);
-    setSelectedZone(null);
-    setSelectedWard(null);
-
-    const customerId = resolveCustomerId(c);
-    if (customerId) loadZones(customerId);
   };
 
   /* ---------------- MAIN → SUB CATEGORY (FIXED) ---------------- */
@@ -276,8 +237,6 @@ export default function ComplaintAddForm() {
     if (
       !customer ||
       !customerId ||
-      !zone ||
-      !ward ||
       !mainCategoryId ||
       !subCategoryId ||
       !details
@@ -300,10 +259,6 @@ export default function ComplaintAddForm() {
     const fd = new FormData();
     fd.append("customer", customerId);
     fd.append("company_id", companyUniqueId);
-    fd.append("zone", zone);
-    fd.append("zone_name", selectedZone?.zone_name || "");
-    fd.append("ward", ward);
-    fd.append("ward_name", selectedWard?.ward_name || "");
     fd.append("contact_no", contact);
     fd.append("address", address);
     fd.append("main_category", mainLabel);
@@ -369,56 +324,6 @@ export default function ComplaintAddForm() {
           <div className="md:col-span-2">
             <Label>{t("common.address")}</Label>
             <Input value={address} disabled />
-          </div>
-
-          <div>
-            <Label>{t("common.zone")} *</Label>
-            <Select
-              value={zone || undefined}
-              onValueChange={(v) => {
-                const selected = zones.find((z) => resolveValue(z) === v);
-                setZone(v);
-                setSelectedZone(selected);
-                setWard("");
-                setSelectedWard(null);
-                loadWards(v);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.zone_placeholder")} />
-              </SelectTrigger>
-
-              <SelectContent>
-                {zones.map((z) => (
-                  <SelectItem
-                    key={resolveValue(z)}
-                    value={resolveValue(z)}
-                  >
-                    {z.zone_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>{t("common.ward")} *</Label>
-            <Select value={ward || undefined} onValueChange={(v) => {
-              const selected = wards.find((w) => resolveValue(w) === v);
-              setWard(v);
-              setSelectedWard(selected);
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder={t("admin.citizen_grievance.complaints_form.ward_placeholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {wards.map((w) => (
-                  <SelectItem key={resolveValue(w)} value={resolveValue(w)}>
-                    {w.ward_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           <div>

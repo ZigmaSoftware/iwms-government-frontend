@@ -120,8 +120,7 @@ export default function TripPlanCollectionPointList() {
         _bin: r.bin?.bin_name ?? r.bin_id ?? "-",
         // household display fields
         _customer: r.customer?.customer_name ?? r.customer_id ?? "-",
-        _customer_location:
-          r.customer?.ward_name ?? r.customer?.zone_name ?? "-",
+        _customer_location: "-",
         // generic identifier/detail for combined view
         _identifier:
           r.collection_type === "bin_collection"
@@ -130,7 +129,7 @@ export default function TripPlanCollectionPointList() {
         _detail:
           r.collection_type === "bin_collection"
             ? (r.bin?.bin_name ?? r.bin_id ?? "-")
-            : (r.customer?.ward_name ?? r.customer?.zone_name ?? "-"),
+            : "-",
       })),
     [records],
   );
@@ -279,13 +278,13 @@ export default function TripPlanCollectionPointList() {
         {isHouseholdView && (
           <>
             <Column field="_customer" header="Customer" filter showFilterMatchModes={false} />
-            <Column field="_customer_location" header="Ward / Zone" style={{ width: 150 }} />
+            <Column field="_customer_location" header="Location" style={{ width: 150 }} />
           </>
         )}
 
         {/* Combined detail column for "All Types" view */}
         {!collectionTypeFilter && (
-          <Column field="_detail" header="Bin / Ward" filter showFilterMatchModes={false} />
+          <Column field="_detail" header="Detail" filter showFilterMatchModes={false} />
         )}
 
         <Column field="sequence" header="Sequence" style={{ width: 100 }} />

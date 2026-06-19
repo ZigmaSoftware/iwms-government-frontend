@@ -4,9 +4,7 @@ export type FormState = {
   trip_plan_id: string;
   staff_template_id: string;
   alt_staff_template_id: string;
-  zone_id: string;
   panchayat_id: string;
-  ward_id: string;
   waste_type_id: string;
   household_waste_type_ids: string[];
   trip_date: string;
@@ -32,15 +30,12 @@ export type DailyTripAssignmentRecord = {
   trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
-  ward_id?: string;
   waste_type_id?: string;
   trip_plan?: {
     unique_id?: string;
     display_code?: string;
     scheduled_time?: string;
-    zone?: NamedRef & { zone_name?: string };
     panchayat?: NamedRef & { panchayat_name?: string };
-    ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
     has_bin?: boolean;
     has_household?: boolean;
   };
@@ -49,8 +44,6 @@ export type DailyTripAssignmentRecord = {
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };
-  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
-  zone?: NamedRef & { zone_name?: string };
   waste_type?: NamedRef & { waste_type_name?: string };
   trip_date?: string;
   scheduled_time?: string;
@@ -62,11 +55,7 @@ export type DailyTripAssignmentRecord = {
 export type TripPlanRecord = {
   unique_id?: string;
   id?: string;
-  zone_id?: unknown;
-  ward_id?: unknown;
   panchayat_id?: unknown;
-  zone?: NamedRef & { zone_name?: string };
-  ward?: NamedRef & { ward_name?: string; zone_id?: string; zone_name?: string };
   panchayat?: NamedRef & { panchayat_name?: string };
   [key: string]: unknown;
 };

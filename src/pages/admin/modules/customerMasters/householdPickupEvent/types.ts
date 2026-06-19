@@ -2,7 +2,6 @@ export type SelectOption = { value: string; label: string };
 
 export type HouseholdPickupFormState = {
   customer_id: string;
-  zone_id: string;
   property_id: string;
   sub_property_id: string;
   pickup_time: string;
@@ -15,7 +14,6 @@ export type HouseholdPickupFormState = {
 export type HouseholdPickupEventRecord = {
   id: number;
   customer_id: string;
-  zone_id: string;
   property_id: string;
   sub_property_id: string;
   pickup_time: string;

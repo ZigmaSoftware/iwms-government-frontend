@@ -143,7 +143,6 @@ import {
   countryApi,
   stateApi,
   districtApi,
-  cityApi,
   staffUserTypeApi,
   contractorUserTypeApi,
   departmentApi,
@@ -619,14 +618,12 @@ export default function StaffCreationForm() {
           countries,
           states,
           districts,
-          cities,
           departments,
         ] =
           await Promise.all([
             countryApi.readAll(),
             stateApi.readAll(),
             districtApi.readAll(),
-            cityApi.readAll(),
             departmentApi.readAll({ params: { status: "active" } }),
           ]);
 
@@ -648,25 +645,10 @@ export default function StaffCreationForm() {
             (state) => state.uniqueId && state.uniqueId === district.stateId,
           )?.value,
         }));
-        const cityList = mapLocationOptions(cities).map((city) => ({
-          ...city,
-          countryName: countryList.find(
-            (country) =>
-              country.uniqueId && country.uniqueId === city.countryId,
-          )?.value,
-          stateName: stateList.find(
-            (state) => state.uniqueId && state.uniqueId === city.stateId,
-          )?.value,
-          districtName: districtList.find(
-            (district) =>
-              district.uniqueId && district.uniqueId === city.districtId,
-          )?.value,
-        }));
-
         setCountryOptions(countryList);
         setStateOptions(stateList);
         setDistrictOptions(districtList);
-        setCityOptions(cityList);
+        setCityOptions([]);
 
         const normalize = (arr: any[]) =>
           arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);

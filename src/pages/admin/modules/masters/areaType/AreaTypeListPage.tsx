@@ -1,168 +1,88 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
-import { useTranslation } from "react-i18next";
-import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import { useNavigate } from "react-router-dom";
+import { DataTable, type DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
-import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { adminApi } from "@/helpers/admin/registry";
-import type { AreaTypeRecord } from "./types";
 import Swal from "@/lib/notify";
+import { PencilIcon } from "@/icons";
+import { Switch } from "@/components/ui/switch";
+import { areaTypeApi } from "@/helpers/admin";
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
-const AREA_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
-  name: ["name", "area_type_name"],
-  is_active: ["is_active"],
+type AreaTypeListRecord = {
+  unique_id: string;
+  is_active?: boolean;
+  [key: string]: unknown;
 };
 
-const extractErrorMessage = (error: unknown, fallback: string) => {
-  const data = (error as { response?: { data?: unknown } }).response?.data;
-
-  if (typeof data === "string") {
-    return data;
+const toRecordList = (value: unknown): AreaTypeListRecord[] => {
+  if (Array.isArray(value)) return value as AreaTypeListRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: AreaTypeListRecord[] }).results;
   }
-
-  if (Array.isArray(data)) {
-    return data.join(", ");
-  }
-
-  if (data && typeof data === "object") {
-    return Object.entries(data as Record<string, unknown>)
-      .map(([key, value]) =>
-        `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
-      )
-      .join("\n");
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return fallback;
+  return [];
 };
+
+const displayValue = (value: unknown) =>
+  value === null || value === undefined || value === "" ? "-" : String(value);
+
+const columns = [
+  { field: "state_name", header: "State" },
+  { field: "district_name", header: "District" },
+  { field: "area_type_name", header: "Area Type" },
+];
 
 export default function AreaTypeListPage() {
-  const { t } = useTranslation();
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [areaTypes, setAreaTypes] = useState<AreaTypeRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-  const { showColumn: showCol, filterPayload } = useFieldVisibility(
-    "masters",
-    "area-types",
-    AREA_TYPE_COLUMN_FIELDS,
-  );
   const navigate = useNavigate();
   const { encMasters, encAreaTypes } = getEncryptedRoute();
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encAreaTypes);
 
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
-    encAreaTypes,
-  );
-
-  const records = areaTypes.filter((row) => {
-    const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-    const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-    const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-    const projectMatches = !projectId || rowProjectId === projectId;
-
-    return companyMatches && projectMatches;
+  const [rows, setRows] = useState<AreaTypeListRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState<DataTableFilterMeta>({
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  const loadAreaTypes = async () => {
+  const loadRows = async () => {
     setIsLoading(true);
     try {
-      const response = await adminApi.areatypes.readAll();
-      setAreaTypes(Array.isArray(response) ? response : []);
-    } catch (error) {
-      Swal.fire(
-        t("common.error"),
-        extractErrorMessage(error, t("common.fetch_failed")),
-        "error"
-      );
+      setRows(toRecordList(await areaTypeApi.readAll()));
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Area Type"), "error");
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadAreaTypes();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    void loadRows();
+  }, []);
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as DataTableFilterMeta);
+  const onFilter = (event: DataTableFilterEvent) => {
+    setFilters(event.filters as DataTableFilterMeta);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { ...prev.global, value },
-    }));
+  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setFilters((current) => ({ ...current, global: { ...current.global, value } }));
     setGlobalFilterValue(value);
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.area_type"),
-      }),
-    });
-
-  const statusTemplate = (row: AreaTypeRecord) => {
+  const statusTemplate = (row: AreaTypeListRecord) => {
     const updateStatus = async (value: boolean) => {
-      const areaTypeId = String(row.unique_id);
-      setPendingStatusId(areaTypeId);
-
+      const id = String(row.unique_id);
+      setPendingStatusId(id);
       try {
-        await adminApi.areatypes.update(
-          row.unique_id as string | number,
-          filterPayload({ is_active: value })
-        );
-        setAreaTypes((current) =>
-          current.map((item) =>
-            item.unique_id === row.unique_id
-              ? { ...item, is_active: value }
-              : item
-          )
-        );
-      } catch (error) {
-        Swal.fire(
-          t("common.error"),
-          extractErrorMessage(error, t("common.update_status_failed")),
-          "error"
-        );
+        await areaTypeApi.update(id, { is_active: value });
+        setRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, is_active: value } : item));
+      } catch (error: any) {
+        Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
       } finally {
         setPendingStatusId(null);
       }
@@ -171,132 +91,73 @@ export default function AreaTypeListPage() {
     return (
       <Switch
         checked={Boolean(row.is_active)}
-        disabled={
-          pendingStatusId === String(row.unique_id)
-        }
-        onCheckedChange={updateStatus}
+        disabled={pendingStatusId === String(row.unique_id)}
+        onCheckedChange={(checked) => void updateStatus(checked)}
       />
     );
   };
 
-  const actionTemplate = (row: AreaTypeRecord) => (
-    <div className="flex gap-3 justify-center">
+  const actionTemplate = (row: AreaTypeListRecord) => (
+    <div className="flex justify-center gap-3">
       <button
-        title={t("common.edit")}
+        title="Edit"
         className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
       >
         <PencilIcon className="size-5" />
       </button>
     </div>
   );
 
-  const indexTemplate = (
-    _: AreaTypeRecord,
-    { rowIndex }: { rowIndex: number }
-  ) => rowIndex + 1;
-
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
-
   return (
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.nav.area_type")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("common.manage_item_records", {
-              item: t("admin.nav.area_type"),
-            })}
-          </p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">Area Type</h1>
+          <p className="text-sm text-gray-500">Manage Area Type records</p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.area_type") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
-          />
-        </div>
+        <Button
+          label="Add Area Type"
+          icon="pi pi-plus"
+          className="p-button-success"
+          onClick={() => navigate(ENC_NEW_PATH)}
+        />
       </div>
 
       <DataTable
-        value={records}
+        value={rows}
         dataKey="unique_id"
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && records.length === 0}
+        loading={isLoading}
         filters={filters}
         onFilter={onFilter}
-        header={renderHeader()}
+        header={renderListSearchHeader({
+          value: globalFilterValue,
+          onChange: onGlobalFilterChange,
+          placeholder: "Search Area Type...",
+        })}
         stripedRows
         showGridlines
-        emptyMessage={t("common.no_items_found", {
-          item: t("admin.nav.area_type"),
-        })}
-        globalFilterFields={["name", "company_name", "project_name"]}
+        emptyMessage="No Area Type records found."
+        globalFilterFields={columns.map((column) => column.field)}
         className="p-datatable-sm"
       >
-        <Column
-          header={t("common.s_no")}
-          body={indexTemplate}
-          style={{ width: "80px" }}
-        />
-        {showCol("name") && (
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
+        {columns.map((column) => (
           <Column
-            field="name"
-            header={t("common.item_name", { item: t("admin.nav.area_type") })}
+            key={column.field}
+            field={column.field}
+            header={column.header}
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: AreaTypeRecord) => cap(row.name ?? row.area_type_name)}
+            body={(row: AreaTypeListRecord) => displayValue(row[column.field])}
           />
-        )}
-        {showCol("is_active") && (
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "140px" }}
-          />
-        )}
-        <Column
-          header={t("common.actions")}
-          body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
-        />
+        ))}
+        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
       </DataTable>
     </div>
   );

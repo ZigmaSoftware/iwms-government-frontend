@@ -361,16 +361,6 @@ export default function DailyTripCollectionPointForm() {
             </div>
 
             <div>
-              <Label>Zone</Label>
-              <Select value={locationOptions.zoneId} onChange={locationOptions.setZoneId} options={locationOptions.zones} placeholder="Select zone" />
-            </div>
-
-            <div>
-              <Label>Ward</Label>
-              <Select value={locationOptions.wardId} onChange={locationOptions.setWardId} options={locationOptions.wards} placeholder="Select ward" disabled={!locationOptions.zoneId} />
-            </div>
-
-            <div>
               <Label>Panchayat</Label>
               <Select value={locationOptions.panchayatId} onChange={locationOptions.setPanchayatId} options={locationOptions.panchayats} placeholder="Select panchayat (rural)" />
             </div>

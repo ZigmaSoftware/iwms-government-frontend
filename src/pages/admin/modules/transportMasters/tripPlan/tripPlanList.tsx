@@ -94,7 +94,7 @@ export default function TripPlanList() {
 
   const rows = useMemo(() => records.map((record) => ({
     ...record,
-    _location: record.panchayat?.panchayat_name ?? record.ward?.ward_name ?? "",
+    _location: record.panchayat?.panchayat_name ?? "",
     _staff: record.staff_template?.display_code ?? "",
     _vehicle: record.vehicle?.vehicle_no ?? "",
     _waste_type: record.waste_type?.waste_type_name ?? "",
