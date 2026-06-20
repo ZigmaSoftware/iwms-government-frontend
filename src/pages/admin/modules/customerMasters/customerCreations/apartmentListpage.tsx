@@ -15,6 +15,7 @@ import "primeicons/primeicons.css";
 
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 
 /* ---------------- HELPERS ---------------- */
@@ -49,6 +50,7 @@ export default function ApartmentListPage() {
   const [selectedApartment, setSelectedApartment] = useState("");
   const [selectedBlock, setSelectedBlock] = useState("");
   const [selectedFlat, setSelectedFlat] = useState("");
+  const [selectedQr, setSelectedQr] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<TableFilters>({
@@ -240,18 +242,6 @@ export default function ApartmentListPage() {
   const indexTemplate = (_: unknown, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
-  // ✅ QR POPUP
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: "Apartment QR Code",
-      html: `<div class="flex justify-center">
-               <img src="${qrUrl}" style="width:200px;height:200px;" />
-             </div>`,
-      width: 350,
-    });
-  };
-
-  // ✅ QR TEMPLATE — shows thumbnail; click to open popup
   const qrTemplate = (row: ApartmentRow) => {
     if (!row.qr_code) {
       return <span className="text-gray-400 text-xs">No QR</span>;
@@ -259,7 +249,8 @@ export default function ApartmentListPage() {
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(row.qr_code!)}
+        onClick={() => setSelectedQr(row.qr_code!)}
+        title="Show QR"
       >
         <img
           src={row.qr_code}
@@ -333,7 +324,8 @@ export default function ApartmentListPage() {
   ============================================================ */
 
   return (
-    <div className="p-3">
+    <>
+      <div className="p-3">
 
       {/* PAGE HEADER */}
       <div className="flex justify-between items-center mb-6">
@@ -500,6 +492,20 @@ export default function ApartmentListPage() {
         </div>
       )}
 
-    </div>
+      </div>
+
+      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+        <DialogContent className="w-auto max-w-[90vw] p-4">
+          <DialogTitle className="sr-only">Apartment QR Code</DialogTitle>
+          {selectedQr && (
+            <img
+              src={selectedQr}
+              alt="Apartment QR Code"
+              className="h-auto w-[min(75vw,320px)] object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

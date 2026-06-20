@@ -86,18 +86,29 @@ export default function UserScreenPermissionList() {
 
   const records = useMemo<StaffUserType[]>(() => {
       const groupedObj: Record<string, any> = permissionRows.reduce((acc, item) => {
-        const staffTypeId = String(item.staffusertype_id ?? "");
+        const staffTypeId = String(
+          item.staffusertype_id ??
+            item.contractorusertype_id ??
+            item.governmentusertype_id ??
+            ""
+        );
         const screenId = String(item.mainscreen_id ?? "");
         const key = `${staffTypeId}__${screenId}`;
+        const staffTypeName =
+          item.staffusertype_name ??
+          item.contractorusertype_name ??
+          item.governmentusertype_name ??
+          t("common.unknown");
 
         if (!acc[key]) {
           acc[key] = {
             unique_id: staffTypeId,
             composite_key: key,
             usertype_name: item.usertype_name ?? "",
-            staffusertype_name: item.staffusertype_name ?? t("common.unknown"),
+            staffusertype_name: staffTypeName,
             mainscreen_name: item.mainscreen_name ?? t("common.unknown"),
             mainscreen_id: screenId,
+            permission_for: item.permission_for,
             is_active: item.is_active,
             screens: [],
           };
@@ -131,12 +142,24 @@ export default function UserScreenPermissionList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      const deletePath = `delete-by-staffusertype/${row.unique_id}/?mainscreen_id=${row.mainscreen_id}`;
+      const deletePrefix =
+        row.permission_for === "government"
+          ? "delete-by-governmentusertype"
+          : row.permission_for === "contractor"
+          ? "delete-by-contractorusertype"
+          : "delete-by-staffusertype";
+      const deletePath = `${deletePrefix}/${row.unique_id}/?mainscreen_id=${row.mainscreen_id}`;
 
       await userScreenPermissionApi.delete(deletePath);
       setPermissionRows((current) =>
         current.filter((item) => {
-          const sameStaffType = String(item.staffusertype_id ?? "") === String(row.unique_id);
+          const roleId = String(
+            item.staffusertype_id ??
+              item.contractorusertype_id ??
+              item.governmentusertype_id ??
+              ""
+          );
+          const sameStaffType = roleId === String(row.unique_id);
           const sameMainScreen = String(item.mainscreen_id ?? "") === String(row.mainscreen_id ?? "");
           return !(sameStaffType && sameMainScreen);
         })

@@ -11,7 +11,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { staffCreationApi } from "@/helpers/admin";
+import { staffCreationApi, governmentUserTypeApi } from "@/helpers/admin";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
@@ -268,6 +268,13 @@ const initialFormData = {
   active_status: "1",
   staffusertype_id: "",
   contractorusertype_id: "",
+  governmentusertype_id: "",
+  state_id: "",
+  municipality_id: "",
+  corporation_id: "",
+  town_panchayat_id: "",
+  panchayat_union_id: "",
+  panchayat_id: "",
   username: "", // ← username field
   password: "",
   login_enabled: "0",
@@ -377,8 +384,12 @@ export default function StaffCreationForm() {
   const [contractorUserTypeOptions, setContractorUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
+  const [governmentUserTypeRecords, setGovernmentUserTypeRecords] = useState<
+    { unique_id: string; name: string; name_display: string; level: string; level_display: string }[]
+  >([]);
+  const [governmentLevel, setGovernmentLevel] = useState("");
   const [userTypeCategory, setUserTypeCategory] = useState<
-    "staff" | "contractor"
+    "staff" | "contractor" | "government"
   >("staff");
   const [licenceFile, setLicenceFile] = useState<File | null>(null);
   const [licencePreview, setLicencePreview] = useState("");
@@ -397,6 +408,7 @@ export default function StaffCreationForm() {
   const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [pendingStaffUserTypeId, setPendingStaffUserTypeId] = useState<string | null>(null);
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
+  const [pendingGovernmentUserTypeId, setPendingGovernmentUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
   const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
   const [pendingPresentState, setPendingPresentState] = useState<string | null>(null);
@@ -484,6 +496,22 @@ export default function StaffCreationForm() {
     formData.designation,
     formData.designation_id,
   ]);
+
+  // Unique level options derived from the seeded govt records
+  const governmentLevelOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return governmentUserTypeRecords
+      .filter((r) => { if (seen.has(r.level)) return false; seen.add(r.level); return true; })
+      .map((r) => ({ value: r.level, label: r.level_display || r.level }));
+  }, [governmentUserTypeRecords]);
+
+  // Govt staff type options filtered by the selected level
+  const filteredGovtStaffTypeOptions = useMemo(() => {
+    if (!governmentLevel) return [];
+    return governmentUserTypeRecords
+      .filter((r) => r.level === governmentLevel)
+      .map((r) => ({ value: r.unique_id, label: r.name_display || r.name }));
+  }, [governmentLevel, governmentUserTypeRecords]);
 
   const selectedUserType = staffUserTypeOptions.find(
     (opt) => opt.value === formData.staffusertype_id,
@@ -596,13 +624,21 @@ export default function StaffCreationForm() {
             label: item.name,
           }));
         };
-        const [staffRes, contractorRes] = await Promise.all([
+        const [staffRes, contractorRes, govtRes] = await Promise.all([
           staffUserTypeApi.readAll(),
           contractorUserTypeApi.readAll(),
+          governmentUserTypeApi.readAll(),
         ]);
 
         setStaffUserTypeOptions(toOptions(staffRes));
         setContractorUserTypeOptions(toOptions(contractorRes));
+
+        const govtList = Array.isArray(govtRes)
+          ? govtRes
+          : Array.isArray((govtRes as any)?.results)
+            ? (govtRes as any).results
+            : [];
+        setGovernmentUserTypeRecords(govtList);
       } catch (err) {
         console.error("Failed to load user type options", err);
       }
@@ -769,6 +805,7 @@ export default function StaffCreationForm() {
           // DRIVER and USER TYPE details
           staffusertype_id: normalizeEntityId(staff.staffusertype_id),
           contractorusertype_id: normalizeEntityId(staff.contractorusertype_id),
+          governmentusertype_id: normalizeEntityId(staff.governmentusertype_id),
           driving_licence_no: staff.driving_licence_no ?? "",
           driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
 
@@ -787,8 +824,15 @@ export default function StaffCreationForm() {
         const departmentId = normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id);
         const designationId = normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id);
 
+        const governmentTypeId = normalizeEntityId(staff.governmentusertype_id);
         if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
         if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
+        if (governmentTypeId) {
+          setPendingGovernmentUserTypeId(governmentTypeId);
+          // Level is returned directly by the serializer
+          const level = String(staff.governmentusertype_level ?? "");
+          if (level) setGovernmentLevel(level);
+        }
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
         if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
@@ -806,7 +850,9 @@ export default function StaffCreationForm() {
           );
         }
 
-        if (staff.contractorusertype_id) {
+        if (staff.governmentusertype_id && normalizeEntityId(staff.governmentusertype_id)) {
+          setUserTypeCategory("government");
+        } else if (staff.contractorusertype_id && normalizeEntityId(staff.contractorusertype_id)) {
           setUserTypeCategory("contractor");
         } else {
           setUserTypeCategory("staff");
@@ -831,6 +877,7 @@ export default function StaffCreationForm() {
               : `${backendOrigin}${staff.photo}`,
           );
         }
+
       })
       .catch((error) => {
         console.error("Failed to load staff", error);
@@ -939,6 +986,16 @@ export default function StaffCreationForm() {
       setPendingContractorUserTypeId(null);
     }
   }, [contractorUserTypeOptions, pendingContractorUserTypeId]);
+
+  useEffect(() => {
+    if (!pendingGovernmentUserTypeId || governmentUserTypeRecords.length === 0) return;
+    const match = governmentUserTypeRecords.find((r) => r.unique_id === pendingGovernmentUserTypeId);
+    if (match) {
+      setFormData((prev) => ({ ...prev, governmentusertype_id: pendingGovernmentUserTypeId }));
+      setGovernmentLevel(match.level);
+      setPendingGovernmentUserTypeId(null);
+    }
+  }, [pendingGovernmentUserTypeId, governmentUserTypeRecords]);
 
   useEffect(() => {
     if (!pendingDepartmentId || departmentOptions.length === 0) return;
@@ -1181,16 +1238,6 @@ export default function StaffCreationForm() {
       return;
     }
 
-    if (showField("department_id") && !formData.department_id) {
-      Swal.fire("Error", "Department is required", "error");
-      return;
-    }
-
-    if (showField("designation_id") && !formData.designation_id) {
-      Swal.fire("Error", "Designation is required", "error");
-      return;
-    }
-
     // ✅ DRIVER VALIDATION — mandatory on create AND on edit when no existing file
     if (
       showField("driving_licence_file") &&
@@ -1232,6 +1279,10 @@ export default function StaffCreationForm() {
         contractorusertype_id:
           userTypeCategory === "contractor"
             ? formData.contractorusertype_id || null
+            : null,
+        governmentusertype_id:
+          userTypeCategory === "government"
+            ? formData.governmentusertype_id || null
             : null,
         username: formData.username || null, // ← username in payload
         login_enabled: formData.login_enabled === "1",
@@ -1360,64 +1411,32 @@ export default function StaffCreationForm() {
           />
         </div>
       )}
-      {showField("department_id") && (
-        <div>
-          <Label htmlFor="department_id">
-            {t("admin.staff_creation.department_name")}
-            <span className="text-red-500 ml-1">*</span>
-          </Label>
-          <Select
-            id="department_id"
-            value={formData.department_id}
-            onChange={(value) => handleSelectChange("department_id", value)}
-            options={departmentOptionsWithCurrent}
-            placeholder={t("common.select_item_placeholder", {
-              item: t("admin.staff_creation.department_name"),
-            })}
-          />
-        </div>
-      )}
-      {showField("designation_id") && (
-        <div>
-          <Label htmlFor="designation_id">
-            {t("admin.staff_creation.designation")}
-            <span className="text-red-500 ml-1">*</span>
-          </Label>
-          <Select
-            id="designation_id"
-            value={formData.designation_id}
-            onChange={(value) => handleSelectChange("designation_id", value)}
-            options={designationOptionsWithCurrent}
-            placeholder={
-              formData.department_id
-                ? t("common.select_item_placeholder", { item: t("admin.staff_creation.designation") })
-                : "Select a department first"
-            }
-          />
-        </div>
-      )}
       {showField("staffusertype_id") && (
         <>
+          {/* Category selector */}
           <div>
             <Label htmlFor="userTypeCategory">User Type</Label>
             <Select
               id="userTypeCategory"
               value={userTypeCategory}
               onChange={(value) => {
-                setUserTypeCategory(value as "staff" | "contractor");
+                setUserTypeCategory(value as "staff" | "contractor" | "government");
                 handleSelectChange("staffusertype_id", "");
                 handleSelectChange("contractorusertype_id", "");
+                handleSelectChange("governmentusertype_id", "");
                 handleSelectChange("staff_head_id", "");
+                setGovernmentLevel("");
               }}
               options={[
                 { value: "staff", label: "Staff" },
                 { value: "contractor", label: "Contractor" },
+                { value: "government", label: "Government" },
               ]}
               placeholder="Select User Type"
             />
           </div>
 
-          {userTypeCategory === "staff" ? (
+          {userTypeCategory === "staff" && (
             <div>
               <Label htmlFor="staffusertype_id">
                 {t("admin.staff_creation.staff_user_type")}
@@ -1425,30 +1444,59 @@ export default function StaffCreationForm() {
               <Select
                 id="staffusertype_id"
                 value={formData.staffusertype_id}
-                onChange={(value) =>
-                  handleSelectChange("staffusertype_id", value)
-                }
+                onChange={(value) => handleSelectChange("staffusertype_id", value)}
                 options={staffUserTypeOptions}
-                placeholder={t(
-                  "admin.staff_creation.staff_user_type_placeholder",
-                )}
+                placeholder={t("admin.staff_creation.staff_user_type_placeholder")}
               />
             </div>
-          ) : (
+          )}
+
+          {userTypeCategory === "contractor" && (
             <div>
-              <Label htmlFor="contractorusertype_id">
-                Contractor User Type
-              </Label>
+              <Label htmlFor="contractorusertype_id">Contractor User Type</Label>
               <Select
                 id="contractorusertype_id"
                 value={formData.contractorusertype_id}
-                onChange={(value) =>
-                  handleSelectChange("contractorusertype_id", value)
-                }
+                onChange={(value) => handleSelectChange("contractorusertype_id", value)}
                 options={contractorUserTypeOptions}
                 placeholder="Select Contractor Type"
               />
             </div>
+          )}
+
+          {userTypeCategory === "government" && (
+            <>
+              {/* Government Level */}
+              <div>
+                <Label htmlFor="governmentLevel">Government Level</Label>
+                <Select
+                  id="governmentLevel"
+                  value={governmentLevel}
+                  onChange={(value) => {
+                    setGovernmentLevel(value);
+                    handleSelectChange("governmentusertype_id", "");
+                  }}
+                  options={governmentLevelOptions}
+                  placeholder="Select Government Level"
+                />
+              </div>
+
+              {/* Government Staff User Type — filtered by level */}
+              <div>
+                <Label htmlFor="governmentusertype_id">Government Staff User Type</Label>
+                <Select
+                  id="governmentusertype_id"
+                  value={formData.governmentusertype_id}
+                  onChange={(value) => handleSelectChange("governmentusertype_id", value)}
+                  options={filteredGovtStaffTypeOptions}
+                  placeholder={
+                    governmentLevel
+                      ? "Select Staff User Type"
+                      : "Select a level first"
+                  }
+                />
+              </div>
+            </>
           )}
         </>
       )}
@@ -1840,6 +1888,7 @@ export default function StaffCreationForm() {
           )}
         </div>
       )}
+
     </div>
   );
 

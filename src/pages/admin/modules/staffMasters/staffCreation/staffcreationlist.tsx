@@ -17,6 +17,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
@@ -74,6 +75,7 @@ export default function StaffCreationList() {
   });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [selectedQr, setSelectedQr] = useState<string | null>(null);
   const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     employee_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -215,16 +217,6 @@ export default function StaffCreationList() {
     );
   };
 
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: t("admin.staff_creation.qr_title"),
-      html: `<div class="flex justify-center">
-              <img src="${qrUrl}" style="width:200px;height:200px;" />
-            </div>`,
-      width: 350,
-    });
-  };
-
   const qrTemplate = (row: Staff) => {
     if (!row.qr_code) {
       return <span className="text-gray-400 text-xs">No QR</span>;
@@ -232,7 +224,7 @@ export default function StaffCreationList() {
     return (
       <button
         className="p-1 border rounded hover:bg-gray-50 flex justify-center"
-        onClick={() => openQrPopup(row.qr_code!)}
+        onClick={() => setSelectedQr(row.qr_code!)}
         title={t("admin.staff_creation.qr_show")}
       >
         <img src={row.qr_code} alt="QR" className="w-12 h-12 object-contain" />
@@ -501,6 +493,19 @@ export default function StaffCreationList() {
           />
         </DataTable>
       </div>
+
+      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+        <DialogContent className="w-auto max-w-[90vw] p-4">
+          <DialogTitle className="sr-only">{t("admin.staff_creation.qr_title")}</DialogTitle>
+          {selectedQr && (
+            <img
+              src={selectedQr}
+              alt={t("admin.staff_creation.qr_title")}
+              className="h-auto w-[min(75vw,320px)] object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

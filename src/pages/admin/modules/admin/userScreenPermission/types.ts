@@ -1,6 +1,9 @@
 export type StaffUserType = {
   unique_id?: unknown;
   name?: unknown;
+  name_display?: unknown;
+  level?: unknown;
+  level_display?: unknown;
   usertype_id?: unknown;
   usertype?: { unique_id?: unknown };
   [key: string]: unknown;
@@ -22,6 +25,8 @@ export type Option = {
   value: string;
   label: string;
   userTypeId?: string;
+  governmentLevel?: string;
+  governmentLevelLabel?: string;
 };
 
 export type PermissionScreen = {
