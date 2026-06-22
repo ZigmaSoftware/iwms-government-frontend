@@ -62,9 +62,9 @@ export default function Select({
   // which fails to display the correct text when the value is set
   // programmatically while SelectContent is rendered into a DocumentFragment
   // (Radix's closed-state optimisation).
-  // const selectedLabel = isEmpty
-  //   ? null
-  //   : (options.find((o) => String(o.value) === normalizedValue)?.label ?? null);
+  const selectedLabel = isEmpty
+    ? null
+    : (options.find((o) => String(o.value) === normalizedValue)?.label ?? null);
 
   return (
     <ShadSelect
@@ -76,9 +76,11 @@ export default function Select({
       disabled={disabled}
     >
       <SelectTrigger id={id} className={className} aria-required={required}>
-        <SelectValue placeholder={finalPlaceholder}>
-          {/* {selectedLabel ?? undefined} */}
-        </SelectValue>
+        {selectedLabel ? (
+          <span className="truncate">{selectedLabel}</span>
+        ) : (
+          <SelectValue placeholder={finalPlaceholder} />
+        )}
       </SelectTrigger>
       <SelectContent>
         {isEmpty && (
