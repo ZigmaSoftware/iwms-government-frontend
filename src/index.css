@@ -1,6 +1,63 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+.p-datatable-header .flex:has(> .pi.pi-search) {
+  width: 100%;
+  max-width: 346px;
+  height: 52px;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid #d1d5db !important;
+  border-radius: 0.375rem !important;
+  background: #ffffff;
+  padding: 0 1rem !important;
+  box-shadow: 0 8px 16px rgba(107, 114, 128, 0.18) !important;
+}
+
+.p-datatable-header .p-inputtext {
+  width: 100%;
+  max-width: 346px;
+  height: 52px;
+  border: 1px solid #d1d5db !important;
+  border-radius: 0.375rem !important;
+  background-color: #ffffff !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: 1rem center !important;
+  box-shadow: 0 8px 16px rgba(107, 114, 128, 0.18) !important;
+  color: #374151;
+  font-size: 0.875rem;
+  padding-left: 3.25rem !important;
+}
+
+.p-datatable-header .p-inputtext::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+.p-datatable-header .flex:has(> .pi.pi-search) > .pi.pi-search {
+  color: #6b7280 !important;
+  font-size: 1rem;
+}
+
+.p-datatable-header .flex:has(> .pi.pi-search) .p-inputtext {
+  min-width: 0;
+  flex: 1;
+  border: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: #374151;
+  font-size: 0.875rem;
+  padding: 0 !important;
+}
+
+.p-datatable-header .flex:has(> .pi.pi-search) .p-inputtext::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

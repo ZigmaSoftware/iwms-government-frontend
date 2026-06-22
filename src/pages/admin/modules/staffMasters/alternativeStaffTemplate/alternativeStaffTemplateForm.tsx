@@ -96,17 +96,25 @@ export default function AlternativeStaffTemplateForm() {
     normalizeRole(
       staff.staffusertype_name ||
         staff.contractorusertype_name ||
-        staff.designation
+        staff.designation_name ||
+        staff.designation ||
+        staff.designation_group
     );
 
   const isDriverRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "driver" || role.includes(" driver");
+    return role === "driver" || role.includes("driver");
   };
 
   const isOperatorRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "operator" || role.includes(" operator");
+    return (
+      role === "operator" ||
+      role.includes("operator") ||
+      role.includes("collector") ||
+      role.includes("supervisor") ||
+      role.includes("inspector")
+    );
   };
 
   const isStaffRow = (staff: StaffRecord): boolean => {
@@ -122,12 +130,29 @@ export default function AlternativeStaffTemplateForm() {
 
   const getStaffDisplayName = (staff: StaffRecord): string =>
     String(
-      staff.employee_name ?? staff.staff_name ?? staff.username ?? staff.unique_id ?? ""
+      staff.employee_name ?? staff.staff_name ?? staff.username ?? staff.staff_unique_id ?? staff.unique_id ?? ""
     ).trim();
+
+  const toEntityId = (value: unknown): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      return toEntityId(record.staff_unique_id ?? record.unique_id ?? record.id ?? record.value);
+    }
+    return String(value).trim();
+  };
+
+  const getStaffId = (staff: StaffRecord): string =>
+    String(staff.staff_unique_id ?? staff.unique_id ?? "").trim();
+
+  const ensureOption = (items: Option[], value: string, label?: string): Option[] => {
+    if (!value || items.some((item) => String(item.value) === value)) return items;
+    return [{ value, label: label || value }, ...items];
+  };
 
   const toStaffOption = (staff: StaffRecord): Option => {
     return {
-      value: String(staff.unique_id ?? ""),
+      value: getStaffId(staff),
       label: getStaffDisplayName(staff),
     };
   };
@@ -171,7 +196,7 @@ export default function AlternativeStaffTemplateForm() {
                 ? staffPayload.data
                 : [];
         const staff = data.filter(
-          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
+          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && getStaffId(u)
         );
         setStaffRecords(staff);
 
@@ -227,22 +252,33 @@ export default function AlternativeStaffTemplateForm() {
     alternativeStaffTemplateApi.read(id)
       .then((rec: any) => {
         if (cancelled) return;
+        const staffTemplateId = toEntityId(rec.staff_template ?? rec.staff_template_id);
+        const driverId = toEntityId(rec.driver ?? rec.driver_id);
+        const operatorId = toEntityId(rec.operator ?? rec.operator_id);
+        const extraOperatorIds = Array.isArray(rec.extra_operator)
+          ? rec.extra_operator.map(toEntityId).filter(Boolean)
+          : Array.isArray(rec.extra_operator_id)
+            ? rec.extra_operator_id.map(toEntityId).filter(Boolean)
+          : [];
 
         setFormData({
-          staff_template: String(rec.staff_template ?? ""),
+          staff_template: staffTemplateId,
           effective_date: rec.effective_date ?? "",
           from_date: rec.from_date ?? "",
           to_date: rec.to_date ?? "",
-          driver: String(rec.driver ?? ""),
-          operator: String(rec.operator ?? ""),
-          extra_operator: Array.isArray(rec.extra_operator)
-            ? rec.extra_operator.map(String)
-            : [],
+          driver: driverId,
+          operator: operatorId,
+          extra_operator: extraOperatorIds,
           change_reason: rec.change_reason ?? "",
           change_remarks: rec.change_remarks ?? "",
           approval_status: rec.approval_status,
           display_code: rec.display_code,
         });
+        setStaffTemplateOptions((items) =>
+          ensureOption(items, staffTemplateId, rec.staff_template_display_code),
+        );
+        setDriverOptions((items) => ensureOption(items, driverId, rec.driver_name));
+        setOperatorOptions((items) => ensureOption(items, operatorId, rec.operator_name));
 
         editDataLoaded.current = true;
         setLoading(false);
@@ -289,7 +325,7 @@ export default function AlternativeStaffTemplateForm() {
       driver: tpl.driver_id ?? "",
       operator: tpl.operator_id ?? "",
       extra_operator: Array.isArray(tpl.extra_operator_id)
-        ? tpl.extra_operator_id.map(String)
+        ? tpl.extra_operator_id.map(toEntityId).filter(Boolean)
         : [],
     }));
   }, [formData.staff_template, selectedStaffTemplateData]);
@@ -327,9 +363,10 @@ export default function AlternativeStaffTemplateForm() {
       }
 
       if (operatorOptions.length > 0) {
-        const validIds = new Set(
-          operatorOptions.map((opt) => String(opt.value))
-        );
+        const validIds = new Set([
+          ...operatorOptions.map((opt) => String(opt.value)),
+          ...staffRecords.map(getStaffId).filter(Boolean),
+        ]);
         const filteredExtras = next.extra_operator.filter(
           (v) =>
             validIds.has(v) &&
@@ -463,9 +500,7 @@ export default function AlternativeStaffTemplateForm() {
     if (!isEdit || !formData.driver) return driverOptions;
     const already = driverOptions.some((o) => o.value === formData.driver);
     if (already) return driverOptions;
-    const rec = staffRecords.find(
-      (s) => String(s.unique_id) === formData.driver
-    );
+    const rec = staffRecords.find((s) => getStaffId(s) === formData.driver);
     if (!rec) return driverOptions;
     return [toStaffOption(rec), ...driverOptions];
   })();
@@ -476,9 +511,7 @@ export default function AlternativeStaffTemplateForm() {
     if (!isEdit || !formData.operator) return base;
     const already = base.some((o) => o.value === formData.operator);
     if (already) return base;
-    const rec = staffRecords.find(
-      (s) => String(s.unique_id) === formData.operator
-    );
+    const rec = staffRecords.find((s) => getStaffId(s) === formData.operator);
     if (!rec) return base;
     return [toStaffOption(rec), ...base];
   })();
@@ -487,6 +520,17 @@ export default function AlternativeStaffTemplateForm() {
   const availableExtraOperatorOptions = operatorOptions.filter(
     (o) => o.value !== formData.driver && o.value !== formData.operator
   );
+  formData.extra_operator.forEach((value) => {
+    if (
+      value &&
+      value !== formData.driver &&
+      value !== formData.operator &&
+      !availableExtraOperatorOptions.some((option) => String(option.value) === value)
+    ) {
+      const staff = staffRecords.find((item) => getStaffId(item) === value);
+      if (staff) availableExtraOperatorOptions.unshift(toStaffOption(staff));
+    }
+  });
 
   /* ============================
      RENDER

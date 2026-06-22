@@ -6,10 +6,10 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import SearchInput from "@/components/common/SearchInput";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
@@ -118,15 +118,11 @@ export default function AlternativeStaffTemplateList() {
       </div>
 
       <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.alternative_staff_template.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+        <SearchInput
+          value={globalFilterValue}
+          onChange={onGlobalFilterChange}
+          placeholder={t("admin.alternative_staff_template.search_placeholder")}
+        />
       </div>
     </div>
   );
@@ -162,6 +158,8 @@ export default function AlternativeStaffTemplateList() {
           ...(showCol("operator_name") ? ["operator", "operator_name"] : []),
           ...(showCol("change_reason") ? ["change_reason"] : []),
           ...(showCol("approval_status") ? ["approval_status"] : []),
+          "company_name",
+          "project_name",
         ]}
         header={header}
         stripedRows
