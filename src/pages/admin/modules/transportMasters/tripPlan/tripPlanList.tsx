@@ -1,7 +1,7 @@
 import type { TableFilters, TripPlanRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
@@ -15,7 +15,6 @@ import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
 
@@ -35,23 +34,6 @@ const extractErrorMessage = (error: unknown): string | null => {
 export default function TripPlanList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const { encScheduleMasters, encTripPlans } = getEncryptedRoute();
   const { newPath: newPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
@@ -72,16 +54,9 @@ export default function TripPlanList() {
   });
 
   useEffect(() => {
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRecords([]);
-      return;
-    }
     let mounted = true;
     setLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-    tripPlanApi.readAll({ params })
+    tripPlanApi.readAll()
       .then((data) => {
         if (mounted) setRecords(normalizeList(data) as TripPlanRecord[]);
       })
@@ -90,11 +65,19 @@ export default function TripPlanList() {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   const rows = useMemo(() => records.map((record) => ({
     ...record,
     _location: record.panchayat?.panchayat_name ?? "",
+    _collection_type:
+      record.collection_type === "bin_collection"
+        ? "Secondary Collection Point"
+        : record.collection_type === "household_collection"
+          ? "Household Collection"
+          : record.collection_type === "bulk_waste_collection"
+            ? "Bulk Waste Collection"
+            : "",
     _staff: record.staff_template?.display_code ?? "",
     _vehicle: record.vehicle?.vehicle_no ?? "",
     _waste_type: record.waste_type?.waste_type_name ?? "",
@@ -123,15 +106,7 @@ export default function TripPlanList() {
           <p className="text-sm text-gray-500">Manage trip route, staff, vehicle, schedule, and stop list</p>
         </div>
         <div className="flex items-center gap-3">
-          <select value={companyUniqueId || ""} onChange={(e) => onCompanyChange(e.target.value)} disabled={!isSuperAdmin || companies.length === 0} className="rounded border px-3 py-2 text-sm">
-            <option value="">All Companies</option>
-            {companies.map((company) => <option key={company.value} value={company.value}>{company.label}</option>)}
-          </select>
-          <select value={projectId || ""} onChange={(e) => setProjectId(e.target.value)} disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0} className="rounded border px-3 py-2 text-sm">
-            <option value="">All Projects</option>
-            {projects.map((project) => <option key={project.value} value={project.value}>{project.label}</option>)}
-          </select>
-          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" disabled={!companyUniqueId || !projectId} onClick={() => navigate(newPath, { state: { companyUniqueId, projectId } })} />
+          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath)} />
         </div>
       </div>
       <div className="flex justify-end">
@@ -157,7 +132,7 @@ export default function TripPlanList() {
         loading={loading}
         filters={filters}
         onFilter={(event: DataTableFilterEvent) => setFilters(event.filters as TableFilters)}
-        globalFilterFields={["display_code", "_location", "_staff", "_vehicle", "_waste_type", "approval_status", "status"]}
+        globalFilterFields={["display_code", "_location", "_collection_type", "_staff", "_vehicle", "_waste_type", "approval_status", "status"]}
         header={header}
         stripedRows
         showGridlines
@@ -167,6 +142,7 @@ export default function TripPlanList() {
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
         <Column field="display_code" header="Plan Code" filter showFilterMatchModes={false} />
         <Column field="_location" header="Location" filter showFilterMatchModes={false} />
+        <Column field="_collection_type" header="Collection Type" filter showFilterMatchModes={false} />
         <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} />
         <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
@@ -174,7 +150,7 @@ export default function TripPlanList() {
         <Column field="approval_status" header="Approval" />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
-          <button title={t("common.edit")} onClick={() => navigate(editPath(row.unique_id), { state: { record: row, companyUniqueId, projectId } })} className="text-blue-600 hover:text-blue-800">
+          <button title={t("common.edit")} onClick={() => navigate(editPath(row.unique_id), { state: { record: row } })} className="text-blue-600 hover:text-blue-800">
             <PencilIcon className="size-5" />
           </button>
         )} />

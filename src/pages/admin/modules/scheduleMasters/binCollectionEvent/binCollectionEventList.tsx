@@ -1,9 +1,8 @@
 import type { BinCERecord } from "./types";
 import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,7 +13,6 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { binCollectionEventApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 
@@ -41,18 +39,6 @@ const today = new Date().toISOString().split("T")[0];
 export default function BinCollectionEventList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-
-  const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
   const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
@@ -75,11 +61,8 @@ export default function BinCollectionEventList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (!companyUniqueId && !isSuperAdmin) { setRecords([]); return; }
     setLoading(true);
     const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
     const dateFilter = filters.collection_date?.value;
     if (dateFilter) params.collection_date = dateFilter;
     binCollectionEventApi
@@ -90,7 +73,7 @@ export default function BinCollectionEventList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, t]);
+  }, [filters.collection_date?.value, t]);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
@@ -158,30 +141,11 @@ export default function BinCollectionEventList() {
           <p className="text-sm text-gray-500">Scan audit log — one record per operator bin scan</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
           <Button
             label="Add Bin Collection Event"
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(NEW_PATH)}
           />
         </div>
       </div>
@@ -264,9 +228,7 @@ export default function BinCollectionEventList() {
           body={(row: BinCERecord) => (
             <button
               title="Edit"
-          onClick={() =>
-            navigate(VIEW_PATH(row.unique_id ?? ""), { state: { companyUniqueId, projectId } })
-          }
+              onClick={() => navigate(VIEW_PATH(row.unique_id ?? ""))}
               className="text-blue-600 hover:text-blue-800"
             >
               <PencilIcon className="size-5" />

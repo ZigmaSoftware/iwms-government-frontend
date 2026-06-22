@@ -1,5 +1,5 @@
 import type { LoginAuditRecord } from "./types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -11,25 +11,8 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { adminApi } from "@/helpers/admin/registry";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
-const filterByCompanyProject = (rows: any[], companyId: string, projectId: string) => {
-  if (!companyId && !projectId) return rows;
-
-  return rows.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    // Pass records with no company/project set (unknown context)
-    const companyMatches = !companyId || !rowCompanyId || rowCompanyId === companyId;
-    const projectMatches = !projectId || !rowProjectId || rowProjectId === projectId;
-    return companyMatches && projectMatches;
-  });
-};
 
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
 
@@ -51,10 +34,6 @@ const JsonViewer = ({ title, value }: { title: string; value?: Record<string, un
 export default function LoginAuditList() {
   const { t } = useTranslation();
 
-  const restoredState = null as any;
-  const { companyUniqueId, projectId, projects, companies, isSuperAdmin, setProjectId, onCompanyChange } =
-    useCompanyProjectSelection({ isEdit: false, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-
   const [rows, setRows] = useState<LoginAuditRecord[]>([]);
   const [selectedAudit, setSelectedAudit] = useState<LoginAuditRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,25 +43,18 @@ export default function LoginAuditList() {
   });
 
   useEffect(() => {
-    if (!companyUniqueId) {
-      setRows([]);
-      return;
-    }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
-    if (projectId) params.project_id = projectId;
-
-     adminApi.loginAudits
-       .readAll({ params })
-       .then((data: LoginAuditRecord[]) => {
-         if (!mounted) return;
-         setRows(normalizeList(data) as LoginAuditRecord[]);
-       })
-       .catch((err: unknown) => {
-         if (!mounted) return;
-         Swal.fire(t("common.error"), String(err), "error");
-       })
+    adminApi.loginAudits
+      .readAll()
+      .then((data: LoginAuditRecord[]) => {
+        if (!mounted) return;
+        setRows(normalizeList(data) as LoginAuditRecord[]);
+      })
+      .catch((err: unknown) => {
+        if (!mounted) return;
+        Swal.fire(t("common.error"), String(err), "error");
+      })
       .finally(() => {
         if (mounted) setIsLoading(false);
       });
@@ -90,12 +62,7 @@ export default function LoginAuditList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
-
-  const filteredRecords = useMemo(
-    () => filterByCompanyProject(rows, companyUniqueId ?? "", projectId ?? ""),
-    [rows, companyUniqueId, projectId]
-  );
+  }, [t]);
 
   const openDetails = useCallback((record: LoginAuditRecord) => {
     setSelectedAudit(record);
@@ -131,40 +98,6 @@ export default function LoginAuditList() {
           <h1 className="text-2xl font-semibold text-gray-800">{t("admin.nav.login_audit")}</h1>
           <p className="text-sm text-gray-500">{t("admin.login_audit_subtitle", "Login audit records")}</p>
         </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.company") })}
-            </option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={!companyUniqueId || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="" disabled>
-              {t("common.select_item_placeholder", { item: t("admin.nav.project") })}
-            </option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1 max-w-md">
@@ -182,12 +115,12 @@ export default function LoginAuditList() {
   return (
     <div className="p-3">
       <DataTable
-        value={filteredRecords}
+        value={rows}
         dataKey="unique_id"
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && filteredRecords.length === 0}
+        loading={isLoading && rows.length === 0}
         filters={filters}
         onFilter={(e) => setFilters(e.filters as DataTableFilterMeta)}
         header={header}
@@ -218,8 +151,6 @@ export default function LoginAuditList() {
           filter
           showFilterMatchModes={false}
         />
-        <Column field="company_name" header="Company" filter showFilterMatchModes={false} />
-        <Column field="project_name" header="Project" filter showFilterMatchModes={false} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 120 }} />
       </DataTable>
 

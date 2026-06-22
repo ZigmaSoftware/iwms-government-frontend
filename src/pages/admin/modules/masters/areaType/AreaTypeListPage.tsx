@@ -12,6 +12,7 @@ import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { areaTypeApi } from "@/helpers/admin";
+import { formatCoordinates } from "../shared/formatCoordinates";
 
 type AreaTypeListRecord = {
   unique_id: string;
@@ -34,6 +35,7 @@ const columns = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
+  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function AreaTypeListPage() {
@@ -153,7 +155,11 @@ export default function AreaTypeListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: AreaTypeListRecord) => displayValue(row[column.field])}
+            body={(row: AreaTypeListRecord) =>
+              column.field === "coordinates"
+                ? formatCoordinates(row.coordinates)
+                : displayValue(row[column.field])
+            }
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

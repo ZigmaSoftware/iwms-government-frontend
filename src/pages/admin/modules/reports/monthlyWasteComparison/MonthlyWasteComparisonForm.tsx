@@ -1,6 +1,6 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { RefreshCw, Info } from "lucide-react";
 
@@ -17,7 +17,6 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { panchayatApi, wasteTypeApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api";
@@ -187,29 +186,7 @@ export default function MonthlyWasteComparisonForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams();
-  const location = useLocation();
-  const routeState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-    record?: Record<string, unknown>;
-  } | null;
   const isEdit = Boolean(id);
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encMonthlyWasteComparison);
@@ -232,10 +209,7 @@ export default function MonthlyWasteComparisonForm() {
   const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
 
   const [loading, setLoading] = useState(false);
-  const [recordData, setRecordData] = useState<Record<string, unknown> | null>(
-    routeState?.record ?? null
-  );
-  const [pendingProjectId, setPendingProjectId] = useState("");
+  const [recordData, setRecordData] = useState<Record<string, unknown> | null>(null);
 
   /* default month */
   useEffect(() => {
@@ -245,31 +219,10 @@ export default function MonthlyWasteComparisonForm() {
     }
   }, [month]);
 
-  /* re-apply projectId after hook re-fetches */
-  useEffect(() => {
-    if (!pendingProjectId || projects.length === 0) return;
-    const match = projects.find((p) => p.value === pendingProjectId);
-    if (match) {
-      setProjectId(pendingProjectId);
-      setPendingProjectId("");
-    }
-  }, [pendingProjectId, projects, setProjectId]);
-
-  /* tenant params */
-  const tenantParams = useMemo(
-    () => (companyUniqueId && projectId ? { company_id: companyUniqueId, project_id: projectId } : null),
-    [companyUniqueId, projectId],
-  );
-
   /* fetch dropdowns */
   useEffect(() => {
-    if (!tenantParams) {
-      setPanchayatOptions([]);
-      return;
-    }
-    const config = { params: tenantParams };
     panchayatApi
-      .readAll(config)
+      .readAll()
       .then((panchayatRes) => {
         const panchayats = toRecordList(panchayatRes)
           .filter((x) => x.is_active !== false)
@@ -284,7 +237,7 @@ export default function MonthlyWasteComparisonForm() {
       .catch(() => {
         setPanchayatOptions([]);
       });
-  }, [tenantParams]);
+  }, []);
 
   useEffect(() => {
     wasteTypeApi
@@ -308,8 +261,6 @@ export default function MonthlyWasteComparisonForm() {
   /* auto-fetch monthly aggregates from DailyTripLog when criteria are complete (create mode) */
   const canFetch =
     !isEdit &&
-    Boolean(companyUniqueId) &&
-    Boolean(projectId) &&
     Boolean(panchayatId) &&
     Boolean(wasteTypeId) &&
     Boolean(month);
@@ -325,8 +276,6 @@ export default function MonthlyWasteComparisonForm() {
     api
       .get("/schedule-masters/monthly-waste-comparison/", {
         params: {
-          company_id: companyUniqueId,
-          project_id: projectId,
           panchayat_id: panchayatId,
           waste_type_id: wasteTypeId,
           month,
@@ -360,7 +309,7 @@ export default function MonthlyWasteComparisonForm() {
       cancelled = true;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canFetch, companyUniqueId, projectId, panchayatId, wasteTypeId, month]);
+  }, [canFetch, panchayatId, wasteTypeId, month]);
 
   /* hydrate edit record immediately; resolve dropdown labels as options arrive */
   useEffect(() => {
@@ -402,26 +351,11 @@ export default function MonthlyWasteComparisonForm() {
   /* load record for edit */
   useEffect(() => {
     if (!isEdit) return;
-    if (routeState?.record) {
-      setRecordData(routeState.record);
-      applyCompanyProjectFromRecord(routeState.record);
-      const routeProjectId = normalizeId(
-        routeState.record.project_id ?? routeState.record.project
-      );
-      if (routeProjectId) setPendingProjectId(routeProjectId);
-    }
-
     adminApi.monthlyWasteComparison.read(id as string)
       .then((res: Record<string, unknown>) => {
-        const merged = { ...(routeState?.record ?? {}), ...res };
-        applyCompanyProjectFromRecord(merged);
-        const recProjectId = normalizeId(merged.project_id ?? merged.project);
-        if (recProjectId) setPendingProjectId(recProjectId);
-        setRecordData(merged);
+        setRecordData(res);
       })
       .catch((err) => {
-        const fallback = routeState?.record;
-        if (fallback) return;
         Swal.fire(
           t("common.error"),
           String(
@@ -432,28 +366,8 @@ export default function MonthlyWasteComparisonForm() {
           "error"
         );
       });
-  }, [applyCompanyProjectFromRecord, id, isEdit, routeState?.record, t]);
+  }, [id, isEdit, t]);
 
-  const recordCompanyId = normalizeId(
-    recordData?.company_unique_id ?? recordData?.company_id ?? recordData?.company
-  );
-  const recordProjectId = normalizeId(
-    recordData?.project_unique_id ?? recordData?.project_id ?? recordData?.project
-  );
-  const effectiveCompanyId = companyUniqueId || recordCompanyId;
-  const effectiveProjectId =
-    projectId ||
-    (effectiveCompanyId === recordCompanyId || !recordCompanyId ? recordProjectId : "");
-  const companyOptions = ensureSelectedOption(
-    companies.map((x) => ({ value: x.value, label: x.label })),
-    effectiveCompanyId,
-    toText(recordData?.company_name ?? recordData?.company)
-  );
-  const projectOptions = ensureSelectedOption(
-    projects.map((x) => ({ value: x.value, label: x.label })),
-    effectiveProjectId,
-    toText(recordData?.project_name ?? recordData?.project)
-  );
   const panchayatOptionsWithSelected = ensureSelectedOption(
     panchayatOptions,
     panchayatId,
@@ -474,8 +388,6 @@ export default function MonthlyWasteComparisonForm() {
     e.preventDefault();
 
     const missing: string[] = [];
-    if (!effectiveCompanyId) missing.push(t("admin.nav.company"));
-    if (!effectiveProjectId) missing.push(t("admin.nav.project"));
     if (!panchayatId) missing.push(t("admin.nav.panchayat"));
     if (!wasteTypeId) missing.push(t("common.waste_type"));
     if (!month) missing.push("Month");
@@ -489,8 +401,6 @@ export default function MonthlyWasteComparisonForm() {
     setLoading(true);
     try {
       const payload = {
-        company_id: effectiveCompanyId,
-        project_id: effectiveProjectId,
         panchayat_id: panchayatId,
         waste_type_id: wasteTypeId,
         month,
@@ -511,9 +421,7 @@ export default function MonthlyWasteComparisonForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success",
       );
-      navigate(LIST_PATH, {
-        state: { companyUniqueId: effectiveCompanyId, projectId: effectiveProjectId },
-      });
+      navigate(LIST_PATH);
     } catch {
       Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
     } finally {
@@ -617,9 +525,7 @@ export default function MonthlyWasteComparisonForm() {
           <button
             type="button"
             onClick={() =>
-              navigate(LIST_PATH, {
-                state: { companyUniqueId: effectiveCompanyId, projectId: effectiveProjectId },
-              })
+              navigate(LIST_PATH)
             }
             className="bg-red-400 hover:bg-red-500 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors"
           >

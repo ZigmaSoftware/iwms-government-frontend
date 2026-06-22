@@ -25,10 +25,9 @@ export type TripPlanCPRecord = {
   // household
   customer_id?: string;
   customer?: { customer_name?: string };
+  local_body?: { label?: string; name?: string; unique_id?: string };
   sequence?: number;
   is_active?: boolean;
-  company_id?: string;
-  project_id?: string;
   [key: string]: unknown;
 };
 

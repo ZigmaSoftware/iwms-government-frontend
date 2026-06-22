@@ -19,8 +19,12 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 type Option = {
   value: string;
@@ -36,6 +40,7 @@ type CorporationInitialPayload = {
   state_id: string;
   district_id: string;
   area_type_id: string;
+  coordinates: GeoCoordinateDraft[];
   is_active: boolean;
 };
 
@@ -44,6 +49,7 @@ type CorporationPayload = {
   state_id: string;
   district_id: string;
   area_type_id: string;
+  coordinates: Array<{ latitude: number; longitude: number }>;
   is_active: boolean;
 };
 
@@ -109,6 +115,7 @@ const CORPORATION_FIELDS: Record<string, string[]> = {
   district_id: ["district_id"],
   area_type_id: ["area_type_id"],
   corporation_name: ["corporation_name"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -130,6 +137,7 @@ function CorporationEditor({
   const [stateId, setStateId] = useState(initialPayload.state_id);
   const [districtId, setDistrictId] = useState(initialPayload.district_id);
   const [areaTypeId, setAreaTypeId] = useState(initialPayload.area_type_id);
+  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const filteredDistricts = useMemo(
@@ -181,6 +189,7 @@ function CorporationEditor({
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
 
@@ -287,6 +296,10 @@ function CorporationEditor({
           </div>
         )}
 
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
+        )}
+
         {showField("is_active") && (
           <div>
             <Label htmlFor="isActive">
@@ -334,7 +347,6 @@ export default function CorporationForm() {
   const isEdit = Boolean(id);
   const { encMasters, encCorporations } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encCorporations);
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({ isEdit });
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -399,7 +411,6 @@ export default function CorporationForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -459,6 +470,7 @@ export default function CorporationForm() {
         state_id: normalizeNullable(recordData.state_id ?? recordData.state),
         district_id: normalizeNullable(recordData.district_id ?? recordData.district),
         area_type_id: normalizeNullable(recordData.area_type_id ?? recordData.area_type),
+        coordinates: normalizeCoordinateDrafts(recordData.coordinates),
         is_active: recordData.is_active !== false,
       }
     : {
@@ -466,6 +478,7 @@ export default function CorporationForm() {
         state_id: "",
         district_id: "",
         area_type_id: "",
+        coordinates: normalizeCoordinateDrafts(null),
         is_active: true,
       };
 

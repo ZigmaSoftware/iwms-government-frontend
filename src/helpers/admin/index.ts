@@ -7,12 +7,6 @@ import { adminApi } from "./registry";
 export { adminApi } from "./registry";
 
 /* =========================
-   SUPERADMIN
-========================= */
-export const companyApi = adminApi.companies;
-export const projectApi = adminApi.projects;
-
-/* =========================
    COMMON MASTERS
 ========================= */
 export const continentApi = adminApi.continents;

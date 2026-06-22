@@ -12,6 +12,7 @@ import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { municipalityApi } from "@/helpers/admin";
+import { formatCoordinates } from "../shared/formatCoordinates";
 
 type MunicipalityListRecord = {
   unique_id: string;
@@ -35,6 +36,7 @@ const columns = [
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
   { field: "municipality_name", header: "Municipality Name" },
+  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function MunicipalityListPage() {
@@ -154,7 +156,11 @@ export default function MunicipalityListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: MunicipalityListRecord) => displayValue(row[column.field])}
+            body={(row: MunicipalityListRecord) =>
+              column.field === "coordinates"
+                ? formatCoordinates(row.coordinates)
+                : displayValue(row[column.field])
+            }
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

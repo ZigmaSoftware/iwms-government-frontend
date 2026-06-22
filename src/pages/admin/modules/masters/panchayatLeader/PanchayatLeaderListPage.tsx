@@ -2,7 +2,7 @@ import type { PanchayatLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -16,11 +16,7 @@ import { PencilIcon } from "@/icons";
 import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
@@ -28,27 +24,10 @@ const cap = (str?: string | null) =>
 export default function PanchayatLeaderListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encMasters, encPanchayatLeaders } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
   const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const [allRecords, setAllRecords] = useState<PanchayatLeader[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -62,7 +41,7 @@ export default function PanchayatLeaderListPage() {
     panchayat_name:{ value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-  /* ── fetch all, filter client-side by company+project ── */
+  /* ── fetch all records ── */
   useEffect(() => {
     let mounted = true;
 
@@ -84,19 +63,7 @@ export default function PanchayatLeaderListPage() {
     return () => { mounted = false; };
   }, [t]);
 
-  /* ── client-side company+project filter (same as PanchayatListPage) ── */
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    return allRecords.filter((row) => {
-      const rowCompany  = normalizeId(row.company_id  || row.company_unique_id);
-      const rowProject  = normalizeId(row.project_id  || row.project_unique_id);
-      const companyOk = !companyUniqueId || rowCompany === companyUniqueId;
-      const projectOk = !projectId       || rowProject === projectId;
-      return companyOk && projectOk;
-    });
-  })();
+  const data = allRecords;
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
 
@@ -106,7 +73,7 @@ export default function PanchayatLeaderListPage() {
     setGlobalFilterValue(value);
   };
 
-  /* ── search header (search bar only — same as PanchayatListPage) ── */
+  /* ── search header ── */
   const renderHeader = () =>
     renderListSearchHeader({
       value: globalFilterValue,
@@ -146,9 +113,7 @@ export default function PanchayatLeaderListPage() {
       <button
         title={t("common.edit")}
         className="text-blue-600 hover:text-blue-800"
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), { state: { companyUniqueId, projectId } })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
       >
         <PencilIcon className="size-5" />
       </button>
@@ -160,7 +125,7 @@ export default function PanchayatLeaderListPage() {
   return (
     <div className="p-3">
 
-      {/* ── Title + company/project + Add button — outside DataTable (matches PanchayatListPage) ── */}
+      {/* ── Title + Add button ── */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">
@@ -172,36 +137,11 @@ export default function PanchayatLeaderListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.panchayat_leader") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -220,7 +160,7 @@ export default function PanchayatLeaderListPage() {
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.panchayat_leader") })}
-        globalFilterFields={["username", "leader_name", "email", "panchayat_name", "company_name"]}
+        globalFilterFields={["username", "leader_name", "email", "panchayat_name"]}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -256,12 +196,6 @@ export default function PanchayatLeaderListPage() {
           field="email"
           header="Email"
           body={(r: PanchayatLeader) => r.email || "-"}
-        />
-
-        <Column
-          field="company_name"
-          header="Company"
-          body={(r: PanchayatLeader) => r.company_name || "-"}
         />
 
         <Column

@@ -2,7 +2,7 @@ import type { BinCollectionEventRecord } from "./types";
 import type { NestedRef } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
@@ -12,12 +12,8 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { binCollectionEventApi } from "@/helpers/admin";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
@@ -48,23 +44,6 @@ const normalizeList = (value: unknown): BinCollectionEventRecord[] => {
 export default function CollectionMonitoringListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const { encWasteManagementMaster, encCollectionMonitoring } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -85,38 +64,18 @@ export default function CollectionMonitoringListPage() {
   });
 
   const fetchRows = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
-      const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
-      const response = await binCollectionEventApi.readAll({ params });
+      const response = await binCollectionEventApi.readAll();
       const data = normalizeList(response);
-      setRecords(
-        data.filter((row) => {
-          const rowCompany = normalizeId(row.company_id ?? row.company_unique_id);
-          const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
-          return (!rowCompany || rowCompany === companyUniqueId) && (!projectId || !rowProject || rowProject === projectId);
-        }),
-      );
+      setRecords(data);
     } catch (error) {
       console.error("Failed to fetch bin collection events", error);
       setRecords([]);
     } finally {
       setLoading(false);
     }
-  }, [companies.length, companyUniqueId, isSuperAdmin, projectId]);
+  }, []);
 
   useEffect(() => {
     fetchRows();
@@ -158,11 +117,7 @@ export default function CollectionMonitoringListPage() {
   const actionTemplate = (row: BinCollectionEventRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), {
-            state: { companyUniqueId: row.company_id ?? companyUniqueId, projectId: row.project_id ?? projectId },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -183,34 +138,11 @@ export default function CollectionMonitoringListPage() {
           <p className="text-gray-500 text-sm">Bin collection event records</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>{company.label}</option>
-            ))}
-          </select>
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>{project.label}</option>
-            ))}
-          </select>
           <Button
             label={t("common.add_item", { item: t("admin.nav.collection_monitoring") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>

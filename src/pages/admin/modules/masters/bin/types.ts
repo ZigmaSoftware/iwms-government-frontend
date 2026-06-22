@@ -29,6 +29,7 @@ export type Bin = {
   bin_status?: string;
   latitude?: number | string;
   longitude?: number | string;
+  coordinates?: unknown;
   is_active: boolean;
 };
 

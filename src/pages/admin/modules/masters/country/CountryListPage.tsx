@@ -279,6 +279,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
+import { formatCoordinates } from "../shared/formatCoordinates";
 
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -286,6 +287,7 @@ const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
   name: ["name"],
   currency: ["currency"],
   mob_code: ["mob_code"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -484,6 +486,7 @@ export default function CountryList() {
           "continent_name",
           "currency",
           "mob_code",
+          "coordinates",
         ]}
         stripedRows
         showGridlines
@@ -535,6 +538,15 @@ export default function CountryList() {
             sortable
             filter
             showFilterMatchModes={false}
+          />
+        )}
+
+        {showCol("coordinates") && (
+          <Column
+            field="coordinates"
+            header="Coordinates"
+            body={(row: CountryRecord) => formatCoordinates(row.coordinates)}
+            style={{ minWidth: "240px" }}
           />
         )}
 

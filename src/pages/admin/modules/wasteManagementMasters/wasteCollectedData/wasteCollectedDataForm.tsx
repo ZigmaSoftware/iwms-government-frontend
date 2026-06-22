@@ -2,7 +2,7 @@ import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 
 import { customerCreationApi, wasteCollectionApi, dailyTripAssignmentApi, tripPlanApi, } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
 const extractError = (error: any): string | null => {
@@ -33,19 +32,7 @@ export default function WasteCollectedForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const isEdit = Boolean(id);
-
-  const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, loggedInCompanyUniqueId,
-    setProjectId, onCompanyChange, applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encWasteManagementMaster, encWasteCollectedData);
@@ -71,13 +58,6 @@ export default function WasteCollectedForm() {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pending values stored from the raw API response — applied once their option
-  // lists finish loading (same pendingRecord pattern as panchayat / customer creation)
-  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string;
-    projectId: string;
-    projectName: string;
-  } | null>(null);
   const [pendingCustomerCandidates, setPendingCustomerCandidates] = useState<{
     customerUniqueId: string;
     customerId: string;
@@ -89,27 +69,21 @@ export default function WasteCollectedForm() {
   const userChangedTripRef = useRef(false);
 
   const resolveCustomerId = (c: Customer) => String(c.unique_id ?? c.id);
-  /* ── load trip assignments filtered by company + project ── */
+  /* ── load trip assignments ── */
   useEffect(() => {
-    if (!companyUniqueId) { setTripAssignments([]); return; }
-    const params: Record<string, string> = { company_id: companyUniqueId };
-    if (projectId) params.project_id = projectId;
-    dailyTripAssignmentApi.readAll({ params })
+    dailyTripAssignmentApi.readAll()
       .then((res: any) => {
         const list: any[] = Array.isArray(res) ? res : res?.results ?? [];
         setTripAssignments(list.map((a) => ({ value: String(a.unique_id), label: String(a.unique_id) })));
       })
       .catch(() => {});
-  }, [companyUniqueId, projectId]);
+  }, []);
 
-  /* ── load customers filtered by company + project ── */
+  /* ── load customers ── */
   useEffect(() => {
-    if (!companyUniqueId) { setCustomers([]); return; }
     let cancelled = false;
     setFetchingCustomers(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
-    if (projectId) params.project_id = projectId;
-    customerCreationApi.readAll({ params })
+    customerCreationApi.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const list = Array.isArray(res) ? res : res?.results ?? [];
@@ -118,7 +92,7 @@ export default function WasteCollectedForm() {
       .catch(() => { if (!cancelled) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
       .finally(() => { if (!cancelled) setFetchingCustomers(false); });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   /* ── edit mode: load record ── */
   useEffect(() => {
@@ -128,25 +102,16 @@ export default function WasteCollectedForm() {
     wasteCollectionApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
-        // Set waste values immediately (no async dependency)
         setWetWaste(Number(res.wet_waste) || 0);
         setDryWaste(Number(res.dry_waste) || 0);
         setMixedWaste(Number(res.mixed_waste) || 0);
-        // Apply company (triggers project list load in the hook)
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-        // Store project & customer identifiers — re-applied once their option lists load
-        setPendingProjectCandidates({
-          projectUniqueId: String(res.project_unique_id ?? res.project?.unique_id ?? ""),
-          projectId: String(res.project_id ?? ""),
-          projectName: String(res.project_name ?? res.project?.name ?? ""),
-        });
         setPendingCustomerCandidates({
           customerUniqueId: String(res.customer_unique_id ?? res.customer?.unique_id ?? ""),
           customerId: String(res.customer ?? res.customer_id ?? ""),
           customerName: String(res.customer_name ?? res.customer?.customer_name ?? ""),
         });
         const tripId = String(res.trip_assignment_id ?? res.trip_assignment?.unique_id ?? "");
-        if (tripId && tripId !== "null") setPendingTripAssignmentId(tripId);     
+        if (tripId && tripId !== "null") setPendingTripAssignmentId(tripId);
         setLoadingRecord(false);
       })
       .catch((err: any) => {
@@ -155,19 +120,7 @@ export default function WasteCollectedForm() {
         Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? t("common.load_failed") });
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
-
-  /* ── flush project: re-apply after hook loads project list ── */
-  useEffect(() => {
-    if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
-    if (!match) match = projects.find((p) => rawId && p.value === rawId);
-    if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
-    if (match) setProjectId(match.value);
-    setPendingProjectCandidates(null);
-  }, [projects, pendingProjectCandidates, setProjectId]);
+  }, [id, isEdit, t]);
 
   /* ── flush trip assignment: re-apply after list loads ── */
   useEffect(() => {
@@ -220,10 +173,6 @@ export default function WasteCollectedForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!companyUniqueId || !projectId) {
-      Swal.fire(t("common.warning"), "Company and project are required", "warning");
-      return;
-    }
     if (!customerId) {
       Swal.fire(t("common.warning"), t("admin.waste_collected_data.customer_required"), "warning");
       return;
@@ -247,7 +196,7 @@ export default function WasteCollectedForm() {
         await wasteCollectionApi.create(payload);
         Swal.fire(t("common.success"), t("admin.waste_collected_data.save_success"), "success");
       }
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(LIST_PATH);
     } catch (err: any) {
       Swal.fire(t("common.save_failed"), extractError(err) ?? t("common.save_failed_desc"), "error");
     } finally {
@@ -277,7 +226,7 @@ export default function WasteCollectedForm() {
                   label: c.customer_name,
                 }))}
                 placeholder={fetchingCustomers ? "Loading..." : "Select customer"}
-                disabled={fetchingCustomers || !projectId}
+                disabled={fetchingCustomers}
               />
             </div>
 
@@ -289,7 +238,6 @@ export default function WasteCollectedForm() {
                 onChange={(v) => { userChangedTripRef.current = true; setTripAssignmentId(v === "__none__" ? "" : v); }}
                 options={[{ value: "__none__", label: "None (no assignment)" }, ...tripAssignments]}
                 placeholder="Select Trip Assignment (optional)"
-                disabled={!projectId}
               />
             </div>
             {/* Address (read-only) */}
@@ -401,7 +349,7 @@ export default function WasteCollectedForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(LIST_PATH)}
               className="rounded-lg bg-red-400 px-5 py-2.5 text-sm font-semibold text-white"
             >
               {t("common.cancel")}

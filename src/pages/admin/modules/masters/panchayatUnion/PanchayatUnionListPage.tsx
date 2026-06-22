@@ -12,6 +12,7 @@ import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { panchayatUnionApi } from "@/helpers/admin";
+import { formatCoordinates } from "../shared/formatCoordinates";
 
 type PanchayatUnionListRecord = {
   unique_id: string;
@@ -35,6 +36,7 @@ const columns = [
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
   { field: "union_name", header: "Union Name" },
+  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function PanchayatUnionListPage() {
@@ -154,7 +156,11 @@ export default function PanchayatUnionListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: PanchayatUnionListRecord) => displayValue(row[column.field])}
+            body={(row: PanchayatUnionListRecord) =>
+              column.field === "coordinates"
+                ? formatCoordinates(row.coordinates)
+                : displayValue(row[column.field])
+            }
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

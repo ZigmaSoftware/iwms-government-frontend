@@ -1,6 +1,6 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -9,7 +9,6 @@ import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/helpers/admin/registry";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { PropertyEditorProps, PropertyPayload } from "./types";
 
@@ -164,14 +163,6 @@ function PropertyForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { applyCompanyProjectFromRecord, companyUniqueId, projectId } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
-
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -185,7 +176,6 @@ function PropertyForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -197,7 +187,7 @@ function PropertyForm() {
         );
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord]);
+  }, [id, isEdit]);
 
   const title = isEdit
     ? t("common.edit_item", { item: t("admin.nav.property") })
@@ -224,7 +214,7 @@ function PropertyForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error) {
       Swal.fire({
         icon: "error",
@@ -265,7 +255,7 @@ function PropertyForm() {
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+        onCancel={() => navigate(ENC_LIST_PATH)}
         onSubmit={submitProperty}
       />
     </ComponentCard>

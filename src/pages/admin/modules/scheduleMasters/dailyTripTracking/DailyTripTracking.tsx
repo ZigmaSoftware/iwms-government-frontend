@@ -7,10 +7,8 @@ import {
   alternativeStaffTemplateApi,
   dailyTripAssignmentApi,
   dailyTripCollectionPointApi,
-  projectApi,
   staffTemplateApi,
 } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 import { normalizeList } from "@/utils/forms";
 
@@ -259,9 +257,7 @@ function TimelineRow({
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function DailyTripTracking() {
-  const { companyUniqueId, projectId, companies, projects, setProjectId, onCompanyChange } =
-    useCompanyProjectSelection({ isEdit: false });
-  const locations = useCollectionPointLocationOptions(companyUniqueId, projectId);
+  const locations = useCollectionPointLocationOptions();
 
   const [assignmentId, setAssignmentId] = useState("");
   const [date, setDate] = useState("");
@@ -291,17 +287,15 @@ export default function DailyTripTracking() {
 
   // ── Load dropdowns ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!companyUniqueId || !projectId) return;
-    const params = { company_id: companyUniqueId, project_id: projectId };
     const toOptions = (result: unknown, label = "display_code") =>
       (normalizeList(result) as Record<string, unknown>[]).map((item) => ({
         value: String(item.unique_id ?? ""),
         label: String(item[label] ?? item.unique_id ?? ""),
       }));
     void Promise.all([
-      dailyTripAssignmentApi.readAll({ params }),
-      staffTemplateApi.readAll({ params }),
-      alternativeStaffTemplateApi.readAll({ params }),
+      dailyTripAssignmentApi.readAll(),
+      staffTemplateApi.readAll(),
+      alternativeStaffTemplateApi.readAll(),
     ]).then(([assignmentResult, staffResult, altResult]) => {
       setAssignments(
         (normalizeList(assignmentResult) as Record<string, unknown>[]).map((item) => ({
@@ -313,40 +307,12 @@ export default function DailyTripTracking() {
       setStaffTemplates(toOptions(staffResult));
       setAltStaffTemplates(toOptions(altResult));
     });
-  }, [companyUniqueId, projectId]);
-
-  useEffect(() => {
-    if (!projectId) {
-      setGpsApiUrl("");
-      setLiveVehicleLocation(null);
-      setLiveGpsReady(false);
-      return;
-    }
-
-    let active = true;
-    setLiveVehicleLocation(null);
-    setLiveGpsReady(false);
-    projectApi
-      .read(projectId)
-      .then((project) => {
-        if (active) setGpsApiUrl(String(project?.gps_api_url ?? ""));
-      })
-      .catch(() => {
-        if (active) setGpsApiUrl("");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [projectId]);
+  }, []);
 
   // ── Load tracking data ─────────────────────────────────────────────────────
   const load = useCallback(async (silent = false) => {
-    if (!companyUniqueId || !projectId) return;
     if (!silent) setLoading(true);
     const params: Record<string, string | number> = {
-      company_id: companyUniqueId,
-      project_id: projectId,
       page,
       page_size: 50,
     };
@@ -383,11 +349,9 @@ export default function DailyTripTracking() {
   }, [
     altStaffTemplateId,
     assignmentId,
-    companyUniqueId,
     date,
     locations.panchayatId,
     page,
-    projectId,
     search,
     staffTemplateId,
     tab,
@@ -797,30 +761,6 @@ export default function DailyTripTracking() {
       {filtersOpen && (
         <div className="shrink-0 border-b bg-white px-4 py-3 shadow-sm">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-            <select
-              value={companyUniqueId}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              className="rounded-lg border border-gray-200 p-2 text-sm"
-            >
-              <option value="">Company</option>
-              {companies.map((x) => (
-                <option key={x.value} value={x.value}>
-                  {x.label}
-                </option>
-              ))}
-            </select>
-            <select
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="rounded-lg border border-gray-200 p-2 text-sm"
-            >
-              <option value="">Project</option>
-              {projects.map((x) => (
-                <option key={x.value} value={x.value}>
-                  {x.label}
-                </option>
-              ))}
-            </select>
             <select
               value={assignmentId}
               onChange={(e) => {

@@ -18,13 +18,28 @@ import {
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { decryptSegment } from "@/utils/routeCrypto";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 type Option = { value: string; label: string; stateId?: string; districtId?: string };
 type ApiRecord = Record<string, unknown>;
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
-const { encMasters, encCollectionPoints } = getEncryptedRoute();
-const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encCollectionPoints);
+const { encMasters, encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
+
+// Resolve the correct list path based on which parent module loaded this form.
+function useListPath() {
+  const { encMaster } = useParams<{ encMaster?: string }>();
+  const parent = decryptSegment(encMaster ?? "");
+  if (parent === "schedule-masters") {
+    return createCrudRoutePaths(encScheduleMasters, encCollectionPoints).listPath;
+  }
+  return createCrudRoutePaths(encMasters, encCollectionPoints).listPath;
+}
 
 const normalizeList = (value: unknown): ApiRecord[] => {
   if (Array.isArray(value)) return value as ApiRecord[];
@@ -62,6 +77,7 @@ export default function CollectionPointForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
+  const LIST_PATH = useListPath();
 
   const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
@@ -70,6 +86,9 @@ export default function CollectionPointForm() {
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
+    normalizeCoordinateDrafts(null),
+  );
   const [isActive, setIsActive] = useState(true);
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
@@ -117,6 +136,12 @@ export default function CollectionPointForm() {
       setCpName(String(record.cp_name ?? ""));
       setLatitude(String(record.latitude ?? ""));
       setLongitude(String(record.longitude ?? ""));
+      setCoordinates(
+        normalizeCoordinateDrafts(record.coordinates, {
+          latitude: String(record.latitude ?? ""),
+          longitude: String(record.longitude ?? ""),
+        }),
+      );
       setIsActive(record.is_active !== false);
     });
   }, [id]);
@@ -137,6 +162,8 @@ export default function CollectionPointForm() {
       return;
     }
     setSubmitting(true);
+    const coordinatePayload = serializeCoordinateDrafts(coordinates);
+    const firstCoordinate = coordinatePayload[0];
     const payload = {
       state_id: stateId,
       district_id: districtId,
@@ -147,8 +174,9 @@ export default function CollectionPointForm() {
       panchayat_id: null,
       [hierarchyLevel]: hierarchyId,
       cp_name: cpName.trim(),
-      latitude: latitude || null,
-      longitude: longitude || null,
+      latitude: firstCoordinate?.latitude ?? (latitude || null),
+      longitude: firstCoordinate?.longitude ?? (longitude || null),
+      coordinates: coordinatePayload,
       is_active: isActive,
     };
     try {
@@ -202,6 +230,7 @@ export default function CollectionPointForm() {
           <Label>Longitude</Label>
           <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} />
         </div>
+        <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
           Active

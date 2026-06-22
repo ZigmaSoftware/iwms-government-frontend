@@ -2,7 +2,7 @@ import type { ChangePasswordModalProps, ErrorWithResponse, LocationOption, Secti
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -12,7 +12,6 @@ import Select from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi, governmentUserTypeApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 
@@ -279,8 +278,6 @@ const initialFormData = {
   password: "",
   login_enabled: "0",
   office_email: "",
-  company_id: "",
-  project_id: "",
   marital_status: "",
   dob: "",
   blood_group: "",
@@ -329,8 +326,6 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   password: ["password"],
   login_enabled: ["login_enabled"],
   photo: ["photo"],
-  company_id: ["company_id", "company"],
-  project_id: ["project_id", "project"],
   marital_status: ["marital_status"],
   dob: ["dob", "date_of_birth"],
   blood_group: ["blood_group"],
@@ -405,7 +400,6 @@ export default function StaffCreationForm() {
   >([]);
 
   // Pending prefill values — set during edit load, applied once the option list arrives
-  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
   const [pendingStaffUserTypeId, setPendingStaffUserTypeId] = useState<string | null>(null);
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingGovernmentUserTypeId, setPendingGovernmentUserTypeId] = useState<string | null>(null);
@@ -427,20 +421,6 @@ export default function StaffCreationForm() {
     "staff-creation",
     STAFF_CREATION_FIELDS,
   );
-
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId: hookProjectId,
-    companies: hookCompanies,
-    projects: hookProjects,
-    loggedInCompanyUniqueId,
-    isSuperAdmin,
-    onCompanyChange: hookOnCompanyChange,
-    setProjectId: hookSetProjectId,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
   const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encStaffMasters, encStaffCreation);
@@ -809,10 +789,6 @@ export default function StaffCreationForm() {
           driving_licence_no: staff.driving_licence_no ?? "",
           driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
 
-          // Company and Project
-          company_id: normalizeEntityId(staff.company_unique_id ?? staff.company_id),
-          project_id: normalizeEntityId(staff.project_unique_id ?? staff.project_id),
-
           // Contact details (FLAT — NOT nested)
           contact_mobile: staff.contact_mobile ?? "",
           contact_email: staff.contact_email ?? "",
@@ -858,17 +834,10 @@ export default function StaffCreationForm() {
           setUserTypeCategory("staff");
         }
 
-        applyCompanyProjectFromRecord(staff);
 
         // Password audit fields
         setPasswordCrtDate(staff.password_crt_date ?? null);
         setStaffCreatedAt(staff.created_at ?? null);
-
-        // Store the project separately so the pending-resolver effect re-applies it
-        // once hookProjects finishes loading (the hook's internal effect can race
-        // and reset projectId to options[0] before the record's project is applied).
-        const recordProjectId = normalizeEntityId(staff.project_unique_id ?? staff.project_id);
-        if (recordProjectId) setPendingProjectId(recordProjectId);
 
         if (staff.photo) {
           setPhotoPreview(
@@ -956,18 +925,6 @@ export default function StaffCreationForm() {
   // ── Pending-prefill resolution effects ──────────────────────────────────────
   // Each effect watches [pendingXxx, xOptions]. Once the option list is non-empty
   // and contains the pending value, it applies the value and clears the pending.
-
-  // Project: re-apply after the hook re-fetches projects for the record's company.
-  // The hook's internal setProjectId((prev) => ...) can race with applyCompanyProjectFromRecord
-  // and select the first project instead of the record's project.
-  useEffect(() => {
-    if (!pendingProjectId || hookProjects.length === 0) return;
-    const match = hookProjects.find((p) => p.value === pendingProjectId);
-    if (match) {
-      hookSetProjectId(pendingProjectId);
-      setPendingProjectId(null);
-    }
-  }, [pendingProjectId, hookProjects, hookSetProjectId]);
 
   useEffect(() => {
     if (!pendingStaffUserTypeId || staffUserTypeOptions.length === 0) return;
@@ -1089,13 +1046,6 @@ export default function StaffCreationForm() {
     field: keyof typeof initialFormData,
     value: string,
   ) => {
-    if (field === "company_id") {
-      hookOnCompanyChange(value);
-      hookSetProjectId("");
-    }
-    if (field === "project_id") {
-      hookSetProjectId(value);
-    }
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -1214,17 +1164,6 @@ export default function StaffCreationForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error",
-      );
-      return;
-    }
-
     if (
       showField("photo") &&
       photoFile &&
@@ -1270,8 +1209,6 @@ export default function StaffCreationForm() {
         employee_known: formData.employee_known,
         salary_type: formData.salary_type,
         active_status: formData.active_status === "1",
-        company_id: companyUniqueId,
-        project_id: hookProjectId || null,
         staffusertype_id:
           userTypeCategory === "staff"
             ? formData.staffusertype_id || null
@@ -1316,7 +1253,7 @@ export default function StaffCreationForm() {
       if (presentPayload) rawPayload.present_address = presentPayload;
       if (permanentPayload) rawPayload.permanent_address = permanentPayload;
 
-      const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
+      const payload = filterPayload(rawPayload);
 
       const formBody = new FormData();
 
@@ -1359,7 +1296,7 @@ export default function StaffCreationForm() {
           t("admin.staff_creation.save_success_desc"),
       });
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: hookProjectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error: any) {
       console.error("Failed to save staff", error);
       Swal.fire({
@@ -2358,7 +2295,7 @@ export default function StaffCreationForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId: hookProjectId } })}
+              onClick={() => navigate(ENC_LIST_PATH)}
               className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
             >
               {t("common.cancel")}

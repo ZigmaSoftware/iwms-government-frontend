@@ -42,10 +42,6 @@ export type BinCERecord = {
   driver_longitude?: string | number | null;
   notes?: string | null;
   created_at?: string;
-  company_name?: string;
-  company_id?: string;
-  project_name?: string;
-  project_id?: string;
   panchayat_name?: string | null;
   [key: string]: unknown;
 };

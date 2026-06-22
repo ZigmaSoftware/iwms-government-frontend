@@ -18,8 +18,12 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 type Option = {
   value: string;
@@ -33,6 +37,7 @@ type AreaTypeInitialPayload = {
   name: string;
   state_id: string;
   district_id: string;
+  coordinates: GeoCoordinateDraft[];
   is_active: boolean;
 };
 
@@ -40,6 +45,7 @@ type AreaTypePayload = {
   name: string;
   state_id: string;
   district_id: string;
+  coordinates: Array<{ latitude: number; longitude: number }>;
   is_active: boolean;
 };
 
@@ -101,6 +107,7 @@ const AREA_TYPE_FIELDS: Record<string, string[]> = {
   state_id: ["state_id"],
   district_id: ["district_id"],
   name: ["name"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -120,6 +127,7 @@ function AreaTypeEditor({
   const [name, setName] = useState(initialPayload.name);
   const [stateId, setStateId] = useState(initialPayload.state_id);
   const [districtId, setDistrictId] = useState(initialPayload.district_id);
+  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const filteredDistricts = useMemo(
@@ -158,6 +166,7 @@ function AreaTypeEditor({
       name: name.trim(),
       state_id: stateId,
       district_id: districtId,
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
 
@@ -239,6 +248,10 @@ function AreaTypeEditor({
           </div>
         )}
 
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
+        )}
+
         {showField("is_active") && (
           <div>
             <Label htmlFor="isActive">
@@ -286,7 +299,6 @@ export default function AreaTypeForm() {
   const isEdit = Boolean(id);
   const { encMasters, encAreaTypes } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encAreaTypes);
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({ isEdit });
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -340,7 +352,6 @@ export default function AreaTypeForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -399,12 +410,14 @@ export default function AreaTypeForm() {
         name: textOf(recordData, "name", "area_type_name"),
         state_id: normalizeNullable(recordData.state_id ?? recordData.state),
         district_id: normalizeNullable(recordData.district_id ?? recordData.district),
+        coordinates: normalizeCoordinateDrafts(recordData.coordinates),
         is_active: recordData.is_active !== false,
       }
     : {
         name: "",
         state_id: "",
         district_id: "",
+        coordinates: normalizeCoordinateDrafts(null),
         is_active: true,
       };
 

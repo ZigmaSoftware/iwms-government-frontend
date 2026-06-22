@@ -2,7 +2,7 @@ import type { PanchayatOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -21,7 +21,6 @@ import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { panchayatApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 type RecordRow = Record<string, any>;
@@ -341,24 +340,9 @@ export default function PanchayatLeaderForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
-  const location = useLocation();
-  const routeState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-  } | null;
 
   const { encMasters, encPanchayatLeaders } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
-
-  const {
-    companyUniqueId,
-    projectId,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -368,15 +352,11 @@ export default function PanchayatLeaderForm() {
 
   const title = isEdit ? "Edit PLB Leader" : "Add PLB Leader";
 
-  // Load panchayat options filtered by company + project
+  // Load panchayat options
   useEffect(() => {
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-
     setLoadingPanchayats(true);
     panchayatApi
-      .readAll(Object.keys(params).length ? { params } : undefined)
+      .readAll()
       .then((res: any) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
         setPanchayatOptions(
@@ -390,7 +370,7 @@ export default function PanchayatLeaderForm() {
       })
       .catch(() => setPanchayatOptions([]))
       .finally(() => setLoadingPanchayats(false));
-  }, [companyUniqueId, projectId]);
+  }, []);
 
   // Load record for edit
   useEffect(() => {
@@ -403,7 +383,6 @@ export default function PanchayatLeaderForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -418,9 +397,6 @@ export default function PanchayatLeaderForm() {
   }, [id, isEdit]);
 
   const submitLeader = async (payload: Record<string, unknown>) => {
-    if (companyUniqueId) payload.company_id = companyUniqueId;
-    if (projectId) payload.project_id = projectId;
-
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
@@ -440,7 +416,7 @@ export default function PanchayatLeaderForm() {
           showConfirmButton: false,
         });
       }
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(LIST_PATH);
     } catch (error) {
       Swal.fire({
         icon: "error",
@@ -499,7 +475,7 @@ export default function PanchayatLeaderForm() {
           initialPayload={initialPayload}
           isEdit={isEdit}
           isSubmitting={isSubmitting}
-          onCancel={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+          onCancel={() => navigate(LIST_PATH)}
           onSubmit={submitLeader}
           panchayatOptions={panchayatOptions}
           loadingPanchayats={loadingPanchayats}
