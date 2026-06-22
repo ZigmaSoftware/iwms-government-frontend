@@ -2,7 +2,7 @@ import type { VehicleTypeRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -20,7 +20,6 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleTypeApi } from "@/helpers/admin";
 
@@ -29,8 +28,6 @@ import { vehicleTypeApi } from "@/helpers/admin";
 
 const VEHICLE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   vehicleType: ["vehicleType", "vehicle_type"],
-  company_name: ["company_id", "company_name", "company"],
-  project_name: ["project_id", "project_name", "project"],
   is_active: ["is_active", "status", "active_status"],
 };
 
@@ -62,24 +59,7 @@ export default function VehicleTypeCreationList() {
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     vehicleType: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
-
-  // ── Company / project selection ───────────────────────────────────────────
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -105,19 +85,7 @@ export default function VehicleTypeCreationList() {
     return () => { mounted = false; };
   }, [t]);
 
-  // ── Derived rows with client-side company/project filter ──────────────────
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as VehicleTypeRecord[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as VehicleTypeRecord[];
-
-    return allVehicleTypes.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
+  const rows = allVehicleTypes;
 
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
@@ -171,11 +139,7 @@ export default function VehicleTypeCreationList() {
   const actionTemplate = (row: VehicleTypeRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), {
-            state: { companyUniqueId, projectId },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -212,43 +176,12 @@ export default function VehicleTypeCreationList() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Company filter */}
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Project filter */}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           {/* Add button */}
           <Button
             label={t("admin.vehicle_type.add")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -269,8 +202,6 @@ export default function VehicleTypeCreationList() {
         className="p-datatable-sm"
         globalFilterFields={[
           ...(showCol("vehicleType") ? ["vehicleType"] : []),
-          ...(showCol("company_name") ? ["company_name"] : []),
-          ...(showCol("project_name") ? ["project_name"] : []),
         ]}
         emptyMessage={t("admin.vehicle_type.empty_message")}
       >
@@ -289,28 +220,6 @@ export default function VehicleTypeCreationList() {
             showFilterMatchModes={false}
             body={(row: VehicleTypeRecord) => cap(row.vehicleType)}
             style={{ minWidth: "200px" }}
-          />
-        )}
-
-        {showCol("company_name") && (
-          <Column
-            field="company_name"
-            header={t("admin.nav.company")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: VehicleTypeRecord) => cap(row.company_name)}
-          />
-        )}
-
-        {showCol("project_name") && (
-          <Column
-            field="project_name"
-            header={t("admin.nav.project")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: VehicleTypeRecord) => cap(row.project_name)}
           />
         )}
 

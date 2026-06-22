@@ -19,8 +19,12 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 type StateOption = {
   value: string;
@@ -36,6 +40,7 @@ type DistrictPayload = {
   state_id: string;
   continent_id: string;
   country_id: string;
+  coordinates: Array<{ latitude: number; longitude: number }>;
   is_active: boolean;
 };
 
@@ -43,6 +48,7 @@ type DistrictInitialPayload = {
   name: string;
   district_code: string;
   state_id: string;
+  coordinates: GeoCoordinateDraft[];
   is_active: boolean;
 };
 
@@ -105,6 +111,7 @@ const DISTRICT_FIELDS: Record<string, string[]> = {
   state_id: ["state_id"],
   district_name: ["district_name"],
   district_code: ["district_code"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -123,6 +130,7 @@ function DistrictEditor({
   const [name, setName] = useState(initialPayload.name);
   const [code, setCode] = useState(initialPayload.district_code);
   const [stateId, setStateId] = useState(initialPayload.state_id);
+  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,6 +173,7 @@ function DistrictEditor({
       state_id: stateId,
       continent_id: selectedState.continentId,
       country_id: selectedState.countryId,
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
     if (code.trim()) rawPayload.district_code = code.trim();
@@ -232,6 +241,10 @@ function DistrictEditor({
           </div>
         )}
 
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
+        )}
+
         {showField("is_active") && (
           <div>
             <Label htmlFor="isActive">
@@ -279,7 +292,6 @@ export default function DistrictForm() {
   const isEdit = Boolean(id);
   const { encMasters, encDistricts } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDistricts);
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({ isEdit });
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -324,7 +336,6 @@ export default function DistrictForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -385,12 +396,14 @@ export default function DistrictForm() {
         name: textOf(recordData, "district_name", "name"),
         district_code: textOf(recordData, "district_code"),
         state_id: normalizeNullable(recordData.state_id ?? recordData.state),
+        coordinates: normalizeCoordinateDrafts(recordData.coordinates),
         is_active: recordData.is_active !== false,
       }
     : {
         name: "",
         district_code: "",
         state_id: "",
+        coordinates: normalizeCoordinateDrafts(null),
         is_active: true,
       };
 

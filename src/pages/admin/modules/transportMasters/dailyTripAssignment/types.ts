@@ -13,7 +13,7 @@ export type FormState = {
   remarks: string;
 };
 
-export type CollectionTypeKey = "bin" | "household" | "both" | "unknown";
+export type CollectionTypeKey = "bin" | "household" | "bulk" | "mixed" | "unknown";
 
 export type NamedRef = {
   unique_id?: string;
@@ -23,10 +23,6 @@ export type NamedRef = {
 
 export type DailyTripAssignmentRecord = {
   unique_id: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
   trip_plan_id?: string;
   staff_template_id?: string;
   panchayat_id?: string;
@@ -38,9 +34,10 @@ export type DailyTripAssignmentRecord = {
     panchayat?: NamedRef & { panchayat_name?: string };
     has_bin?: boolean;
     has_household?: boolean;
+    has_bulk?: boolean;
   };
   household_waste_types?: { unique_id?: string; waste_type_name?: string }[];
-  collection_types?: { has_bin: boolean; has_household: boolean };
+  collection_types?: { has_bin: boolean; has_household: boolean; has_bulk?: boolean };
   staff_template?: { unique_id?: string; display_code?: string };
   effective_staff?: { unique_id?: string; display_code?: string } | null;
   panchayat?: NamedRef & { panchayat_name?: string };

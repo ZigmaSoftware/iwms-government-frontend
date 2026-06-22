@@ -3,7 +3,7 @@ import type { NamedRef } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -15,7 +15,6 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 
@@ -30,9 +29,6 @@ const Badge = ({ value }: { value?: string }) => (
     {value ?? "-"}
   </span>
 );
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const text = (value: unknown): string =>
   value === null || value === undefined || String(value).trim() === ""
@@ -67,29 +63,12 @@ const extractError = (error: unknown): string | null => {
 export default function DailyTripCollectionPointList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
   const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripCollectionPoint);
   const { editPath: EDIT_PATH } = createCrudRoutePaths(
     encScheduleMasters,
     encDailyTripCollectionPoint,
   );
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const [records, setRecords] = useState<DailyTripCollectionPointRecord[]>([]);
   const [loading, setLoading] = useState(false);
@@ -104,23 +83,16 @@ export default function DailyTripCollectionPointList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRecords([]);
-      return;
-    }
     setLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
     dailyTripCollectionPointApi
-      .readAll({ params })
+      .readAll()
       .then((data) => setRecords(Array.isArray(data) ? data as DailyTripCollectionPointRecord[] : []))
       .catch((error: unknown) => {
         setRecords([]);
         Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   useEffect(() => {
     loadRecords();
@@ -129,11 +101,6 @@ export default function DailyTripCollectionPointList() {
   const rows = useMemo(
     () =>
       records
-        .filter((row) => {
-          const rowCompany = normalizeId(row.company_id ?? row.company_unique_id);
-          const rowProject = normalizeId(row.project_id ?? row.project_unique_id);
-          return (!rowCompany || rowCompany === companyUniqueId) && (!projectId || !rowProject || rowProject === projectId);
-        })
         .map((row) => {
           const tripAssign = row.trip_assignment as NamedRef;
           const tripPlan = (tripAssign?.trip_plan as NamedRef) ?? (tripAssign?.trip_plan_id as NamedRef);
@@ -155,7 +122,7 @@ export default function DailyTripCollectionPointList() {
             _waste_type: nestedText(wasteType, ["waste_type_name", "name"]),
           };
         }),
-    [companyUniqueId, projectId, records],
+    [records],
   );
 
   const onFilter = (event: DataTableFilterEvent) =>
@@ -175,34 +142,11 @@ export default function DailyTripCollectionPointList() {
           <p className="text-sm text-gray-500">Manage collection points assigned to daily trips</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(event) => onCompanyChange(event.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>{company.label}</option>
-            ))}
-          </select>
-          <select
-            value={projectId || ""}
-            onChange={(event) => setProjectId(event.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>{project.label}</option>
-            ))}
-          </select>
           <Button
             label="New Collection Point"
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(NEW_PATH)}
           />
         </div>
       </div>
@@ -249,9 +193,7 @@ export default function DailyTripCollectionPointList() {
           body={(row: DailyTripCollectionPointRecord) => (
             <div className="flex justify-center">
               <button
-                onClick={() => navigate(EDIT_PATH(row.unique_id), {
-                  state: { companyUniqueId: row.company_id ?? companyUniqueId, projectId: row.project_id ?? projectId },
-                })}
+                onClick={() => navigate(EDIT_PATH(row.unique_id))}
                 className="text-blue-600 hover:text-blue-800"
                 title={t("common.edit")}
               >

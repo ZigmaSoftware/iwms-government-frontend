@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -18,7 +18,6 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { SubPropertyRecord } from "./types";
@@ -45,9 +44,6 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const SUB_PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
   property_name: ["property_id"],
   sub_property_name: ["sub_property_name"],
@@ -68,19 +64,6 @@ export default function SubPropertyList() {
   });
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const { encMasters, encSubProperties } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -117,43 +100,6 @@ export default function SubPropertyList() {
   useEffect(() => {
     void loadSubProperties();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Calculate filtered subproperties based on company and project
-  const filteredSubProperties = (() => {
-    if (isSuperAdmin && companies.length === 0) {
-      return [];
-    }
-
-    if (!companyUniqueId && !isSuperAdmin) {
-      return [];
-    }
-
-    const hasContextFields = subProperties.some((subProperty) => {
-      const rowCompanyId = normalizeId(
-        subProperty.company_id || subProperty.company_unique_id
-      );
-      const rowProjectId = normalizeId(
-        subProperty.project_id || subProperty.project_unique_id
-      );
-      return Boolean(rowCompanyId || rowProjectId);
-    });
-
-    if (!hasContextFields) {
-      return subProperties;
-    }
-
-    return subProperties.filter((subProperty) => {
-      const rowCompanyId = normalizeId(
-        subProperty.company_id || subProperty.company_unique_id
-      );
-      const rowProjectId = normalizeId(
-        subProperty.project_id || subProperty.project_unique_id
-      );
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -245,46 +191,17 @@ export default function SubPropertyList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={!isSuperAdmin || companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.value} value={company.value}>
-                  {company.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Projects</option>
-              {projects.map((project) => (
-                <option key={project.value} value={project.value}>
-                  {project.label}
-                </option>
-              ))}
-            </select>
-
             <Button
               label={t("common.add_item", { item: t("admin.nav.sub_property") })}
               icon="pi pi-plus"
               className="p-button-success"
-              disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(ENC_NEW_PATH)}
             />
           </div>
         </div>
 
         <DataTable
-          value={filteredSubProperties}
+          value={subProperties}
           dataKey="unique_id"
           paginator
           rows={10}
@@ -301,8 +218,6 @@ export default function SubPropertyList() {
           globalFilterFields={[
             "sub_property_name",
             "property_name",
-            "company_name",
-            "project_name",
           ]}
           className="p-datatable-sm"
         >
@@ -344,7 +259,7 @@ export default function SubPropertyList() {
             style={{ width: "150px", textAlign: "center" }}
           />
         </DataTable>
-    
+
     </div>
   );
 }

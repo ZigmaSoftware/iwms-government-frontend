@@ -12,6 +12,7 @@ import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { districtApi } from "@/helpers/admin";
+import { formatCoordinates } from "../shared/formatCoordinates";
 
 type DistrictListRecord = {
   unique_id: string;
@@ -34,6 +35,7 @@ const columns = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District Name" },
   { field: "district_code", header: "District Code" },
+  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function DistrictListPage() {
@@ -153,7 +155,11 @@ export default function DistrictListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: DistrictListRecord) => displayValue(row[column.field])}
+            body={(row: DistrictListRecord) =>
+              column.field === "coordinates"
+                ? formatCoordinates(row.coordinates)
+                : displayValue(row[column.field])
+            }
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

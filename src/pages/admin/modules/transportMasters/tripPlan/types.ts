@@ -23,8 +23,7 @@ export type FormState = {
 export type TripPlanRecord = {
   unique_id: string;
   display_code?: string;
-  company_id?: string | null;
-  project_id?: string | null;
+  collection_type?: string;
   district?: { name?: string };
   panchayat?: { panchayat_name?: string };
   staff_template?: { display_code?: string };

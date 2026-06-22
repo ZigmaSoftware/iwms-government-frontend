@@ -12,6 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { areaTypeApi, corporationApi, districtApi, municipalityApi, panchayatApi, panchayatUnionApi, stateApi, townPanchayatApi } from "@/helpers/admin";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 type Option = { value: string; label: string; stateId?: string; districtId?: string; areaTypeName?: string };
 type RecordRow = Record<string, any>;
@@ -61,6 +66,9 @@ export default function StateForm() {
   const [districtId, setDistrictId] = useState("");
   const [areaTypeId, setAreaTypeId] = useState("");
   const [panchayatUnionId, setPanchayatUnionId] = useState("");
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
+    normalizeCoordinateDrafts(null),
+  );
   const [isActive, setIsActive] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -100,6 +108,7 @@ export default function StateForm() {
         setDistrictId(normalizeNullable(record.district_id ?? record.district));
         setAreaTypeId(normalizeNullable(record.area_type_id ?? record.area_type));
         setPanchayatUnionId(normalizeNullable(record.panchayat_union_id ?? record.panchayat_union));
+        setCoordinates(normalizeCoordinateDrafts(record.coordinates));
         setIsActive(record.is_active !== false);
       })
       .catch(() => Swal.fire("Error", "Failed to load State", "error"));
@@ -135,6 +144,7 @@ export default function StateForm() {
 
     const payload: RecordRow = {
       state_name: name.trim(),
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
     if (code.trim()) payload.state_code = code.trim();
@@ -168,6 +178,7 @@ export default function StateForm() {
           <Label>State Code</Label>
           <Input value={code} onChange={(event) => setCode(event.target.value)} />
         </div>
+        <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         <div className="flex items-center gap-3 md:col-span-2">
           <Switch checked={isActive} onCheckedChange={setIsActive} />
           <Label>Active</Label>

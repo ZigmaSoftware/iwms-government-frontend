@@ -67,9 +67,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encTripPlans,
     encVehicleTripAudit,
     encTripExceptionLog,
-    encCompanyCreation,
-    encProjectCreation,
-    encSuperAdminMaster,
     encPanchayats,
     encAreaTypes,
     encCorporations,
@@ -90,9 +87,6 @@ export function buildNavRouteMap(): RouteEntry[] {
   _cache = [
     { path: "/admin", nameKey: "admin.nav.dashboard" },
     { path: `/${encAttendance}/${encAttendance}`, nameKey: "admin.nav.attendance" },
-    // SuperAdmin Masters
-    { path: `/${encSuperAdminMaster}/${encCompanyCreation}`, nameKey: "admin.nav.company", parentNameKey: "admin.nav.superAdmin_masters" },
-    { path: `/${encSuperAdminMaster}/${encProjectCreation}`, nameKey: "admin.nav.project", parentNameKey: "admin.nav.superAdmin_masters" },
     // Common Masters
     { path: `/${encMasters}/${encContinents}`, nameKey: "admin.nav.continent", parentNameKey: "admin.nav.common_masters" },
     { path: `/${encMasters}/${encCountries}`, nameKey: "admin.nav.country", parentNameKey: "admin.nav.common_masters" },

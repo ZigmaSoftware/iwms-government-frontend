@@ -7,7 +7,6 @@ import { InputText } from "primereact/inputtext";
 import { api } from "@/api";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import Swal from "@/lib/notify";
 
 type AttendanceRecord = Record<string, unknown>;
@@ -38,16 +37,6 @@ const text = (row: AttendanceRecord, ...keys: string[]) => {
 };
 
 export default function ExternalAttendanceList() {
-  const {
-    companyUniqueId,
-    projectId,
-    companies,
-    projects,
-    isSuperAdmin,
-    onCompanyChange,
-    setProjectId,
-  } =
-    useCompanyProjectSelection({ isEdit: false });
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [rows, setRows] = useState<AttendanceRecord[]>([]);

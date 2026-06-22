@@ -1,7 +1,7 @@
 import type { Staff, TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { type ChangeEvent, useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 
@@ -18,7 +18,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
@@ -40,9 +39,6 @@ const cap = (val?: string | number | null) => {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 export default function StaffCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -53,19 +49,6 @@ export default function StaffCreationList() {
   );
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [filterParams, setFilterParams] = useState({
     salary_type: "",
@@ -96,8 +79,6 @@ export default function StaffCreationList() {
     "designation",
     "site_name",
     "contact_mobile",
-    "company_name",
-    "project_name",
   ];
 
   const [refetchTrigger, setRefetchTrigger] = useState(0);
@@ -107,24 +88,12 @@ export default function StaffCreationList() {
     active_status: filterParams.active_status,
     site_name: filterParams.site_name,
     employee_name: filterParams.employee_name,
-    company_id: companyUniqueId,
-    ...(projectId ? { project_id: projectId } : {}),
   };
 
   useEffect(() => {
     let mounted = true;
 
     const load = async () => {
-      if (isSuperAdmin && companies.length === 0) {
-        if (mounted) { setStaffs([]); setLoading(false); }
-        return;
-      }
-
-      if (!companyUniqueId && !isSuperAdmin) {
-        if (mounted) { setStaffs([]); setLoading(false); }
-        return;
-      }
-
       if (mounted) setLoading(true);
       try {
         const payload: any = await adminApi.staffCreation.readAll({ params: requestParams });
@@ -134,30 +103,7 @@ export default function StaffCreationList() {
           : Array.isArray(payload?.data)
             ? payload.data
             : payload?.data?.results ?? [];
-        const rows = data as Staff[];
-
-        const hasContextFields = rows.some((row) => {
-          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-          return Boolean(rowCompanyId || rowProjectId);
-        });
-
-        if (!hasContextFields) {
-          setStaffs(rows);
-          return;
-        }
-
-        const filtered = rows.filter((row) => {
-          const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-          const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-          const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-          const projectMatches = !projectId || rowProjectId === projectId;
-
-          return companyMatches && projectMatches;
-        });
-
-        setStaffs(filtered);
+        setStaffs(data as Staff[]);
       } catch (err) {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
@@ -168,7 +114,7 @@ export default function StaffCreationList() {
     void load();
 
     return () => { mounted = false; };
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId, refetchTrigger]);
+  }, [refetchTrigger]);
 
   const applyFilter = () => {
     setRefetchTrigger((n) => n + 1);
@@ -260,42 +206,11 @@ export default function StaffCreationList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>

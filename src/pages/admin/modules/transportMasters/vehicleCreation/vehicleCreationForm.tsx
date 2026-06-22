@@ -1,7 +1,7 @@
 import type { VehicleCreationPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -12,7 +12,6 @@ import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { filterActiveRecords } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 
@@ -68,21 +67,6 @@ export default function VehicleCreationForm() {
     "vehicle-creation",
     VEHICLE_CREATION_FIELDS
   );
-
-  // ── Company / Project (same hook used across all forms) ───────────────────
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   // ── Record fetch ──────────────────────────────────────────────────────────
   const [recordData, setRecordData] = useState<any>(null);
@@ -195,8 +179,6 @@ export default function VehicleCreationForm() {
       isActive: String(res.is_active ?? true),
     });
 
-    applyCompanyProjectFromRecord(res);
-
     const rcUrl = toStr(res.rc_upload) || null;
     const insUrl = toStr(res.vehicle_insurance_file) || null;
 
@@ -213,7 +195,7 @@ export default function VehicleCreationForm() {
     }
     setRemoveRcFile(false);
     setRemoveInsuranceFile(false);
-  }, [applyCompanyProjectFromRecord, isEdit, recordData]);
+  }, [isEdit, recordData]);
 
   // ── Cleanup blob URLs on unmount ───────────────────────────────────────────
   useEffect(() => {
@@ -444,7 +426,7 @@ export default function VehicleCreationForm() {
         timer: 1500,
         showConfirmButton: false,
       });
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
@@ -780,7 +762,7 @@ export default function VehicleCreationForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
             className="bg-red-400 text-white px-4 py-2 rounded hover:bg-red-500"
           >
             {t("common.cancel")}

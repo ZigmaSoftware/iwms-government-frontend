@@ -5,12 +5,37 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { binApi, collectionPointApi, districtApi, panchayatApi, wasteTypeApi } from "@/helpers/admin";
+import {
+  binApi,
+  collectionPointApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
+  townPanchayatApi,
+  wasteTypeApi,
+} from "@/helpers/admin";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
-type Option = { value: string; label: string; districtId?: string; panchayatId?: string };
+type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
+type Option = {
+  value: string;
+  label: string;
+  districtId?: string;
+  corporation_id?: string;
+  municipality_id?: string;
+  town_panchayat_id?: string;
+  panchayat_union_id?: string;
+  panchayat_id?: string;
+};
 type ApiRecord = Record<string, unknown>;
 
 const { encMasters, encBins } = getEncryptedRoute();
@@ -37,8 +62,20 @@ const optionOf = (item: ApiRecord, labelKey: string): Option => ({
   value: idOf(item.unique_id ?? item.id),
   label: String(item[labelKey] ?? item.name ?? item.unique_id ?? item.id ?? ""),
   districtId: idOf(item.district_id ?? item.district),
-  panchayatId: idOf(item.panchayat_id ?? item.panchayat),
+  corporation_id: idOf(item.corporation_id ?? item.corporation),
+  municipality_id: idOf(item.municipality_id ?? item.municipality),
+  town_panchayat_id: idOf(item.town_panchayat_id ?? item.town_panchayat),
+  panchayat_union_id: idOf(item.panchayat_union_id ?? item.panchayat_union),
+  panchayat_id: idOf(item.panchayat_id ?? item.panchayat),
 });
+
+const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat / PLB" },
+];
 
 export default function BinForm() {
   const navigate = useNavigate();
@@ -46,16 +83,26 @@ export default function BinForm() {
   const isEdit = Boolean(id);
 
   const [districtId, setDistrictId] = useState("");
-  const [panchayatId, setPanchayatId] = useState("");
+  const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("panchayat_id");
+  const [hierarchyId, setHierarchyId] = useState("");
   const [collectionPointId, setCollectionPointId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
   const [binName, setBinName] = useState("");
   const [binCapacity, setBinCapacity] = useState("");
   const [binType, setBinType] = useState("");
   const [binQr, setBinQr] = useState("");
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
+    normalizeCoordinateDrafts(null),
+  );
   const [isActive, setIsActive] = useState(true);
   const [districts, setDistricts] = useState<Option[]>([]);
-  const [panchayats, setPanchayats] = useState<Option[]>([]);
+  const [hierarchyOptions, setHierarchyOptions] = useState<Record<HierarchyLevel, Option[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
   const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -63,12 +110,22 @@ export default function BinForm() {
   useEffect(() => {
     Promise.all([
       districtApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
       collectionPointApi.readAll(),
       wasteTypeApi.readAll(),
-    ]).then(([districtRes, panchayatRes, cpRes, wasteTypeRes]) => {
+    ]).then(([districtRes, corporationRes, municipalityRes, townRes, unionRes, panchayatRes, cpRes, wasteTypeRes]) => {
       setDistricts(normalizeList(districtRes).map((item) => optionOf(item, "district_name")));
-      setPanchayats(normalizeList(panchayatRes).map((item) => optionOf(item, "panchayat_name")));
+      setHierarchyOptions({
+        corporation_id: normalizeList(corporationRes).map((item) => optionOf(item, "corporation_name")),
+        municipality_id: normalizeList(municipalityRes).map((item) => optionOf(item, "municipality_name")),
+        town_panchayat_id: normalizeList(townRes).map((item) => optionOf(item, "town_panchayat_name")),
+        panchayat_union_id: normalizeList(unionRes).map((item) => optionOf(item, "union_name")),
+        panchayat_id: normalizeList(panchayatRes).map((item) => optionOf(item, "panchayat_name")),
+      });
       setCollectionPoints(normalizeList(cpRes).map((item) => optionOf(item, "cp_name")));
       setWasteTypes(normalizeList(wasteTypeRes).map((item) => optionOf(item, "waste_type_name")));
     });
@@ -78,30 +135,35 @@ export default function BinForm() {
     if (!id) return;
     binApi.read(id).then((record: ApiRecord) => {
       setDistrictId(idOf(record.district_id ?? record.district));
-      setPanchayatId(idOf(record.panchayat_id ?? record.panchayat));
+      const selectedLevel = hierarchyLevels.find((item) => idOf(record[item.value]));
+      if (selectedLevel) {
+        setHierarchyLevel(selectedLevel.value);
+        setHierarchyId(idOf(record[selectedLevel.value]));
+      }
       setCollectionPointId(idOf(record.collection_point_id ?? record.collection_point));
       setWasteTypeId(idOf(record.wastetype_id ?? record.waste_type_id ?? record.waste_type));
       setBinName(String(record.bin_name ?? ""));
       setBinCapacity(String(record.bin_capacity ?? ""));
       setBinType(String(record.bin_type ?? ""));
       setBinQr(String(record.bin_qr ?? ""));
+      setCoordinates(normalizeCoordinateDrafts(record.coordinates));
       setIsActive(record.is_active !== false);
     });
   }, [id]);
 
-  const filteredPanchayats = useMemo(
-    () => panchayats.filter((item) => !districtId || !item.districtId || item.districtId === districtId),
-    [districtId, panchayats],
+  const filteredHierarchyOptions = useMemo(
+    () => hierarchyOptions[hierarchyLevel].filter((item) => !districtId || !item.districtId || item.districtId === districtId),
+    [districtId, hierarchyLevel, hierarchyOptions],
   );
 
   const filteredCollectionPoints = useMemo(
     () =>
       collectionPoints.filter((item) => {
         if (districtId && item.districtId && item.districtId !== districtId) return false;
-        if (panchayatId && item.panchayatId && item.panchayatId !== panchayatId) return false;
+        if (hierarchyId && item[hierarchyLevel] !== hierarchyId) return false;
         return true;
       }),
-    [collectionPoints, districtId, panchayatId],
+    [collectionPoints, districtId, hierarchyId, hierarchyLevel],
   );
 
   const onSubmit = async (event: FormEvent) => {
@@ -113,13 +175,13 @@ export default function BinForm() {
     setSubmitting(true);
     const payload = {
       district_id: districtId,
-      panchayat_id: panchayatId || null,
       collection_point_id: collectionPointId,
       wastetype_id: wasteTypeId,
       bin_name: binName.trim(),
       bin_capacity: binCapacity || null,
       bin_type: binType || null,
       bin_qr: binQr || null,
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
     try {
@@ -136,16 +198,22 @@ export default function BinForm() {
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Label>District *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={districtId} onChange={(e) => setDistrictId(e.target.value)}>
+          <select className="h-10 w-full rounded-md border px-3 text-sm" value={districtId} onChange={(e) => { setDistrictId(e.target.value); setHierarchyId(""); setCollectionPointId(""); }}>
             <option value="">Select District</option>
             {districts.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
         <div>
-          <Label>Panchayat</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={panchayatId} onChange={(e) => setPanchayatId(e.target.value)}>
-            <option value="">Select Panchayat</option>
-            {filteredPanchayats.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          <Label>Location Type *</Label>
+          <select className="h-10 w-full rounded-md border px-3 text-sm" value={hierarchyLevel} onChange={(e) => { setHierarchyLevel(e.target.value as HierarchyLevel); setHierarchyId(""); setCollectionPointId(""); }}>
+            {hierarchyLevels.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>{hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label} *</Label>
+          <select className="h-10 w-full rounded-md border px-3 text-sm" value={hierarchyId} onChange={(e) => { setHierarchyId(e.target.value); setCollectionPointId(""); }}>
+            <option value="">Select {hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label}</option>
+            {filteredHierarchyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
         <div>
@@ -178,6 +246,7 @@ export default function BinForm() {
           <Label>QR Code</Label>
           <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} />
         </div>
+        <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
           Active

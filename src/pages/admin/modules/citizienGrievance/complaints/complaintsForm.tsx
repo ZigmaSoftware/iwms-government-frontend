@@ -1,6 +1,6 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import Swal from "@/lib/notify";
 
@@ -25,7 +25,6 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 /* ================= CONSTANTS ================= */
 
@@ -61,15 +60,6 @@ export default function ComplaintAddForm() {
   const { encCitizenGrivence, encComplaint } = getEncryptedRoute();
   const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encComplaint);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    loggedInCompanyUniqueId,
-    isSuperAdmin,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
-
   /* ---------------- STATE ---------------- */
   const [customers, setCustomers] = useState<any[]>([]);
   const [customer, setCustomer] = useState<any>(null);
@@ -103,14 +93,14 @@ export default function ComplaintAddForm() {
       setCustomers(filterActiveCustomers(normalized));
     }).catch(() => {});
 
-    adminApi.mainCategory.readAll({ params: { company_id: companyUniqueId } })
+    adminApi.mainCategory.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const normalized = listFromResponse(res);
         setMainCategories(filterActiveRecords(normalized));
       }).catch(() => {});
 
-    adminApi.subCategory.readAll({ params: { company_id: companyUniqueId } })
+    adminApi.subCategory.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const normalized = listFromResponse(res);
@@ -118,7 +108,7 @@ export default function ComplaintAddForm() {
       }).catch(() => {});
 
     return () => { cancelled = true; };
-  }, [companyUniqueId]);
+  }, []);
 
   const onCustomerChange = (id: string) => {
     const c = customers.find((x) => resolveCustomerId(x) === id);
@@ -221,17 +211,6 @@ export default function ComplaintAddForm() {
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
-
     const customerId = resolveCustomerId(customer);
 
     if (
@@ -258,7 +237,6 @@ export default function ComplaintAddForm() {
 
     const fd = new FormData();
     fd.append("customer", customerId);
-    fd.append("company_id", companyUniqueId);
     fd.append("contact_no", contact);
     fd.append("address", address);
     fd.append("main_category", mainLabel);
@@ -278,7 +256,7 @@ export default function ComplaintAddForm() {
         t("admin.citizen_grievance.complaints_form.saved_message"),
         "success"
       );
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch {
       Swal.fire(
         t("common.error"),
@@ -411,7 +389,7 @@ export default function ComplaintAddForm() {
             {t("common.save")}
           </button>
           <button type="button"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
             className="bg-red-400 text-white px-4 py-2 rounded">
             {t("common.cancel")}
           </button>

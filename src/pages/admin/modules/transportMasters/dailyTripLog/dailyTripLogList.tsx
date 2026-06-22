@@ -2,7 +2,6 @@ import type { DailyTripLogRecord } from "./types";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -16,7 +15,6 @@ import { Divider } from "primereact/divider";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyTripLogApi } from "@/helpers/admin";
 import { api } from "@/api";
 
@@ -76,9 +74,6 @@ const extractError = (error: any): string | null => {
   }
   return null;
 };
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
   return (collectionPoints ?? []).reduce((sum, cp) => {
@@ -402,23 +397,6 @@ function TripLogModal({
 ───────────────────────────────────────────────────── */
 export default function DailyTripLogList() {
   const { t } = useTranslation();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
   const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
@@ -432,8 +410,6 @@ export default function DailyTripLogList() {
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _waste: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _base_template: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -445,16 +421,9 @@ export default function DailyTripLogList() {
 
   /* ── load logs ── */
   useEffect(() => {
-    if (!companyUniqueId && !isSuperAdmin) {
-      setAllLogs([]);
-      return;
-    }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-    (dailyTripLogApi.readAll({ params }) as Promise<DailyTripLogRecord[]>)
+    (dailyTripLogApi.readAll() as Promise<DailyTripLogRecord[]>)
       .then((data) => {
         if (mounted) setAllLogs(Array.isArray(data) ? data : []);
       })
@@ -468,7 +437,7 @@ export default function DailyTripLogList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   /* ── enrich rows ── */
   const rows = allLogs.map((rec) => ({
@@ -490,30 +459,22 @@ export default function DailyTripLogList() {
     ),
   }));
 
-  /* ── filter by company + project + collection type ── */
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-    return rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      if (!(!companyUniqueId || rowCompanyId === companyUniqueId)) return false;
-      if (!(!projectId || rowProjectId === projectId)) return false;
-      if (collectionType === "bin") {
-        const hasBinWeight =
-          (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
-          (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
-        return hasBinWeight;
-      }
-      if (collectionType === "household") {
-        return (
-          row.household_collected_weight_kg != null &&
-          Number(row.household_collected_weight_kg) > 0
-        );
-      }
-      return true;
-    });
-  })();
+  /* ── filter by collection type ── */
+  const data = rows.filter((row) => {
+    if (collectionType === "bin") {
+      const hasBinWeight =
+        (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
+        (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+      return hasBinWeight;
+    }
+    if (collectionType === "household") {
+      return (
+        row.household_collected_weight_kg != null &&
+        Number(row.household_collected_weight_kg) > 0
+      );
+    }
+    return true;
+  });
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
@@ -660,34 +621,6 @@ export default function DailyTripLogList() {
         </div>
         <div className="flex items-center gap-3">
           <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-
-          <select
             value={collectionType}
             onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
             className="border rounded px-3 py-2 text-sm"
@@ -711,11 +644,9 @@ export default function DailyTripLogList() {
         header={renderHeader()}
         stripedRows
         showGridlines
-        emptyMessage="No trip logs found. Select a company and project to load data."
+        emptyMessage="No trip logs found."
         globalFilterFields={[
           "unique_id",
-          "company_name",
-          "project_name",
           "_assignment",
           "_location",
           "_waste",
@@ -741,22 +672,6 @@ export default function DailyTripLogList() {
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 150 }}
-        />
-        <Column
-          field="company_name"
-          header="Company"
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
-        />
-        <Column
-          field="project_name"
-          header="Project"
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
         />
         <Column
           field="_assignment"

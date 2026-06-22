@@ -4,12 +4,6 @@
 export const adminEndpoints = {
 
   /* =========================
-     SUPERADMIN
-  ========================= */
-  companies: "superadmin/company",
-  projects: "superadmin/project",
-
-  /* =========================
      AUTHENTICATION
   ========================= */
   loginUser: "login/login-user",
