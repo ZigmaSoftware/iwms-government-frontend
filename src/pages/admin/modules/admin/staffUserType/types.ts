@@ -12,6 +12,8 @@ export type UserType = {
 };
 
 export type StaffUserTypeRow = StaffUserType & {
-  category: "Staff" | "Contractor";
+  category: "Staff" | "Contractor" | "Government";
   usertype_name?: string;
+  level?: string;
+  level_display?: string;
 };

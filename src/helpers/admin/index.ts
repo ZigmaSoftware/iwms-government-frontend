@@ -65,6 +65,9 @@ export const staffUserTypeApi = adminApi.staffUserTypes;
 export const roleTypesApi = adminApi.roleTypes;
 export const contractorUserTypeApi = adminApi.contractorUserTypes;
 export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
+export const governmentUserTypeApi = adminApi.governmentUserTypes;
+export const governmentRoleTypesApi = adminApi.governmentRoleTypes;
+export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 
 /* =========================
    USER CREATION

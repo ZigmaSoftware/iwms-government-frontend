@@ -91,6 +91,12 @@ const uniqueIds = (values: unknown[]): string[] => {
 const isContractorRoleId = (value: string): boolean =>
   value.trim().startsWith("CNTUSRTYPE-");
 
+const isGovernmentRoleId = (value: string): boolean =>
+  value.trim().startsWith("GOVTUSRTYPE-");
+
+const isGovernmentUserTypeLabel = (value: string): boolean =>
+  value.trim().toLowerCase() === "government";
+
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
     return value[0];
@@ -130,6 +136,7 @@ export default function UserScreenPermissionForm() {
   const [description, setDescription] = useState("");
   const [userTypeId, setUserTypeId] = useState("");
   const [selectedUserTypeCategoryId, setSelectedUserTypeCategoryId] = useState("");
+  const [governmentLevel, setGovernmentLevel] = useState("");
 
   const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
   const [allRoleOptions, setAllRoleOptions] = useState<Option[]>([]);
@@ -171,10 +178,11 @@ export default function UserScreenPermissionForm() {
 
     const fetchAll = async () => {
       try {
-        const [userTypesRes, staffUserTypesRes, contractorUserTypesRes, mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
+        const [userTypesRes, staffUserTypesRes, contractorUserTypesRes, governmentUserTypesRes, mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
           adminApi.userTypes.readAll(),
           adminApi.staffUserTypes.readAll(),
           adminApi.contractorUserTypes.readAll(),
+          adminApi.governmentUserTypes.readAll(),
           adminApi.mainScreens.readAll(),
           adminApi.userScreens.readAll(),
           adminApi.userScreenActions.readAll(),
@@ -185,6 +193,7 @@ export default function UserScreenPermissionForm() {
         const userTypesData = userTypesRes.status === "fulfilled" ? (userTypesRes.value as any[]) : [];
         const staffUserTypesData = staffUserTypesRes.status === "fulfilled" ? (staffUserTypesRes.value as any[]) : [];
         const contractorUserTypesData = contractorUserTypesRes.status === "fulfilled" ? (contractorUserTypesRes.value as any[]) : [];
+        const governmentUserTypesData = governmentUserTypesRes.status === "fulfilled" ? (governmentUserTypesRes.value as any[]) : [];
         const mainScreensData = mainScreensRes.status === "fulfilled" ? (mainScreensRes.value as any[]) : [];
         const userScreensData = userScreensRes.status === "fulfilled" ? (userScreensRes.value as any[]) : [];
         const userScreenActionsData = userScreenActionsRes.status === "fulfilled" ? (userScreenActionsRes.value as any[]) : [];
@@ -226,7 +235,14 @@ export default function UserScreenPermissionForm() {
           label: String(x.name ?? ""),
           userTypeId: toUserTypeId(x),
         }));
-        setAllRoleOptions([...staffRoles, ...contractorRoles]);
+        const governmentRoles = governmentUserTypesData.map((x: StaffUserType) => ({
+          value: toId(x.unique_id),
+          label: String(x.name_display ?? x.name ?? ""),
+          userTypeId: toUserTypeId(x),
+          governmentLevel: toId(x.level),
+          governmentLevelLabel: String(x.level_display ?? x.level ?? ""),
+        }));
+        setAllRoleOptions([...staffRoles, ...contractorRoles, ...governmentRoles]);
 
         setMainScreens(
           mainScreensData.map((x: MainScreen) => ({
@@ -251,6 +267,33 @@ export default function UserScreenPermissionForm() {
     fetchAll();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedUserTypeCategory = useMemo(
+    () => userTypeOptions.find((opt) => opt.value === selectedUserTypeCategoryId),
+    [selectedUserTypeCategoryId, userTypeOptions]
+  );
+
+  const isGovernmentCategory = Boolean(
+    selectedUserTypeCategory &&
+      isGovernmentUserTypeLabel(selectedUserTypeCategory.label)
+  );
+
+  const governmentLevelOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return allRoleOptions
+      .filter((role) => role.userTypeId === selectedUserTypeCategoryId)
+      .filter((role) => isGovernmentRoleId(role.value))
+      .filter((role) => {
+        const level = role.governmentLevel ?? "";
+        if (!level || seen.has(level)) return false;
+        seen.add(level);
+        return true;
+      })
+      .map((role) => ({
+        value: role.governmentLevel ?? "",
+        label: role.governmentLevelLabel || role.governmentLevel || "",
+      }));
+  }, [allRoleOptions, selectedUserTypeCategoryId]);
 
   /* -----------------------------------------------------------
      LOAD FORMATTED PERMISSIONS (replaces useUserScreenPermissionFormattedQuery)
@@ -292,10 +335,15 @@ export default function UserScreenPermissionForm() {
     );
     const nextUserTypeId = matchingRole?.userTypeId || formattedUserTypeId;
 
-    if (!nextUserTypeId || selectedUserTypeCategoryId === nextUserTypeId) return;
+    if (!nextUserTypeId) return;
 
-    setSelectedUserTypeCategoryId(nextUserTypeId);
-    setUserTypeId(nextUserTypeId);
+    if (selectedUserTypeCategoryId !== nextUserTypeId) {
+      setSelectedUserTypeCategoryId(nextUserTypeId);
+      setUserTypeId(nextUserTypeId);
+    }
+    if (matchingRole?.governmentLevel) {
+      setGovernmentLevel(matchingRole.governmentLevel);
+    }
   }, [
     allRoleOptions,
     formattedPermissionData,
@@ -519,9 +567,11 @@ export default function UserScreenPermissionForm() {
 
   useEffect(() => {
     if (selectedUserTypeCategoryId) {
-      const filtered = allRoleOptions.filter(
-        (r) => r.userTypeId === selectedUserTypeCategoryId
-      );
+      const filtered = allRoleOptions.filter((r) => {
+        if (r.userTypeId !== selectedUserTypeCategoryId) return false;
+        if (!isGovernmentCategory) return !isGovernmentRoleId(r.value);
+        return isGovernmentRoleId(r.value) && r.governmentLevel === governmentLevel;
+      });
       setStaffUserTypes(filtered);
       setUserTypeId(selectedUserTypeCategoryId);
       // Clear the role selection if it no longer belongs to the new usertype
@@ -532,7 +582,7 @@ export default function UserScreenPermissionForm() {
       setStaffUserTypes(allRoleOptions);
       setUserTypeId("");
     }
-  }, [selectedUserTypeCategoryId, allRoleOptions]);
+  }, [selectedUserTypeCategoryId, allRoleOptions, governmentLevel, isGovernmentCategory]);
 
   /* -----------------------------------------------------------
      TOGGLE ACTIONS
@@ -663,10 +713,12 @@ export default function UserScreenPermissionForm() {
       .filter((screen) => Boolean(screen.userscreen_id));
 
     const isContractorRole = isContractorRoleId(staffUserTypeId);
+    const isGovernmentRole = isGovernmentRoleId(staffUserTypeId);
     const payload = {
-      staffusertype_id: isContractorRole ? null : staffUserTypeId,
+      staffusertype_id: isContractorRole || isGovernmentRole ? null : staffUserTypeId,
       contractorusertype_id: isContractorRole ? staffUserTypeId : null,
-      permission_for: isContractorRole ? "contractor" : "staff",
+      governmentusertype_id: isGovernmentRole ? staffUserTypeId : null,
+      permission_for: isGovernmentRole ? "government" : isContractorRole ? "contractor" : "staff",
       mainscreen_id: mainScreenId,
       description: description.trim(),
       usertype_id: userTypeId,
@@ -709,8 +761,9 @@ export default function UserScreenPermissionForm() {
               createColumnPermission({
                 userscreen_id: screen.userscreen_id,
                 column_id: col.unique_id,
-                staffusertype_id: isContractorRole ? undefined : staffUserTypeId,
+                staffusertype_id: isContractorRole || isGovernmentRole ? undefined : staffUserTypeId,
                 contractorusertype_id: isContractorRole ? staffUserTypeId : undefined,
+                governmentusertype_id: isGovernmentRole ? staffUserTypeId : undefined,
                 usertype_id: userTypeId,
                 is_active: true,
               })
@@ -792,6 +845,7 @@ export default function UserScreenPermissionForm() {
               value={selectedUserTypeCategoryId}
               onValueChange={(value) => {
                 setSelectedUserTypeCategoryId(value);
+                setGovernmentLevel("");
                 if (!isEdit) {
                   setStaffUserTypeId("");
                   setScreenMatrix([]);
@@ -819,18 +873,53 @@ export default function UserScreenPermissionForm() {
             </Select>
           </div>
 
+          {isGovernmentCategory && (
+            <div>
+              <Label>Government Level *</Label>
+              <Select
+                value={governmentLevel}
+                onValueChange={(value) => {
+                  setGovernmentLevel(value);
+                  if (!isEdit) {
+                    setStaffUserTypeId("");
+                    setScreenMatrix([]);
+                    setScreenColumns({});
+                    setColumnPermissionIds({});
+                    setDescription("");
+                  }
+                }}
+                disabled={isEdit}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Government Level" />
+                </SelectTrigger>
+                <SelectContent>
+                  {governmentLevelOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div>
-            <Label>{t("admin.nav.staff_user_type")} *</Label>
+            <Label>{isGovernmentCategory ? "Government Staff User Type" : t("admin.nav.staff_user_type")} *</Label>
             <Select
               value={staffUserTypeId}
               onValueChange={setStaffUserTypeId}
-              disabled={isEdit || !selectedUserTypeCategoryId}
+              disabled={isEdit || !selectedUserTypeCategoryId || (isGovernmentCategory && !governmentLevel)}
             >
               <SelectTrigger>
                 <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.staff_user_type"),
-                  })}
+                  placeholder={
+                    isGovernmentCategory && !governmentLevel
+                      ? "Select a level first"
+                      : t("common.select_item_placeholder", {
+                          item: isGovernmentCategory ? "Government Staff User Type" : t("admin.nav.staff_user_type"),
+                        })
+                  }
                 />
               </SelectTrigger>
               <SelectContent>
