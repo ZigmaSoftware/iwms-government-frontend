@@ -93,31 +93,49 @@ export default function StaffTemplateForm() {
 
   const getStaffDisplayName = (staff: StaffRecord): string =>
     String(
-      staff.employee_name ?? staff.staff_name ?? staff.username ?? staff.unique_id ?? ""
+      staff.employee_name ?? staff.staff_name ?? staff.username ?? staff.staff_unique_id ?? staff.unique_id ?? ""
     ).trim();
 
   const toEntityId = (value: unknown): string => {
     if (value === null || value === undefined) return "";
     if (typeof value === "object") {
       const record = value as Record<string, unknown>;
-      return toEntityId(record.unique_id ?? record.id ?? record.value);
+      return toEntityId(record.staff_unique_id ?? record.unique_id ?? record.id ?? record.value);
     }
     return String(value).trim();
   };
 
+  const getStaffId = (staff: StaffRecord): string =>
+    String(staff.staff_unique_id ?? staff.unique_id ?? "").trim();
+
+  const ensureOption = (items: Option[], value: string, label?: string): Option[] => {
+    if (!value || items.some((item) => String(item.value) === value)) return items;
+    return [{ value, label: label || value }, ...items];
+  };
+
   const getStaffRole = (staff: StaffRecord): string =>
     normalizeRole(
-      staff.staffusertype_name || staff.contractorusertype_name || staff.designation
+      staff.staffusertype_name ||
+        staff.contractorusertype_name ||
+        staff.designation_name ||
+        staff.designation ||
+        staff.designation_group
     );
 
   const isDriverRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "driver" || role.includes(" driver");
+    return role === "driver" || role.includes("driver");
   };
 
   const isOperatorRole = (staff: StaffRecord): boolean => {
     const role = getStaffRole(staff);
-    return role === "operator" || role.includes(" operator");
+    return (
+      role === "operator" ||
+      role.includes("operator") ||
+      role.includes("collector") ||
+      role.includes("supervisor") ||
+      role.includes("inspector")
+    );
   };
 
   const isStaffRow = (staff: StaffRecord): boolean => {
@@ -132,7 +150,7 @@ export default function StaffTemplateForm() {
   };
 
   const toStaffOption = (staff: StaffRecord): Option => ({
-    value: String(staff.unique_id ?? ""),
+    value: getStaffId(staff),
     label: getStaffDisplayName(staff),
   });
 
@@ -169,14 +187,14 @@ export default function StaffTemplateForm() {
                 : [];
 
         const staffOnly = staffData.filter(
-          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && u.unique_id
+          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && getStaffId(u)
         );
         setStaffRecords(staffOnly);
 
         const currentUserId = localStorage.getItem("unique_id") || "";
         const isAdmin = staffOnly
           .filter((s: StaffRecord) => getStaffRole(s) === "admin")
-          .some((s: StaffRecord) => String(s.unique_id) === currentUserId);
+          .some((s: StaffRecord) => getStaffId(s) === currentUserId);
         setFormData((prev) => ({
           ...prev,
           approved_by: isAdmin ? currentUserId : prev.approved_by,
@@ -225,6 +243,9 @@ export default function StaffTemplateForm() {
         const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
         const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
         const approvedBy = toEntityId(tpl.approved_by ?? tpl.approver);
+        setDriverOptions((items) => ensureOption(items, driverId, tpl.driver_name));
+        setOperatorOptions((items) => ensureOption(items, operatorId, tpl.operator_name));
+        setAdminOptions((items) => ensureOption(items, approvedBy, tpl.approved_by_name));
         if (driverId) setPendingDriverId(driverId);
         if (operatorId) setPendingOperatorId(operatorId);
         if (extraIds.length > 0) setPendingExtraIds(extraIds);
@@ -247,7 +268,7 @@ export default function StaffTemplateForm() {
       let hasChanges = false;
       const next = { ...prev };
       const staffExists = (value: string) =>
-        staffRecords.some((staff) => String(staff.unique_id) === value);
+        staffRecords.some((staff) => getStaffId(staff) === value);
 
       const isDriverValid =
         driverOptions.some((option) => String(option.value) === prev.driver_id) ||
@@ -267,7 +288,7 @@ export default function StaffTemplateForm() {
 
       const validOperatorIds = new Set([
         ...operatorOptions.map((option) => String(option.value)),
-        ...staffRecords.map((staff) => String(staff.unique_id ?? "")).filter(Boolean),
+        ...staffRecords.map(getStaffId).filter(Boolean),
       ]);
       const filteredExtras = next.extra_operator_id.filter(
         (value) =>
@@ -299,7 +320,7 @@ export default function StaffTemplateForm() {
   useEffect(() => {
     if (!pendingDriverId || staffRecords.length === 0) return;
     const inOptions = driverOptions.some((o) => o.value === pendingDriverId);
-    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingDriverId);
+    const inRecords = staffRecords.some((s) => getStaffId(s) === pendingDriverId);
     if (inOptions || inRecords) {
       setFormData((prev) => ({ ...prev, driver_id: pendingDriverId }));
       setPendingDriverId(null);
@@ -309,7 +330,7 @@ export default function StaffTemplateForm() {
   useEffect(() => {
     if (!pendingOperatorId || staffRecords.length === 0) return;
     const inOptions = operatorOptions.some((o) => o.value === pendingOperatorId);
-    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingOperatorId);
+    const inRecords = staffRecords.some((s) => getStaffId(s) === pendingOperatorId);
     if (inOptions || inRecords) {
       setFormData((prev) => ({ ...prev, operator_id: pendingOperatorId }));
       setPendingOperatorId(null);
@@ -321,7 +342,7 @@ export default function StaffTemplateForm() {
     const allApproverOptions = [...adminOptions, ...supervisorOptions];
     if (allApproverOptions.length === 0 && staffRecords.length === 0) return;
     const inOptions = allApproverOptions.some((o) => o.value === pendingApprovedBy);
-    const inRecords = staffRecords.some((s) => String(s.unique_id) === pendingApprovedBy);
+    const inRecords = staffRecords.some((s) => getStaffId(s) === pendingApprovedBy);
     if (inOptions || inRecords) {
       setFormData((prev) => ({ ...prev, approved_by: pendingApprovedBy }));
       setPendingApprovedBy(null);
@@ -331,7 +352,7 @@ export default function StaffTemplateForm() {
   useEffect(() => {
     if (!pendingExtraIds || staffRecords.length === 0) return;
     const validIds = pendingExtraIds.filter((id) =>
-      staffRecords.some((s) => String(s.unique_id) === id)
+      staffRecords.some((s) => getStaffId(s) === id)
     );
     setFormData((prev) => ({ ...prev, extra_operator_id: validIds }));
     setPendingExtraIds(null);
@@ -353,7 +374,7 @@ export default function StaffTemplateForm() {
       value !== formData.operator_id &&
       !extraOperatorOptionsWithCurrent.some((option) => String(option.value) === value)
     ) {
-      const staff = staffRecords.find((item) => String(item.unique_id) === value);
+      const staff = staffRecords.find((item) => getStaffId(item) === value);
       if (staff) extraOperatorOptionsWithCurrent.unshift(toStaffOption(staff));
     }
   });
@@ -361,14 +382,14 @@ export default function StaffTemplateForm() {
   const driverOptionsWithCurrent = (() => {
     if (!formData.driver_id) return driverOptions;
     if (driverOptions.some((option) => option.value === formData.driver_id)) return driverOptions;
-    const staff = staffRecords.find((item) => String(item.unique_id) === formData.driver_id);
+    const staff = staffRecords.find((item) => getStaffId(item) === formData.driver_id);
     return staff ? [toStaffOption(staff), ...driverOptions] : driverOptions;
   })();
 
   const operatorOptionsWithCurrent = (() => {
     if (!formData.operator_id) return operatorOptions;
     if (operatorOptions.some((option) => option.value === formData.operator_id)) return operatorOptions;
-    const staff = staffRecords.find((item) => String(item.unique_id) === formData.operator_id);
+    const staff = staffRecords.find((item) => getStaffId(item) === formData.operator_id);
     return staff ? [toStaffOption(staff), ...operatorOptions] : operatorOptions;
   })();
 
@@ -376,7 +397,7 @@ export default function StaffTemplateForm() {
     const scopedOptions = [...adminOptions, ...supervisorOptions];
     if (!formData.approved_by) return scopedOptions;
     if (scopedOptions.some((option) => option.value === formData.approved_by)) return scopedOptions;
-    const staff = staffRecords.find((item) => String(item.unique_id) === formData.approved_by);
+    const staff = staffRecords.find((item) => getStaffId(item) === formData.approved_by);
     return staff ? [toStaffOption(staff), ...scopedOptions] : scopedOptions;
   })();
 

@@ -46,25 +46,47 @@ const hierarchyLabels: Record<HierarchyLevel, string> = {
   panchayat_id: "Panchayat / PLB",
 };
 
+const idOf = (value: any): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    return String(value.unique_id ?? value.id ?? value.value ?? "");
+  }
+  return String(value);
+};
+
+const textOf = (...values: any[]): string => {
+  for (const value of values) {
+    if (value !== null && value !== undefined && String(value).trim()) {
+      return String(value);
+    }
+  }
+  return "";
+};
+
+const ensureOption = <T extends Option>(items: T[], value: string, label?: string): T[] => {
+  if (!value || items.some((item) => item.value === value)) return items;
+  return [{ value, label: label || value } as T, ...items];
+};
+
 const toOptions = (items: any[], labelKey: string): Option[] =>
   items
     .map((item) => ({
-      value: String(item?.unique_id ?? item?.id ?? ""),
-      label: String(item?.[labelKey] ?? item?.display_code ?? item?.customer_name ?? item?.unique_id ?? ""),
-      collectionPointId: String(item?.collection_point_id ?? item?.collection_point?.unique_id ?? ""),
-      wasteTypeId: String(item?.wastetype_id ?? item?.waste_type_id ?? item?.waste_type?.unique_id ?? ""),
-      corporation_id: String(item?.corporation_id ?? item?.hierarchy?.corporation_id ?? ""),
-      municipality_id: String(item?.municipality_id ?? item?.hierarchy?.municipality_id ?? ""),
-      town_panchayat_id: String(item?.town_panchayat_id ?? item?.hierarchy?.town_panchayat_id ?? ""),
-      panchayat_union_id: String(item?.panchayat_union_id ?? item?.hierarchy?.panchayat_union_id ?? ""),
-      panchayat_id: String(item?.panchayat_id ?? item?.hierarchy?.panchayat_id ?? item?.panchayat?.unique_id ?? ""),
+      value: idOf(item?.unique_id ?? item?.id),
+      label: textOf(item?.[labelKey], item?.display_code, item?.customer_name, item?.unique_id),
+      collectionPointId: idOf(item?.collection_point_id ?? item?.collection_point),
+      wasteTypeId: idOf(item?.wastetype_id ?? item?.waste_type_id ?? item?.waste_type),
+      corporation_id: idOf(item?.corporation_id ?? item?.hierarchy?.corporation_id),
+      municipality_id: idOf(item?.municipality_id ?? item?.hierarchy?.municipality_id),
+      town_panchayat_id: idOf(item?.town_panchayat_id ?? item?.hierarchy?.town_panchayat_id),
+      panchayat_union_id: idOf(item?.panchayat_union_id ?? item?.hierarchy?.panchayat_union_id),
+      panchayat_id: idOf(item?.panchayat_id ?? item?.hierarchy?.panchayat_id ?? item?.panchayat),
     }))
     .filter((item) => item.value);
 
 const hierarchyFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
 const toTripPlanOptions = (items: any[]): TripPlanOption[] =>
   items.map((item) => {
-    const field = hierarchyFields.find((key) => String(item?.[key] ?? item?.hierarchy?.[key] ?? ""));
+    const field = hierarchyFields.find((key) => idOf(item?.[key] ?? item?.hierarchy?.[key]));
     const hierarchy = field
       ? item?.[field.replace("_id", "")] ?? item?.[field.replace("_id", "") as keyof typeof item]
       : null;
@@ -76,12 +98,12 @@ const toTripPlanOptions = (items: any[]): TripPlanOption[] =>
       hierarchy?.panchayat_name ??
       "";
     return {
-      value: String(item?.unique_id ?? ""),
-      label: String(item?.display_code ?? item?.unique_id ?? ""),
+      value: idOf(item?.unique_id),
+      label: textOf(item?.display_code, item?.unique_id),
       collectionType: String(item?.collection_type ?? "bin_collection"),
-      wasteTypeId: String(item?.waste_type_id ?? item?.waste_type?.unique_id ?? ""),
+      wasteTypeId: idOf(item?.waste_type_id ?? item?.waste_type),
       hierarchyField: field,
-      hierarchyId: field ? String(item?.[field] ?? item?.hierarchy?.[field] ?? "") : "",
+      hierarchyId: field ? idOf(item?.[field] ?? item?.hierarchy?.[field]) : "",
       hierarchyLabel: field ? `${hierarchyLabels[field]}${hierarchyName ? ` - ${hierarchyName}` : ""}` : "",
     };
   }).filter((item) => item.value);
@@ -122,12 +144,18 @@ export default function TripPlanCollectionPointForm() {
   useEffect(() => {
     if (!id) return;
     tripPlanCollectionPointApi.read(id).then((record: ApiRecord) => {
-      setTripPlanId(String(record.trip_plan_id ?? ""));
+      const nextTripPlanId = idOf(record.trip_plan_id ?? record.trip_plan);
+      const nextCollectionPointId = idOf(record.collection_point_id ?? record.collection_point);
+      const nextBinId = idOf(record.bin_id ?? record.bin);
+      setTripPlanId(nextTripPlanId);
       setCollectionType(String(record.collection_type ?? "bin_collection"));
-      setCollectionPointId(String(record.collection_point_id ?? ""));
-      setBinId(String(record.bin_id ?? ""));
+      setCollectionPointId(nextCollectionPointId);
+      setBinId(nextBinId);
       setSequence(String(record.sequence ?? "1"));
       setIsActive(record.is_active !== false);
+      setTripPlans((items) => ensureOption(items, nextTripPlanId, record.trip_plan?.display_code));
+      setCollectionPoints((items) => ensureOption(items, nextCollectionPointId, record.collection_point?.cp_name));
+      setBins((items) => ensureOption(items, nextBinId, record.bin?.bin_name));
       setEditLoaded(true);
     });
   }, [id]);
@@ -148,12 +176,19 @@ export default function TripPlanCollectionPointForm() {
     if (!selectedTripPlan?.hierarchyField || !selectedTripPlan.hierarchyId) return items;
     return items.filter((item) => item[selectedTripPlan.hierarchyField!] === selectedTripPlan.hierarchyId);
   };
-  const filteredCollectionPoints = filterByTripHierarchy(collectionPoints);
+  const currentCollectionPoint = collectionPoints.find((item) => item.value === collectionPointId);
+  const currentBin = bins.find((item) => item.value === binId);
+  const filteredCollectionPoints = ensureOption(
+    filterByTripHierarchy(collectionPoints),
+    collectionPointId,
+    currentCollectionPoint?.label,
+  );
   const filteredBins = bins.filter((item) => {
     if (collectionPointId && item.collectionPointId && item.collectionPointId !== collectionPointId) return false;
     if (selectedTripPlan?.wasteTypeId && item.wasteTypeId && item.wasteTypeId !== selectedTripPlan.wasteTypeId) return false;
     return true;
   });
+  const filteredBinsWithCurrent = ensureOption(filteredBins, binId, currentBin?.label);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -161,8 +196,8 @@ export default function TripPlanCollectionPointForm() {
       Swal.fire("Missing details", "Trip Plan and Collection Type are required.", "warning");
       return;
     }
-    if (collectionType === "bin_collection" && !collectionPointId) {
-      Swal.fire("Missing details", "Collection Point is required for bin collection.", "warning");
+    if (collectionType === "bin_collection" && (!collectionPointId || !binId)) {
+      Swal.fire("Missing details", "Collection Point and Bin are required for bin collection.", "warning");
       return;
     }
     if (["household_collection", "bulk_waste_collection"].includes(collectionType) && !selectedTripPlan?.hierarchyField) {
@@ -196,7 +231,7 @@ export default function TripPlanCollectionPointForm() {
         {collectionType === "bin_collection" && (
           <>
             <div><Label>Collection Point *</Label><Select value={collectionPointId} onChange={(v) => { setCollectionPointId(String(v)); setBinId(""); }} options={filteredCollectionPoints} placeholder="Select Collection Point" /></div>
-            <div><Label>Bin</Label><Select value={binId} onChange={(v) => setBinId(String(v))} options={filteredBins} placeholder="Select Bin" /></div>
+            <div><Label>Bin *</Label><Select value={binId} onChange={(v) => setBinId(String(v))} options={filteredBinsWithCurrent} placeholder="Select Bin" /></div>
           </>
         )}
         {["household_collection", "bulk_waste_collection"].includes(collectionType) && (
