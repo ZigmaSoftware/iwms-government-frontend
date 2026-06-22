@@ -18,9 +18,13 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentApi, countryApi } from "@/helpers/admin";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 const { encMasters, encCountries } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encCountries);
@@ -30,6 +34,7 @@ const COUNTRY_FIELDS: Record<string, string[]> = {
   name: ["name"],
   mob_code: ["mob_code"],
   currency: ["currency"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -59,12 +64,14 @@ export default function CountryForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({ isEdit });
 
   /* ── form fields ── */
   const [name, setName] = useState("");
   const [mobCode, setMobCode] = useState("");
   const [currency, setCurrency] = useState("");
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
+    normalizeCoordinateDrafts(null),
+  );
   const [isActive, setIsActive] = useState(true);
   const [continentId, setContinentId] = useState("");
 
@@ -119,7 +126,7 @@ export default function CountryForm() {
         setIsActive(Boolean(res.is_active));
         setMobCode(res.mob_code ?? "");
         setCurrency(res.currency ?? "");
-        applyCompanyProjectFromRecord(res as Record<string, unknown>);
+        setCoordinates(normalizeCoordinateDrafts(res.coordinates));
 
         const rawContId = normalizeNull(
           res.continent_id ?? res.continent_unique_id ?? res.continent
@@ -162,6 +169,7 @@ export default function CountryForm() {
         is_active: isActive,
         mob_code: mobCode.trim(),
         currency: currency.trim(),
+        coordinates: serializeCoordinateDrafts(coordinates),
       };
       const payload = filterPayload(rawPayload) as typeof rawPayload;
 
@@ -254,6 +262,10 @@ export default function CountryForm() {
               placeholder={t("common.currency_placeholder")}
             />
           </div>
+        )}
+
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         )}
 
         {showField("is_active") && (

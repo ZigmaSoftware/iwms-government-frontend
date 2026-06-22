@@ -8,10 +8,6 @@ export type Complaint = {
   category?: string;
   details: string;
   priority?: string | null;
-  zone_id?: string;
-  zone_name?: string;
-  ward_id?: string;
-  ward_name?: string;
   address: string;
   image_url?: string;
   close_image_url?: string;

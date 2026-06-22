@@ -2,7 +2,7 @@ import type { BinCollectionEventRecord } from "./types";
 import type { ApiObject, TripCollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { binCollectionEventApi, dailyTripCollectionPointApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
@@ -157,26 +156,8 @@ const errorDetail = (error: unknown): string | null => {
 function CollectionMonitoringForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const { id } = useParams();
   const isEdit = Boolean(id);
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const { encWasteManagementMaster, encCollectionMonitoring } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encWasteManagementMaster, encCollectionMonitoring);
@@ -193,7 +174,6 @@ function CollectionMonitoringForm() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [tripCollectionPoints, setTripCollectionPoints] = useState<TripCollectionPointRecord[]>([]);
-  const [pendingProjectId, setPendingProjectId] = useState("");
   const [pendingEvent, setPendingEvent] = useState<BinCollectionEventRecord | null>(null);
 
   const selectedTripCp = useMemo(
@@ -216,23 +196,10 @@ function CollectionMonitoringForm() {
   );
 
   useEffect(() => {
-    if (!pendingProjectId || projects.length === 0) return;
-    if (projects.some((project) => project.value === pendingProjectId)) {
-      setProjectId(pendingProjectId);
-      setPendingProjectId("");
-    }
-  }, [pendingProjectId, projects, setProjectId]);
-
-  useEffect(() => {
-    if (!companyUniqueId || !projectId) {
-      setTripCollectionPoints([]);
-      return;
-    }
-
     let cancelled = false;
     setFetching(true);
     dailyTripCollectionPointApi
-      .readAll({ params: { company_id: companyUniqueId, project_id: projectId } })
+      .readAll()
       .then((response) => {
         if (cancelled) return;
         const rows = normalizeList(response) as TripCollectionPointRecord[];
@@ -248,7 +215,7 @@ function CollectionMonitoringForm() {
     return () => {
       cancelled = true;
     };
-  }, [companyUniqueId, projectId]);
+  }, []);
 
   useEffect(() => {
     if (!selectedTripCp) return;
@@ -264,9 +231,6 @@ function CollectionMonitoringForm() {
     binCollectionEventApi.read(id)
       .then((record: BinCollectionEventRecord) => {
         if (cancelled) return;
-        applyCompanyProjectFromRecord(record as ApiObject);
-        const recordProjectId = idOf(record.project_id ?? record.project);
-        if (recordProjectId) setPendingProjectId(recordProjectId);
         setPendingEvent(record);
         setWeight(labelOf(record.collected_weight_kg) === "-" ? "" : String(record.collected_weight_kg));
         setDriverLatitude(labelOf(record.driver_latitude) === "-" ? "" : String(record.driver_latitude));
@@ -281,7 +245,7 @@ function CollectionMonitoringForm() {
     return () => {
       cancelled = true;
     };
-  }, [applyCompanyProjectFromRecord, id, isEdit, t]);
+  }, [id, isEdit, t]);
 
   useEffect(() => {
     if (!pendingEvent) return;
@@ -308,8 +272,6 @@ function CollectionMonitoringForm() {
     e.preventDefault();
 
     const missingFields: string[] = [];
-    if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
-    if (!projectId) missingFields.push(t("admin.nav.project"));
     if (!tripCollectionPointId) missingFields.push("Trip Collection Point");
     if (!weight.trim()) missingFields.push("Collected Weight");
 
@@ -320,8 +282,6 @@ function CollectionMonitoringForm() {
 
     const parsedWeight = Number.parseFloat(weight || "0");
     const payload = {
-      company_id: companyUniqueId,
-      project_id: projectId,
       trip_assignment_id: tripAssignmentId,
       trip_collection_point_id: tripCollectionPointId,
       bin_id: binId,
@@ -345,7 +305,7 @@ function CollectionMonitoringForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success",
       );
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(LIST_PATH);
     } catch (error: unknown) {
       Swal.fire(t("common.save_failed"), errorDetail(error) ?? t("common.save_failed_desc"), "error");
     } finally {
@@ -369,7 +329,7 @@ function CollectionMonitoringForm() {
             onChange={setTripCollectionPointId}
             options={tripCpOptions}
             placeholder={fetching ? t("common.loading") : "Select trip collection point"}
-            disabled={!companyUniqueId || !projectId || fetching || tripCpOptions.length === 0 || isEdit}
+            disabled={fetching || tripCpOptions.length === 0 || isEdit}
           />
           <FormInput label="Trip Assignment" value={selectedTripLabel} onChange={() => undefined} disabled />
           <FormInput label={t("admin.nav.collection_point")} value={selectedCollectionPointName} onChange={() => undefined} disabled />
@@ -431,7 +391,7 @@ function CollectionMonitoringForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(LIST_PATH)}
             className="bg-red-400 text-white px-4 py-2 rounded"
           >
             {t("common.cancel")}

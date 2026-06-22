@@ -35,7 +35,7 @@ type Option = {
 
 type RecordRow = Record<string, any>;
 
-type MunicipalityInitialPayload = {
+type PanchayatUnionInitialPayload = {
   name: string;
   state_id: string;
   district_id: string;
@@ -44,8 +44,8 @@ type MunicipalityInitialPayload = {
   is_active: boolean;
 };
 
-type MunicipalityPayload = {
-  municipality_name: string;
+type PanchayatUnionPayload = {
+  union_name: string;
   state_id: string;
   district_id: string;
   area_type_id: string;
@@ -53,18 +53,18 @@ type MunicipalityPayload = {
   is_active: boolean;
 };
 
-type MunicipalityEditorProps = {
-  initialPayload: MunicipalityInitialPayload;
+type PanchayatUnionEditorProps = {
+  initialPayload: PanchayatUnionInitialPayload;
   isEdit: boolean;
   isSubmitting: boolean;
   onCancel: () => void;
-  onSubmit: (payload: MunicipalityPayload) => Promise<void>;
+  onSubmit: (payload: PanchayatUnionPayload) => Promise<void>;
   states: Option[];
   districts: Option[];
   areaTypes: Option[];
 };
 
-const AREA_TYPE_FILTER = "Urban Local Body";
+const AREA_TYPE_FILTER = "Rural Local Body";
 
 const normalizeNullable = (value: any): string => {
   if (value === null || value === undefined) return "";
@@ -110,16 +110,16 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const MUNICIPALITY_FIELDS: Record<string, string[]> = {
+const PANCHAYAT_UNION_FIELDS: Record<string, string[]> = {
   state_id: ["state_id"],
   district_id: ["district_id"],
   area_type_id: ["area_type_id"],
-  municipality_name: ["municipality_name"],
+  union_name: ["union_name"],
   coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
-function MunicipalityEditor({
+function PanchayatUnionEditor({
   initialPayload,
   isEdit,
   isSubmitting,
@@ -128,10 +128,10 @@ function MunicipalityEditor({
   states,
   districts,
   areaTypes,
-}: MunicipalityEditorProps) {
+}: PanchayatUnionEditorProps) {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "municipalities", MUNICIPALITY_FIELDS);
+    useFieldVisibility("masters", "panchayatunions", PANCHAYAT_UNION_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
   const [stateId, setStateId] = useState(initialPayload.state_id);
@@ -163,7 +163,7 @@ function MunicipalityEditor({
     e.preventDefault();
 
     const fieldValues: Record<string, unknown> = {
-      municipality_name: name.trim(),
+      union_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
@@ -171,7 +171,7 @@ function MunicipalityEditor({
 
     if (
       getMissingRequiredFields(
-        ["municipality_name", "state_id", "district_id", "area_type_id"],
+        ["union_name", "state_id", "district_id", "area_type_id"],
         (fieldKey) => fieldValues[fieldKey]
       ).length > 0
     ) {
@@ -184,8 +184,8 @@ function MunicipalityEditor({
       return;
     }
 
-    const rawPayload: MunicipalityPayload = {
-      municipality_name: name.trim(),
+    const rawPayload: PanchayatUnionPayload = {
+      union_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
@@ -193,7 +193,7 @@ function MunicipalityEditor({
       is_active: isActive,
     };
 
-    await onSubmit(filterPayload(rawPayload) as MunicipalityPayload);
+    await onSubmit(filterPayload(rawPayload) as PanchayatUnionPayload);
   };
 
   return (
@@ -278,17 +278,17 @@ function MunicipalityEditor({
           </div>
         )}
 
-        {showField("municipality_name") && (
+        {showField("union_name") && (
           <div>
-            <Label htmlFor="municipalityName">
-              Municipality Name <span className="text-red-500">*</span>
+            <Label htmlFor="unionName">
+              Union Name <span className="text-red-500">*</span>
             </Label>
             <Input
-              id="municipalityName"
+              id="unionName"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter Municipality Name"
+              placeholder="Enter Union Name"
               className="input-validate w-full"
               disabled={isSubmitting}
               required
@@ -340,13 +340,13 @@ function MunicipalityEditor({
   );
 }
 
-export default function MunicipalityForm() {
+export default function PanchayatUnionForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const { encMasters, encMunicipalities } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encMunicipalities);
+  const { encMasters, encPanchayatUnions } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayatUnions);
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -355,7 +355,7 @@ export default function MunicipalityForm() {
   const [districts, setDistricts] = useState<Option[]>([]);
   const [areaTypes, setAreaTypes] = useState<Option[]>([]);
 
-  const title = isEdit ? "Edit Municipality" : "Add Municipality";
+  const title = isEdit ? "Edit Panchayat Union" : "Add Panchayat Union";
 
   useEffect(() => {
     let cancelled = false;
@@ -405,7 +405,7 @@ export default function MunicipalityForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.municipalities
+    adminApi.panchayatUnions
       .read(id)
       .then((res: any) => {
         if (cancelled) return;
@@ -424,11 +424,11 @@ export default function MunicipalityForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
-  const submitMunicipality = async (payload: MunicipalityPayload) => {
+  const submitPanchayatUnion = async (payload: PanchayatUnionPayload) => {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.municipalities.update(id, payload);
+        await adminApi.panchayatUnions.update(id, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -436,7 +436,7 @@ export default function MunicipalityForm() {
           showConfirmButton: false,
         });
       } else {
-        await adminApi.municipalities.create(payload);
+        await adminApi.panchayatUnions.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -464,9 +464,9 @@ export default function MunicipalityForm() {
     );
   }
 
-  const initialPayload: MunicipalityInitialPayload = recordData
+  const initialPayload: PanchayatUnionInitialPayload = recordData
     ? {
-        name: textOf(recordData, "municipality_name", "name"),
+        name: textOf(recordData, "union_name", "name"),
         state_id: normalizeNullable(recordData.state_id ?? recordData.state),
         district_id: normalizeNullable(recordData.district_id ?? recordData.district),
         area_type_id: normalizeNullable(recordData.area_type_id ?? recordData.area_type),
@@ -484,17 +484,17 @@ export default function MunicipalityForm() {
 
   const formKey = isEdit
     ? String(recordData?.unique_id ?? id)
-    : "new-municipality";
+    : "new-panchayatunion";
 
   return (
     <ComponentCard title={title}>
-      <MunicipalityEditor
+      <PanchayatUnionEditor
         key={formKey}
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
         onCancel={() => navigate(LIST_PATH)}
-        onSubmit={submitMunicipality}
+        onSubmit={submitPanchayatUnion}
         states={states}
         districts={districts}
         areaTypes={areaTypes}

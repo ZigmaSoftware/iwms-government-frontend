@@ -9,8 +9,6 @@ export type Row = {
     latitude?: number | string;
     longitude?: number | string;
     panchayat_name?: string;
-    ward_name?: string;
-    zone_name?: string;
   };
 };
 

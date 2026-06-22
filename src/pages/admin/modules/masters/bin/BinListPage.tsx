@@ -7,7 +7,7 @@ import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -19,9 +19,9 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { PencilIcon } from "@/icons";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
+import { formatCoordinates } from "../shared/formatCoordinates";
 
 
 const { encMasters, encBins } = getEncryptedRoute();
@@ -30,16 +30,13 @@ const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
   encBins,
 );
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   bin_name: ["bin_name", "name"],
   bin_capacity: ["bin_capacity", "capacity_liters"],
-  ward_name: ["ward_id", "ward", "ward_name"],
   panchayat_name: ["panchayat_id", "panchayat", "panchayat_name"],
   waste_type_name: ["wastetype_id", "waste_type_id", "waste_type", "waste_type_name"],
   qr_code: ["bin_qr", "qr_code"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -48,25 +45,11 @@ export default function BinList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [selectedQr, setSelectedQr] = useState<string | null>(null);
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -85,19 +68,9 @@ export default function BinList() {
     let mounted = true;
 
     const loadBins = async () => {
-      if (!companyUniqueId && !isSuperAdmin) {
-        setBinRows([]);
-        return;
-      }
-
       setIsLoading(true);
       try {
-        const data = await binApi.readAll({
-          params: {
-            company_id: companyUniqueId,
-            project_id: projectId || undefined,
-          },
-        });
+        const data = await binApi.readAll();
         if (mounted) setBinRows(data as BinApiRow[]);
       } catch (error) {
         if (mounted) {
@@ -114,12 +87,9 @@ export default function BinList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   const bins = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as Bin[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as Bin[];
-
     const rows = Array.isArray(binRows) ? binRows : [];
     const mapped: Bin[] = rows.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
@@ -134,8 +104,6 @@ export default function BinList() {
       project_name: row.project_name ? String(row.project_name) : null,
       panchayat_name: row.panchayat_name ? String(row.panchayat_name) : undefined,
       panchayat: row.panchayat ? String(row.panchayat) : undefined,
-      ward_name: String(row.ward_name ?? row.ward ?? ""),
-      ward: row.ward ? String(row.ward) : undefined,
       bin_type: row.bin_type ? String(row.bin_type) : undefined,
       waste_type_name: row.waste_type_name ? String(row.waste_type_name) : undefined,
       wastetype_name: row.wastetype_name ? String(row.wastetype_name) : undefined,
@@ -143,16 +111,11 @@ export default function BinList() {
       bin_status: row.bin_status ? String(row.bin_status) : undefined,
       latitude: row.latitude as number | string | undefined,
       longitude: row.longitude as number | string | undefined,
+      coordinates: row.coordinates,
       is_active: Boolean(row.is_active),
     }));
 
-    return mapped.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
+    return mapped;
   })();
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -208,11 +171,7 @@ export default function BinList() {
   const actionBodyTemplate = (row: Bin) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), {
-            state: { companyUniqueId, projectId },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -261,40 +220,11 @@ export default function BinList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -311,12 +241,10 @@ export default function BinList() {
           "bin_name",
           "panchayat_name",
           "panchayat",
-          "ward_name",
           "waste_type_name",
           "wastetype_name",
           "waste_type",
-          "company_name",
-          "project_name",
+          "coordinates",
         ]}
         header={header}
         stripedRows
@@ -344,17 +272,6 @@ export default function BinList() {
             filter
             showFilterMatchModes={false}
             style={{ minWidth: "150px" }}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header={t("admin.nav.ward")}
-            body={(row: Bin) => cap(row.ward_name || row.ward || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            style={{ minWidth: "120px" }}
           />
         )}
         {showCol("panchayat_name") && (
@@ -385,6 +302,14 @@ export default function BinList() {
             header={t("admin.bin.qr_label")}
             body={(row: Bin) => qrTemplate(row)}
             style={{ width: "100px", textAlign: "center" }}
+          />
+        )}
+        {showCol("coordinates") && (
+          <Column
+            field="coordinates"
+            header="Coordinates"
+            body={(row: Bin) => formatCoordinates(row.coordinates)}
+            style={{ minWidth: "240px" }}
           />
         )}
         {showCol("is_active") && (

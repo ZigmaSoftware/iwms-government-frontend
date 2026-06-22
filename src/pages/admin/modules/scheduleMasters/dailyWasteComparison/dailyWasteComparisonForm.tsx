@@ -1,6 +1,6 @@
 import type { TripLogData } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { RefreshCw, Info, Scale, Truck, MapPin } from "lucide-react";
@@ -17,7 +17,6 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { panchayatApi, wasteTypeApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api";
@@ -138,27 +137,9 @@ export default function DailyWasteComparisonForm() {
   const { id } = useParams();
   const location = useLocation();
   const routeState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
     record?: Record<string, unknown>;
   } | null;
   const isEdit = Boolean(id);
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyWasteComparison);
@@ -185,36 +166,11 @@ export default function DailyWasteComparisonForm() {
   /* ── Form submission ── */
   const [loading, setLoading] = useState(false);
   const [recordData] = useState<Record<string, unknown> | null>(routeState?.record ?? null);
-  const [pendingProjectId, setPendingProjectId] = useState("");
-
-  /* re-apply projectId after hook re-fetches */
-  useEffect(() => {
-    if (!pendingProjectId || projects.length === 0) return;
-    const match = projects.find((p) => p.value === pendingProjectId);
-    if (match) {
-      setProjectId(pendingProjectId);
-      setPendingProjectId("");
-    }
-  }, [pendingProjectId, projects, setProjectId]);
-
-  /* tenant params */
-  const tenantParams = useMemo(
-    () =>
-      companyUniqueId && projectId
-        ? { company_id: companyUniqueId, project_id: projectId }
-        : null,
-    [companyUniqueId, projectId],
-  );
 
   /* fetch panchayat dropdown — store agreed_weight_kg per panchayat */
   useEffect(() => {
-    if (!tenantParams) {
-      setPanchayatOptions([]);
-      setPanchayatDataMap({});
-      return;
-    }
     panchayatApi
-      .readAll({ params: tenantParams })
+      .readAll()
       .then((res) => {
         const records = toRecordList(res).filter((x) => x.is_active !== false);
         const opts = records
@@ -240,7 +196,7 @@ export default function DailyWasteComparisonForm() {
         setPanchayatOptions([]);
         setPanchayatDataMap({});
       });
-  }, [tenantParams]);
+  }, []);
 
   /* fetch waste type dropdown */
   useEffect(() => {
@@ -262,20 +218,14 @@ export default function DailyWasteComparisonForm() {
   /* hydrate edit record's criteria */
   useEffect(() => {
     if (!isEdit || !routeState?.record) return;
-    applyCompanyProjectFromRecord(routeState.record);
-    const recProjectId = normalizeId(routeState.record.project_id ?? routeState.record.project);
-    if (recProjectId) setPendingProjectId(recProjectId);
-
     setPanchayatId(normalizeId(routeState.record.panchayat_id ?? routeState.record.panchayat));
     setWasteTypeId(normalizeId(routeState.record.waste_type_id));
     const date = toText(routeState.record.collection_date);
     if (date) setCollectionDate(date.slice(0, 10));
-  }, [applyCompanyProjectFromRecord, isEdit, routeState?.record]);
+  }, [isEdit, routeState?.record]);
 
   /* ── Auto-fetch from trip logs when all criteria are set ── */
   const canFetch =
-    Boolean(companyUniqueId) &&
-    Boolean(projectId) &&
     Boolean(panchayatId) &&
     Boolean(wasteTypeId) &&
     Boolean(collectionDate);
@@ -288,8 +238,6 @@ export default function DailyWasteComparisonForm() {
     try {
       const { data } = await api.get("/schedule-masters/daily-waste-comparisons/", {
         params: {
-          company_id: companyUniqueId,
-          project_id: projectId,
           date: collectionDate,
           panchayat_id: panchayatId,
           waste_type_id: wasteTypeId,
@@ -317,7 +265,7 @@ export default function DailyWasteComparisonForm() {
       setFetchError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyUniqueId, projectId, panchayatId, wasteTypeId, collectionDate]);
+  }, [panchayatId, wasteTypeId, collectionDate]);
 
   /* ── Agreed weight from panchayat master ── */
   const panchayatAgreedWeight = panchayatId
@@ -340,8 +288,6 @@ export default function DailyWasteComparisonForm() {
     }
 
     const missing: string[] = [];
-    if (!companyUniqueId) missing.push(t("admin.nav.company"));
-    if (!projectId) missing.push(t("admin.nav.project"));
     if (!panchayatId) missing.push(t("admin.nav.panchayat"));
     if (!wasteTypeId) missing.push(t("common.waste_type"));
     if (!collectionDate) missing.push("Collection Date");
@@ -354,8 +300,6 @@ export default function DailyWasteComparisonForm() {
     setLoading(true);
     try {
       const payload = {
-        company_id: companyUniqueId,
-        project_id: projectId,
         panchayat_id: panchayatId,
         waste_type_id: wasteTypeId,
         collection_date: collectionDate,
@@ -376,9 +320,7 @@ export default function DailyWasteComparisonForm() {
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success",
       );
-      navigate(LIST_PATH, {
-        state: { companyUniqueId, projectId },
-      });
+      navigate(LIST_PATH);
     } catch {
       Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
     } finally {
@@ -386,20 +328,6 @@ export default function DailyWasteComparisonForm() {
     }
   };
 
-  const recordCompanyId = normalizeId(recordData?.company_unique_id ?? recordData?.company_id ?? recordData?.company);
-  const effectiveCompanyId = companyUniqueId || recordCompanyId;
-  const effectiveProjectId = projectId;
-
-  const companyOptions = ensureSelectedOption(
-    companies.map((x) => ({ value: x.value, label: x.label })),
-    effectiveCompanyId,
-    toText(recordData?.company_name ?? recordData?.company),
-  );
-  const projectOptions = ensureSelectedOption(
-    projects.map((x) => ({ value: x.value, label: x.label })),
-    effectiveProjectId,
-    toText(recordData?.project_name ?? recordData?.project),
-  );
   const panchayatOptionsWithSelected = ensureSelectedOption(
     panchayatOptions,
     panchayatId,
@@ -494,7 +422,7 @@ export default function DailyWasteComparisonForm() {
 
           {!canFetch && (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-400">
-              Select company, project, panchayat, waste type, and date to load trip log data.
+              Select panchayat, waste type, and date to load trip log data.
             </div>
           )}
 
@@ -602,7 +530,7 @@ export default function DailyWasteComparisonForm() {
           </button>
           <button
             type="button"
-            onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(LIST_PATH)}
             className="bg-red-400 hover:bg-red-500 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors"
           >
             {t("common.cancel")}

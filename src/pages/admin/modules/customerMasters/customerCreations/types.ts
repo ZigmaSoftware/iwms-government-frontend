@@ -53,9 +53,10 @@ export interface FormDataType {
   country_id: string;
   state_id: string;
   district_id: string;
-  city_id: string;
-  zone_id: string;
-  ward_id: string;
+  corporation_id: string;
+  municipality_id: string;
+  town_panchayat_id: string;
+  panchayat_union_id: string;
   panchayat_id: string;
   is_active: boolean;
   is_bulkwaste_generator: boolean;
@@ -80,9 +81,6 @@ export type Customer = {
   area: string;
   pincode: string;
   panchayat_name: string;
-  ward_name: string;
-  zone_name: string;
-  city_name: string;
   district_name: string;
   state_name: string;
   country_name: string;
@@ -105,9 +103,6 @@ export type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   customer_name?: { value: string | null; matchMode: FilterMatchMode };
   contact_no?: { value: string | null; matchMode: FilterMatchMode };
-  ward_name?: { value: string | null; matchMode: FilterMatchMode };
-  zone_name?: { value: string | null; matchMode: FilterMatchMode };
-  city_name?: { value: string | null; matchMode: FilterMatchMode };
   state_name?: { value: string | null; matchMode: FilterMatchMode };
   panchayat_name?: { value: string | null; matchMode: FilterMatchMode };
 };

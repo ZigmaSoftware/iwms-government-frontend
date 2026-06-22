@@ -19,7 +19,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { contractorUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
+import { contractorUserTypeApi, governmentUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "../types/admin.types";
 
@@ -55,9 +55,11 @@ export default function StaffUserTypeList() {
   const { t } = useTranslation();
   const [staffUserTypes, setStaffUserTypes] = useState<StaffUserType[]>([]);
   const [contractorUserTypes, setContractorUserTypes] = useState<StaffUserType[]>([]);
+  const [governmentUserTypes, setGovernmentUserTypes] = useState<StaffUserType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStaff, setIsUpdatingStaff] = useState(false);
   const [isUpdatingContractor, setIsUpdatingContractor] = useState(false);
+  const [isUpdatingGovernment, setIsUpdatingGovernment] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
@@ -79,12 +81,14 @@ export default function StaffUserTypeList() {
   const loadRecords = async () => {
     setIsLoading(true);
     try {
-      const [staffRes, contractorRes] = await Promise.all([
+      const [staffRes, contractorRes, governmentRes] = await Promise.all([
         staffUserTypeApi.readAll(),
         contractorUserTypeApi.readAll(),
+        governmentUserTypeApi.readAll(),
       ]);
       setStaffUserTypes(toRecordList(staffRes));
       setContractorUserTypes(toRecordList(contractorRes));
+      setGovernmentUserTypes(toRecordList(governmentRes));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -97,7 +101,7 @@ export default function StaffUserTypeList() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const records = useMemo(() => {
-    const normalize = (list: StaffUserType[], category: "Staff" | "Contractor") =>
+    const normalize = (list: StaffUserType[], category: "Staff" | "Contractor" | "Government") =>
       (list ?? []).map((item) => ({
         ...item,
         usertype_id: item.usertype_id ?? item.usertype?.unique_id ?? null,
@@ -108,8 +112,9 @@ export default function StaffUserTypeList() {
     return [
       ...normalize(staffUserTypes, "Staff"),
       ...normalize(contractorUserTypes, "Contractor"),
+      ...normalize(governmentUserTypes, "Government"),
     ];
-  }, [staffUserTypes, contractorUserTypes, t]);
+  }, [staffUserTypes, contractorUserTypes, governmentUserTypes, t]);
 
   /* -----------------------------------------------------------
      STATUS SWITCH
@@ -122,6 +127,9 @@ export default function StaffUserTypeList() {
       if (row.category === "Contractor") {
         setIsUpdatingContractor(true);
         await contractorUserTypeApi.update(row.unique_id, { is_active: checked });
+      } else if (row.category === "Government") {
+        setIsUpdatingGovernment(true);
+        await governmentUserTypeApi.update(row.unique_id, { is_active: checked });
       } else {
         setIsUpdatingStaff(true);
         await staffUserTypeApi.update(row.unique_id, { is_active: checked });
@@ -137,16 +145,18 @@ export default function StaffUserTypeList() {
     } finally {
       setIsUpdatingContractor(false);
       setIsUpdatingStaff(false);
+      setIsUpdatingGovernment(false);
       setPendingStatusId(null);
     }
   };
 
   const statusTemplate = (row: any) => {
     const id = String(row.unique_id);
-    const isPending =
-      (row.category === "Contractor"
-        ? isUpdatingContractor
-        : isUpdatingStaff) && pendingStatusId === id;
+    const updatingFlag =
+      row.category === "Contractor" ? isUpdatingContractor
+      : row.category === "Government" ? isUpdatingGovernment
+      : isUpdatingStaff;
+    const isPending = updatingFlag && pendingStatusId === id;
     return (
       <Switch
         checked={row.is_active}
@@ -263,8 +273,16 @@ export default function StaffUserTypeList() {
             style={{ minWidth: 120 }}
           /> */}
           <Column
+            field="level_display"
+            header="Level"
+            body={(row: any) => row.level_display ?? row.level ?? "—"}
+            sortable
+            style={{ minWidth: 150 }}
+          />
+          <Column
             field="name"
             header={t("admin.nav.staff_user_type")}
+            body={(row: any) => row.name_display ?? row.name ?? "—"}
             sortable
             style={{ minWidth: 180 }}
           />

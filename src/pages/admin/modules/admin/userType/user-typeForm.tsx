@@ -1,12 +1,11 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
@@ -21,16 +20,6 @@ export default function UserTypeForm() {
   const { id } = useParams();
   const userTypeId = id;
   const isEdit = Boolean(userTypeId);
-
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    loggedInCompanyUniqueId,
-    isSuperAdmin,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -62,8 +51,7 @@ export default function UserTypeForm() {
     const data = recordData;
     setName(String((data as any).name ?? ""));
     setIsActive(Boolean((data as any).is_active));
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-  }, [recordData, applyCompanyProjectFromRecord]);
+  }, [recordData]);
 
   /* -----------------------------------------------------------
      SUBMIT HANDLER
@@ -71,21 +59,9 @@ export default function UserTypeForm() {
   const handleSubmit = async (e: any) => {
     e.preventDefault();
 
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
-
     const payload = {
       name,
       is_active: isActive,
-      company_id: companyUniqueId,
     };
 
     setIsSubmitting(true);
@@ -108,7 +84,7 @@ export default function UserTypeForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error: any) {
       const message =
         error?.response?.data?.name?.[0] ||
@@ -194,7 +170,7 @@ export default function UserTypeForm() {
             <Button
               type="button"
               variant="destructive"
-              onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(ENC_LIST_PATH)}
               // className="bg-red-500 text-white font-medium px-6 py-2 rounded hover:bg-red-600 transition"
             >
               {t("common.cancel")}

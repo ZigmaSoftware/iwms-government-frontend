@@ -22,9 +22,6 @@ export type ContinentRecord = AdminRecord;
 export type CountryRecord = AdminRecord;
 export type StateRecord = AdminRecord;
 export type DistrictRecord = AdminRecord;
-export type CityRecord = AdminRecord;
-export type ZoneRecord = AdminRecord;
-export type WardRecord = AdminRecord;
 export type PanchayatRecord = AdminRecord;
 export type PropertyRecord = AdminRecord & { property_name: string };
 export type SubPropertyRecord = AdminRecord;
@@ -55,9 +52,6 @@ export type ContinentPayload = { name: string; is_active: boolean; [key: string]
 export type CountryPayload = Record<string, any>;
 export type StatePayload = Record<string, any>;
 export type DistrictPayload = Record<string, any>;
-export type CityPayload = Record<string, any>;
-export type ZonePayload = Record<string, any>;
-export type WardPayload = Record<string, any>;
 export type PanchayatPayload = Record<string, any>;
 export type PropertyPayload = Record<string, any>;
 export type SubPropertyPayload = Record<string, any>;
@@ -309,22 +303,6 @@ export const useDistrictQuery = (id: string | number | null | undefined) => useD
 export const useCreateDistrictMutation = () => useCreate<DistrictPayload, DistrictRecord>("districts");
 export const useUpdateDistrictMutation = () => useUpdate<DistrictPayload, DistrictRecord>("districts");
 
-export const useCitiesQuery = (filters?: Record<string, unknown> | null) => useList<CityRecord>("cities", filters);
-export const useCitiesList = (filters?: Record<string, unknown> | null) => useCitiesQuery(filters);
-export const useCityQuery = (id: string | number | null | undefined) => useDetail<CityRecord>("cities", id);
-export const useCreateCityMutation = () => useCreate<CityPayload, CityRecord>("cities");
-export const useUpdateCityMutation = () => useUpdate<CityPayload, CityRecord>("cities");
-
-export const useZonesQuery = (filters?: Record<string, unknown> | string | null) => useList<ZoneRecord>("zones", typeof filters === "string" ? null : filters, filters !== null && filters !== "");
-export const useZoneQuery = (id: string | number | null | undefined) => useDetail<ZoneRecord>("zones", id);
-export const useCreateZoneMutation = () => useCreate<ZonePayload, ZoneRecord>("zones");
-export const useUpdateZoneMutation = () => useUpdate<ZonePayload, ZoneRecord>("zones");
-
-export const useWardsQuery = (filters?: Record<string, unknown> | string | null) => useList<WardRecord>("wards", typeof filters === "string" ? null : filters, filters !== null && filters !== "");
-export const useWardQuery = (id: string | number | null | undefined) => useDetail<WardRecord>("wards", id);
-export const useCreateWardMutation = () => useCreate<WardPayload, WardRecord>("wards");
-export const useUpdateWardMutation = () => useUpdate<WardPayload, WardRecord>("wards");
-
 export const usePanchayatsQuery = (filters?: Record<string, unknown> | null) => useList<PanchayatRecord>("panchayats", filters);
 export const usePanchayatQuery = (id: string | number | null | undefined) => useDetail<PanchayatRecord>("panchayats", id);
 export const useCreatePanchayatMutation = () => useCreate<PanchayatPayload, PanchayatRecord>("panchayats");
@@ -539,9 +517,6 @@ export const useComplaintAllSubCategories = (_companyId: string) =>
     [],
     true
   );
-export const useComplaintZones = (customerId: string) => useZonesQuery(customerId);
-export const useComplaintWards = (zoneId: string) => useWardsQuery(zoneId);
-
 export const useAlternativeStaffTemplateList = (params?: Record<string, any>) => useList("alternativeStaffTemplate", params);
 export const useAlternativeStaffTemplateQuery = (id?: string | number | null) => useDetail("alternativeStaffTemplate", id);
 export const useCreateAlternativeStaffTemplate = () => useCreate("alternativeStaffTemplate");
@@ -564,10 +539,6 @@ export const useUnassignedStaffPoolQuery = (id?: string | number | null) => useD
 export const useCreateUnassignedStaffPool = () => useCreate("unassignedStaffPool");
 export const useUpdateUnassignedStaffPool = () => useUpdate("unassignedStaffPool");
 export const useUsersList = (params?: Record<string, any>) => useList("usersCreation", params);
-export const useZonesList = (params?: Record<string, any>) => useList("zones", params);
-export const useWardsList = (params?: Record<string, any>) => useList("wards", params);
-export const useZonePropertyLoadTrackerList = (filters?: Record<string, unknown> | null) => useList("zonePropertyLoadTrackers", filters);
-export const useDeleteZonePropertyLoadTracker = () => useDelete("zonePropertyLoadTrackers");
 
 export const useVehicleTripAuditsQuery = (filters?: Record<string, unknown> | null) => useList("vehicleTripAudits", filters);
 export const useVehicleTripAuditQuery = (id?: string | number | null) => useDetail("vehicleTripAudits", id);

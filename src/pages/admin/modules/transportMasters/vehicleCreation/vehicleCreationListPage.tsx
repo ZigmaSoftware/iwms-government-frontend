@@ -1,7 +1,7 @@
 import type { VehicleCreationRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -20,7 +20,6 @@ import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
@@ -132,27 +131,6 @@ export default function VehicleCreationListPage() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-  // ── Company / Project ─────────────────────────────────────────────────────
-  const location = useLocation();
-  const restoredState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-  } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
-
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -198,21 +176,7 @@ export default function VehicleCreationListPage() {
     };
   }, [t, refetchTrigger]);
 
-  // ── Derived rows with client-side filter ──────────────────────────────────
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0)
-      return [] as VehicleCreationRecord[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as VehicleCreationRecord[];
-
-    return allVehicles.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches =
-        !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
+  const rows = allVehicles;
 
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
@@ -483,47 +447,12 @@ export default function VehicleCreationListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Company filter */}
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Project filter */}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           {/* Add button */}
           <Button
             label={t("admin.vehicle_creation.add")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() =>
-              navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })
-            }
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -547,8 +476,6 @@ export default function VehicleCreationListPage() {
           ...(showCol("vehicle_no") ? ["vehicle_no"] : []),
           ...(showCol("vehicle_type_name") ? ["vehicle_type_name"] : []),
           ...(showCol("fuel_type_name") ? ["fuel_type_name"] : []),
-          "company_name",
-          "project_name",
         ]}
         emptyMessage={t("admin.vehicle_creation.empty_message")}
       >

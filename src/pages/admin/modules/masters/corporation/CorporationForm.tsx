@@ -35,7 +35,7 @@ type Option = {
 
 type RecordRow = Record<string, any>;
 
-type MunicipalityInitialPayload = {
+type CorporationInitialPayload = {
   name: string;
   state_id: string;
   district_id: string;
@@ -44,8 +44,8 @@ type MunicipalityInitialPayload = {
   is_active: boolean;
 };
 
-type MunicipalityPayload = {
-  municipality_name: string;
+type CorporationPayload = {
+  corporation_name: string;
   state_id: string;
   district_id: string;
   area_type_id: string;
@@ -53,12 +53,12 @@ type MunicipalityPayload = {
   is_active: boolean;
 };
 
-type MunicipalityEditorProps = {
-  initialPayload: MunicipalityInitialPayload;
+type CorporationEditorProps = {
+  initialPayload: CorporationInitialPayload;
   isEdit: boolean;
   isSubmitting: boolean;
   onCancel: () => void;
-  onSubmit: (payload: MunicipalityPayload) => Promise<void>;
+  onSubmit: (payload: CorporationPayload) => Promise<void>;
   states: Option[];
   districts: Option[];
   areaTypes: Option[];
@@ -110,16 +110,16 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const MUNICIPALITY_FIELDS: Record<string, string[]> = {
+const CORPORATION_FIELDS: Record<string, string[]> = {
   state_id: ["state_id"],
   district_id: ["district_id"],
   area_type_id: ["area_type_id"],
-  municipality_name: ["municipality_name"],
+  corporation_name: ["corporation_name"],
   coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
-function MunicipalityEditor({
+function CorporationEditor({
   initialPayload,
   isEdit,
   isSubmitting,
@@ -128,10 +128,10 @@ function MunicipalityEditor({
   states,
   districts,
   areaTypes,
-}: MunicipalityEditorProps) {
+}: CorporationEditorProps) {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "municipalities", MUNICIPALITY_FIELDS);
+    useFieldVisibility("masters", "corporations", CORPORATION_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
   const [stateId, setStateId] = useState(initialPayload.state_id);
@@ -163,7 +163,7 @@ function MunicipalityEditor({
     e.preventDefault();
 
     const fieldValues: Record<string, unknown> = {
-      municipality_name: name.trim(),
+      corporation_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
@@ -171,7 +171,7 @@ function MunicipalityEditor({
 
     if (
       getMissingRequiredFields(
-        ["municipality_name", "state_id", "district_id", "area_type_id"],
+        ["corporation_name", "state_id", "district_id", "area_type_id"],
         (fieldKey) => fieldValues[fieldKey]
       ).length > 0
     ) {
@@ -184,8 +184,8 @@ function MunicipalityEditor({
       return;
     }
 
-    const rawPayload: MunicipalityPayload = {
-      municipality_name: name.trim(),
+    const rawPayload: CorporationPayload = {
+      corporation_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
@@ -193,7 +193,7 @@ function MunicipalityEditor({
       is_active: isActive,
     };
 
-    await onSubmit(filterPayload(rawPayload) as MunicipalityPayload);
+    await onSubmit(filterPayload(rawPayload) as CorporationPayload);
   };
 
   return (
@@ -278,17 +278,17 @@ function MunicipalityEditor({
           </div>
         )}
 
-        {showField("municipality_name") && (
+        {showField("corporation_name") && (
           <div>
-            <Label htmlFor="municipalityName">
-              Municipality Name <span className="text-red-500">*</span>
+            <Label htmlFor="corporationName">
+              Corporation Name <span className="text-red-500">*</span>
             </Label>
             <Input
-              id="municipalityName"
+              id="corporationName"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter Municipality Name"
+              placeholder="Enter Corporation Name"
               className="input-validate w-full"
               disabled={isSubmitting}
               required
@@ -340,13 +340,13 @@ function MunicipalityEditor({
   );
 }
 
-export default function MunicipalityForm() {
+export default function CorporationForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const { encMasters, encMunicipalities } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encMunicipalities);
+  const { encMasters, encCorporations } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encCorporations);
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -355,7 +355,7 @@ export default function MunicipalityForm() {
   const [districts, setDistricts] = useState<Option[]>([]);
   const [areaTypes, setAreaTypes] = useState<Option[]>([]);
 
-  const title = isEdit ? "Edit Municipality" : "Add Municipality";
+  const title = isEdit ? "Edit Corporation" : "Add Corporation";
 
   useEffect(() => {
     let cancelled = false;
@@ -405,7 +405,7 @@ export default function MunicipalityForm() {
     if (!isEdit || !id) return;
     let cancelled = false;
     setLoadingRecord(true);
-    adminApi.municipalities
+    adminApi.corporations
       .read(id)
       .then((res: any) => {
         if (cancelled) return;
@@ -424,11 +424,11 @@ export default function MunicipalityForm() {
     return () => { cancelled = true; };
   }, [id, isEdit]);
 
-  const submitMunicipality = async (payload: MunicipalityPayload) => {
+  const submitCorporation = async (payload: CorporationPayload) => {
     setIsSubmitting(true);
     try {
       if (isEdit && id) {
-        await adminApi.municipalities.update(id, payload);
+        await adminApi.corporations.update(id, payload);
         Swal.fire({
           icon: "success",
           title: t("common.updated_success"),
@@ -436,7 +436,7 @@ export default function MunicipalityForm() {
           showConfirmButton: false,
         });
       } else {
-        await adminApi.municipalities.create(payload);
+        await adminApi.corporations.create(payload);
         Swal.fire({
           icon: "success",
           title: t("common.added_success"),
@@ -464,9 +464,9 @@ export default function MunicipalityForm() {
     );
   }
 
-  const initialPayload: MunicipalityInitialPayload = recordData
+  const initialPayload: CorporationInitialPayload = recordData
     ? {
-        name: textOf(recordData, "municipality_name", "name"),
+        name: textOf(recordData, "corporation_name", "name"),
         state_id: normalizeNullable(recordData.state_id ?? recordData.state),
         district_id: normalizeNullable(recordData.district_id ?? recordData.district),
         area_type_id: normalizeNullable(recordData.area_type_id ?? recordData.area_type),
@@ -484,17 +484,17 @@ export default function MunicipalityForm() {
 
   const formKey = isEdit
     ? String(recordData?.unique_id ?? id)
-    : "new-municipality";
+    : "new-corporation";
 
   return (
     <ComponentCard title={title}>
-      <MunicipalityEditor
+      <CorporationEditor
         key={formKey}
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
         onCancel={() => navigate(LIST_PATH)}
-        onSubmit={submitMunicipality}
+        onSubmit={submitCorporation}
         states={states}
         districts={districts}
         areaTypes={areaTypes}

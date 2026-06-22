@@ -21,11 +21,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDesignations,
     encStates,
     encDistricts,
-    encCities,
-    encWards,
     encCollectionPoints,
     encWasteTypes,
-    encZones,
     encProperties,
     encSubProperties,
     encStaffCreation,
@@ -52,7 +49,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encVehicleType,
     encCollectionMonitoring,
     encPanchayatBaseCollection,
-    encWardBaseCollection,
     encWasteCollectedData,
     encWasteManagementMaster,
     encWorkforceManagement,
@@ -69,18 +65,14 @@ export function buildNavRouteMap(): RouteEntry[] {
     encStaffTemplateAudit,
     encCommonAudit,
     encTripPlans,
-    encZonePropertyLoadTracker,
     encVehicleTripAudit,
     encTripExceptionLog,
-    encCompanyCreation,
-    encProjectCreation,
-    encSuperAdminMaster,
     encPanchayats,
-    encPanchayatLeaders,
     encAreaTypes,
+    encCorporations,
     encMunicipalities,
     encTownPanchayats,
-    encBlockPanchayatUnions,
+    encPanchayatUnions,
     encBins,
     encScheduleMasters,
     encTripPlanCollectionPoints,
@@ -95,31 +87,22 @@ export function buildNavRouteMap(): RouteEntry[] {
   _cache = [
     { path: "/admin", nameKey: "admin.nav.dashboard" },
     { path: `/${encAttendance}/${encAttendance}`, nameKey: "admin.nav.attendance" },
-    // SuperAdmin Masters
-    { path: `/${encSuperAdminMaster}/${encCompanyCreation}`, nameKey: "admin.nav.company", parentNameKey: "admin.nav.superAdmin_masters" },
-    { path: `/${encSuperAdminMaster}/${encProjectCreation}`, nameKey: "admin.nav.project", parentNameKey: "admin.nav.superAdmin_masters" },
     // Common Masters
     { path: `/${encMasters}/${encContinents}`, nameKey: "admin.nav.continent", parentNameKey: "admin.nav.common_masters" },
     { path: `/${encMasters}/${encCountries}`, nameKey: "admin.nav.country", parentNameKey: "admin.nav.common_masters" },
-    { path: `/${encMasters}/${encStates}`, nameKey: "admin.nav.state", parentNameKey: "admin.nav.common_masters" },
+    { path: `/${encMasters}/${encStates}`, nameKey: "admin.nav.state", parentNameKey: "admin.nav.masters" },
     // Masters — CRT hierarchy order (SWM Rules 2026)
     // Org / Department Setup
     { path: `/${encMasters}/${encDepartments}`, nameKey: "admin.nav.department", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDesignations}`, nameKey: "admin.nav.designation", parentNameKey: "admin.nav.masters" },
     // Administrative / Geographic Hierarchy
     { path: `/${encMasters}/${encDistricts}`, nameKey: "admin.nav.district", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encZones}`, nameKey: "admin.nav.zone", parentNameKey: "admin.nav.masters" },
-    // Urban Local Bodies (ULB) — parallel at same level
-    { path: `/${encMasters}/${encCities}`, nameKey: "admin.nav.city", parentNameKey: "admin.nav.masters" },
+    { path: `/${encMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.masters" },
+    { path: `/${encMasters}/${encCorporations}`, nameKey: "admin.nav.corporation", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encMunicipalities}`, nameKey: "admin.nav.municipality", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encTownPanchayats}`, nameKey: "admin.nav.town_panchayat", parentNameKey: "admin.nav.masters" },
-    // Rural Local Bodies — as per Rule 40
-    { path: `/${encMasters}/${encBlockPanchayatUnions}`, nameKey: "admin.nav.block_panchayat_union", parentNameKey: "admin.nav.masters" },
-    // Operational / Field Level
-    { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.masters" },
+    { path: `/${encMasters}/${encPanchayatUnions}`, nameKey: "admin.nav.panchayat_union", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encPanchayatLeaders}`, nameKey: "admin.nav.panchayat_leader", parentNameKey: "admin.nav.masters" },
     // Waste Types
     { path: `/${encMasters}/${encProperties}`, nameKey: "admin.nav.property", parentNameKey: "admin.nav.wastetype" },
     { path: `/${encMasters}/${encSubProperties}`, nameKey: "admin.nav.sub_property", parentNameKey: "admin.nav.wastetype" },
@@ -141,7 +124,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
     // Process Items
-    { path: `/${encTransportMaster}/${encZonePropertyLoadTracker}`, nameKey: "admin.nav.zone_property_load_tracker", parentNameKey: "admin.nav.process_items" },
     // Customer Masters
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
@@ -179,7 +161,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Waste Management
     { path: `/${encWasteManagementMaster}/${encCollectionMonitoring}`, nameKey: "admin.nav.collection_monitoring", parentNameKey: "admin.nav.waste_management" },
     { path: `/${encWasteManagementMaster}/${encPanchayatBaseCollection}`, nameKey: "admin.nav.panchayat_base_collection", parentNameKey: "admin.nav.waste_management" },
-    { path: `/${encWasteManagementMaster}/${encWardBaseCollection}`, nameKey: "admin.nav.ward_base_collection", parentNameKey: "admin.nav.waste_management" },
     // Workforce Management
     { path: `/${encWorkforceManagement}/${encWorkforceManagement}`, nameKey: "admin.nav.workforce_management", parentNameKey: "admin.nav.workforce_management" },
     // Reports

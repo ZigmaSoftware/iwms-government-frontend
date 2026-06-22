@@ -11,10 +11,6 @@ export type TripLogData = {
 
 export type DailyReportRow = {
   unique_id: string;
-  company_id: string;
-  company_name?: string;
-  project_id: string;
-  project_name?: string;
   collection_date: string;
   panchayat_id: string;
   panchayat_name?: string;

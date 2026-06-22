@@ -1,7 +1,7 @@
 import type { VehicleTypePayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
@@ -46,31 +45,11 @@ export default function VehicleTypeCreationForm() {
     VEHICLE_TYPE_FIELDS
   );
 
-  // ── Company / Project selection (same hook used across all forms) ──────────
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
-
   // ── Local form state ──────────────────────────────────────────────────────
   const [vehicleTypeName, setVehicleTypeName] = useState("");
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string;
-    projectId: string;
-    projectName: string;
-  } | null>(null);
 
   // ── Error extractor (mirrors WasteTypeForm pattern) ───────────────────────
   const extractErr = useCallback(
@@ -105,13 +84,6 @@ export default function VehicleTypeCreationForm() {
         setVehicleTypeName(toStr(data.vehicleType));
         setDescription(toStr(data.description));
         setIsActive(Boolean(data.is_active));
-        applyCompanyProjectFromRecord(data);
-        // Store project identifiers — re-applied once the project list loads
-        setPendingProjectCandidates({
-          projectUniqueId: toStr((data.project as any)?.unique_id ?? data.project_unique_id ?? ""),
-          projectId: toStr(data.project_id ?? ""),
-          projectName: toStr(data.project_name ?? ""),
-        });
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -122,19 +94,7 @@ export default function VehicleTypeCreationForm() {
         );
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord]);
-
-  // ── Re-apply project after hook loads project list ────────────────────────
-  useEffect(() => {
-    if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
-    if (!match) match = projects.find((p) => rawId && p.value === rawId);
-    if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
-    if (match) setProjectId(match.value);
-    setPendingProjectCandidates(null);
-  }, [projects, pendingProjectCandidates, setProjectId]);
+  }, [id, isEdit]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent) => {
@@ -180,7 +140,7 @@ export default function VehicleTypeCreationForm() {
           showConfirmButton: false,
         });
       }
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
@@ -267,7 +227,7 @@ export default function VehicleTypeCreationForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
           >
             {t("common.cancel")}
           </Button>

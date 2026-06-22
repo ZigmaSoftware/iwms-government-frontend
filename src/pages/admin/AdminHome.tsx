@@ -32,10 +32,8 @@ import { Button } from "@/components/ui/button";
 import {
   areaTypeApi,
   binApi,
-  cityApi,
   collectionPointApi,
   columnPermissionApi,
-  companyApi,
   complaintApi,
   continentApi,
   countryApi,
@@ -50,7 +48,6 @@ import {
   mainScreenApi,
   mainScreenTypeApi,
   panchayatApi,
-  projectApi,
   propertiesApi,
   staffCreationApi,
   staffUserTypeApi,
@@ -66,22 +63,15 @@ import {
   vehicleTypeApi,
   wasteCollectionApi,
   wasteTypeApi,
-  wardApi,
-  zoneApi,
 } from "@/helpers/admin";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type EntityKey =
-  | "companies"
-  | "projects"
   | "continents"
   | "countries"
   | "states"
   | "districts"
-  | "cities"
-  | "zones"
-  | "wards"
   | "panchayats"
   | "departments"
   | "designations"
@@ -189,27 +179,6 @@ const MASTER_CATEGORIES: Array<{
     key: "districts",
     color: "#14b8a6",
     icon: MapPin,
-    group: "Geography",
-  },
-  {
-    label: "Cities",
-    key: "cities",
-    color: "#10b981",
-    icon: Building,
-    group: "Geography",
-  },
-  {
-    label: "Zones",
-    key: "zones",
-    color: "#22c55e",
-    icon: Layers3,
-    group: "Geography",
-  },
-  {
-    label: "Wards",
-    key: "wards",
-    color: "#84cc16",
-    icon: Home,
     group: "Geography",
   },
   {
@@ -336,15 +305,10 @@ const CHART_COLORS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const emptyData = (): DashboardData => ({
-  companies: [],
-  projects: [],
   continents: [],
   countries: [],
   states: [],
   districts: [],
-  cities: [],
-  zones: [],
-  wards: [],
   panchayats: [],
   departments: [],
   designations: [],
@@ -422,15 +386,10 @@ const extractUserTypeName = (permission: Record<string, unknown>): string => {
 };
 
 const entityRequests: Array<[EntityKey, () => Promise<unknown>]> = [
-  ["companies", () => companyApi.readAll()],
-  ["projects", () => projectApi.readAll()],
   ["continents", () => continentApi.readAll()],
   ["countries", () => countryApi.readAll()],
   ["states", () => stateApi.readAll()],
   ["districts", () => districtApi.readAll()],
-  ["cities", () => cityApi.readAll()],
-  ["zones", () => zoneApi.readAll()],
-  ["wards", () => wardApi.readAll()],
   ["panchayats", () => panchayatApi.readAll()],
   ["departments", () => departmentApi.readAll()],
   ["designations", () => designationApi.readAll()],
@@ -524,9 +483,6 @@ export default function AdminHome() {
       data.countries.length +
       data.states.length +
       data.districts.length +
-      data.cities.length +
-      data.zones.length +
-      data.wards.length +
       data.panchayats.length;
     const orgTotal =
       data.departments.length +
@@ -703,9 +659,6 @@ export default function AdminHome() {
         { label: "Countries", value: data.countries.length, sub: "Geography" },
         { label: "States", value: data.states.length, sub: "Geography" },
         { label: "Districts", value: data.districts.length, sub: "Geography" },
-        { label: "Cities", value: data.cities.length, sub: "Geography" },
-        { label: "Zones", value: data.zones.length, sub: "Geography" },
-        { label: "Wards", value: data.wards.length, sub: "Geography" },
         { label: "Panchayats", value: data.panchayats.length, sub: "Geography" },
         { label: "Departments", value: data.departments.length, sub: "Organisation" },
         { label: "Designations", value: data.designations.length, sub: "Organisation" },
@@ -1300,20 +1253,7 @@ export default function AdminHome() {
 
         {/* ── Bottom Summary Stats ────────────────────────────────────────── */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <BottomStat
-            label="Companies"
-            value={data.companies.length}
-            icon={Building2}
-            color="bg-green-600"
-            loading={loading}
-          />
-          <BottomStat
-            label="Projects"
-            value={data.projects.length}
-            icon={Layers3}
-            color="bg-orange-500"
-            loading={loading}
-          />
+
           <BottomStat
             label="Screen Permissions"
             value={data.screenPermissions.length}

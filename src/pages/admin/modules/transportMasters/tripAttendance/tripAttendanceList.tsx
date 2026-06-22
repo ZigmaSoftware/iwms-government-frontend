@@ -1,7 +1,7 @@
 import type { TableFilters, TripAttendanceRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -15,7 +15,6 @@ import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
@@ -29,34 +28,6 @@ const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
   source: ["source"],
   photo: ["photo"],
   created_at: ["created_at"],
-};
-
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
-const filterByCompanyProject = (
-  rows: any[],
-  companyId: string,
-  projectId: string
-) => {
-  const hasContextFields = rows.some((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    return Boolean(rowCompanyId || rowProjectId);
-  });
-
-  if (!hasContextFields) {
-    return rows;
-  }
-
-  return rows.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    const companyMatches = !companyId || rowCompanyId === companyId;
-    const projectMatches = !projectId || rowProjectId === projectId;
-    return companyMatches && projectMatches;
-  });
 };
 
 const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
@@ -91,24 +62,8 @@ export default function TripAttendanceList() {
   const [tripLookup, setTripLookup] = useState<Record<string, string>>({});
   const [staffLookup, setStaffLookup] = useState<Record<string, string>>({});
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  // });/
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -131,65 +86,26 @@ export default function TripAttendanceList() {
   );
 
   const fetchRecords = async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
       const [attendanceRes, tripRes, userRes, vehicleRes] = await Promise.all([
-        tripAttendanceApi.readAll({ params }),
-        dailyTripAssignmentApi.readAll({ params }),
-        userApi.readAll({ params }),
-        vehicleApi.readAll({ params }),
+        tripAttendanceApi.readAll(),
+        dailyTripAssignmentApi.readAll(),
+        userApi.readAll(),
+        vehicleApi.readAll(),
       ]);
 
-      const attendanceRows = filterByCompanyProject(
-        normalizeList(attendanceRes),
-        companyUniqueId,
-        projectId
-      );
-      const tripRows = filterByCompanyProject(
-        normalizeList(tripRes),
-        companyUniqueId,
-        projectId
-      );
-      const userRows = filterByCompanyProject(
-        normalizeList(userRes),
-        companyUniqueId,
-        projectId
-      );
-      const vehicleRows = filterByCompanyProject(
-        normalizeList(vehicleRes),
-        companyUniqueId,
-        projectId
-      );
-
-      setRecords(attendanceRows as TripAttendanceRecord[]);
+      setRecords(normalizeList(attendanceRes) as TripAttendanceRecord[]);
       setTripLookup(
         buildLookup(
-          tripRows,
+          normalizeList(tripRes),
           "unique_id",
           "trip_no",
           "unique_id"
         )
       );
-      setStaffLookup(buildLookup(userRows, "unique_id", "staff_name", "unique_id"));
-      setVehicleLookup(buildLookup(vehicleRows, "unique_id", "vehicle_no"));
+      setStaffLookup(buildLookup(normalizeList(userRes), "unique_id", "staff_name", "unique_id"));
+      setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
     } catch {
       Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
@@ -199,7 +115,7 @@ export default function TripAttendanceList() {
 
   useEffect(() => {
     fetchRecords();
-  }, [companyUniqueId, companies.length, isSuperAdmin, projectId]);
+  }, []);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -236,40 +152,11 @@ export default function TripAttendanceList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("admin.trip_attendance.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -314,8 +201,6 @@ export default function TripAttendanceList() {
           ...(showCol("staff_id") ? ["staff_id"] : []),
           ...(showCol("vehicle_id") ? ["vehicle_id"] : []),
           ...(showCol("source") ? ["source"] : []),
-          "company_name",
-          "project_name",
         ]}
         header={header}
         stripedRows

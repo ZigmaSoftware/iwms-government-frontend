@@ -2,7 +2,7 @@ import type { DailyTripAssignmentRecord } from "./types";
 import type { TableFilters, VehicleTripAuditRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -16,36 +16,8 @@ import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { normalizeList } from "@/utils/forms";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
-const filterByCompanyProject = (
-  rows: any[],
-  companyId: string,
-  projectId: string
-) => {
-  const hasContextFields = rows.some((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    return Boolean(rowCompanyId || rowProjectId);
-  });
-
-  if (!hasContextFields) {
-    return rows;
-  }
-
-  return rows.filter((item) => {
-    const rowCompanyId = normalizeId(item?.company_id ?? item?.company_unique_id);
-    const rowProjectId = normalizeId(item?.project_id ?? item?.project_unique_id);
-    const companyMatches = !companyId || rowCompanyId === companyId;
-    const projectMatches = !projectId || rowProjectId === projectId;
-    return companyMatches && projectMatches;
-  });
-};
 
 const buildLookup = (
   items: any[],
@@ -96,20 +68,6 @@ export default function VehicleTripAuditList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-
   const [audits, setAudits] = useState<VehicleTripAuditRecord[]>([]);
   const [dailyTripAssignments, setDailyTripAssignments] = useState<DailyTripAssignmentRecord[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -129,18 +87,13 @@ export default function VehicleTripAuditList() {
   );
 
   useEffect(() => {
-    if (!companyUniqueId && !isSuperAdmin) return;
     let cancelled = false;
     setLoading(true);
 
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-
     Promise.all([
-      adminApi.vehicleTripAudits.readAll({ params }),
-      adminApi.dailyTripAssignment.readAll({ params }),
-      adminApi.vehicleCreations.readAll({ params }),
+      adminApi.vehicleTripAudits.readAll(),
+      adminApi.dailyTripAssignment.readAll(),
+      adminApi.vehicleCreations.readAll(),
     ])
       .then(([auditsData, tripData, vehicleData]) => {
         if (cancelled) return;
@@ -162,37 +115,29 @@ export default function VehicleTripAuditList() {
     return () => {
       cancelled = true;
     };
-  }, [companyUniqueId, projectId]);
+  }, []);
 
-  const records = useMemo(
-    () =>
-      filterByCompanyProject(audits, companyUniqueId, projectId) as VehicleTripAuditRecord[],
-    [audits, companyUniqueId, projectId]
-  );
+  const records = useMemo(() => audits as VehicleTripAuditRecord[], [audits]);
 
   const tripLookup = useMemo(
     () =>
       buildLookup(
-        filterByCompanyProject(
-          dailyTripAssignments as any[],
-          companyUniqueId,
-          projectId
-        ),
+        dailyTripAssignments as any[],
         "unique_id",
         "trip_no",
         "unique_id"
       ),
-    [companyUniqueId, projectId, dailyTripAssignments]
+    [dailyTripAssignments]
   );
 
   const vehicleLookup = useMemo(
     () =>
       buildLookup(
-        filterByCompanyProject(vehicles, companyUniqueId, projectId),
+        vehicles,
         "unique_id",
         "vehicle_no"
       ),
-    [companyUniqueId, projectId, vehicles]
+    [vehicles]
   );
 
   const onFilter = (e: DataTableFilterEvent) => {
@@ -221,40 +166,11 @@ export default function VehicleTripAuditList() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("admin.vehicle_trip_audit.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -300,8 +216,6 @@ export default function VehicleTripAuditList() {
         globalFilterFields={[
           "daily_trip_assignment_id",
           "vehicle_id",
-          "company_name",
-          "project_name",
         ]}
         header={header}
         stripedRows

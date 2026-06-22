@@ -11,6 +11,7 @@ export type CountryRecord = {
   currency: string;
   continent_id?: string | number | null;
   continent?: string | number | null;
+  coordinates?: unknown;
   is_active: boolean;
 };
 

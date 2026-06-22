@@ -2,7 +2,7 @@ import type { TableFilters, TripPlanCPRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -13,15 +13,28 @@ import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { tripPlanCollectionPointApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 
 const COLLECTION_TYPE_OPTIONS = [
   { value: "", label: "All Types" },
-  { value: "bin_collection", label: "Bin Collection" },
+  { value: "bin_collection", label: "Secondary Collection Point" },
   { value: "household_collection", label: "Household Collection" },
+  { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
 ];
+
+const hierarchyLabel = (row: TripPlanCPRecord) => {
+  if (row.local_body) {
+    return `${row.local_body.label ?? "Local Body"}: ${row.local_body.name ?? row.local_body.unique_id ?? "-"}`;
+  }
+  const hierarchy = (row.hierarchy ?? {}) as Record<string, unknown>;
+  if (hierarchy.corporation_id || row.corporation_id) return `Corporation: ${String(hierarchy.corporation_id ?? row.corporation_id)}`;
+  if (hierarchy.municipality_id || row.municipality_id) return `Municipality: ${String(hierarchy.municipality_id ?? row.municipality_id)}`;
+  if (hierarchy.town_panchayat_id || row.town_panchayat_id) return `Town Panchayat: ${String(hierarchy.town_panchayat_id ?? row.town_panchayat_id)}`;
+  if (hierarchy.panchayat_union_id || row.panchayat_union_id) return `Panchayat Union: ${String(hierarchy.panchayat_union_id ?? row.panchayat_union_id)}`;
+  if (hierarchy.panchayat_id || row.panchayat_id) return `Panchayat / PLB: ${String(hierarchy.panchayat_id ?? row.panchayat_id)}`;
+  return "-";
+};
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -39,26 +52,6 @@ const extractError = (error: unknown): string | null => {
 export default function TripPlanCollectionPointList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-  } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const { encScheduleMasters, encTripPlanCollectionPoints } = getEncryptedRoute();
   const { newPath: NEW_PATH, editPath: EDIT_PATH } = createCrudRoutePaths(
@@ -78,14 +71,8 @@ export default function TripPlanCollectionPointList() {
   });
 
   const loadRecords = useCallback(() => {
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRecords([]);
-      return;
-    }
     setLoading(true);
     const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
     if (collectionTypeFilter) params.collection_type = collectionTypeFilter;
     tripPlanCollectionPointApi
       .readAll({ params })
@@ -95,14 +82,14 @@ export default function TripPlanCollectionPointList() {
         Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
       })
       .finally(() => setLoading(false));
-  }, [companyUniqueId, projectId, collectionTypeFilter, t, isSuperAdmin]);
+  }, [collectionTypeFilter, t]);
 
   useEffect(() => {
     loadRecords();
   }, [loadRecords]);
 
   const isBinView = collectionTypeFilter === "bin_collection";
-  const isHouseholdView = collectionTypeFilter === "household_collection";
+  const isHouseholdView = ["household_collection", "bulk_waste_collection"].includes(collectionTypeFilter);
 
   const rows = useMemo(
     () =>
@@ -111,68 +98,43 @@ export default function TripPlanCollectionPointList() {
         _trip_plan: r.trip_plan?.display_code ?? r.trip_plan_id ?? "-",
         _collection_type_label:
           r.collection_type === "bin_collection"
-            ? "Bin Collection"
+            ? "Secondary Collection Point"
             : r.collection_type === "household_collection"
               ? "Household Collection"
-              : r.collection_type ?? "-",
+              : r.collection_type === "bulk_waste_collection"
+                ? "Bulk Waste Collection"
+                : r.collection_type ?? "-",
         // bin collection display fields
         _collection_point: r.collection_point?.cp_name ?? r.collection_point_id ?? "-",
         _bin: r.bin?.bin_name ?? r.bin_id ?? "-",
         // household display fields
-        _customer: r.customer?.customer_name ?? r.customer_id ?? "-",
-        _customer_location:
-          r.customer?.ward_name ?? r.customer?.zone_name ?? "-",
+        _customer: r.customer?.customer_name ?? r.customer_id ?? hierarchyLabel(r),
+        _customer_location: r.customer_id ? hierarchyLabel(r) : "All households in selected local body",
         // generic identifier/detail for combined view
         _identifier:
           r.collection_type === "bin_collection"
             ? (r.collection_point?.cp_name ?? r.collection_point_id ?? "-")
-            : (r.customer?.customer_name ?? r.customer_id ?? "-"),
+            : (r.customer?.customer_name ?? r.customer_id ?? hierarchyLabel(r)),
         _detail:
           r.collection_type === "bin_collection"
             ? (r.bin?.bin_name ?? r.bin_id ?? "-")
-            : (r.customer?.ward_name ?? r.customer?.zone_name ?? "-"),
+            : r.collection_type === "bulk_waste_collection"
+              ? "Bulk waste customers in selected local body"
+            : "-",
       })),
     [records],
   );
+
+  console.log(rows);
 
   const header = (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Trip Plan Collection Points</h1>
+          <h1 className="text-2xl font-semibold text-gray-800">Trip Points</h1>
           <p className="text-sm text-gray-500">Manage stop list for each trip plan</p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          {isSuperAdmin && (
-            <>
-              <select
-                value={companyUniqueId || ""}
-                onChange={(e) => onCompanyChange(e.target.value)}
-                disabled={companies.length === 0}
-                className="rounded border px-3 py-2 text-sm"
-              >
-                <option value="">All Companies</option>
-                {companies.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={projectId || ""}
-                onChange={(e) => setProjectId(e.target.value)}
-                disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-                className="rounded border px-3 py-2 text-sm"
-              >
-                <option value="">All Projects</option>
-                {projects.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
           {/* Collection Type filter */}
           <select
             value={collectionTypeFilter}
@@ -189,8 +151,7 @@ export default function TripPlanCollectionPointList() {
             label="Add Stop"
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(NEW_PATH)}
           />
         </div>
       </div>
@@ -229,7 +190,7 @@ export default function TripPlanCollectionPointList() {
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        emptyMessage="No trip plan collection points found"
+        emptyMessage="No trip points found"
       >
         <Column
           header={t("common.s_no")}
@@ -244,15 +205,19 @@ export default function TripPlanCollectionPointList() {
             field="_collection_type_label"
             header="Collection Type"
             body={(row) => (
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  row.collection_type === "bin_collection"
-                    ? "bg-blue-100 text-blue-800"
-                    : "bg-purple-100 text-purple-800"
-                }`}
-              >
-                {row._collection_type_label}
-              </span>
+         <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              row.collection_type === "bin_collection"
+                ? "bg-blue-100 text-blue-800"
+                : row.collection_type === "household_collection"
+                ? "bg-green-100 text-green-800"
+                : row.collection_type === "bulk_waste_collection"
+                ? "bg-orange-100 text-orange-800"
+                : "bg-gray-100 text-gray-800"
+            }`}
+          >
+            {row._collection_type_label}
+          </span>
             )}
             style={{ width: 160 }}
           />
@@ -264,7 +229,7 @@ export default function TripPlanCollectionPointList() {
             {(isBinView || !isHouseholdView) && (
               <Column
                 field={isBinView ? "_collection_point" : "_identifier"}
-                header={isBinView ? "Collection Point" : "Collection Point / Customer"}
+                header={isBinView ? "Collection Point" : "Collection Point / Household Area"}
                 filter
                 showFilterMatchModes={false}
               />
@@ -278,14 +243,14 @@ export default function TripPlanCollectionPointList() {
         {/* Household Collection columns */}
         {isHouseholdView && (
           <>
-            <Column field="_customer" header="Customer" filter showFilterMatchModes={false} />
-            <Column field="_customer_location" header="Ward / Zone" style={{ width: 150 }} />
+            <Column field="_customer" header="Household Area / Customer" filter showFilterMatchModes={false} />
+            <Column field="_customer_location" header="Scope" style={{ width: 220 }} />
           </>
         )}
 
         {/* Combined detail column for "All Types" view */}
         {!collectionTypeFilter && (
-          <Column field="_detail" header="Bin / Ward" filter showFilterMatchModes={false} />
+          <Column field="_detail" header="Detail" filter showFilterMatchModes={false} />
         )}
 
         <Column field="sequence" header="Sequence" style={{ width: 100 }} />
@@ -310,7 +275,7 @@ export default function TripPlanCollectionPointList() {
               title={t("common.edit")}
               onClick={() =>
                 navigate(EDIT_PATH(row.unique_id), {
-                  state: { record: row, companyUniqueId, projectId },
+                  state: { record: row },
                 })
               }
               className="text-blue-600 hover:text-blue-800"

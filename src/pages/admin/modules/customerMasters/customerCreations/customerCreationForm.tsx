@@ -4,19 +4,21 @@ import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
+import PasswordInput from "@/components/form/input/PasswordInput";
 
 import {
-  cityApi,
+  corporationApi,
   countryApi,
   customerCreationApi,
   districtApi,
+  municipalityApi,
   panchayatApi,
+  panchayatUnionApi,
   propertiesApi,
   stateApi,
   subPropertiesApi,
-  wardApi,
+  townPanchayatApi,
   wasteTypeApi,
-  zoneApi,
 } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -35,9 +37,8 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 
 /* ===============================
-   TYPES
+   MODULE-LEVEL HELPERS
 ================================ */
-
 
 const normalizeEntityId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -47,6 +48,60 @@ const normalizeEntityId = (value: unknown): string => {
   }
   return String(value).trim();
 };
+
+const normalizeIdArray = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => normalizeEntityId(item)).filter(Boolean);
+  return [normalizeEntityId(value)].filter(Boolean);
+};
+
+const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
+
+const normalizeActive = (arr: any[]) =>
+  arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
+
+const resolveOptionValue = (
+  items: any[],
+  rawId: any,
+  nameField: string,
+  nameValue?: string,
+): string => {
+  const strId = String(rawId ?? "").trim();
+  if (!strId && !nameValue) return "";
+  if (strId) {
+    const byUniqueId = items.find((item) => String(item.unique_id ?? "") === strId);
+    if (byUniqueId) return String(byUniqueId.unique_id ?? byUniqueId.id ?? "");
+    const byId = items.find((item) => String(item.id ?? "") === strId);
+    if (byId) return String(byId.unique_id ?? byId.id ?? "");
+  }
+  if (nameValue) {
+    const lower = nameValue.toLowerCase();
+    const byName = items.find((item) => String(item[nameField] ?? "").toLowerCase() === lower);
+    if (byName) return String(byName.unique_id ?? byName.id ?? "");
+  }
+  return strId;
+};
+
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(", ");
+  if (data && typeof data === "object") {
+    return (
+      Object.entries(data as Record<string, unknown>)
+        .map(([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+        )
+        .join("\n") || fallback
+    );
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+};
+
+/* ===============================
+   TYPES & CONSTANTS
+================================ */
 
 const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -69,9 +124,10 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   country_id: ["country_id", "country"],
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
-  city_id: ["city_id", "city"],
-  zone_id: ["zone_id", "zone"],
-  ward_id: ["ward_id", "ward"],
+  corporation_id: ["corporation_id", "corporation"],
+  municipality_id: ["municipality_id", "municipality"],
+  town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
+  panchayat_union_id: ["panchayat_union_id", "panchayat_union"],
   panchayat_id: ["panchayat_id", "panchayat"],
   is_active: ["is_active"],
   is_bulkwaste_generator: ["is_bulkwaste_generator"],
@@ -83,20 +139,196 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   industry_type: ["industry_type"],
 };
 
-const normalizeIdArray = (value: unknown): string[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => normalizeEntityId(item))
-      .filter(Boolean);
-  }
-  return [normalizeEntityId(value)].filter(Boolean);
+type HierarchyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+const hierarchyLevels: Array<{ value: HierarchyLevel; label: string; optionLabel: string }> = [
+  { value: "corporation_id", label: "Corporation", optionLabel: "corporation_name" },
+  { value: "municipality_id", label: "Municipality", optionLabel: "municipality_name" },
+  { value: "town_panchayat_id", label: "Town Panchayat", optionLabel: "town_panchayat_name" },
+  { value: "panchayat_union_id", label: "Panchayat Union", optionLabel: "union_name" },
+  { value: "panchayat_id", label: "Panchayat", optionLabel: "panchayat_name" },
+];
+
+type AreaType = "urban" | "rural";
+const areaTypeLabels: Record<AreaType, string> = {
+  urban: "Urban Local Body",
+  rural: "Rural Local Body",
+};
+const areaTypeHierarchyMap: Record<AreaType, HierarchyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
 };
 
+type CustomerDropdowns = {
+  districts: any[];
+  states: any[];
+  countries: any[];
+  properties: any[];
+  subProperties: any[];
+  corporations: any[];
+  municipalities: any[];
+  townPanchayats: any[];
+  panchayatUnions: any[];
+  panchayats: any[];
+  wasteTypes: any[];
+};
+
+type CustomerInitialPayload = FormDataType & {
+  selectedAreaType: AreaType | "";
+  selectedHierarchyType: HierarchyLevel | "";
+  hierarchyItemLabel: string;
+  passwordCrtDate: string | null;
+  customerCreatedAt: string | null;
+};
+
+type CustomerEditorProps = {
+  initialPayload: CustomerInitialPayload;
+  dropdowns: CustomerDropdowns;
+  isEdit: boolean;
+  isSubmitting: boolean;
+  customerId?: string;
+  onSubmit: (payload: any) => Promise<void>;
+  onCancel: () => void;
+};
 
 /* ===============================
-   REUSABLE COMPONENTS (OUTSIDE)
+   PASSWORD SECURITY
 ================================ */
+const PASSWORD_EXPIRY_DAYS = 90;
+const PASSWORD_WARN_DAYS = 60;
+
+function getPasswordAgeDays(passwordCrtDate: string | null): number | null {
+  if (!passwordCrtDate) return null;
+  const diff = Date.now() - new Date(passwordCrtDate).getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+function PasswordPriorityBadge({ ageDays }: { ageDays: number | null }) {
+  if (ageDays === null) return null;
+  if (ageDays >= PASSWORD_EXPIRY_DAYS) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+        <span className="material-symbols-outlined text-[14px] leading-none">warning</span>
+        Password Expired — Change Required
+      </span>
+    );
+  }
+  if (ageDays >= PASSWORD_WARN_DAYS) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
+        <span className="material-symbols-outlined text-[14px] leading-none">schedule</span>
+        Password Expiring Soon ({PASSWORD_EXPIRY_DAYS - ageDays} days left)
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
+      <span className="material-symbols-outlined text-[14px] leading-none">check_circle</span>
+      Password OK ({PASSWORD_EXPIRY_DAYS - ageDays} days remaining)
+    </span>
+  );
+}
+
+function CustomerChangePasswordModal({
+  customerId,
+  onClose,
+  onSuccess,
+}: {
+  customerId: string;
+  onClose: () => void;
+  onSuccess: (newDate: string) => void;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      await api.post("/auth/admin-change-password/", {
+        target_type: "customer",
+        target_id: customerId,
+        new_password: newPassword,
+        confirm_new_password: confirmPassword,
+      });
+      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
+      onSuccess(new Date().toISOString());
+      onClose();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to change password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="cp_new">New Password</Label>
+            <PasswordInput
+              id="cp_new"
+              label=""
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Min 6 chars, upper + lower + number"
+            />
+          </div>
+          <div>
+            <Label htmlFor="cp_confirm">Confirm New Password</Label>
+            <PasswordInput
+              id="cp_confirm"
+              label=""
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat new password"
+            />
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <p className="text-xs text-gray-500">
+            Password must be at least 6 characters with uppercase, lowercase, and a number.
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {loading ? "Changing..." : "Change Password"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/* ===============================
+   REUSABLE UI COMPONENTS
+================================ */
+
 const ShadcnSelect = ({
   label,
   value,
@@ -116,29 +348,29 @@ const ShadcnSelect = ({
 }) => {
   if (/^(company|project)$/i.test(label.trim())) return null;
   return (
-  <div className="space-y-2">
-    <Label className="text-sm font-medium text-gray-700">
-      {label}
-      {isRequired && <span className="text-red-500 ml-1">*</span>}
-    </Label>
-    <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.length > 0 ? (
-          options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))
-        ) : (
-          <div className="p-2 text-sm text-gray-500">No options available</div>
-        )}
-      </SelectContent>
-    </Select>
-  </div>
-);
+    <div className="space-y-2">
+      <Label className="text-sm font-medium text-gray-700">
+        {label}
+        {isRequired && <span className="text-red-500 ml-1">*</span>}
+      </Label>
+      <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+        <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.length > 0 ? (
+            options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))
+          ) : (
+            <div className="p-2 text-sm text-gray-500">No options available</div>
+          )}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 };
 
 const FormSection = ({
@@ -210,7 +442,6 @@ const MultiSelectCheckboxes = ({
   isRequired?: boolean;
 }) => {
   const selected = new Set(values);
-
   const toggle = (value: string) => {
     if (selected.has(value)) {
       onChange(values.filter((item) => item !== value));
@@ -218,7 +449,6 @@ const MultiSelectCheckboxes = ({
     }
     onChange([...values, value]);
   };
-
   return (
     <div className="space-y-2 md:col-span-2">
       <Label className="text-sm font-medium text-gray-700">
@@ -245,62 +475,6 @@ const MultiSelectCheckboxes = ({
   );
 };
 
-const PasswordInput = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  isRequired = true,
-}: {
-  label: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  placeholder: string;
-  isRequired?: boolean;
-}) => {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="space-y-2">
-      <Label className="text-sm font-medium text-gray-700">
-        {label}
-        {isRequired && <span className="text-red-500 ml-1">*</span>}
-      </Label>
-      <div className="relative">
-        <Input
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          autoComplete="new-password"
-        />
-        <button
-          type="button"
-          onClick={() => setShow((prev) => !prev)}
-          className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-600"
-          tabIndex={-1}
-        >
-          {show ? (
-            // Eye-off icon
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 4.411m0 0L21 21" />
-            </svg>
-          ) : (
-            // Eye icon
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          )}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-/* ===============================
-   STEP 1: PROPERTY SELECTION COMPONENT
-================================ */
 const PropertySelectionStep = ({
   properties,
   subProperties,
@@ -323,22 +497,29 @@ const PropertySelectionStep = ({
   t: any;
 }) => {
   const filteredSubProps = subProperties.filter(
-    (sp: any) => !selectedProperty || normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty
+    (sp: any) =>
+      !selectedProperty ||
+      normalizeEntityId(sp.property_id ?? sp.property) === selectedProperty
   );
-
   const isStepComplete =
     (!showField("property_id") || selectedProperty) &&
     (!showField("sub_property_id") || selectedSubProperty);
 
   return (
-    <ComponentCard title={t("admin.customer_creation.select_property_subproperty") || "Select Property & Sub-Property"}>
+    <ComponentCard
+      title={
+        t("admin.customer_creation.select_property_subproperty") ||
+        "Select Property & Sub-Property"
+      }
+    >
       <div className="space-y-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-800">
-            📌 {t("admin.customer_creation.step_1_info") || "Step 1 of 2: Please select a Property and Sub-Property to proceed"}
+            📌{" "}
+            {t("admin.customer_creation.step_1_info") ||
+              "Step 1 of 2: Please select a Property and Sub-Property to proceed"}
           </p>
         </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {showField("property_id") && (
             <ShadcnSelect
@@ -349,10 +530,12 @@ const PropertySelectionStep = ({
                 value: String(p?.unique_id ?? p?.id ?? ""),
                 label: p.property_name,
               }))}
-              placeholder={t("admin.customer_creation.property_placeholder") || "Select property"}
+              placeholder={
+                t("admin.customer_creation.property_placeholder") ||
+                "Select property"
+              }
             />
           )}
-
           {showField("sub_property_id") && (
             <ShadcnSelect
               label={t("admin.customer_creation.sub_property") || "Sub Property"}
@@ -362,11 +545,13 @@ const PropertySelectionStep = ({
                 value: String(sp?.unique_id ?? sp?.id ?? ""),
                 label: sp.sub_property_name,
               }))}
-              placeholder={t("admin.customer_creation.sub_property_placeholder") || "Select sub property"}
+              placeholder={
+                t("admin.customer_creation.sub_property_placeholder") ||
+                "Select sub property"
+              }
             />
           )}
         </div>
-
         <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
           <button
             type="button"
@@ -390,422 +575,243 @@ const PropertySelectionStep = ({
 };
 
 /* ===============================
-   PASSWORD SECURITY HELPERS
+   INNER EDITOR
 ================================ */
-const PASSWORD_EXPIRY_DAYS = 90;
-const PASSWORD_WARN_DAYS = 60;
-
-function getPasswordAgeDays(passwordCrtDate: string | null): number | null {
-  if (!passwordCrtDate) return null;
-  const diff = Date.now() - new Date(passwordCrtDate).getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
-
-function PasswordPriorityBadge({ ageDays }: { ageDays: number | null }) {
-  if (ageDays === null) return null;
-  if (ageDays >= PASSWORD_EXPIRY_DAYS) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700">
-        Password Expired — Change Required
-      </span>
-    );
-  }
-  if (ageDays >= PASSWORD_WARN_DAYS) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-semibold text-yellow-700">
-        Password Expiring Soon ({PASSWORD_EXPIRY_DAYS - ageDays} days left)
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-      Password OK ({PASSWORD_EXPIRY_DAYS - ageDays} days remaining)
-    </span>
-  );
-}
-
-function CustomerChangePasswordModal({
+function CustomerEditor({
+  initialPayload,
+  dropdowns,
+  isEdit,
+  isSubmitting,
   customerId,
-  onClose,
-  onSuccess,
-}: {
-  customerId: string;
-  onClose: () => void;
-  onSuccess: (newDate: string) => void;
-}) {
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showNew, setShowNew] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    try {
-      await api.post("/auth/admin-change-password/", {
-        target_type: "customer",
-        target_id: customerId,
-        new_password: newPassword,
-        confirm_new_password: confirmPassword,
-      });
-      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
-      onSuccess(new Date().toISOString());
-      onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to change password.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-            <div className="relative">
-              <Input
-                type={showNew ? "text" : "password"}
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Min 6 chars, upper + lower + number"
-                className="w-full pr-10"
-              />
-              <button type="button" onClick={() => setShowNew((p) => !p)}
-                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
-                {showNew ? "🙈" : "👁"}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-            <div className="relative">
-              <Input
-                type={showConfirm ? "text" : "password"}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat new password"
-                className="w-full pr-10"
-              />
-              <button type="button" onClick={() => setShowConfirm((p) => !p)}
-                className="absolute inset-y-0 right-2 text-gray-400 hover:text-gray-600" tabIndex={-1}>
-                {showConfirm ? "🙈" : "👁"}
-              </button>
-            </div>
-          </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <p className="text-xs text-gray-500">
-            Password must be at least 6 characters with uppercase, lowercase, and a number.
-          </p>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              {loading ? "Changing..." : "Change Password"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-/* ===============================
-   MAIN COMPONENT
-================================ */
-export default function CustomerCreationForm() {
+  onSubmit,
+  onCancel,
+}: CustomerEditorProps) {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } = useFieldVisibility(
     "customer-master",
     "customer-creation",
     CUSTOMER_CREATION_FIELDS,
   );
-  const navigate = useNavigate();
-  const { id } = useParams();
-  const isEdit = Boolean(id);
 
-  const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCustomerMaster, encCustomerCreation);
-
-  const [step, setStep] = useState(isEdit ? 1 : 0); // 0 = property selection, 1 = form
   const tOrFallback = (key: string, fallback: string) => {
     const value = t(key);
     return value === key ? fallback : value;
   };
 
+  const [step, setStep] = useState(isEdit ? 1 : 0);
+
   const [formData, setFormData] = useState<FormDataType>({
-    customer_name: "",
-    contact_no: "",
-    username: "",
-    email: "",
-    password: "",
-    building_no: "",
-    street: "",
-    area: "",
-    pincode: "",
-    latitude: "",
-    longitude: "",
-    sqft: "",
-    property_id: "",
-    sub_property_id: "",
-    id_proof_type: "",
-    id_no: "",
-    country_id: "",
-    state_id: "",
-    district_id: "",
-    city_id: "",
-    zone_id: "",
-    ward_id: "",
-    panchayat_id: "",
-    waste_type_ids: [],
-    is_active: true,
-    is_bulkwaste_generator: false,
-    // Property type specific fields
-    apartment_name: "",
-    block_no: "",
-    flat_no: "",
-    villa_no: "",
-    industry_name: "",
-    industry_type: "",
+    customer_name: initialPayload.customer_name,
+    contact_no: initialPayload.contact_no,
+    username: initialPayload.username,
+    email: initialPayload.email,
+    password: initialPayload.password,
+    building_no: initialPayload.building_no,
+    street: initialPayload.street,
+    area: initialPayload.area,
+    pincode: initialPayload.pincode,
+    latitude: initialPayload.latitude,
+    longitude: initialPayload.longitude,
+    sqft: initialPayload.sqft,
+    property_id: initialPayload.property_id,
+    sub_property_id: initialPayload.sub_property_id,
+    id_proof_type: initialPayload.id_proof_type,
+    id_no: initialPayload.id_no,
+    country_id: initialPayload.country_id,
+    state_id: initialPayload.state_id,
+    district_id: initialPayload.district_id,
+    corporation_id: initialPayload.corporation_id,
+    municipality_id: initialPayload.municipality_id,
+    town_panchayat_id: initialPayload.town_panchayat_id,
+    panchayat_union_id: initialPayload.panchayat_union_id,
+    panchayat_id: initialPayload.panchayat_id,
+    waste_type_ids: initialPayload.waste_type_ids,
+    is_active: initialPayload.is_active,
+    is_bulkwaste_generator: initialPayload.is_bulkwaste_generator,
+    apartment_name: initialPayload.apartment_name,
+    block_no: initialPayload.block_no,
+    flat_no: initialPayload.flat_no,
+    villa_no: initialPayload.villa_no,
+    industry_name: initialPayload.industry_name,
+    industry_type: initialPayload.industry_type,
   });
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
-  const [pendingEditData, setPendingEditData] = useState<any>(null);
-  const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(null);
-  const [customerCreatedAt, setCustomerCreatedAt] = useState<string | null>(null);
+  const [selectedAreaType, setSelectedAreaType] = useState<AreaType | "">(
+    initialPayload.selectedAreaType,
+  );
+  const [selectedHierarchyType, setSelectedHierarchyType] = useState<HierarchyLevel | "">(
+    initialPayload.selectedHierarchyType,
+  );
+  const [hierarchyItemLabel, setHierarchyItemLabel] = useState(
+    initialPayload.hierarchyItemLabel,
+  );
+  const [passwordCrtDate, setPasswordCrtDate] = useState<string | null>(
+    initialPayload.passwordCrtDate,
+  );
+  const [customerCreatedAt] = useState<string | null>(initialPayload.customerCreatedAt);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const resolveId = (o: any) => String(o?.unique_id ?? o?.id ?? "");
-  const normalize = (arr: any[]) =>
-    arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
 
   const update = (key: keyof FormDataType, value: any) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
-  /* resolve a raw API id (integer PK or unique_id) to the option value used in dropdowns */
-  const resolveOptionValue = (items: any[], rawId: any, nameField: string, nameValue?: string): string => {
-    const strId = String(rawId ?? "").trim();
-    if (!strId && !nameValue) return "";
-    if (strId) {
-      const byUniqueId = items.find((item) => String(item.unique_id ?? "") === strId);
-      if (byUniqueId) return String(byUniqueId.unique_id ?? byUniqueId.id ?? "");
-      const byId = items.find((item) => String(item.id ?? "") === strId);
-      if (byId) return String(byId.unique_id ?? byId.id ?? "");
-    }
-    if (nameValue) {
-      const lower = nameValue.toLowerCase();
-      const byName = items.find((item) => String(item[nameField] ?? "").toLowerCase() === lower);
-      if (byName) return String(byName.unique_id ?? byName.id ?? "");
-    }
-    return strId;
-  };
-
   /* ===============================
-     DROPDOWNS
-  ================================ */
-  const [rawWards, setRawWards] = useState<any[]>([]);
-  const [rawZones, setRawZones] = useState<any[]>([]);
-  const [rawCities, setRawCities] = useState<any[]>([]);
-  const [rawDistricts, setRawDistricts] = useState<any[]>([]);
-  const [rawStates, setRawStates] = useState<any[]>([]);
-  const [rawCountries, setRawCountries] = useState<any[]>([]);
-  const [rawProperties, setRawProperties] = useState<any[]>([]);
-  const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
-  const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
-  const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    Promise.all([
-      wardApi.readAll(),
-      zoneApi.readAll(),
-      cityApi.readAll(),
-      districtApi.readAll(),
-      stateApi.readAll(),
-      countryApi.readAll(),
-      propertiesApi.readAll(),
-      subPropertiesApi.readAll(),
-      panchayatApi.readAll(),
-      wasteTypeApi.readAll(),
-    ])
-      .then(([wards, zones, cities, districts, states, countries, properties, subProperties, panchayats, wasteTypes]) => {
-        if (cancelled) return;
-        setRawWards(Array.isArray(wards) ? wards : (wards as any)?.results ?? []);
-        setRawZones(Array.isArray(zones) ? zones : (zones as any)?.results ?? []);
-        setRawCities(Array.isArray(cities) ? cities : (cities as any)?.results ?? []);
-        setRawDistricts(Array.isArray(districts) ? districts : (districts as any)?.results ?? []);
-        setRawStates(Array.isArray(states) ? states : (states as any)?.results ?? []);
-        setRawCountries(Array.isArray(countries) ? countries : (countries as any)?.results ?? []);
-        setRawProperties(Array.isArray(properties) ? properties : (properties as any)?.results ?? []);
-        setRawSubProperties(Array.isArray(subProperties) ? subProperties : (subProperties as any)?.results ?? []);
-        setRawPanchayats(Array.isArray(panchayats) ? panchayats : (panchayats as any)?.results ?? []);
-        setRawWasteTypes(Array.isArray(wasteTypes) ? wasteTypes : (wasteTypes as any)?.results ?? []);
-        setDropdownsLoaded(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.error("Failed to fetch customer dropdowns:", err);
-        Swal.fire("Error", "Failed to load customer form data", "error");
-      });
-
-    return () => { cancelled = true; };
-  }, []);
-
-  const dropdowns = useMemo(
-    () => ({
-      wards: normalize(rawWards),
-      zones: normalize(rawZones),
-      cities: normalize(rawCities),
-      districts: normalize(rawDistricts),
-      states: normalize(rawStates),
-      countries: normalize(rawCountries),
-      properties: normalize(rawProperties),
-      subProperties: normalize(rawSubProperties),
-      panchayats: normalize(rawPanchayats),
-      wasteTypes: normalize(rawWasteTypes),
-    }),
-    [rawWards, rawZones, rawCities, rawDistricts, rawStates, rawCountries, rawProperties, rawSubProperties, rawPanchayats, rawWasteTypes]
-  );
-
-  /* ===============================
-     LOAD EXISTING DATA (EDIT MODE)
-     Store raw API data as pending — applied after dropdowns finish loading
-  ================================ */
-  useEffect(() => {
-    if (!isEdit || !id) return;
-    let cancelled = false;
-    customerCreationApi.read(id)
-      .then((data: any) => {
-        if (cancelled) return;
-        setPendingEditData(data);
-      })
-      .catch((err: any) => {
-        if (cancelled) return;
-        console.error("Failed to load customer:", err);
-        Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to load customer", "error");
-      });
-    return () => { cancelled = true; };
-  }, [id, isEdit, t]);
-
-  /* ===============================
-     FLUSH PENDING EDIT DATA
-     Applied only after dropdown options are ready so Radix Select can match values
-  ================================ */
-  useEffect(() => {
-    if (!pendingEditData || !dropdownsLoaded) return;
-    const data = pendingEditData;
-
-    const countryId  = resolveOptionValue(rawCountries,  data.country_id,  "name",          data.country_name);
-    const stateId    = resolveOptionValue(rawStates,     data.state_id,    "name",          data.state_name);
-    const districtId = resolveOptionValue(rawDistricts,  data.district_id, "name",          data.district_name);
-    const cityId     = resolveOptionValue(rawCities,     data.city_id,     "name",          data.city_name ?? data.city);
-    const zoneId     = resolveOptionValue(rawZones,      data.zone_id,     "zone_name",     data.zone_name);
-    const wardId     = resolveOptionValue(rawWards,      data.ward_id,     "ward_name",     data.ward_name);
-    const panchayatId = resolveOptionValue(rawPanchayats, data.panchayat_id, "panchayat_name", data.panchayat_name);
-    const propertyId    = resolveOptionValue(rawProperties,    data.property_id,     "property_name",     data.property_name);
-    const subPropertyId = resolveOptionValue(rawSubProperties, data.sub_property_id, "sub_property_name", data.sub_property_name);
-    const wasteTypeIds = normalizeIdArray(data.waste_type_ids ?? data.waste_types);
-
-    setPasswordCrtDate(data.password_crt_date ?? null);
-    setCustomerCreatedAt(data.created_at ?? null);
-
-    setFormData((prev) => ({
-      ...prev,
-      customer_name: String(data.customer_name ?? ""),
-      contact_no: String(data.contact_no ?? ""),
-      username: String(data.username ?? ""),
-      email: String(data.email ?? ""),
-      password: "",
-      building_no: String(data.building_no ?? ""),
-      street: String(data.street ?? ""),
-      area: String(data.area ?? ""),
-      pincode: String(data.pincode ?? ""),
-      latitude: String(data.latitude ?? ""),
-      longitude: String(data.longitude ?? ""),
-      sqft: String(data.sqft ?? ""),
-      property_id: propertyId,
-      sub_property_id: subPropertyId,
-      id_proof_type: String(data.id_proof_type ?? ""),
-      id_no: String(data.id_no ?? ""),
-      country_id: countryId,
-      state_id: stateId,
-      district_id: districtId,
-      city_id: cityId,
-      zone_id: zoneId,
-      ward_id: wardId,
-      panchayat_id: panchayatId,
-      waste_type_ids: wasteTypeIds,
-      is_active: Boolean(data.is_active),
-      is_bulkwaste_generator: Boolean(data.is_bulkwaste_generator),
-      apartment_name: String(data.apartment_name ?? ""),
-      block_no: String(data.block_no ?? ""),
-      flat_no: String(data.flat_no ?? ""),
-      villa_no: String(data.villa_no ?? ""),
-      industry_name: String(data.industry_name ?? ""),
-      industry_type: String(data.industry_type ?? ""),
-    }));
-    setPendingEditData(null);
-  }, [pendingEditData, dropdownsLoaded, rawCountries, rawStates, rawDistricts, rawCities, rawZones, rawWards, rawPanchayats, rawProperties, rawSubProperties]);
-
-  /* ===============================
-     FILTERS
+     COMPUTED OPTIONS
   ================================ */
   const filteredStates = useMemo(
-    () => dropdowns.states.filter((s: any) => !formData.country_id || normalizeEntityId(s.country_id ?? s.country) === formData.country_id),
-    [dropdowns.states, formData.country_id]
+    () =>
+      dropdowns.states.filter(
+        (s: any) =>
+          !formData.country_id ||
+          normalizeEntityId(s.country_id ?? s.country) === formData.country_id,
+      ),
+    [dropdowns.states, formData.country_id],
   );
 
   const filteredDistricts = useMemo(
-    () => dropdowns.districts.filter((d: any) => !formData.state_id || normalizeEntityId(d.state_id ?? d.state) === formData.state_id),
-    [dropdowns.districts, formData.state_id]
-  );
-
-  const filteredCities = useMemo(
-    () => dropdowns.cities.filter((c: any) => !formData.district_id || normalizeEntityId(c.district_id ?? c.district) === formData.district_id),
-    [dropdowns.cities, formData.district_id]
-  );
-
-  const filteredZones = useMemo(
-    () => dropdowns.zones.filter((z: any) => !formData.city_id || normalizeEntityId(z.city_id ?? z.city) === formData.city_id),
-    [dropdowns.zones, formData.city_id]
-  );
-
-  const filteredWards = useMemo(
-    () => dropdowns.wards.filter((w: any) => !formData.zone_id || normalizeEntityId(w.zone_id ?? w.zone) === formData.zone_id),
-    [dropdowns.wards, formData.zone_id]
-  );
-
-  const filteredPanchayats = useMemo(
     () =>
-      dropdowns.panchayats.filter(
-        (p: any) =>
-          (!formData.district_id || normalizeEntityId(p.district_id ?? p.district) === formData.district_id) &&
-          (!formData.city_id || normalizeEntityId(p.city_id ?? p.city) === formData.city_id)
+      dropdowns.districts.filter(
+        (d: any) =>
+          !formData.state_id ||
+          normalizeEntityId(d.state_id ?? d.state) === formData.state_id,
       ),
-    [dropdowns.panchayats, formData.district_id, formData.city_id]
+    [dropdowns.districts, formData.state_id],
   );
+
+  const hierarchyDropdownMap = useMemo<Record<HierarchyLevel, any[]>>(
+    () => ({
+      corporation_id: dropdowns.corporations,
+      municipality_id: dropdowns.municipalities,
+      town_panchayat_id: dropdowns.townPanchayats,
+      panchayat_union_id: dropdowns.panchayatUnions,
+      panchayat_id: dropdowns.panchayats,
+    }),
+    [dropdowns],
+  );
+
+  const availableAreaTypes = useMemo((): AreaType[] => {
+    if (!formData.district_id) return [];
+    const allTypes: AreaType[] = ["urban", "rural"];
+    const filtered = allTypes.filter((areaType) =>
+      areaTypeHierarchyMap[areaType].some((level) =>
+        hierarchyDropdownMap[level].some(
+          (item: any) =>
+            normalizeEntityId(item.district_id ?? item.district) === formData.district_id,
+        ),
+      ),
+    );
+    if (selectedAreaType && !filtered.includes(selectedAreaType)) {
+      return [...filtered, selectedAreaType];
+    }
+    return filtered.length > 0 ? filtered : allTypes;
+  }, [formData.district_id, hierarchyDropdownMap, selectedAreaType]);
+
+  const availableHierarchyLevels = useMemo(() => {
+    if (!formData.district_id || !selectedAreaType) return [];
+    const levelsForAreaType = areaTypeHierarchyMap[selectedAreaType];
+    const filtered = hierarchyLevels.filter(
+      (level) =>
+        levelsForAreaType.includes(level.value) &&
+        hierarchyDropdownMap[level.value].some((item: any) =>
+          normalizeEntityId(item.district_id ?? item.district) === formData.district_id,
+        ),
+    );
+    const currentLevel = hierarchyLevels.find((l) => l.value === selectedHierarchyType);
+    if (
+      currentLevel &&
+      levelsForAreaType.includes(selectedHierarchyType as HierarchyLevel) &&
+      !filtered.find((l) => l.value === selectedHierarchyType)
+    ) {
+      return [...filtered, currentLevel];
+    }
+    return filtered.length > 0
+      ? filtered
+      : hierarchyLevels.filter((l) => levelsForAreaType.includes(l.value));
+  }, [formData.district_id, selectedAreaType, hierarchyDropdownMap, selectedHierarchyType]);
+
+  const selectedHierarchyId =
+    (selectedHierarchyType && formData[selectedHierarchyType]) || "";
+
+  const destinationOptions = useMemo((): Option[] => {
+    if (!selectedHierarchyType) return [];
+    const all: any[] = hierarchyDropdownMap[selectedHierarchyType as HierarchyLevel];
+    const filtered = formData.district_id
+      ? all.filter(
+          (item: any) =>
+            normalizeEntityId(item.district_id ?? item.district) === formData.district_id,
+        )
+      : all;
+    const base = (filtered.length > 0 ? filtered : all).reduce(
+      (acc: Option[], item: any) => {
+        const id = resolveId(item);
+        if (!id || acc.some((o) => o.value === id)) return acc;
+        const optKey =
+          hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.optionLabel ||
+          "name";
+        acc.push({ value: id, label: item[optKey] || item.name || id });
+        return acc;
+      },
+      [],
+    );
+    if (selectedHierarchyId && !base.find((o) => o.value === selectedHierarchyId)) {
+      base.push({ value: selectedHierarchyId, label: hierarchyItemLabel || selectedHierarchyId });
+    }
+    return base;
+  }, [
+    hierarchyDropdownMap,
+    formData.district_id,
+    selectedHierarchyType,
+    selectedHierarchyId,
+    hierarchyItemLabel,
+  ]);
 
   /* ===============================
-     SUB_PROPERTY TYPE DETECTION
+     HANDLERS
+  ================================ */
+  const setHierarchyValue = (level: HierarchyLevel, value: string) => {
+    setSelectedHierarchyType(level);
+    setFormData((prev) => ({
+      ...prev,
+      corporation_id: "",
+      municipality_id: "",
+      town_panchayat_id: "",
+      panchayat_union_id: "",
+      panchayat_id: "",
+      [level]: value,
+    }));
+  };
+
+  const resetHierarchy = () => {
+    setSelectedAreaType("");
+    setSelectedHierarchyType("");
+    setFormData((prev) => ({
+      ...prev,
+      corporation_id: "",
+      municipality_id: "",
+      town_panchayat_id: "",
+      panchayat_union_id: "",
+      panchayat_id: "",
+    }));
+  };
+
+  const resetHierarchyLevel = () => {
+    setSelectedHierarchyType("");
+    setFormData((prev) => ({
+      ...prev,
+      corporation_id: "",
+      municipality_id: "",
+      town_panchayat_id: "",
+      panchayat_union_id: "",
+      panchayat_id: "",
+    }));
+  };
+
+  /* ===============================
+     SUB-PROPERTY TYPE DETECTION
   ================================ */
   const selectedSubProperty = useMemo(
-    () => dropdowns.subProperties.find(
-      (sp: any) => resolveId(sp) === formData.sub_property_id
-    ),
-    [formData.sub_property_id, dropdowns.subProperties]
+    () => dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id),
+    [formData.sub_property_id, dropdowns.subProperties],
   );
 
   const subName = selectedSubProperty?.sub_property_name?.toLowerCase() || "";
@@ -813,20 +819,29 @@ export default function CustomerCreationForm() {
   const isApartment = subName.includes("apartment");
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
-  // const zoneOrWardSelected  = Boolean(formData.zone_id || formData.ward_id);
-  // const panchayatSelected   = Boolean(formData.panchayat_id);
-  const isPanchayatSelected = Boolean(formData.panchayat_id);
-  const isZoneOrWardSelected = Boolean(formData.zone_id || formData.ward_id);
+  const isHierarchySelected = Boolean(selectedHierarchyId);
 
   /* ===============================
      VALIDATION
   ================================ */
   const validateForm = (): boolean => {
     const requiredFields = [
-      "customer_name", "contact_no", "email", "username",
-       "pincode", "latitude", "longitude", "sqft", "id_proof_type", "id_no",
-      "country_id", "state_id", "district_id", "city_id",
-      "property_id", "sub_property_id", "waste_type_ids",
+      "customer_name",
+      "contact_no",
+      "email",
+      "username",
+      "pincode",
+      "latitude",
+      "longitude",
+      "sqft",
+      "id_proof_type",
+      "id_no",
+      "country_id",
+      "state_id",
+      "district_id",
+      "property_id",
+      "sub_property_id",
+      "waste_type_ids",
       ...(!isEdit ? ["password"] : []),
     ].flat();
 
@@ -837,50 +852,57 @@ export default function CustomerCreationForm() {
 
     if (missingFields.length > 0) {
       for (const field of missingFields) {
-        const fieldLabel = String(field).replace(/_/g, " ");
-        Swal.fire(t("common.warning") || "Warning", `${fieldLabel} is required`, "warning");
+        Swal.fire(
+          t("common.warning") || "Warning",
+          `${String(field).replace(/_/g, " ")} is required`,
+          "warning",
+        );
         return false;
       }
     }
 
+    if (!selectedAreaType) {
+      Swal.fire(t("common.warning") || "Warning", "Area type is required", "warning");
+      return false;
+    }
+    if (!isHierarchySelected) {
+      Swal.fire(
+        t("common.warning") || "Warning",
+        "Hierarchy level and destination are required",
+        "warning",
+      );
+      return false;
+    }
     if (showField("waste_type_ids") && formData.waste_type_ids.length === 0) {
       Swal.fire(t("common.warning") || "Warning", "waste type is required", "warning");
       return false;
     }
-
-    // Contact validation (10 digits)
     if (showField("contact_no") && !/^\d{10}$/.test(formData.contact_no)) {
       Swal.fire(
         t("admin.customer_creation.invalid_contact_title") || "Invalid Contact",
-        t("admin.customer_creation.invalid_contact_desc") || "Please enter a valid 10-digit contact number",
-        "warning"
+        t("admin.customer_creation.invalid_contact_desc") ||
+          "Please enter a valid 10-digit contact number",
+        "warning",
       );
       return false;
     }
-
-    // Email validation
     if (showField("email") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       Swal.fire("Invalid Email", "Please enter a valid email address", "warning");
       return false;
     }
-
-    // the password validation block:
     if (showField("password") && !isEdit && formData.password.length < 8) {
       Swal.fire("Weak Password", "Password must be at least 8 characters", "warning");
       return false;
     }
-
-    // Pincode validation (6 digits)
     if (showField("pincode") && !/^\d{6}$/.test(formData.pincode)) {
       Swal.fire(
         t("admin.customer_creation.invalid_pincode_title") || "Invalid Pincode",
-        t("admin.customer_creation.invalid_pincode_desc") || "Please enter a valid 6-digit pincode",
-        "warning"
+        t("admin.customer_creation.invalid_pincode_desc") ||
+          "Please enter a valid 6-digit pincode",
+        "warning",
       );
       return false;
     }
-
-    // Latitude & Longitude validation
     const lat = parseFloat(formData.latitude);
     const lon = parseFloat(formData.longitude);
     if (
@@ -889,19 +911,17 @@ export default function CustomerCreationForm() {
     ) {
       Swal.fire(
         t("admin.customer_creation.invalid_coordinates_title") || "Invalid Coordinates",
-        t("admin.customer_creation.invalid_coordinates_desc") || "Please enter valid latitude and longitude",
-        "warning"
+        t("admin.customer_creation.invalid_coordinates_desc") ||
+          "Please enter valid latitude and longitude",
+        "warning",
       );
       return false;
     }
-
-    // Square feet validation
     const sqftValue = parseFloat(formData.sqft);
     if (showField("sqft") && (isNaN(sqftValue) || sqftValue <= 0)) {
       Swal.fire("Invalid Square Feet", "Please enter a valid square feet value", "warning");
       return false;
     }
-
     return true;
   };
 
@@ -910,45 +930,22 @@ export default function CustomerCreationForm() {
   ================================ */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateForm()) return;
-
     const rawPayload = {
       ...formData,
       latitude: showField("latitude") ? String(parseFloat(formData.latitude)) : formData.latitude,
-      longitude: showField("longitude") ? String(parseFloat(formData.longitude)) : formData.longitude,
+      longitude: showField("longitude")
+        ? String(parseFloat(formData.longitude))
+        : formData.longitude,
       sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
-      ...(isEdit && !formData.password ? { password: undefined } : {}), // Only include password for new records
+      ...(isEdit && !formData.password ? { password: undefined } : {}),
     };
-    const payload = filterPayload(rawPayload);
-
-    setIsSubmitting(true);
-    try {
-      if (isEdit) {
-        await customerCreationApi.update(id as string, payload as any);
-      } else {
-        await customerCreationApi.create(payload as any);
-      }
-
-      Swal.fire(
-        t("common.success") || "Success",
-        t("admin.customer_creation.save_success") || "Saved successfully",
-        "success"
-      );
-      navigate(ENC_LIST_PATH);
-    } catch (err) {
-      console.error("Submit error:", err);
-      Swal.fire(t("common.error") || "Error", t("admin.customer_creation.save_failed") || "Failed to save", "error");
-    } finally {
-      setIsSubmitting(false);
-    }
+    await onSubmit(filterPayload(rawPayload));
   };
 
   /* ===============================
-     RENDER
+     RENDER — STEP 0
   ================================ */
-
-  // Show property selection step first (unless in edit mode)
   if (step === 0) {
     return (
       <PropertySelectionStep
@@ -968,595 +965,1006 @@ export default function CustomerCreationForm() {
     );
   }
 
-  // Show form step (step 1)
+  /* ===============================
+     RENDER — STEP 1 (FULL FORM)
+  ================================ */
   return (
     <>
-      {showChangePassword && id && (
+      {showChangePassword && customerId && (
         <CustomerChangePasswordModal
-          customerId={id}
+          customerId={customerId}
           onClose={() => setShowChangePassword(false)}
           onSuccess={(newDate) => setPasswordCrtDate(newDate)}
         />
       )}
-    <ComponentCard
-      title={
-        isEdit
-          ? t("admin.customer_creation.title_edit") || "Edit Customer"
-          : t("admin.customer_creation.title_add") || "Add Customer"
-      }
-    >
-      {/* Step indicator for new records */}
-      {!isEdit && (
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm text-blue-800">
-            📍 {t("admin.customer_creation.step_2_info") || "Step 2 of 2: Fill in the customer details"}
-          </p>
-        </div>
-      )}
+      <ComponentCard
+        title={
+          isEdit
+            ? t("admin.customer_creation.title_edit") || "Edit Customer"
+            : t("admin.customer_creation.title_add") || "Add Customer"
+        }
+      >
+        {!isEdit && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              📍{" "}
+              {t("admin.customer_creation.step_2_info") ||
+                "Step 2 of 2: Fill in the customer details"}
+            </p>
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-
-        <FormSection title={t("admin.customer_creation.personal_info") || "Personal Information"}>
-          {showField("customer_name") && (
-            <FormInput
-              label={t("admin.customer_creation.customer_name") || "Customer Name"}
-              value={formData.customer_name}
-              onChange={(e) => update("customer_name", e.target.value)}
-              placeholder="Enter full name"
-            />
-          )}
-          {showField("contact_no") && (
-            <FormInput
-              label={t("admin.customer_creation.contact_no") || "Contact Number"}
-              value={formData.contact_no}
-              onChange={(e) => {
-                const numericValue = e.target.value.replace(/[^0-9]/g, "");
-                update("contact_no", numericValue);
-              }}
-              placeholder="10 digit mobile number"
-              maxLength={10}
-              inputMode="numeric"
-            />
-          )}
-          {showField("username") && (
-            <FormInput
-              label={t("login.username") || "Username"}
-              value={formData.username}
-              onChange={(e) => update("username", e.target.value)}
-              placeholder="Enter username"
-            />
-          )}
-          {showField("email") && (
-            <FormInput
-              label={t("admin.customer_creation.email") || "Email Address"}
-              value={formData.email}
-              onChange={(e) => update("email", e.target.value)}
-              placeholder="Enter email address"
-              type="email"
-            />
-          )}
-
-          {showField("password") && (
-            <PasswordInput
-              label={t("login.password") || "Password"}
-              value={formData.password}
-              onChange={(e) => update("password", e.target.value)}
-              placeholder={isEdit ? "Leave blank to keep current password" : "Enter password (min 8 chars)"}
-              isRequired={!isEdit}
-            />
-          )}
-
-          {/* ── Password Security Info (edit mode only) ── */}
-          {isEdit && (
-            <div className="md:col-span-3">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                    Password Security
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* PERSONAL INFORMATION */}
+          <FormSection
+            title={t("admin.customer_creation.personal_info") || "Personal Information"}
+          >
+            {showField("customer_name") && (
+              <FormInput
+                label={t("admin.customer_creation.customer_name") || "Customer Name"}
+                value={formData.customer_name}
+                onChange={(e) => update("customer_name", e.target.value)}
+                placeholder="Enter full name"
+              />
+            )}
+            {showField("contact_no") && (
+              <FormInput
+                label={t("admin.customer_creation.contact_no") || "Contact Number"}
+                value={formData.contact_no}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                  update("contact_no", numericValue);
+                }}
+                placeholder="10 digit mobile number"
+                maxLength={10}
+                inputMode="numeric"
+              />
+            )}
+            {showField("username") && (
+              <FormInput
+                label={t("login.username") || "Username"}
+                value={formData.username}
+                onChange={(e) => update("username", e.target.value)}
+                placeholder="Enter username"
+              />
+            )}
+            {showField("email") && (
+              <FormInput
+                label={t("admin.customer_creation.email") || "Email Address"}
+                value={formData.email}
+                onChange={(e) => update("email", e.target.value)}
+                placeholder="Enter email address"
+                type="email"
+              />
+            )}
+            {(showField("password") || isEdit) && (
+              <div>
+                <PasswordInput
+                  id="customer_password"
+                  label={t("login.password") || "Password"}
+                  value={formData.password}
+                  onChange={(e) => update("password", e.target.value)}
+                  placeholder={
+                    isEdit
+                      ? t(
+                          "admin.customer_creation.password_edit_placeholder",
+                          "Leave blank to keep the current password",
+                        )
+                      : t(
+                          "admin.customer_creation.password_placeholder",
+                          "Enter password (min 8 chars)",
+                        )
+                  }
+                />
+                {isEdit && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {t(
+                      "admin.customer_creation.password_edit_hint",
+                      "Enter a new password only if you want to change it.",
+                    )}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowChangePassword(true)}
-                    className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-                  >
-                    Change Password
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                  <div>
-                    <span className="text-gray-500">Account Created:</span>{" "}
-                    <span className="font-medium text-gray-800 dark:text-gray-100">
-                      {customerCreatedAt ? new Date(customerCreatedAt).toLocaleString() : "—"}
-                    </span>
+                )}
+              </div>
+            )}
+
+            {isEdit && (
+              <div className="md:col-span-3">
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/40">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                      Password Security
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowChangePassword(true)}
+                      className="flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                    >
+                      <span className="material-symbols-outlined text-[14px] leading-none">
+                        lock_reset
+                      </span>
+                      Change Password
+                    </button>
                   </div>
-                  <div>
-                    <span className="text-gray-500">Last Password Changed:</span>{" "}
-                    <span className="font-medium text-gray-800 dark:text-gray-100">
-                      {passwordCrtDate ? new Date(passwordCrtDate).toLocaleString() : "Never changed"}
-                    </span>
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <span className="text-gray-500">Account Created:</span>{" "}
+                      <span className="font-medium text-gray-800 dark:text-gray-100">
+                        {customerCreatedAt
+                          ? new Date(customerCreatedAt).toLocaleString()
+                          : "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Last Password Changed:</span>{" "}
+                      <span className="font-medium text-gray-800 dark:text-gray-100">
+                        {passwordCrtDate
+                          ? new Date(passwordCrtDate).toLocaleString()
+                          : "Never changed"}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="mt-2">
-                  {passwordCrtDate ? (
-                    <PasswordPriorityBadge ageDays={getPasswordAgeDays(passwordCrtDate)} />
-                  ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
-                      Password has never been changed — consider updating
-                    </span>
+                  {passwordCrtDate && (
+                    <div className="mt-2">
+                      <PasswordPriorityBadge ageDays={getPasswordAgeDays(passwordCrtDate)} />
+                    </div>
+                  )}
+                  {!passwordCrtDate && (
+                    <div className="mt-2">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                        <span className="material-symbols-outlined text-[14px] leading-none">
+                          info
+                        </span>
+                        Password has never been changed — consider updating
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>
-            </div>
-          )}
-        </FormSection>
+            )}
+          </FormSection>
 
-        <FormSection title={t("admin.customer_creation.address_info") || "Address Information"}>
-          {/* INDIVIDUAL HOUSE */}
-          {isIndividual && (
-            <>
-              {showField("building_no") && (
-                <FormInput
-                  label={t("common.building_no") || "Building No"}
-                  value={formData.building_no}
-                  onChange={(e) => update("building_no", e.target.value)}
-                  placeholder="e.g., 13A"
-                />
-              )}
-              {showField("street") && (
-                <FormInput
-                  label={t("common.street") || "Street"}
-                  value={formData.street}
-                  onChange={(e) => update("street", e.target.value)}
-                  placeholder="e.g., Main Street"
-                />
-              )}
-              {showField("area") && (
-                <FormInput
-                  label={t("common.area") || "Area"}
-                  value={formData.area}
-                  onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Village Center"
-                />
-              )}
-            </>
-          )}
+          {/* ADDRESS INFORMATION */}
+          <FormSection
+            title={t("admin.customer_creation.address_info") || "Address Information"}
+          >
+            {isIndividual && (
+              <>
+                {showField("building_no") && (
+                  <FormInput
+                    label={t("common.building_no") || "Building No"}
+                    value={formData.building_no}
+                    onChange={(e) => update("building_no", e.target.value)}
+                    placeholder="e.g., 13A"
+                  />
+                )}
+                {showField("street") && (
+                  <FormInput
+                    label={t("common.street") || "Street"}
+                    value={formData.street}
+                    onChange={(e) => update("street", e.target.value)}
+                    placeholder="e.g., Main Street"
+                  />
+                )}
+                {showField("area") && (
+                  <FormInput
+                    label={t("common.area") || "Area"}
+                    value={formData.area}
+                    onChange={(e) => update("area", e.target.value)}
+                    placeholder="e.g., Village Center"
+                  />
+                )}
+              </>
+            )}
+            {isApartment && (
+              <>
+                {showField("apartment_name") && (
+                  <FormInput
+                    label="Apartment Name"
+                    value={formData.apartment_name}
+                    onChange={(e) => update("apartment_name", e.target.value)}
+                    placeholder="Enter apartment name"
+                    isRequired={false}
+                  />
+                )}
+                {showField("block_no") && (
+                  <FormInput
+                    label="Block No"
+                    value={formData.block_no}
+                    onChange={(e) => update("block_no", e.target.value)}
+                    placeholder="Enter block number"
+                    isRequired={false}
+                  />
+                )}
+                {showField("flat_no") && (
+                  <FormInput
+                    label="Flat No"
+                    value={formData.flat_no}
+                    onChange={(e) => update("flat_no", e.target.value)}
+                    placeholder="Enter flat number"
+                    isRequired={false}
+                  />
+                )}
+              </>
+            )}
+            {isVilla && (
+              <>
+                {showField("street") && (
+                  <FormInput
+                    label={t("common.street") || "Street"}
+                    value={formData.street}
+                    onChange={(e) => update("street", e.target.value)}
+                    placeholder="e.g., Main Street"
+                  />
+                )}
+                {showField("area") && (
+                  <FormInput
+                    label={t("common.area") || "Area"}
+                    value={formData.area}
+                    onChange={(e) => update("area", e.target.value)}
+                    placeholder="e.g., Village Center"
+                  />
+                )}
+                {showField("villa_no") && (
+                  <FormInput
+                    label="Villa No"
+                    value={formData.villa_no}
+                    onChange={(e) => update("villa_no", e.target.value)}
+                    placeholder="Enter villa number"
+                    isRequired={false}
+                  />
+                )}
+              </>
+            )}
+            {isIndustry && (
+              <>
+                {showField("industry_name") && (
+                  <FormInput
+                    label="Industry Name"
+                    value={formData.industry_name}
+                    onChange={(e) => update("industry_name", e.target.value)}
+                    placeholder="Enter industry name"
+                    isRequired={false}
+                  />
+                )}
+                {showField("industry_type") && (
+                  <FormInput
+                    label="Industry Type"
+                    value={formData.industry_type}
+                    onChange={(e) => update("industry_type", e.target.value)}
+                    placeholder="Enter industry type"
+                    isRequired={false}
+                  />
+                )}
+                {showField("area") && (
+                  <FormInput
+                    label={t("common.area") || "Area"}
+                    value={formData.area}
+                    onChange={(e) => update("area", e.target.value)}
+                    placeholder="e.g., Industrial Area"
+                  />
+                )}
+              </>
+            )}
+            {showField("pincode") && (
+              <FormInput
+                label={t("common.pincode") || "Pincode"}
+                value={formData.pincode}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                  update("pincode", numericValue);
+                }}
+                placeholder="6 digit pincode"
+                maxLength={6}
+                inputMode="numeric"
+              />
+            )}
+            {showField("latitude") && (
+              <FormInput
+                label={t("common.latitude") || "Latitude"}
+                value={formData.latitude}
+                onChange={(e) => update("latitude", e.target.value)}
+                placeholder="e.g., 13.0827"
+                type="number"
+                step="0.0001"
+              />
+            )}
+            {showField("longitude") && (
+              <FormInput
+                label={t("common.longitude") || "Longitude"}
+                value={formData.longitude}
+                onChange={(e) => update("longitude", e.target.value)}
+                placeholder="e.g., 80.2707"
+                type="number"
+                step="0.0001"
+              />
+            )}
+          </FormSection>
 
-          {/* APARTMENT */}
-          {isApartment && (
-            <>
-              {showField("apartment_name") && (
-                <FormInput
-                  label="Apartment Name"
-                  value={formData.apartment_name}
-                  onChange={(e) => update("apartment_name", e.target.value)}
-                  placeholder="Enter apartment name"
-                  isRequired={false}
-                />
-              )}
-              {showField("block_no") && (
-                <FormInput
-                  label="Block No"
-                  value={formData.block_no}
-                  onChange={(e) => update("block_no", e.target.value)}
-                  placeholder="Enter block number"
-                  isRequired={false}
-                />
-              )}
-              {showField("flat_no") && (
-                <FormInput
-                  label="Flat No"
-                  value={formData.flat_no}
-                  onChange={(e) => update("flat_no", e.target.value)}
-                  placeholder="Enter flat number"
-                  isRequired={false}
-                />
-              )}
-            </>
-          )}
-
-          {/* VILLA */}
-          {isVilla && (
-            <>
-              {showField("street") && (
-                <FormInput
-                  label={t("common.street") || "Street"}
-                  value={formData.street}
-                  onChange={(e) => update("street", e.target.value)}
-                  placeholder="e.g., Main Street"
-                />
-              )}
-              {showField("area") && (
-                <FormInput
-                  label={t("common.area") || "Area"}
-                  value={formData.area}
-                  onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Village Center"
-                />
-              )}
-              {showField("villa_no") && (
-                <FormInput
-                  label="Villa No"
-                  value={formData.villa_no}
-                  onChange={(e) => update("villa_no", e.target.value)}
-                  placeholder="Enter villa number"
-                  isRequired={false}
-                />
-              )}
-            </>
-          )}
-
-          {/* INDUSTRY */}
-          {isIndustry && (
-            <>
-              {showField("industry_name") && (
-                <FormInput
-                  label="Industry Name"
-                  value={formData.industry_name}
-                  onChange={(e) => update("industry_name", e.target.value)}
-                  placeholder="Enter industry name"
-                  isRequired={false}
-                />
-              )}
-              {showField("industry_type") && (
-                <FormInput
-                  label="Industry Type"
-                  value={formData.industry_type}
-                  onChange={(e) => update("industry_type", e.target.value)}
-                  placeholder="Enter industry type"
-                  isRequired={false}
-                />
-              )}
-              {showField("area") && (
-                <FormInput
-                  label={t("common.area") || "Area"}
-                  value={formData.area}
-                  onChange={(e) => update("area", e.target.value)}
-                  placeholder="e.g., Industrial Zone"
-                />
-              )}
-            </>
-          )}
-
-          {showField("pincode") && (
-            <FormInput
-              label={t("common.pincode") || "Pincode"}
-              value={formData.pincode}
-              onChange={(e) => {
-                const numericValue = e.target.value.replace(/[^0-9]/g, "");
-                update("pincode", numericValue);
-              }}
-              placeholder="6 digit pincode"
-              maxLength={6}
-              inputMode="numeric"
-            />
-          )}
-          {showField("latitude") && (
-            <FormInput
-              label={t("common.latitude") || "Latitude"}
-              value={formData.latitude}
-              onChange={(e) => update("latitude", e.target.value)}
-              placeholder="e.g., 13.0827"
-              type="number"
-              step="0.0001"
-            />
-          )}
-          {showField("longitude") && (
-            <FormInput
-              label={t("common.longitude") || "Longitude"}
-              value={formData.longitude}
-              onChange={(e) => update("longitude", e.target.value)}
-              placeholder="e.g., 80.2707"
-              type="number"
-              step="0.0001"
-            />
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.property_info") || "Property Information"}>
-          {/* Display selected property and sub-property (read-only in form step) */}
-          {!isEdit && (showField("property_id") || showField("sub_property_id")) && (
-            <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  {showField("property_id") && (
-                    <p className="text-sm text-gray-600">
-                      {t("admin.customer_creation.selected_property") || "Selected Property"}:{" "}
-                      <span className="font-semibold text-gray-800">
-                        {dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id)?.property_name || "-"}
-                      </span>
-                    </p>
-                  )}
-                  {showField("sub_property_id") && (
-                    <p className="text-sm text-gray-600">
-                      {t("admin.customer_creation.selected_sub_property") || "Selected Sub-Property"}:{" "}
-                      <span className="font-semibold text-gray-800">
-                        {dropdowns.subProperties.find((sp: any) => resolveId(sp) === formData.sub_property_id)?.sub_property_name || "-"}
-                      </span>
-                    </p>
-                  )}
+          {/* PROPERTY INFORMATION */}
+          <FormSection
+            title={t("admin.customer_creation.property_info") || "Property Information"}
+          >
+            {!isEdit && (showField("property_id") || showField("sub_property_id")) && (
+              <div className="md:col-span-3 bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    {showField("property_id") && (
+                      <p className="text-sm text-gray-600">
+                        {t("admin.customer_creation.selected_property") ||
+                          "Selected Property"}
+                        :{" "}
+                        <span className="font-semibold text-gray-800">
+                          {dropdowns.properties.find(
+                            (p: any) => resolveId(p) === formData.property_id,
+                          )?.property_name || "-"}
+                        </span>
+                      </p>
+                    )}
+                    {showField("sub_property_id") && (
+                      <p className="text-sm text-gray-600">
+                        {t("admin.customer_creation.selected_sub_property") ||
+                          "Selected Sub-Property"}
+                        :{" "}
+                        <span className="font-semibold text-gray-800">
+                          {dropdowns.subProperties.find(
+                            (sp: any) => resolveId(sp) === formData.sub_property_id,
+                          )?.sub_property_name || "-"}
+                        </span>
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStep(0)}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                  >
+                    {t("common.change") || "Change"}
+                  </button>
                 </div>
+              </div>
+            )}
+            {isEdit && showField("property_id") && (
+              <ShadcnSelect
+                label={t("admin.customer_creation.property") || "Property"}
+                value={formData.property_id}
+                onChange={(v: string) => {
+                  update("property_id", v);
+                  update("sub_property_id", "");
+                }}
+                options={dropdowns.properties.map((p: any) => ({
+                  value: resolveId(p),
+                  label: p.property_name,
+                }))}
+                placeholder={
+                  t("admin.customer_creation.property_placeholder") || "Select property"
+                }
+              />
+            )}
+            {isEdit && showField("sub_property_id") && (
+              <ShadcnSelect
+                label={t("admin.customer_creation.sub_property") || "Sub Property"}
+                value={formData.sub_property_id}
+                onChange={(v: string) => update("sub_property_id", v)}
+                options={dropdowns.subProperties
+                  .filter(
+                    (sp: any) =>
+                      !formData.property_id ||
+                      normalizeEntityId(sp.property_id ?? sp.property) ===
+                        formData.property_id ||
+                      resolveId(sp) === formData.sub_property_id,
+                  )
+                  .map((sp: any) => ({
+                    value: resolveId(sp),
+                    label: sp.sub_property_name,
+                  }))}
+                placeholder={
+                  t("admin.customer_creation.sub_property_placeholder") ||
+                  "Select sub property"
+                }
+              />
+            )}
+            {showField("sqft") && (
+              <FormInput
+                label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
+                value={formData.sqft}
+                onChange={(e) => update("sqft", e.target.value)}
+                placeholder="e.g., 1200.50"
+                type="number"
+                step="0.01"
+              />
+            )}
+            {showField("is_bulkwaste_generator") && (
+              <ShadcnSelect
+                label={tOrFallback(
+                  "admin.customer_creation.bulk_waste_generator",
+                  "Bulk Waste Generator",
+                )}
+                value={formData.is_bulkwaste_generator ? "true" : "false"}
+                onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
+                options={[
+                  { value: "true", label: tOrFallback("common.yes", "Yes") },
+                  { value: "false", label: tOrFallback("common.no", "No") },
+                ]}
+                placeholder={tOrFallback(
+                  "admin.customer_creation.bulk_waste_generator_placeholder",
+                  "Select option",
+                )}
+                isRequired={false}
+              />
+            )}
+            {showField("waste_type_ids") && (
+              <MultiSelectCheckboxes
+                label={tOrFallback("common.waste_type", "Waste Type")}
+                values={formData.waste_type_ids}
+                onChange={(values) => update("waste_type_ids", values)}
+                options={dropdowns.wasteTypes.map((wasteType: any) => ({
+                  value: resolveId(wasteType),
+                  label: wasteType.waste_type_name || wasteType.name || resolveId(wasteType),
+                }))}
+              />
+            )}
+          </FormSection>
+
+          {/* IDENTIFICATION */}
+          <FormSection
+            title={t("admin.customer_creation.identification") || "Identification"}
+          >
+            {showField("id_proof_type") && (
+              <ShadcnSelect
+                label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
+                value={formData.id_proof_type}
+                onChange={(v: string) => update("id_proof_type", v)}
+                options={[
+                  {
+                    value: "AADHAAR",
+                    label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar",
+                  },
+                  {
+                    value: "VOTER_ID",
+                    label: t("admin.customer_creation.id_proof_voter") || "Voter ID",
+                  },
+                  {
+                    value: "PAN_CARD",
+                    label: t("admin.customer_creation.id_proof_pan") || "PAN Card",
+                  },
+                  {
+                    value: "DL",
+                    label: t("admin.customer_creation.id_proof_dl") || "Driving License",
+                  },
+                  {
+                    value: "PASSPORT",
+                    label: t("admin.customer_creation.id_proof_passport") || "Passport",
+                  },
+                ]}
+                placeholder={
+                  t("admin.customer_creation.id_proof_placeholder") ||
+                  "Select ID proof type"
+                }
+              />
+            )}
+            {showField("id_no") && (
+              <div className="md:col-span-2">
+                <FormInput
+                  label={t("admin.customer_creation.id_no") || "ID Number"}
+                  value={formData.id_no}
+                  onChange={(e) => update("id_no", e.target.value)}
+                  placeholder="Enter identification number"
+                />
+              </div>
+            )}
+          </FormSection>
+
+          {/* LOCATION DETAILS */}
+          <FormSection
+            title={t("admin.customer_creation.location_details") || "Location Details"}
+          >
+            {showField("country_id") && (
+              <ShadcnSelect
+                label={t("common.country") || "Country"}
+                value={formData.country_id}
+                onChange={(v: string) => {
+                  update("country_id", v);
+                  update("state_id", "");
+                  update("district_id", "");
+                  resetHierarchy();
+                }}
+                options={dropdowns.countries.map((c: any) => ({
+                  value: resolveId(c),
+                  label: c.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", { item: t("common.country") }) ||
+                  "Select country"
+                }
+              />
+            )}
+            {showField("state_id") && (
+              <ShadcnSelect
+                label={t("common.state") || "State"}
+                value={formData.state_id}
+                onChange={(v: string) => {
+                  update("state_id", v);
+                  update("district_id", "");
+                  resetHierarchy();
+                }}
+                options={filteredStates.map((s: any) => ({
+                  value: resolveId(s),
+                  label: s.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", { item: t("common.state") }) ||
+                  "Select state"
+                }
+              />
+            )}
+            {showField("district_id") && (
+              <ShadcnSelect
+                label={t("common.district") || "District"}
+                value={formData.district_id}
+                onChange={(v: string) => {
+                  update("district_id", v);
+                  resetHierarchy();
+                }}
+                options={filteredDistricts.map((d: any) => ({
+                  value: resolveId(d),
+                  label: d.name,
+                }))}
+                placeholder={
+                  t("common.select_item_placeholder", { item: t("common.district") }) ||
+                  "Select district"
+                }
+              />
+            )}
+            <ShadcnSelect
+              label="Area Type"
+              value={selectedAreaType}
+              onChange={(v: string) => {
+                setSelectedAreaType(v as AreaType);
+                resetHierarchyLevel();
+              }}
+              options={availableAreaTypes.map((at) => ({
+                value: at,
+                label: areaTypeLabels[at],
+              }))}
+              placeholder={formData.district_id ? "Select area type" : "Select district first"}
+              disabled={!formData.district_id}
+            />
+            <ShadcnSelect
+              label="Hierarchy Level"
+              value={selectedHierarchyType}
+              onChange={(v: string) => setHierarchyValue(v as HierarchyLevel, "")}
+              options={availableHierarchyLevels.map((item) => ({
+                value: item.value,
+                label: item.label,
+              }))}
+              placeholder="Select hierarchy level"
+              disabled={!selectedAreaType}
+            />
+            <ShadcnSelect
+              label="Destination"
+              value={selectedHierarchyId}
+              onChange={(v: string) =>
+                setHierarchyValue(selectedHierarchyType as HierarchyLevel, v)
+              }
+              options={destinationOptions}
+              placeholder={`Select ${hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.label ?? "destination"}`}
+              disabled={!selectedAreaType || !selectedHierarchyType}
+            />
+          </FormSection>
+
+          {/* STATUS */}
+          {showField("is_active") && (
+            <FormSection title={t("common.status") || "Status"}>
+              <ShadcnSelect
+                label={t("common.status") || "Status"}
+                value={formData.is_active ? "true" : "false"}
+                onChange={(v: string) => update("is_active", v === "true")}
+                options={[
+                  { value: "true", label: t("common.active") || "Active" },
+                  { value: "false", label: t("common.inactive") || "Inactive" },
+                ]}
+                placeholder={t("common.select_status") || "Select status"}
+              />
+            </FormSection>
+          )}
+
+          {/* ACTION BUTTONS */}
+          <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-gray-200">
+            <div className="flex gap-3">
+              {!isEdit && (
                 <button
                   type="button"
                   onClick={() => setStep(0)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition"
+                  className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
                 >
-                  {t("common.change") || "Change"}
+                  {t("common.back") || "Back"}
                 </button>
-              </div>
-            </div>
-          )}
-
-          {showField("sqft") && (
-            <FormInput
-              label={t("admin.customer_creation.sqft") || "Square Feet (Sqft)"}
-              value={formData.sqft}
-              onChange={(e) => update("sqft", e.target.value)}
-              placeholder="e.g., 1200.50"
-              type="number"
-              step="0.01"
-            />
-          )}
-          {showField("is_bulkwaste_generator") && (
-            <ShadcnSelect
-              label={tOrFallback("admin.customer_creation.bulk_waste_generator", "Bulk Waste Generator")}
-              value={formData.is_bulkwaste_generator ? "true" : "false"}
-              onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
-              options={[
-                { value: "true", label: tOrFallback("common.yes", "Yes") },
-                { value: "false", label: tOrFallback("common.no", "No") },
-              ]}
-              placeholder={tOrFallback("admin.customer_creation.bulk_waste_generator_placeholder", "Select option")}
-              isRequired={false}
-            />
-          )}
-
-          {showField("waste_type_ids") && (
-            <MultiSelectCheckboxes
-              label={tOrFallback("common.waste_type", "Waste Type")}
-              values={formData.waste_type_ids}
-              onChange={(values) => update("waste_type_ids", values)}
-              options={dropdowns.wasteTypes.map((wasteType: any) => ({
-                value: resolveId(wasteType),
-                label: wasteType.waste_type_name || wasteType.name || resolveId(wasteType),
-              }))}
-            />
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.identification") || "Identification"}>
-          {showField("id_proof_type") && (
-            <ShadcnSelect
-              label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
-              value={formData.id_proof_type}
-              onChange={(v: string) => update("id_proof_type", v)}
-              options={[
-                { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
-                { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
-                { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
-                { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
-                { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
-              ]}
-              placeholder={t("admin.customer_creation.id_proof_placeholder") || "Select ID proof type"}
-            />
-          )}
-          {showField("id_no") && (
-            <div className="md:col-span-2">
-              <FormInput
-                label={t("admin.customer_creation.id_no") || "ID Number"}
-                value={formData.id_no}
-                onChange={(e) => update("id_no", e.target.value)}
-                placeholder="Enter identification number"
-              />
-            </div>
-          )}
-        </FormSection>
-
-        <FormSection title={t("admin.customer_creation.location_details") || "Location Details"}>
-          {showField("country_id") && (
-            <ShadcnSelect
-              label={t("common.country") || "Country"}
-              value={formData.country_id}
-              onChange={(v: string) => {
-                update("country_id", v);
-                update("state_id", "");
-                update("district_id", "");
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={dropdowns.countries.map((c: any) => ({
-                value: resolveId(c),
-                label: c.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.country") }) || "Select country"}
-            />
-          )}
-          {showField("state_id") && (
-            <ShadcnSelect
-              label={t("common.state") || "State"}
-              value={formData.state_id}
-              onChange={(v: string) => {
-                update("state_id", v);
-                update("district_id", "");
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredStates.map((s: any) => ({
-                value: resolveId(s),
-                label: s.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.state") }) || "Select state"}
-            />
-          )}
-          {showField("district_id") && (
-            <ShadcnSelect
-              label={t("common.district") || "District"}
-              value={formData.district_id}
-              onChange={(v: string) => {
-                update("district_id", v);
-                update("city_id", "");
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredDistricts.map((d: any) => ({
-                value: resolveId(d),
-                label: d.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.district") }) || "Select district"}
-            />
-          )}
-          {showField("city_id") && (
-            <ShadcnSelect
-              label={t("common.city") || "City"}
-              value={formData.city_id}
-              onChange={(v: string) => {
-                update("city_id", v);
-                update("zone_id", "");
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={filteredCities.map((c: any) => ({
-                value: resolveId(c),
-                label: c.name,
-              }))}
-              placeholder={t("common.select_item_placeholder", { item: t("common.city") }) || "Select city"}
-            />
-          )}
-          {/* ── ZONE ── */}
-          {showField("zone_id") && (
-            <ShadcnSelect
-              label={t("common.zone") || "Zone"}
-              value={formData.zone_id || "__none__"}
-              disabled={isPanchayatSelected}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("zone_id", next);
-                update("ward_id", "");
-                update("panchayat_id", "");
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredZones.map((z: any) => ({
-                  value: resolveId(z),
-                  label: z.zone_name || z.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("common.zone") }) || "Select zone"}
-              isRequired={false}
-            />
-          )}
-
-          {/* ── WARD ── */}
-          {showField("ward_id") && (
-            <ShadcnSelect
-              label={t("common.ward") || "Ward"}
-              value={formData.ward_id || "__none__"}
-              disabled={isPanchayatSelected}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("ward_id", next);
-                if (next) update("panchayat_id", "");
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredWards.map((w: any) => ({
-                  value: resolveId(w),
-                  label: w.ward_name || w.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("common.ward") }) || "Select ward"}
-              isRequired={false}
-            />
-          )}
-
-          {/* ── PANCHAYAT ── */}
-          {showField("panchayat_id") && (
-            <ShadcnSelect
-              label={t("admin.nav.panchayat") || "PLB (Participating Local Bodies)"}
-              value={formData.panchayat_id || "__none__"}
-              disabled={isZoneOrWardSelected}
-              onChange={(v: string) => {
-                const next = v === "__none__" ? "" : v;
-                update("panchayat_id", next);
-                if (next) {
-                  update("zone_id", "");
-                  update("ward_id", "");
-                }
-              }}
-              options={[
-                { value: "__none__", label: t("common.not_available") || "N/A" },
-                ...filteredPanchayats.map((p: any) => ({
-                  value: resolveId(p),
-                  label: p.panchayat_name || p.name,
-                })),
-              ]}
-              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") }) || "Select panchayat"}
-              isRequired={false}
-            />
-          )}
-        </FormSection>
-
-        {showField("is_active") && (
-          <FormSection title={t("common.status") || "Status"}>
-            <ShadcnSelect
-              label={t("common.status") || "Status"}
-              value={formData.is_active ? "true" : "false"}
-              onChange={(v: string) => update("is_active", v === "true")}
-              options={[
-                { value: "true", label: t("common.active") || "Active" },
-                { value: "false", label: t("common.inactive") || "Inactive" },
-              ]}
-              placeholder={t("common.select_status") || "Select status"}
-            />
-          </FormSection>
-        )}
-
-        {/* ACTION BUTTONS */}
-        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-gray-200">
-          <div className="flex gap-3">
-            {!isEdit && (
+              )}
               <button
                 type="button"
-                onClick={() => setStep(0)}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+                onClick={onCancel}
+                className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
               >
-                {t("common.back") || "Back"}
+                {t("common.cancel") || "Cancel"}
               </button>
-            )}
+            </div>
             <button
-              type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-md font-medium transition duration-200"
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-2.5 rounded-md font-medium transition duration-200 flex items-center justify-center min-w-[120px]"
             >
-              {t("common.cancel") || "Cancel"}
+              {isSubmitting ? (
+                <>
+                  <svg
+                    className="animate-spin h-4 w-4 mr-2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  {t("common.saving") || "Saving..."}
+                </>
+              ) : isEdit ? (
+                t("common.update") || "Update"
+              ) : (
+                t("common.save") || "Save"
+              )}
             </button>
           </div>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-2.5 rounded-md font-medium transition duration-200 flex items-center justify-center min-w-[120px]"
-          >
-            {isSubmitting ? (
-              <>
-                <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                {t("common.saving") || "Saving..."}
-              </>
-            ) : isEdit ? (
-              t("common.update") || "Update"
-            ) : (
-              t("common.save") || "Save"
-            )}
-          </button>
-        </div>
-      </form>
-    </ComponentCard>
+        </form>
+      </ComponentCard>
     </>
+  );
+}
+
+/* ===============================
+   OUTER SHELL — DEFAULT EXPORT
+================================ */
+export default function CustomerCreationForm() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id);
+
+  const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
+  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
+    encCustomerMaster,
+    encCustomerCreation,
+  );
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dropdownsLoaded, setDropdownsLoaded] = useState(false);
+  const [recordData, setRecordData] = useState<any>(null);
+  const [loadingRecord, setLoadingRecord] = useState(isEdit);
+
+  /* raw dropdown state */
+  const [rawDistricts, setRawDistricts] = useState<any[]>([]);
+  const [rawStates, setRawStates] = useState<any[]>([]);
+  const [rawCountries, setRawCountries] = useState<any[]>([]);
+  const [rawProperties, setRawProperties] = useState<any[]>([]);
+  const [rawSubProperties, setRawSubProperties] = useState<any[]>([]);
+  const [rawCorporations, setRawCorporations] = useState<any[]>([]);
+  const [rawMunicipalities, setRawMunicipalities] = useState<any[]>([]);
+  const [rawTownPanchayats, setRawTownPanchayats] = useState<any[]>([]);
+  const [rawPanchayatUnions, setRawPanchayatUnions] = useState<any[]>([]);
+  const [rawPanchayats, setRawPanchayats] = useState<any[]>([]);
+  const [rawWasteTypes, setRawWasteTypes] = useState<any[]>([]);
+
+  /* load all dropdowns once */
+  useEffect(() => {
+    let cancelled = false;
+    const toArr = (res: any) =>
+      Array.isArray(res) ? res : (res as any)?.results ?? [];
+
+    Promise.all([
+      districtApi.readAll(),
+      stateApi.readAll(),
+      countryApi.readAll(),
+      propertiesApi.readAll(),
+      subPropertiesApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+      wasteTypeApi.readAll(),
+    ])
+      .then(
+        ([
+          districts,
+          states,
+          countries,
+          properties,
+          subProperties,
+          corporations,
+          municipalities,
+          townPanchayats,
+          panchayatUnions,
+          panchayats,
+          wasteTypes,
+        ]) => {
+          if (cancelled) return;
+          setRawDistricts(toArr(districts));
+          setRawStates(toArr(states));
+          setRawCountries(toArr(countries));
+          setRawProperties(toArr(properties));
+          setRawSubProperties(toArr(subProperties));
+          setRawCorporations(toArr(corporations));
+          setRawMunicipalities(toArr(municipalities));
+          setRawTownPanchayats(toArr(townPanchayats));
+          setRawPanchayatUnions(toArr(panchayatUnions));
+          setRawPanchayats(toArr(panchayats));
+          setRawWasteTypes(toArr(wasteTypes));
+          setDropdownsLoaded(true);
+        },
+      )
+      .catch((err) => {
+        if (cancelled) return;
+        console.error("Failed to fetch customer dropdowns:", err);
+        Swal.fire("Error", "Failed to load customer form data", "error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* load record in edit mode */
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    customerCreationApi
+      .read(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire(
+          t("common.error") || "Error",
+          t("admin.customer_creation.save_failed") || "Failed to load customer",
+          "error",
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, isEdit, t]);
+
+  /* submit handler */
+  const submitCustomer = async (payload: any) => {
+    setIsSubmitting(true);
+    try {
+      if (isEdit && id) {
+        await customerCreationApi.update(id, payload as any);
+      } else {
+        await customerCreationApi.create(payload as any);
+      }
+      Swal.fire(
+        t("common.success") || "Success",
+        t("admin.customer_creation.save_success") || "Saved successfully",
+        "success",
+      );
+      navigate(ENC_LIST_PATH);
+    } catch (err: any) {
+      console.error("Submit error:", err);
+      const data = err?.response?.data;
+      let errorText = t("admin.customer_creation.save_failed") || "Failed to save";
+      if (typeof data === "string") {
+        errorText = data;
+      } else if (data && typeof data === "object") {
+        const errPayload = "errors" in data ? (data as any).errors : data;
+        errorText =
+          Object.entries(errPayload as Record<string, unknown>)
+            .map(([key, value]) =>
+              Array.isArray(value) ? `${key}: ${value.join(", ")}` : `${key}: ${String(value)}`
+            )
+            .join("\n") || errorText;
+      }
+      Swal.fire(t("common.error") || "Error", errorText, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  /* loading gate — in edit mode wait until both dropdowns and record are ready */
+  const title = isEdit
+    ? t("admin.customer_creation.title_edit") || "Edit Customer"
+    : t("admin.customer_creation.title_add") || "Add Customer";
+
+  if (isEdit && (!dropdownsLoaded || loadingRecord)) {
+    return (
+      <ComponentCard title={title}>
+        <div className="p-6 text-sm text-gray-500">{t("common.loading") || "Loading..."}</div>
+      </ComponentCard>
+    );
+  }
+
+  /* normalised dropdown collections */
+  const dropdowns: CustomerDropdowns = {
+    districts: normalizeActive(rawDistricts),
+    states: normalizeActive(rawStates),
+    countries: normalizeActive(rawCountries),
+    properties: normalizeActive(rawProperties),
+    subProperties: normalizeActive(rawSubProperties),
+    corporations: normalizeActive(rawCorporations),
+    municipalities: normalizeActive(rawMunicipalities),
+    townPanchayats: normalizeActive(rawTownPanchayats),
+    panchayatUnions: normalizeActive(rawPanchayatUnions),
+    panchayats: normalizeActive(rawPanchayats),
+    wasteTypes: normalizeActive(rawWasteTypes),
+  };
+
+  /* compute initialPayload */
+  let initialPayload: CustomerInitialPayload;
+
+  if (isEdit && recordData) {
+    const d = recordData;
+
+    const countryId = resolveOptionValue(rawCountries, d.country_id, "name", d.country_name);
+    const stateId = resolveOptionValue(rawStates, d.state_id, "name", d.state_name);
+    const districtId = resolveOptionValue(rawDistricts, d.district_id, "name", d.district_name);
+    const corporationId = resolveOptionValue(
+      rawCorporations, d.corporation_id, "corporation_name", d.corporation_name,
+    );
+    const municipalityId = resolveOptionValue(
+      rawMunicipalities, d.municipality_id, "municipality_name", d.municipality_name,
+    );
+    const townPanchayatId = resolveOptionValue(
+      rawTownPanchayats, d.town_panchayat_id, "town_panchayat_name", d.town_panchayat_name,
+    );
+    const panchayatUnionId = resolveOptionValue(
+      rawPanchayatUnions, d.panchayat_union_id, "union_name", d.panchayat_union_name,
+    );
+    const panchayatId = resolveOptionValue(
+      rawPanchayats, d.panchayat_id, "panchayat_name", d.panchayat_name,
+    );
+    const propertyId = resolveOptionValue(
+      rawProperties, d.property_id, "property_name", d.property_name,
+    );
+    const subPropertyId = resolveOptionValue(
+      rawSubProperties, d.sub_property_id, "sub_property_name", d.sub_property_name,
+    );
+    const wasteTypeIds = normalizeIdArray(d.waste_type_ids ?? d.waste_types);
+
+    const rawHierarchyMatch: { level: HierarchyLevel; isUrban: boolean } | null =
+      d.corporation_id || d.corporation_name
+        ? { level: "corporation_id", isUrban: true }
+        : d.municipality_id || d.municipality_name
+          ? { level: "municipality_id", isUrban: true }
+          : d.town_panchayat_id || d.town_panchayat_name
+            ? { level: "town_panchayat_id", isUrban: true }
+            : d.panchayat_union_id || d.panchayat_union_name
+              ? { level: "panchayat_union_id", isUrban: false }
+              : d.panchayat_id || d.panchayat_name
+                ? { level: "panchayat_id", isUrban: false }
+                : null;
+
+    const labelByLevel: Record<HierarchyLevel, string> = {
+      corporation_id: String(d.corporation_name ?? ""),
+      municipality_id: String(d.municipality_name ?? ""),
+      town_panchayat_id: String(d.town_panchayat_name ?? ""),
+      panchayat_union_id: String(d.panchayat_union_name ?? ""),
+      panchayat_id: String(d.panchayat_name ?? ""),
+    };
+
+    initialPayload = {
+      customer_name: String(d.customer_name ?? ""),
+      contact_no: String(d.contact_no ?? ""),
+      username: String(d.username ?? ""),
+      email: String(d.email ?? ""),
+      password: String(d.password ?? ""),
+      building_no: String(d.building_no ?? ""),
+      street: String(d.street ?? ""),
+      area: String(d.area ?? ""),
+      pincode: String(d.pincode ?? ""),
+      latitude: String(d.latitude ?? ""),
+      longitude: String(d.longitude ?? ""),
+      sqft: String(d.sqft ?? ""),
+      property_id: propertyId,
+      sub_property_id: subPropertyId,
+      id_proof_type: String(d.id_proof_type ?? ""),
+      id_no: String(d.id_no ?? ""),
+      country_id: countryId,
+      state_id: stateId,
+      district_id: districtId,
+      corporation_id: corporationId,
+      municipality_id: municipalityId,
+      town_panchayat_id: townPanchayatId,
+      panchayat_union_id: panchayatUnionId,
+      panchayat_id: panchayatId,
+      waste_type_ids: wasteTypeIds,
+      is_active: Boolean(d.is_active),
+      is_bulkwaste_generator: Boolean(d.is_bulkwaste_generator),
+      apartment_name: String(d.apartment_name ?? ""),
+      block_no: String(d.block_no ?? ""),
+      flat_no: String(d.flat_no ?? ""),
+      villa_no: String(d.villa_no ?? ""),
+      industry_name: String(d.industry_name ?? ""),
+      industry_type: String(d.industry_type ?? ""),
+      selectedAreaType: rawHierarchyMatch
+        ? rawHierarchyMatch.isUrban
+          ? "urban"
+          : "rural"
+        : "",
+      selectedHierarchyType: rawHierarchyMatch ? rawHierarchyMatch.level : "",
+      hierarchyItemLabel: rawHierarchyMatch
+        ? labelByLevel[rawHierarchyMatch.level] || ""
+        : "",
+      passwordCrtDate: d.password_crt_date ?? null,
+      customerCreatedAt: d.created_at ?? null,
+    };
+  } else {
+    initialPayload = {
+      customer_name: "",
+      contact_no: "",
+      username: "",
+      email: "",
+      password: "",
+      building_no: "",
+      street: "",
+      area: "",
+      pincode: "",
+      latitude: "",
+      longitude: "",
+      sqft: "",
+      property_id: "",
+      sub_property_id: "",
+      id_proof_type: "",
+      id_no: "",
+      country_id: "",
+      state_id: "",
+      district_id: "",
+      corporation_id: "",
+      municipality_id: "",
+      town_panchayat_id: "",
+      panchayat_union_id: "",
+      panchayat_id: "",
+      waste_type_ids: [],
+      is_active: true,
+      is_bulkwaste_generator: false,
+      apartment_name: "",
+      block_no: "",
+      flat_no: "",
+      villa_no: "",
+      industry_name: "",
+      industry_type: "",
+      selectedAreaType: "",
+      selectedHierarchyType: "",
+      hierarchyItemLabel: "",
+      passwordCrtDate: null,
+      customerCreatedAt: null,
+    };
+  }
+
+  const formKey = isEdit ? String(recordData?.unique_id ?? id) : "new-customer";
+
+  return (
+    <CustomerEditor
+      key={formKey}
+      initialPayload={initialPayload}
+      dropdowns={dropdowns}
+      isEdit={isEdit}
+      isSubmitting={isSubmitting}
+      customerId={id}
+      onSubmit={submitCustomer}
+      onCancel={() => navigate(ENC_LIST_PATH)}
+    />
   );
 }
