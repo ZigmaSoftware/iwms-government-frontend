@@ -1,236 +1,227 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { useTranslation } from "react-i18next";
+
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+
+import { adminApi } from "@/helpers/admin/registry";
+import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { townPanchayatApi, stateApi, districtApi } from "@/helpers/admin";
-import type { SelectOption } from "@/types";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
-const TOWN_PANCHAYAT_FIELDS: Record<string, string[]> = {
-  state_id: ["state_id", "state"],
-  district_id: ["district_id", "district"],
-  town_panchayat_name: ["town_panchayat_name", "name"],
-  description: ["description"],
-  geofencing_type: ["geofencing_type"],
-  latitude: ["latitude"],
-  longitude: ["longitude"],
-  is_active: ["is_active"],
+type Option = {
+  value: string;
+  label: string;
+  stateId?: string;
+  districtId?: string;
 };
 
-const normalizeNullable = (v: any): string | null => {
-  if (v === undefined || v === null) return null;
-  if (typeof v === "object") return normalizeNullable(v.unique_id ?? v.id ?? v.value);
-  const raw = String(v).trim();
-  if (!raw) return null;
-  const inParentheses = raw.match(/\(([A-Za-z0-9_-]+)\)\s*$/);
-  return inParentheses?.[1] ?? raw;
+type RecordRow = Record<string, any>;
+
+type TownPanchayatInitialPayload = {
+  name: string;
+  state_id: string;
+  district_id: string;
+  area_type_id: string;
+  coordinates: GeoCoordinateDraft[];
+  is_active: boolean;
 };
 
-const toRecordList = (value: unknown): Record<string, unknown>[] => {
-  if (Array.isArray(value)) return value.filter((item): item is Record<string, unknown> =>
-    !!item && typeof item === "object" && !Array.isArray(item));
-  if (value && typeof value === "object") {
-    const maybeResults = (value as { results?: unknown }).results;
-    if (Array.isArray(maybeResults)) return maybeResults.filter(
-      (item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item)
-    );
+type TownPanchayatPayload = {
+  town_panchayat_name: string;
+  state_id: string;
+  district_id: string;
+  area_type_id: string;
+  coordinates: Array<{ latitude: number; longitude: number }>;
+  is_active: boolean;
+};
+
+type TownPanchayatEditorProps = {
+  initialPayload: TownPanchayatInitialPayload;
+  isEdit: boolean;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: TownPanchayatPayload) => Promise<void>;
+  states: Option[];
+  districts: Option[];
+  areaTypes: Option[];
+};
+
+const AREA_TYPE_FILTER = "Urban Local Body";
+
+const normalizeNullable = (value: any): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object")
+    return normalizeNullable(value.unique_id ?? value.id ?? value.value);
+  return String(value).trim();
+};
+
+const toRecordList = (value: unknown): RecordRow[] => {
+  if (Array.isArray(value)) return value as RecordRow[];
+  if (
+    value &&
+    typeof value === "object" &&
+    Array.isArray((value as { results?: unknown }).results)
+  ) {
+    return (value as { results: RecordRow[] }).results;
   }
   return [];
 };
 
-const normalizeLabel = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
-
-const resolveId = (items: SelectOption[], id: string | null, name?: string | null): string | null => {
-  if (id && items.some((x) => x.value === id)) return id;
-  if (!name) return id;
-  return items.find((x) => normalizeLabel(x.label) === normalizeLabel(name))?.value ?? id;
+const textOf = (row: RecordRow, ...keys: string[]) => {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== null && value !== undefined && String(value).trim())
+      return String(value);
+  }
+  return "";
 };
 
-export default function TownPanchayatForm() {
-  const { showField, filterPayload } = useFieldVisibility("masters", "town-panchayats", TOWN_PANCHAYAT_FIELDS);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { id } = useParams<{ id: string }>();
-  const isEdit = Boolean(id);
+const extractErrorMessage = (error: unknown, fallback: string) => {
+  const data = (error as { response?: { data?: unknown } }).response?.data;
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(", ");
+  if (data && typeof data === "object") {
+    return Object.entries(data as Record<string, unknown>)
+      .map(
+        ([key, value]) =>
+          `${key}: ${Array.isArray(value) ? value.join(", ") : String(value)}`
+      )
+      .join("\n");
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+};
 
-  const {
-    companyUniqueId, projectId, projects, companies, isSuperAdmin, loggedInCompanyUniqueId,
-    setProjectId, onCompanyChange, applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
+const TOWN_PANCHAYAT_FIELDS: Record<string, string[]> = {
+  state_id: ["state_id"],
+  district_id: ["district_id"],
+  area_type_id: ["area_type_id"],
+  town_panchayat_name: ["town_panchayat_name"],
+  coordinates: ["coordinates"],
+  is_active: ["is_active"],
+};
 
-  const [townPanchayatName, setTownPanchayatName] = useState("");
-  const [stateId, setStateId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [description, setDescription] = useState("");
-  const [geofencingType, setGeofencingType] = useState("square");
-  const [latitude, setLatitude] = useState("");
-  const [longitude, setLongitude] = useState("");
-  const [isActive, setIsActive] = useState(true);
+function TownPanchayatEditor({
+  initialPayload,
+  isEdit,
+  isSubmitting,
+  onCancel,
+  onSubmit,
+  states,
+  districts,
+  areaTypes,
+}: TownPanchayatEditorProps) {
+  const { t } = useTranslation();
+  const { showField, filterPayload, getMissingRequiredFields } =
+    useFieldVisibility("masters", "townpanchayats", TOWN_PANCHAYAT_FIELDS);
 
-  const [pendingState, setPendingState] = useState("");
-  const [pendingDistrict, setPendingDistrict] = useState("");
+  const [name, setName] = useState(initialPayload.name);
+  const [stateId, setStateId] = useState(initialPayload.state_id);
+  const [districtId, setDistrictId] = useState(initialPayload.district_id);
+  const [areaTypeId, setAreaTypeId] = useState(initialPayload.area_type_id);
+  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
+  const [isActive, setIsActive] = useState(initialPayload.is_active);
 
-  const [allStates, setAllStates] = useState<SelectOption[]>([]);
-  const [allDistricts, setAllDistricts] = useState<SelectOption[]>([]);
-  const [filteredDistricts, setFilteredDistricts] = useState<SelectOption[]>([]);
+  const filteredDistricts = useMemo(
+    () =>
+      districts.filter(
+        (item) => !stateId || !item.stateId || item.stateId === stateId
+      ),
+    [districts, stateId]
+  );
 
-  const { encMasters, encTownPanchayats } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encTownPanchayats);
+  const filteredAreaTypes = useMemo(
+    () =>
+      areaTypes.filter(
+        (item) =>
+          (!stateId || !item.stateId || item.stateId === stateId) &&
+          (!districtId || !item.districtId || item.districtId === districtId) &&
+          (!AREA_TYPE_FILTER || item.label === AREA_TYPE_FILTER)
+      ),
+    [areaTypes, stateId, districtId]
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    stateApi.readAll().then((res: any) => {
-      if (cancelled) return;
-      setAllStates(toRecordList(res).map((x: any) => ({
-        value: normalizeNullable(x.unique_id) ?? "",
-        label: String(x.name ?? ""),
-      })).filter((x) => x.value && x.label));
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const config = companyUniqueId && projectId
-      ? { params: { company_id: companyUniqueId, project_id: projectId } }
-      : undefined;
-    districtApi.readAll(config).then((res: any) => {
-      if (cancelled) return;
-      setAllDistricts(toRecordList(res).map((x: any) => ({
-        value: normalizeNullable(x.unique_id) ?? "",
-        label: String(x.name ?? ""),
-        stateId: normalizeNullable(x.state_id ?? x.state),
-      } as SelectOption & { stateId: string | null })).filter((x) => x.value && x.label));
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [companyUniqueId, projectId]);
-
-  useEffect(() => {
-    if (!stateId) { setFilteredDistricts([]); return; }
-    const filt = (allDistricts as any[]).filter((d) => d.stateId === stateId)
-      .map((d) => ({ value: d.value, label: d.label }));
-    if (pendingDistrict && !filt.some((d) => d.value === pendingDistrict)) {
-      const found = allDistricts.find((d) => d.value === pendingDistrict);
-      if (found) filt.push(found);
-    }
-    setFilteredDistricts(filt);
-  }, [stateId, allDistricts, pendingDistrict]);
-
-  useEffect(() => {
-    if (pendingState && allStates.length > 0 && allStates.some((s) => s.value === pendingState)) {
-      setStateId(pendingState);
-      setPendingState("");
-    }
-  }, [pendingState, allStates]);
-
-  useEffect(() => {
-    if (pendingDistrict && filteredDistricts.length > 0 && filteredDistricts.some((d) => d.value === pendingDistrict)) {
-      setDistrictId(pendingDistrict);
-      setPendingDistrict("");
-    }
-  }, [pendingDistrict, filteredDistricts]);
-
-  const [recordData, setRecordData] = useState<any>(null);
-  const [loadingRecord, setLoadingRecord] = useState(false);
-
-  useEffect(() => {
-    if (!isEdit || !id) return;
-    let cancelled = false;
-    setLoadingRecord(true);
-    townPanchayatApi.read(id).then((res: any) => {
-      if (cancelled) return;
-      setRecordData(res);
-      setLoadingRecord(false);
-    }).catch((err: any) => {
-      if (cancelled) return;
-      setLoadingRecord(false);
-      Swal.fire({ icon: "error", title: "Error", text: String(err?.response?.data ?? err?.message ?? "Failed to load record") });
-    });
-    return () => { cancelled = true; };
-  }, [id, isEdit]);
-
-  useEffect(() => {
-    if (!isEdit || !recordData) return;
-    const data = recordData as any;
-    setTownPanchayatName(data.town_panchayat_name ?? "");
-    setDescription(data.description ?? "");
-    setGeofencingType(data.geofencing_type ?? "square");
-    setLatitude(data.latitude ?? "");
-    setLongitude(data.longitude ?? "");
-    setIsActive(Boolean(data.is_active));
-    applyCompanyProjectFromRecord(data as unknown as Record<string, unknown>);
-
-    const rawStateId = normalizeNullable(data.state_id ?? data.state);
-    const resolvedState = resolveId(allStates, rawStateId, data.state_name ?? null);
-    const rawDistrictId = normalizeNullable(data.district_id ?? data.district);
-    const resolvedDistrict = resolveId(allDistricts, rawDistrictId, data.district_name ?? null);
-
-    if (resolvedState) { setStateId(resolvedState); setPendingState(resolvedState); }
-    if (resolvedDistrict) { setDistrictId(resolvedDistrict); setPendingDistrict(resolvedDistrict); }
-  }, [isEdit, recordData, applyCompanyProjectFromRecord, allStates, allDistricts]);
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyUniqueId) { Swal.fire("Error", "Company is required", "error"); return; }
-    if (!projectId) { Swal.fire("Error", "Project is required", "error"); return; }
 
-    const rawPayload = {
-      town_panchayat_name: townPanchayatName,
-      company_id: companyUniqueId,
-      project_id: projectId,
+    const fieldValues: Record<string, unknown> = {
+      town_panchayat_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
-      description: description || null,
-      geofencing_type: geofencingType,
-      latitude: latitude || null,
-      longitude: longitude || null,
+      area_type_id: areaTypeId,
+    };
+
+    if (
+      getMissingRequiredFields(
+        ["town_panchayat_name", "state_id", "district_id", "area_type_id"],
+        (fieldKey) => fieldValues[fieldKey]
+      ).length > 0
+    ) {
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: t("common.missing_fields"),
+        confirmButtonColor: "#3085d6",
+      });
+      return;
+    }
+
+    const rawPayload: TownPanchayatPayload = {
+      town_panchayat_name: name.trim(),
+      state_id: stateId,
+      district_id: districtId,
+      area_type_id: areaTypeId,
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
-    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
 
-    setIsSubmitting(true);
-    try {
-      if (isEdit && id) {
-        await townPanchayatApi.update(id, payload);
-        Swal.fire("Success", "Updated successfully", "success");
-      } else {
-        await townPanchayatApi.create(payload);
-        Swal.fire("Success", "Created successfully", "success");
-      }
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
-    } catch {
-      Swal.fire("Error", "Something went wrong", "error");
-    } finally {
-      setIsSubmitting(false);
-    }
+    await onSubmit(filterPayload(rawPayload) as TownPanchayatPayload);
   };
 
   return (
-    <ComponentCard title={isEdit ? "Edit Town Panchayat" : "Add Town Panchayat"}>
-      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">{showField("state_id") && (
+    <form onSubmit={handleSubmit} noValidate>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {showField("state_id") && (
           <div>
-            <Label>State *</Label>
-            <Select value={stateId} onValueChange={(value) => { setStateId(value); setDistrictId(""); setFilteredDistricts([]); setPendingDistrict(""); }}>
-              <SelectTrigger><SelectValue placeholder="Select State" /></SelectTrigger>
+            <Label htmlFor="stateId">
+              State <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={stateId}
+              onValueChange={(value) => {
+                setStateId(value);
+                setDistrictId("");
+                setAreaTypeId("");
+              }}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="input-validate w-full" id="stateId">
+                <SelectValue placeholder="Select State" />
+              </SelectTrigger>
               <SelectContent>
-                {allStates.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                {states.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -238,11 +229,50 @@ export default function TownPanchayatForm() {
 
         {showField("district_id") && (
           <div>
-            <Label>District *</Label>
-            <Select value={districtId} onValueChange={setDistrictId} disabled={!stateId}>
-              <SelectTrigger><SelectValue placeholder="Select District" /></SelectTrigger>
+            <Label htmlFor="districtId">
+              District <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={districtId}
+              onValueChange={(value) => {
+                setDistrictId(value);
+                setAreaTypeId("");
+              }}
+              disabled={isSubmitting || !stateId}
+            >
+              <SelectTrigger className="input-validate w-full" id="districtId">
+                <SelectValue placeholder="Select District" />
+              </SelectTrigger>
               <SelectContent>
-                {filteredDistricts.map((d) => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                {filteredDistricts.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("area_type_id") && (
+          <div>
+            <Label htmlFor="areaTypeId">
+              Area Type <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={areaTypeId}
+              onValueChange={setAreaTypeId}
+              disabled={isSubmitting || !districtId}
+            >
+              <SelectTrigger className="input-validate w-full" id="areaTypeId">
+                <SelectValue placeholder="Select Area Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredAreaTypes.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -250,67 +280,225 @@ export default function TownPanchayatForm() {
 
         {showField("town_panchayat_name") && (
           <div>
-            <Label>Town Panchayat Name *</Label>
-            <Input value={townPanchayatName} onChange={(e) => setTownPanchayatName(e.target.value)} required />
+            <Label htmlFor="townPanchayatName">
+              Town Panchayat Name <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="townPanchayatName"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter Town Panchayat Name"
+              className="input-validate w-full"
+              disabled={isSubmitting}
+              required
+            />
           </div>
         )}
 
-        {showField("description") && (
-          <div>
-            <Label>Description</Label>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-        )}
-
-        {showField("geofencing_type") && (
-          <div>
-            <Label>GeoFencing Type</Label>
-            <Select value={geofencingType} onValueChange={setGeofencingType}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="polygon">Polygon</SelectItem>
-                <SelectItem value="circle">Circle</SelectItem>
-                <SelectItem value="rectangle">Rectangle</SelectItem>
-                <SelectItem value="square">Square</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {showField("latitude") && (
-          <div>
-            <Label>Latitude</Label>
-            <Input value={latitude} onChange={(e) => setLatitude(e.target.value)} />
-          </div>
-        )}
-
-        {showField("longitude") && (
-          <div>
-            <Label>Longitude</Label>
-            <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} />
-          </div>
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         )}
 
         {showField("is_active") && (
           <div>
-            <Label>Status</Label>
-            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Label htmlFor="isActive">
+              {t("common.status")} <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={isActive ? "true" : "false"}
+              onValueChange={(value) => setIsActive(value === "true")}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="input-validate w-full" id="isActive">
+                <SelectValue placeholder={t("common.select_status")} />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="true">Active</SelectItem>
-                <SelectItem value="false">Inactive</SelectItem>
+                <SelectItem value="true">{t("common.active")}</SelectItem>
+                <SelectItem value="false">{t("common.inactive")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
         )}
+      </div>
 
-        <div className="md:col-span-2 flex justify-end gap-3">
-          <Button type="submit" disabled={isSubmitting || loadingRecord}>{isEdit ? "Update" : "Save"}</Button>
-          <Button type="button" variant="destructive" onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}>
-            Cancel
-          </Button>
-        </div>
-      </form>
+      <div className="mt-6 flex justify-end gap-3">
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting
+            ? isEdit
+              ? t("common.updating")
+              : t("common.saving")
+            : isEdit
+              ? t("common.update")
+              : t("common.save")}
+        </Button>
+        <Button type="button" variant="destructive" onClick={onCancel}>
+          {t("common.cancel")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+export default function TownPanchayatForm() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEdit = Boolean(id);
+  const { encMasters, encTownPanchayats } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encTownPanchayats);
+
+  const [recordData, setRecordData] = useState<RecordRow | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [states, setStates] = useState<Option[]>([]);
+  const [districts, setDistricts] = useState<Option[]>([]);
+  const [areaTypes, setAreaTypes] = useState<Option[]>([]);
+
+  const title = isEdit ? "Edit Town Panchayat" : "Add Town Panchayat";
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([stateApi.readAll(), districtApi.readAll(), areaTypeApi.readAll()])
+      .then(([stateRes, districtRes, areaTypeRes]) => {
+        if (cancelled) return;
+        setStates(
+          toRecordList(stateRes)
+            .map((row) => ({
+              value: normalizeNullable(row.unique_id ?? row.id),
+              label: textOf(row, "state_name", "name"),
+              stateId: normalizeNullable(row.state_id ?? row.state),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+        setDistricts(
+          toRecordList(districtRes)
+            .map((row) => ({
+              value: normalizeNullable(row.unique_id ?? row.id),
+              label: textOf(row, "district_name", "name"),
+              stateId: normalizeNullable(row.state_id ?? row.state),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+        setAreaTypes(
+          toRecordList(areaTypeRes)
+            .map((row) => ({
+              value: normalizeNullable(row.unique_id ?? row.id),
+              label: textOf(row, "area_type_name", "name"),
+              stateId: normalizeNullable(row.state_id ?? row.state),
+              districtId: normalizeNullable(row.district_id ?? row.district),
+            }))
+            .filter((item) => item.value && item.label)
+        );
+      })
+      .catch(() =>
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: "Failed to load dropdown data",
+        })
+      );
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!isEdit || !id) return;
+    let cancelled = false;
+    setLoadingRecord(true);
+    adminApi.townPanchayats
+      .read(id)
+      .then((res: any) => {
+        if (cancelled) return;
+        setRecordData(res);
+        setLoadingRecord(false);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setLoadingRecord(false);
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: extractErrorMessage(err, t("common.load_failed")),
+        });
+      });
+    return () => { cancelled = true; };
+  }, [id, isEdit]);
+
+  const submitTownPanchayat = async (payload: TownPanchayatPayload) => {
+    setIsSubmitting(true);
+    try {
+      if (isEdit && id) {
+        await adminApi.townPanchayats.update(id, payload);
+        Swal.fire({
+          icon: "success",
+          title: t("common.updated_success"),
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      } else {
+        await adminApi.townPanchayats.create(payload);
+        Swal.fire({
+          icon: "success",
+          title: t("common.added_success"),
+          timer: 1500,
+          showConfirmButton: false,
+        });
+      }
+      navigate(LIST_PATH);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.save_failed"),
+        text: extractErrorMessage(error, t("common.save_failed_desc")),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isEdit && loadingRecord && !recordData) {
+    return (
+      <ComponentCard title={title}>
+        <div className="p-6 text-sm text-gray-500">{t("common.loading")}</div>
+      </ComponentCard>
+    );
+  }
+
+  const initialPayload: TownPanchayatInitialPayload = recordData
+    ? {
+        name: textOf(recordData, "town_panchayat_name", "name"),
+        state_id: normalizeNullable(recordData.state_id ?? recordData.state),
+        district_id: normalizeNullable(recordData.district_id ?? recordData.district),
+        area_type_id: normalizeNullable(recordData.area_type_id ?? recordData.area_type),
+        coordinates: normalizeCoordinateDrafts(recordData.coordinates),
+        is_active: recordData.is_active !== false,
+      }
+    : {
+        name: "",
+        state_id: "",
+        district_id: "",
+        area_type_id: "",
+        coordinates: normalizeCoordinateDrafts(null),
+        is_active: true,
+      };
+
+  const formKey = isEdit
+    ? String(recordData?.unique_id ?? id)
+    : "new-townpanchayat";
+
+  return (
+    <ComponentCard title={title}>
+      <TownPanchayatEditor
+        key={formKey}
+        initialPayload={initialPayload}
+        isEdit={isEdit}
+        isSubmitting={isSubmitting}
+        onCancel={() => navigate(LIST_PATH)}
+        onSubmit={submitTownPanchayat}
+        states={states}
+        districts={districts}
+        areaTypes={areaTypes}
+      />
     </ComponentCard>
   );
 }

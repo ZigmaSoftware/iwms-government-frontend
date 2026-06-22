@@ -32,7 +32,6 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { dailyWasteComparisonApi } from "@/helpers/admin";
 import { api } from "@/api";
 import {
@@ -186,15 +185,6 @@ const PLBTooltip = ({ active, payload, label }: any) => {
 export default function DailyWasteComparisonList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
 
   const [dateValue, setDateValue] = useState("");
   const [appliedDate, setAppliedDate] = useState("");
@@ -218,21 +208,11 @@ export default function DailyWasteComparisonList() {
 
   /* ── fetch ── */
   const fetchReport = async () => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRows([]);
-      setDateTrends([]);
-      setPlbCompare([]);
-      setKpis(initialKpis);
-      return;
-    }
     setLoading(true);
     setError("");
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedDate) params.date = appliedDate;
-      if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
 
       const { data } = await api.get<DailyReportResponse>(
         "/schedule-masters/daily-waste-comparisons/",
@@ -259,7 +239,7 @@ export default function DailyWasteComparisonList() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedDate, sortMode, source, companyUniqueId, projectId, companies.length]);
+  }, [appliedDate, sortMode, source]);
 
   /* ── delete ── */
   const handleDelete = async (row: DailyReportRow) => {
@@ -306,8 +286,6 @@ export default function DailyWasteComparisonList() {
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedDate) params.date = appliedDate;
-      if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
 
       const exportRows = await dailyWasteComparisonApi.readAllForExport({
         params,
@@ -355,36 +333,6 @@ export default function DailyWasteComparisonList() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isSuperAdmin && (
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={companies.length === 0}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
-            >
-              <option value="">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          )}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
           <input
             type="date"
             value={dateValue}
@@ -1047,8 +995,6 @@ export default function DailyWasteComparisonList() {
                                     {
                                       state: {
                                         record: r,
-                                        companyUniqueId: r.company_id,
-                                        projectId: r.project_id,
                                       },
                                     },
                                   )

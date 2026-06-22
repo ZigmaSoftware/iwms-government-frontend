@@ -1,315 +1,86 @@
-import type { BinLoadLogFormState, SelectOption } from "./types";
-import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
-import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
-import { Input } from "@/components/ui/input";
-
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 
+type Option = { value: string; label: string };
 
-const sourceTypeOptions: SelectOption[] = [
-  { value: "WEIGHBRIDGE", label: "Weighbridge" },
-  { value: "SENSOR", label: "Sensor" },
-  { value: "MANUAL", label: "Manual" },
-];
-
-const toOptions = (items: any[], valueKey: string, labelKey: string): SelectOption[] =>
-  items
-    .map((item) => ({
-      value: String(item?.[valueKey] ?? ""),
-      label: String(item?.[labelKey] ?? item?.[valueKey] ?? ""),
-    }))
-    .filter((option) => option.value);
-
-const toDateTimeLocal = (value?: string | null) =>
-  value ? String(value).slice(0, 16) : "";
+const toOptions = (items: any[], labelKey: string): Option[] =>
+  items.map((item) => ({ value: String(item?.unique_id ?? item?.id ?? ""), label: String(item?.[labelKey] ?? item?.unique_id ?? "") })).filter((item) => item.value);
 
 export default function BinLoadLogForm() {
-  const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
-
-  const binLoadLogApi = adminApi.binLoadLogs;
-  const zoneApi = adminApi.zones;
-  const vehicleApi = adminApi.vehicleCreations;
-  const propertyApi = adminApi.properties;
-  const subPropertyApi = adminApi.subProperties;
-
-  const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(false);
-
-  const [zones, setZones] = useState<SelectOption[]>([]);
-  const [vehicles, setVehicles] = useState<SelectOption[]>([]);
-  const [properties, setProperties] = useState<SelectOption[]>([]);
-  const [subProperties, setSubProperties] = useState<SelectOption[]>([]);
-
-  // Pending IDs — set when the record loads; applied once options are available
-  const [pendingZoneId, setPendingZoneId] = useState<string | null>(null);
-  const [pendingVehicleId, setPendingVehicleId] = useState<string | null>(null);
-  const [pendingPropertyId, setPendingPropertyId] = useState<string | null>(null);
-  const [pendingSubPropertyId, setPendingSubPropertyId] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState<BinLoadLogFormState>({
-    zone_id: "",
-    vehicle_id: "",
-    property_id: "",
-    sub_property_id: "",
-    weight_kg: "",
-    source_type: "",
-    event_time: "",
-  });
-
   const { encTransportMaster, encBinLoadLog } = getEncryptedRoute();
-  const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, encBinLoadLog);
+  const { listPath } = createCrudRoutePaths(encTransportMaster, encBinLoadLog);
+  const [vehicleId, setVehicleId] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [subPropertyId, setSubPropertyId] = useState("");
+  const [weightKg, setWeightKg] = useState("");
+  const [sourceType, setSourceType] = useState("");
+  const [eventTime, setEventTime] = useState("");
+  const [vehicles, setVehicles] = useState<Option[]>([]);
+  const [properties, setProperties] = useState<Option[]>([]);
+  const [subProperties, setSubProperties] = useState<Option[]>([]);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setFetching(true);
-    Promise.all([
-      zoneApi.readAll(),
-      vehicleApi.readAll(),
-      propertyApi.readAll(),
-      subPropertyApi.readAll(),
-    ])
-      .then(([zoneRes, vehicleRes, propertyRes, subPropertyRes]) => {
-        setZones(toOptions(normalizeList(zoneRes), "unique_id", "name"));
-        setVehicles(toOptions(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
-        setProperties(toOptions(normalizeList(propertyRes), "unique_id", "property_name"));
-        setSubProperties(toOptions(normalizeList(subPropertyRes), "unique_id", "sub_property_name"));
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      })
-      .finally(() => setFetching(false));
-  }, [propertyApi, subPropertyApi, t, vehicleApi, zoneApi]);
-
-  useEffect(() => {
-    if (!isEdit || !id) return;
-
-    binLoadLogApi.read(id)
-      .then((res: any) => {
-        const zoneId = res?.zone_details?.unique_id ?? res?.zone_id ?? "";
-        const vehicleId = res?.vehicle_details?.unique_id ?? res?.vehicle_id ?? "";
-        const propertyId = res?.property_details?.unique_id ?? res?.property_id ?? "";
-        const subPropertyId = res?.sub_property_details?.unique_id ?? res?.sub_property_id ?? "";
-
-        setPendingZoneId(zoneId);
-        setPendingVehicleId(vehicleId);
-        setPendingPropertyId(propertyId);
-        setPendingSubPropertyId(subPropertyId);
-
-        setFormData({
-          zone_id: zoneId,
-          vehicle_id: vehicleId,
-          property_id: propertyId,
-          sub_property_id: subPropertyId,
-          weight_kg: res?.weight_kg ? String(res.weight_kg) : "",
-          source_type: res?.source_type ?? "",
-          event_time: toDateTimeLocal(res?.event_time),
-        });
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    Promise.all([adminApi.vehicleCreations.readAll(), adminApi.properties.readAll(), adminApi.subProperties.readAll()])
+      .then(([vehicleRes, propertyRes, subPropertyRes]) => {
+        setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
+        setProperties(toOptions(normalizeList(propertyRes), "property_name"));
+        setSubProperties(toOptions(normalizeList(subPropertyRes), "sub_property_name"));
       });
-  }, [binLoadLogApi, id, isEdit, t]);
-
-  // Apply pending IDs once the corresponding options array is populated
-  useEffect(() => {
-    if (pendingZoneId && zones.length > 0 && zones.some((o) => o.value === pendingZoneId)) {
-      setFormData((prev) => ({ ...prev, zone_id: pendingZoneId }));
-      setPendingZoneId(null);
-    }
-  }, [pendingZoneId, zones]);
+  }, []);
 
   useEffect(() => {
-    if (pendingVehicleId && vehicles.length > 0 && vehicles.some((o) => o.value === pendingVehicleId)) {
-      setFormData((prev) => ({ ...prev, vehicle_id: pendingVehicleId }));
-      setPendingVehicleId(null);
-    }
-  }, [pendingVehicleId, vehicles]);
+    if (!id) return;
+    adminApi.binLoadLogs.read(id).then((record: any) => {
+      setVehicleId(String(record.vehicle_id ?? record.vehicle_details?.unique_id ?? ""));
+      setPropertyId(String(record.property_id ?? record.property_details?.unique_id ?? ""));
+      setSubPropertyId(String(record.sub_property_id ?? record.sub_property_details?.unique_id ?? ""));
+      setWeightKg(String(record.weight_kg ?? ""));
+      setSourceType(String(record.source_type ?? ""));
+      setEventTime(record.event_time ? String(record.event_time).slice(0, 16) : "");
+    });
+  }, [id]);
 
-  useEffect(() => {
-    if (pendingPropertyId && properties.length > 0 && properties.some((o) => o.value === pendingPropertyId)) {
-      setFormData((prev) => ({ ...prev, property_id: pendingPropertyId }));
-      setPendingPropertyId(null);
-    }
-  }, [pendingPropertyId, properties]);
-
-  useEffect(() => {
-    if (pendingSubPropertyId && subProperties.length > 0 && subProperties.some((o) => o.value === pendingSubPropertyId)) {
-      setFormData((prev) => ({ ...prev, sub_property_id: pendingSubPropertyId }));
-      setPendingSubPropertyId(null);
-    }
-  }, [pendingSubPropertyId, subProperties]);
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (
-      !formData.zone_id ||
-      !formData.vehicle_id ||
-      !formData.property_id ||
-      !formData.sub_property_id ||
-      !formData.weight_kg ||
-      !formData.source_type ||
-      !formData.event_time
-    ) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
-      return;
-    }
-
-    setLoading(true);
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    const payload = { vehicle_id: vehicleId, property_id: propertyId, sub_property_id: subPropertyId, weight_kg: weightKg, source_type: sourceType, event_time: eventTime };
     try {
-      const payload = {
-        zone_id: formData.zone_id,
-        vehicle_id: formData.vehicle_id,
-        property_id: formData.property_id,
-        sub_property_id: formData.sub_property_id,
-        weight_kg: Number(formData.weight_kg),
-        source_type: formData.source_type,
-        event_time: formData.event_time,
-      };
-
-      if (isEdit && id) {
-        await binLoadLogApi.update(id, payload);
-      } else {
-        await binLoadLogApi.create(payload);
-      }
-
-      Swal.fire(
-        t("common.success"),
-        isEdit ? t("common.updated_success") : t("common.added_success"),
-        "success"
-      );
-      navigate(ENC_LIST_PATH);
-    } catch {
-      Swal.fire(t("common.save_failed"), t("common.save_failed_desc"), "error");
+      if (isEdit && id) await adminApi.binLoadLogs.update(id, payload);
+      else await adminApi.binLoadLogs.create(payload);
+      navigate(listPath);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   return (
-    <div className="p-3">
-      <ComponentCard
-        title={
-          isEdit
-            ? t("admin.bin_load_log.title_edit")
-            : t("admin.bin_load_log.title_add")
-        }
-        desc={t("admin.bin_load_log.subtitle")}
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <div>
-              <Label>{t("admin.bin_load_log.zone")}</Label>
-              <Select
-                value={formData.zone_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, zone_id: value }))}
-                options={zones}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.bin_load_log.vehicle")}</Label>
-              <Select
-                value={formData.vehicle_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, vehicle_id: value }))}
-                options={vehicles}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.bin_load_log.property")}</Label>
-              <Select
-                value={formData.property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, property_id: value }))}
-                options={properties}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.bin_load_log.sub_property")}</Label>
-              <Select
-                value={formData.sub_property_id}
-                onChange={(value) => setFormData((prev) => ({ ...prev, sub_property_id: value }))}
-                options={subProperties}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.bin_load_log.weight_kg")}</Label>
-              <Input
-                type="number"
-                min={0}
-                value={formData.weight_kg}
-                onChange={(e) => setFormData((prev) => ({ ...prev, weight_kg: e.target.value }))}
-                placeholder={t("admin.bin_load_log.weight_kg")}
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.bin_load_log.source_type")}</Label>
-              <Select
-                value={formData.source_type}
-                onChange={(value) => setFormData((prev) => ({ ...prev, source_type: value }))}
-                options={sourceTypeOptions}
-                placeholder={t("common.select_option")}
-                disabled={fetching}
-                required
-              />
-            </div>
-
-            <div>
-              <Label>{t("admin.bin_load_log.event_time")}</Label>
-              <Input
-                type="datetime-local"
-                value={formData.event_time}
-                onChange={(e) => setFormData((prev) => ({ ...prev, event_time: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <button
-              type="submit"
-              disabled={loading || fetching}
-              className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {loading ? t("common.saving") : isEdit ? t("common.update") : t("common.save")}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate(ENC_LIST_PATH)}
-              className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
-            >
-              {t("common.cancel")}
-            </button>
-          </div>
-        </form>
-      </ComponentCard>
-    </div>
+    <ComponentCard title={isEdit ? "Edit Bin Load Log" : "Create Bin Load Log"}>
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div><Label>Vehicle</Label><Select value={vehicleId} onChange={(v) => setVehicleId(String(v))} options={vehicles} placeholder="Select Vehicle" /></div>
+        <div><Label>Property</Label><Select value={propertyId} onChange={(v) => setPropertyId(String(v))} options={properties} placeholder="Select Property" /></div>
+        <div><Label>Sub Property</Label><Select value={subPropertyId} onChange={(v) => setSubPropertyId(String(v))} options={subProperties} placeholder="Select Sub Property" /></div>
+        <div><Label>Weight Kg</Label><Input type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} /></div>
+        <div><Label>Source Type</Label><Select value={sourceType} onChange={(v) => setSourceType(String(v))} options={[{ value: "WEIGHBRIDGE", label: "Weighbridge" }, { value: "SENSOR", label: "Sensor" }, { value: "MANUAL", label: "Manual" }]} placeholder="Select Source" /></div>
+        <div><Label>Event Time</Label><Input type="datetime-local" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></div>
+        <div className="flex gap-2 md:col-span-2">
+          <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
+          <Button type="button" variant="outline" onClick={() => navigate(listPath)}>Cancel</Button>
+        </div>
+      </form>
+    </ComponentCard>
   );
 }

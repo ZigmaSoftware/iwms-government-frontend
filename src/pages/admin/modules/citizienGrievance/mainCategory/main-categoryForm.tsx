@@ -1,7 +1,7 @@
 import type { MainCategoryEditorProps, MainCategoryPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,6 @@ import ComponentCard from "@/components/common/ComponentCard";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
 
@@ -81,7 +80,6 @@ function MainCategoryEditor({
     await onSubmit({
       main_categoryName: name,
       is_active: isActive,
-      company_id: initialPayload.company_id,
     });
   };
 
@@ -151,16 +149,6 @@ export function MainComplaintCategoryForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    loggedInCompanyUniqueId,
-    isSuperAdmin,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
-
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -174,7 +162,6 @@ export function MainComplaintCategoryForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -189,24 +176,10 @@ export function MainComplaintCategoryForm() {
   }, [id, isEdit]);
 
   const handleSubmit = async (payload: MainCategoryPayload) => {
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       if (isEdit) {
-        await adminApi.mainCategory.update(id as string, {
-          ...payload,
-          company_id: companyUniqueId,
-        });
+        await adminApi.mainCategory.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.main_category_form.updated"),
@@ -214,10 +187,7 @@ export function MainComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await adminApi.mainCategory.create({
-          ...payload,
-          company_id: companyUniqueId,
-        });
+        await adminApi.mainCategory.create(payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.main_category_form.added"),
@@ -226,7 +196,7 @@ export function MainComplaintCategoryForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -252,12 +222,10 @@ export function MainComplaintCategoryForm() {
     ? {
         main_categoryName: String(recordData.main_categoryName ?? ""),
         is_active: Boolean(recordData.is_active),
-        company_id: companyUniqueId,
       }
     : {
         main_categoryName: "",
         is_active: true,
-        company_id: companyUniqueId,
       };
 
   const formKey = isEdit
@@ -277,7 +245,7 @@ export function MainComplaintCategoryForm() {
         initialPayload={initialPayload}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+        onCancel={() => navigate(ENC_LIST_PATH)}
         onSubmit={handleSubmit}
       />
     </ComponentCard>

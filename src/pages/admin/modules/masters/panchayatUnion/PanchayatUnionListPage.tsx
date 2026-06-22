@@ -11,19 +11,19 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
-import { panchayatApi } from "@/helpers/admin";
+import { panchayatUnionApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
 
-type PanchayatListRecord = {
+type PanchayatUnionListRecord = {
   unique_id: string;
   is_active?: boolean;
   [key: string]: unknown;
 };
 
-const toRecordList = (value: unknown): PanchayatListRecord[] => {
-  if (Array.isArray(value)) return value as PanchayatListRecord[];
+const toRecordList = (value: unknown): PanchayatUnionListRecord[] => {
+  if (Array.isArray(value)) return value as PanchayatUnionListRecord[];
   if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
-    return (value as { results: PanchayatListRecord[] }).results;
+    return (value as { results: PanchayatUnionListRecord[] }).results;
   }
   return [];
 };
@@ -35,16 +35,16 @@ const columns = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
-  { field: "panchayat_name", header: "Panchayat Name" },
+  { field: "union_name", header: "Union Name" },
   { field: "coordinates", header: "Coordinates" },
 ];
 
-export default function PanchayatListPage() {
+export default function PanchayatUnionListPage() {
   const navigate = useNavigate();
-  const { encMasters, encPanchayats } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encPanchayats);
+  const { encMasters, encPanchayatUnions } = getEncryptedRoute();
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encPanchayatUnions);
 
-  const [rows, setRows] = useState<PanchayatListRecord[]>([]);
+  const [rows, setRows] = useState<PanchayatUnionListRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -55,9 +55,9 @@ export default function PanchayatListPage() {
   const loadRows = async () => {
     setIsLoading(true);
     try {
-      setRows(toRecordList(await panchayatApi.readAll()));
+      setRows(toRecordList(await panchayatUnionApi.readAll()));
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Panchayat"), "error");
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Panchayat Union"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -77,12 +77,12 @@ export default function PanchayatListPage() {
     setGlobalFilterValue(value);
   };
 
-  const statusTemplate = (row: PanchayatListRecord) => {
+  const statusTemplate = (row: PanchayatUnionListRecord) => {
     const updateStatus = async (value: boolean) => {
       const id = String(row.unique_id);
       setPendingStatusId(id);
       try {
-        await panchayatApi.update(id, { is_active: value });
+        await panchayatUnionApi.update(id, { is_active: value });
         setRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, is_active: value } : item));
       } catch (error: any) {
         Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
@@ -100,7 +100,7 @@ export default function PanchayatListPage() {
     );
   };
 
-  const actionTemplate = (row: PanchayatListRecord) => (
+  const actionTemplate = (row: PanchayatUnionListRecord) => (
     <div className="flex justify-center gap-3">
       <button
         title="Edit"
@@ -116,11 +116,11 @@ export default function PanchayatListPage() {
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Panchayat</h1>
-          <p className="text-sm text-gray-500">Manage Panchayat records</p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">Panchayat Union</h1>
+          <p className="text-sm text-gray-500">Manage Panchayat Union records</p>
         </div>
         <Button
-          label="Add Panchayat"
+          label="Add Panchayat Union"
           icon="pi pi-plus"
           className="p-button-success"
           onClick={() => navigate(ENC_NEW_PATH)}
@@ -139,11 +139,11 @@ export default function PanchayatListPage() {
         header={renderListSearchHeader({
           value: globalFilterValue,
           onChange: onGlobalFilterChange,
-          placeholder: "Search Panchayat...",
+          placeholder: "Search Panchayat Union...",
         })}
         stripedRows
         showGridlines
-        emptyMessage="No Panchayat records found."
+        emptyMessage="No Panchayat Union records found."
         globalFilterFields={columns.map((column) => column.field)}
         className="p-datatable-sm"
       >
@@ -156,7 +156,7 @@ export default function PanchayatListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: PanchayatListRecord) =>
+            body={(row: PanchayatUnionListRecord) =>
               column.field === "coordinates"
                 ? formatCoordinates(row.coordinates)
                 : displayValue(row[column.field])

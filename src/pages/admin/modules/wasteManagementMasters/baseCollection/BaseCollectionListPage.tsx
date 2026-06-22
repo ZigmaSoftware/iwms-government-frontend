@@ -1,6 +1,5 @@
 import type { BaseCollectionScope, CollectionApiResponse, CollectionRecord, Props, SummaryRow, TableFilters, ViewLevel } from "./types";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -8,7 +7,6 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -48,7 +46,7 @@ const extractRows = (
   if (Array.isArray(response)) return response;
   return scope === "panchayat"
     ? (response.panchayat_collections ?? [])
-    : (response.ward_collections ?? []);
+    : [];
 };
 
 /* ================= COMPONENT ================= */
@@ -58,20 +56,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
   const collectionApi =
     scope === "panchayat"
       ? adminApi.panchayatWiseCollections
-      : adminApi.wardWiseCollections;
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
+      : adminApi.panchayatWiseCollections;
 
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<SummaryRow | null>(
@@ -88,53 +73,12 @@ export default function BaseCollectionListPage({ scope }: Props) {
   /* ================= FETCH ================= */
 
   const fetchRows = useCallback(async () => {
-    if (isSuperAdmin && companies.length === 0) {
-      setSummaryRows([]);
-      setLoading(false);
-      return;
-    }
-
-    if (!companyUniqueId && !isSuperAdmin) {
-      setSummaryRows([]);
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
-      const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) {
-        params.project_id = projectId;
-      }
-
-      const res = (await collectionApi.readAll({ params })) as
+      const res = (await collectionApi.readAll()) as
         | CollectionApiResponse
         | CollectionRecord[];
-      const extractedRows = extractRows(res, scope);
-      const hasContextFields = extractedRows.some((row) => {
-        const rowCompanyId = normalizeId(
-          row.company_id || row.company_unique_id,
-        );
-        const rowProjectId = normalizeId(
-          row.project_id || row.project_unique_id,
-        );
-        return Boolean(rowCompanyId || rowProjectId);
-      });
-      const rows = hasContextFields
-        ? extractedRows.filter((row) => {
-            const rowCompanyId = normalizeId(
-              row.company_id || row.company_unique_id,
-            );
-            const rowProjectId = normalizeId(
-              row.project_id || row.project_unique_id,
-            );
-            const companyMatches =
-              !companyUniqueId || rowCompanyId === companyUniqueId;
-            const projectMatches = !projectId || rowProjectId === projectId;
-            return companyMatches && projectMatches;
-          })
-        : extractedRows;
+      const rows = extractRows(res, scope);
 
       const grouped: Record<string, SummaryRow> = {};
 
@@ -162,18 +106,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
         grouped[key].records.push(row);
 
         if (
-          row.company_name &&
-          !grouped[key].company_names.includes(row.company_name)
-        )
-          grouped[key].company_names.push(row.company_name);
-
-        if (
-          row.project_name &&
-          !grouped[key].project_names.includes(row.project_name)
-        )
-          grouped[key].project_names.push(row.project_name);
-
-        if (
           row.collection_date &&
           !grouped[key].collection_dates.includes(row.collection_date)
         )
@@ -189,14 +121,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
     } finally {
       setLoading(false);
     }
-  }, [
-    collectionApi,
-    companies.length,
-    companyUniqueId,
-    isSuperAdmin,
-    projectId,
-    scope,
-  ]);
+  }, [collectionApi, scope]);
 
   useEffect(() => {
     fetchRows();
@@ -206,7 +131,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
     setSelectedLocation(null);
     setViewLevel("summary");
     resetFilter();
-  }, [companyUniqueId, projectId, scope]);
+  }, [scope]);
 
   /* ================= FILTER ================= */
 
@@ -342,36 +267,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">{title}</h1>
           <p className="text-gray-500 text-sm">{subtitle}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 

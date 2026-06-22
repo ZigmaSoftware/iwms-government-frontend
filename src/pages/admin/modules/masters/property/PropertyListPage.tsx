@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -18,7 +18,6 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { PropertyRecord } from "./types";
@@ -45,9 +44,6 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
   property_name: ["property_name"],
   is_active: ["is_active"],
@@ -66,19 +62,6 @@ export default function PropertyList() {
   });
 
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const { encMasters, encProperties } = getEncryptedRoute();
 
@@ -115,35 +98,6 @@ export default function PropertyList() {
   useEffect(() => {
     void loadProperties();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Calculate filtered properties based on company and project
-  const filteredProperties = (() => {
-    if (isSuperAdmin && companies.length === 0) {
-      return [];
-    }
-
-    if (!companyUniqueId && !isSuperAdmin) {
-      return [];
-    }
-
-    const hasContextFields = properties.some((property) => {
-      const rowCompanyId = normalizeId(property.company_id || property.company_unique_id);
-      const rowProjectId = normalizeId(property.project_id || property.project_unique_id);
-      return Boolean(rowCompanyId || rowProjectId);
-    });
-
-    if (!hasContextFields) {
-      return properties;
-    }
-
-    return properties.filter((property) => {
-      const rowCompanyId = normalizeId(property.company_id || property.company_unique_id);
-      const rowProjectId = normalizeId(property.project_id || property.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters);
@@ -212,7 +166,7 @@ export default function PropertyList() {
       >
         <PencilIcon className="size-5" />
       </button>
-{/* 
+{/*
       <button
         onClick={() => handleDelete(row.unique_id)}
         className="text-red-600 hover:text-red-800"
@@ -227,7 +181,7 @@ export default function PropertyList() {
 
   return (
     <div className="p-3">
-    
+
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1">
@@ -239,46 +193,17 @@ export default function PropertyList() {
           </div>
 
           <div className="flex items-center gap-3">
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={!isSuperAdmin || companies.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.value} value={company.value}>
-                  {company.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={projectId || ""}
-              onChange={(e) => setProjectId(e.target.value)}
-              disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="">All Projects</option>
-              {projects.map((project) => (
-                <option key={project.value} value={project.value}>
-                  {project.label}
-                </option>
-              ))}
-            </select>
-
             <Button
               label={t("common.add_item", { item: t("admin.nav.property") })}
               icon="pi pi-plus"
               className="p-button-success"
-              disabled={!companyUniqueId || !projectId}
-              onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(ENC_NEW_PATH)}
             />
           </div>
         </div>
 
         <DataTable
-          value={filteredProperties}
+          value={properties}
           dataKey="unique_id"
           paginator
           rows={10}
@@ -292,7 +217,7 @@ export default function PropertyList() {
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.property"),
           })}
-          globalFilterFields={["property_name", "company_name", "project_name"]}
+          globalFilterFields={["property_name"]}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

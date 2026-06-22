@@ -18,10 +18,6 @@ export type DailyTripCollectionPointRecord = {
   collected_at?: string | null;
   collected_weight_kg?: string | number | null;
   status?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
   is_active?: boolean;
   [key: string]: unknown;
 };

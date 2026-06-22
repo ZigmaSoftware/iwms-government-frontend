@@ -2,16 +2,8 @@ import type { SelectOption } from "@/types";
 
 export type CollectionPointOption = SelectOption & {
   districtId: string;
-  cityId: string;
   panchayatId: string;
-  wardId: string;
 };
-
-export type CityOption = SelectOption & { districtId: string };
-
-export type LocationOption = SelectOption & { districtId: string; cityId: string };
-
-export type WardOption = LocationOption & { panchayatId: string; zoneId: string };
 
 export type BinRecord = Record<string, unknown>;
 
@@ -30,8 +22,6 @@ export type Bin = {
   project_name?: string | null;
   panchayat_name?: string;
   panchayat?: string;
-  ward_name: string;
-  ward?: string;
   bin_type?: string;
   waste_type_name?: string;
   wastetype_name?: string;
@@ -39,6 +29,7 @@ export type Bin = {
   bin_status?: string;
   latitude?: number | string;
   longitude?: number | string;
+  coordinates?: unknown;
   is_active: boolean;
 };
 
@@ -53,7 +44,6 @@ export type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   bin_name: { value: string | null; matchMode: FilterMatchMode };
   bin_capacity: { value: string | null; matchMode: FilterMatchMode };
-  ward_name: { value: string | null; matchMode: FilterMatchMode };
   panchayat_name: { value: string | null; matchMode: FilterMatchMode };
   waste_type_name: { value: string | null; matchMode: FilterMatchMode };
   company_name?: { value: string | null; matchMode: FilterMatchMode };

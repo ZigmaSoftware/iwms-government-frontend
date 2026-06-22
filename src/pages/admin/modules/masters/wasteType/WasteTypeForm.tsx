@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteTypeApi } from "@/helpers/admin";
@@ -41,31 +40,10 @@ export default function WasteTypeForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
-
   const [wasteTypeName, setWasteTypeName] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string; projectId: string; projectName: string;
-  } | null>(null);
 
   const extractErr = useCallback(
     (error: unknown): string => {
@@ -96,12 +74,6 @@ export default function WasteTypeForm() {
           toStringOrEmpty(res.waste_type_name ?? res.name ?? res.property_name),
         );
         setIsActive(Boolean(res.is_active));
-        applyCompanyProjectFromRecord(res as Record<string, unknown>);
-        setPendingProjectCandidates({
-          projectUniqueId: toStringOrEmpty(res.project_unique_id ?? (res.project as any)?.unique_id ?? ""),
-          projectId: toStringOrEmpty(res.project_id ?? ""),
-          projectName: toStringOrEmpty(res.project_name ?? ""),
-        });
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -109,26 +81,12 @@ export default function WasteTypeForm() {
         Swal.fire(t("common.error"), extractErr(err), "error");
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord, extractErr, t]);
-
-  /* ── re-apply project after hook loads project list ── */
-  useEffect(() => {
-    if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
-    if (!match) match = projects.find((p) => rawId && p.value === rawId);
-    if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
-    if (match) setProjectId(match.value);
-    setPendingProjectCandidates(null);
-  }, [projects, pendingProjectCandidates, setProjectId]);
+  }, [id, isEdit, extractErr, t]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     const missingFields: string[] = [];
-    if (!companyUniqueId) missingFields.push(t("admin.nav.company"));
-    if (!projectId) missingFields.push(t("admin.nav.project"));
     if (
       getMissingRequiredFields(
         ["waste_type_name"],
@@ -145,12 +103,10 @@ export default function WasteTypeForm() {
 
     setIsSubmitting(true);
     const rawPayload = {
-      company_id: companyUniqueId,
-      project_id: projectId,
       waste_type_name: wasteTypeName.trim(),
       is_active: isActive,
     };
-    const payload = filterPayload(rawPayload, ["company_id", "project_id"]) as typeof rawPayload;
+    const payload = filterPayload(rawPayload) as typeof rawPayload;
 
     try {
       if (isEdit && id) {
@@ -160,7 +116,7 @@ export default function WasteTypeForm() {
         await wasteTypeApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error) {
       Swal.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
@@ -211,7 +167,7 @@ export default function WasteTypeForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
           >
             {t("common.cancel")}
           </Button>

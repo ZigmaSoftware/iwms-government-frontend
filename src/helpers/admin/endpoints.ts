@@ -4,12 +4,6 @@
 export const adminEndpoints = {
 
   /* =========================
-     SUPERADMIN
-  ========================= */
-  companies: "superadmin/company",
-  projects: "superadmin/project",
-
-  /* =========================
      AUTHENTICATION
   ========================= */
   loginUser: "login/login-user",
@@ -26,18 +20,16 @@ export const adminEndpoints = {
      MASTERS
   ========================= */
   districts: "masters/districts",
-  cities: "masters/cities",
-  zones: "masters/zones",
-  wards: "masters/wards",
   departments: "masters/departments",
   designations: "masters/designations",
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
+  corporations: "masters/corporations",
   municipalities: "masters/municipalities",
   townPanchayats: "masters/town-panchayats",
-  blockPanchayatUnions: "masters/block-panchayat-unions",
+  panchayatUnions: "masters/panchayat-unions",
 
   /* =========================
      WASTE TYPES
@@ -86,6 +78,9 @@ export const adminEndpoints = {
   roleTypes: "role-assigns/staffusertypes/role-choices",
   contractorUserTypes: "role-assigns/contractorusertypes",
   contractorRoleTypes: "role-assigns/contractorusertypes/role-choices",
+  governmentUserTypes: "role-assigns/governmentusertypes",
+  governmentRoleTypes: "role-assigns/governmentusertypes/role-choices",
+  governmentLevelTypes: "role-assigns/governmentusertypes/level-choices",
 
   /* =========================
      USER CREATION
@@ -93,11 +88,6 @@ export const adminEndpoints = {
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
-
-  /* =========================
-     PROCESS
-  ========================= */
-  zonePropertyLoadTrackers: "process-items/zone-property-load-tracker",
 
   /* =========================
      CUSTOMERS
@@ -110,7 +100,6 @@ export const adminEndpoints = {
      COLLECTIONS
   ========================= */
   panchayatWiseCollections: "collections/panchayat-wise",
-  wardWiseCollections: "collections/ward-wise",
 
   /* =========================
      GRIEVANCES

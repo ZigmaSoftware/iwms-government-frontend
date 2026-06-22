@@ -13,12 +13,6 @@ import StateList from "@/pages/admin/modules/masters/state/StateListPage";
 import StateForm from "@/pages/admin/modules/masters/state/StateForm";
 import DistrictList from "@/pages/admin/modules/masters/district/DistrictListPage";
 import DistrictForm from "@/pages/admin/modules/masters/district/DistrictForm";
-import CityList from "@/pages/admin/modules/masters/city/CityListPage";
-import CityForm from "@/pages/admin/modules/masters/city/CityForm";
-import ZoneList from "@/pages/admin/modules/masters/zone/ZoneListPage";
-import ZoneForm from "@/pages/admin/modules/masters/zone/ZoneForm";
-import WardList from "@/pages/admin/modules/masters/ward/WardListPage";
-import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
 import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
 import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
 import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
@@ -43,8 +37,10 @@ import MunicipalityListPage from "@/pages/admin/modules/masters/municipality/Mun
 import MunicipalityForm from "@/pages/admin/modules/masters/municipality/MunicipalityForm";
 import TownPanchayatListPage from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatListPage";
 import TownPanchayatForm from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatForm";
-import BlockPanchayatUnionListPage from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionListPage";
-import BlockPanchayatUnionForm from "@/pages/admin/modules/masters/blockPanchayatUnion/BlockPanchayatUnionForm";
+import CorporationListPage from "@/pages/admin/modules/masters/corporation/CorporationListPage";
+import CorporationForm from "@/pages/admin/modules/masters/corporation/CorporationForm";
+import PanchayatUnionListPage from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionListPage";
+import PanchayatUnionForm from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionForm";
 
 
 import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
@@ -82,8 +78,6 @@ import VehicleCreationListPage from "@/pages/admin/modules/transportMasters/vehi
 import VehicleCreationForm from "@/pages/admin/modules/transportMasters/vehicleCreation/vehicleCreationForm";
 import TripPlanList from "@/pages/admin/modules/transportMasters/tripPlan/tripPlanList";
 import TripPlanForm from "@/pages/admin/modules/transportMasters/tripPlan/tripPlanForm";
-import ZonePropertyLoadTrackerList from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerList";
-import ZonePropertyLoadTrackerForm from "@/pages/admin/modules/transportMasters/zonePropertyLoadTracker/zonePropertyLoadTrackerForm";
 import TripAttendanceList from "@/pages/admin/modules/transportMasters/tripAttendance/tripAttendanceList";
 import TripAttendanceForm from "@/pages/admin/modules/transportMasters/tripAttendance/tripAttendanceForm";
 import VehicleTripAuditList from "@/pages/admin/modules/transportMasters/vehicleTripAudit/vehicleTripAuditList";
@@ -106,7 +100,6 @@ import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLo
 // import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
 // import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
 import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
-import WardBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/wardbasecollection/WardBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataListPage";
 import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataForm";
 import StaffUserTypeForm from "@/pages/admin/modules/admin/staffUserType/staffUserTypeForm";
@@ -142,10 +135,6 @@ import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAudi
 import LoginAuditList from "@/pages/admin/modules/audits/loginAudit/loginAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
-import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
-import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
-import ProjectList from "@/pages/admin/modules/superadminMasters/project/projectListPage";
-import ProjectForm from "@/pages/admin/modules/superadminMasters/project/projectForm";
 import ExternalAttendanceList from "@/pages/admin/modules/attendance/ExternalAttendanceList";
 
 
@@ -173,18 +162,11 @@ const ROUTES: RouteMap = {
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
   },
-  "superadmin-masters": {
-    "company-creation": { list: CompanyList, form: CompanyListForm },
-    "project-creation": { list: ProjectList, form: ProjectForm },
-  },
   masters: {
     continents: { list: ContinentList, form: ContinentForm },
     countries: { list: CountryList, form: CountryForm },
     states: { list: StateList, form: StateForm },
     districts: { list: DistrictList, form: DistrictForm },
-    cities: { list: CityList, form: CityForm },
-    zones: { list: ZoneList, form: ZoneForm },
-    wards: { list: WardList, form: WardForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },
@@ -196,9 +178,10 @@ const ROUTES: RouteMap = {
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
+    corporations: { list: CorporationListPage, form: CorporationForm },
     municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
     "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
-    "block-panchayat-unions": { list: BlockPanchayatUnionListPage, form: BlockPanchayatUnionForm },
+    "panchayat-unions": { list: PanchayatUnionListPage, form: PanchayatUnionForm },
 
     
     properties: { list: PropertyList, form: PropertyForm },
@@ -213,7 +196,6 @@ const ROUTES: RouteMap = {
     fuel: { list: FuelList, form: FuelForm },
     "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
     "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
-    "zone-property-load-tracker": { list: ZonePropertyLoadTrackerList, form: ZonePropertyLoadTrackerForm },
     "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
     "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
     "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
@@ -246,7 +228,6 @@ const ROUTES: RouteMap = {
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
-    "ward-base-collection": { list: WardBaseCollectionListPage },
   },
   "workforce-management": {
     "workforce-management": { component: WorkforceManagement },
@@ -282,7 +263,6 @@ const MASTER_ALIASES: Record<string, string[]> = {
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
   grivences: ["citizen-grievance"],
-  superadmin: ["superadmin-masters"],
   "common-masters": ["masters"],
   "waste-types": ["masters"],
   assets: ["masters"],
@@ -303,8 +283,6 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "staff-user-type": ["staffusertypes"],
   "mainscreen-type": ["mainscreentype"],
   userscreenpermissions: ["userscreenpermissions", "companywisescreenpermissions"],
-  "company-creation": ["company"],
-  "project-creation": ["project"],
   "customer-creation": ["customercreations"],
   "staff-templates": ["staff-template"],
   "alternative-staff-templates": ["alternative-staff-template"],

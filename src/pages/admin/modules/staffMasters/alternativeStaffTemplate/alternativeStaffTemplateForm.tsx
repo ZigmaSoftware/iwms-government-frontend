@@ -2,7 +2,7 @@ import type { FormState, Option, StaffRecord, StaffTemplateRaw } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useRef } from "react";
 import type { FormEvent } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { MultiSelect } from "primereact/multiselect";
@@ -14,14 +14,7 @@ import InputField from "@/components/form/input/InputField";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { companyApi, projectApi, staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
-
-/* ================= TYPES ================= */
-
-
-// Raw staff template record — must carry company/project ids for scoping
-
+import { staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
 
 /* ================= INITIAL STATE ================= */
 
@@ -42,8 +35,6 @@ const ALTERNATIVE_STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
   effective_date: ["effective_date"],
   from_date: ["from_date"],
   to_date: ["to_date"],
-  company_id: ["company_id", "company"],
-  project_id: ["project_id", "project"],
   driver: ["driver", "driver_id"],
   operator: ["operator", "operator_id"],
   extra_operator: ["extra_operator", "extra_operator_id", "extra_staff"],
@@ -69,27 +60,13 @@ export default function AlternativeStaffTemplateForm() {
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [loading, setLoading] = useState(false);
 
-  // All raw staff templates (unfiltered) — used for scoping by company/project
+  // All raw staff templates
   const [allStaffTemplates, setAllStaffTemplates] = useState<StaffTemplateRaw[]>([]);
   const [staffTemplateOptions, setStaffTemplateOptions] = useState<Option[]>([]);
 
   const [driverOptions, setDriverOptions] = useState<Option[]>([]);
   const [operatorOptions, setOperatorOptions] = useState<Option[]>([]);
   const [staffRecords, setStaffRecords] = useState<StaffRecord[]>([]);
-  const [companyOptions, setCompanyOptions] = useState<Option[]>([]);
-  const [projectOptions, setProjectOptions] = useState<Option[]>([]);
-  const [allProjects, setAllProjects] = useState<any[]>([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState("");
-
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId: globalCompanyId,
-    projectId: globalProjectId,
-    onCompanyChange: onGlobalCompanyChange,
-    setProjectId: setGlobalProjectId,
-  } = useCompanyProjectSelection({ isEdit: false, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   const templateSelectedByUser = useRef(false);
   const editDataLoaded = useRef(false);
@@ -148,91 +125,12 @@ export default function AlternativeStaffTemplateForm() {
       staff.employee_name ?? staff.staff_name ?? staff.username ?? staff.unique_id ?? ""
     ).trim();
 
-  const toText = (value: unknown): string => String(value ?? "").trim();
-
-  const getCompanyId = (staff: StaffRecord): string =>
-    toText(staff.company_unique_id) || toText(staff.company_id);
-
-  const getProjectId = (staff: StaffRecord): string =>
-    toText(staff.project_unique_id) || toText(staff.project_id);
-
-  const getCompanyProjectLabel = (staff: StaffRecord): string => {
-    const company = String(staff.company_name ?? "").trim();
-    const project = String(staff.project_name ?? "").trim();
-    if (company && project) return `${company} / ${project}`;
-    return company || project;
-  };
-
   const toStaffOption = (staff: StaffRecord): Option => {
-    const baseLabel = getStaffDisplayName(staff);
-    const companyProject = getCompanyProjectLabel(staff);
     return {
       value: String(staff.unique_id ?? ""),
-      label: companyProject ? `${baseLabel} (${companyProject})` : baseLabel,
+      label: getStaffDisplayName(staff),
     };
   };
-
-  // Resolve company/project id from a raw staff template record
-  const getTemplateCompanyId = (tpl: StaffTemplateRaw): string =>
-    toText(tpl.company_unique_id) || toText(tpl.company_id);
-
-  const getTemplateProjectId = (tpl: StaffTemplateRaw): string =>
-    toText(tpl.project_unique_id) || toText(tpl.project_id);
-
-  /* ============================
-     LOAD COMPANIES & PROJECTS FROM API
-  ============================ */
-
-  useEffect(() => {
-    (Promise.all([
-      companyApi.readAll() as Promise<any>,
-      projectApi.readAll() as Promise<any>,
-    ]) as Promise<[any, any]>)
-      .then(([companiesRes, projectsRes]: [any, any]) => {
-        const companiesData = Array.isArray(companiesRes)
-          ? companiesRes
-          : Array.isArray(companiesRes?.data)
-            ? companiesRes.data
-            : [];
-
-        const normalizedCompanies = companiesData
-          .filter((c: any) => c?.is_active !== false && c?.is_deleted !== true)
-          .map((c: any) => ({
-            value: String(c?.unique_id ?? c?.id ?? ""),
-            label: c?.name ?? "",
-          }))
-          .filter((opt: Option) => opt.value && opt.label);
-
-        setCompanyOptions(normalizedCompanies);
-        setSelectedCompanyId((prev) => {
-          if (prev && normalizedCompanies.some((opt: Option) => opt.value === prev))
-            return prev;
-          if (globalCompanyId && normalizedCompanies.some((opt: Option) => opt.value === globalCompanyId))
-            return globalCompanyId;
-          return normalizedCompanies[0]?.value ?? "";
-        });
-
-        const projectsData = Array.isArray(projectsRes)
-          ? projectsRes
-          : Array.isArray(projectsRes?.data)
-            ? projectsRes.data
-            : [];
-
-        const normalizedProjects = projectsData
-          .filter((p: any) => p?.is_active !== false && p?.is_deleted !== true)
-          .map((p: any) => ({
-            value: String(p?.unique_id ?? p?.id ?? ""),
-            label: p?.name ?? "",
-            company_id: p?.company_unique_id ?? p?.company_id,
-          }))
-          .filter((opt: any) => opt.value && opt.label);
-
-        setAllProjects(normalizedProjects);
-      })
-      .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      });
-  }, [t]);
 
   /* ============================
      LOAD RAW TEMPLATES + STAFF RECORDS
@@ -249,7 +147,7 @@ export default function AlternativeStaffTemplateForm() {
       .then(([templatesRes, staffRes, altRes]: [any, any, any]) => {
         if (cancelled) return;
 
-        // Store all raw template records for scoped filtering later
+        // Store all raw template records
         const templateRows: StaffTemplateRaw[] = Array.isArray(templatesRes)
           ? templatesRes
           : Array.isArray(templatesRes?.results)
@@ -295,101 +193,25 @@ export default function AlternativeStaffTemplateForm() {
   }, [t]);
 
   /* ============================
-     FILTER PROJECTS BY SELECTED COMPANY
+     POPULATE DROPDOWNS FROM STAFF RECORDS (scoped by role only)
   ============================ */
 
   useEffect(() => {
-    const filtered = selectedCompanyId
-      ? allProjects.filter(
-          (p: any) => !p.company_id || p.company_id === selectedCompanyId
-        )
-      : allProjects;
-
-    setProjectOptions(filtered);
-    setSelectedProjectId((prev) => {
-      if (prev && filtered.some((opt: any) => opt.value === prev)) return prev;
-      if (globalProjectId && filtered.some((opt: any) => opt.value === globalProjectId)) return globalProjectId;
-      return filtered[0]?.value ?? "";
-    });
-  }, [selectedCompanyId, allProjects]);
-
-  /* ============================
-     SCOPE ALL DROPDOWNS BY COMPANY + PROJECT
-     — staff templates, drivers, operators all react together
-  ============================ */
-
-  useEffect(() => {
-    // ---- Staff Templates ----
-    const scopedTemplates = allStaffTemplates.filter((tpl) => {
-      const companyMatch =
-        !selectedCompanyId || getTemplateCompanyId(tpl) === selectedCompanyId;
-      const projectMatch =
-        !selectedProjectId || getTemplateProjectId(tpl) === selectedProjectId;
-      return companyMatch && projectMatch;
-    });
-
     setStaffTemplateOptions(
-      scopedTemplates.map((tpl) => ({
+      allStaffTemplates.map((tpl) => ({
         value: String(tpl.unique_id),
         label: tpl.display_code ?? tpl.unique_id,
       }))
     );
 
-    // Reset staff_template if it's no longer in the scoped list
-    const scopedTemplateIds = new Set(
-      scopedTemplates.map((t) => String(t.unique_id))
-    );
-    setFormData((prev) => {
-      if (prev.staff_template && !scopedTemplateIds.has(prev.staff_template)) {
-        return { ...prev, staff_template: "" };
-      }
-      return prev;
-    });
-
-    // ---- Drivers & Operators ----
-    const scopedStaff = staffRecords.filter((staff) => {
-      const companyMatch =
-        !selectedCompanyId || getCompanyId(staff) === selectedCompanyId;
-      const projectMatch =
-        !selectedProjectId || getProjectId(staff) === selectedProjectId;
-      return companyMatch && projectMatch;
-    });
-
     setDriverOptions(
-      scopedStaff.filter(isDriverRole).map((staff) => toStaffOption(staff))
+      staffRecords.filter(isDriverRole).map((staff) => toStaffOption(staff))
     );
 
     setOperatorOptions(
-      scopedStaff.filter(isOperatorRole).map((staff) => toStaffOption(staff))
+      staffRecords.filter(isOperatorRole).map((staff) => toStaffOption(staff))
     );
-
-    // Reset driver/operator/extra if no longer in scoped staff
-    const scopedStaffIds = new Set(
-      scopedStaff.map((s) => String(s.unique_id))
-    );
-    setFormData((prev) => {
-      let changed = false;
-      const next = { ...prev };
-
-      if (next.driver && !scopedStaffIds.has(next.driver)) {
-        next.driver = "";
-        changed = true;
-      }
-      if (next.operator && !scopedStaffIds.has(next.operator)) {
-        next.operator = "";
-        changed = true;
-      }
-      const filteredExtras = next.extra_operator.filter((v) =>
-        scopedStaffIds.has(v)
-      );
-      if (filteredExtras.length !== next.extra_operator.length) {
-        next.extra_operator = filteredExtras;
-        changed = true;
-      }
-
-      return changed ? next : prev;
-    });
-  }, [selectedCompanyId, selectedProjectId, allStaffTemplates, staffRecords]);
+  }, [allStaffTemplates, staffRecords]);
 
   /* ============================
      EDIT MODE — load saved values
@@ -405,20 +227,6 @@ export default function AlternativeStaffTemplateForm() {
     alternativeStaffTemplateApi.read(id)
       .then((rec: any) => {
         if (cancelled) return;
-
-        // Find the saved driver/operator to derive company/project scope
-        const matchedStaff =
-          staffRecords.find(
-            (staff) => String(staff.unique_id) === String(rec.driver ?? "")
-          ) ??
-          staffRecords.find(
-            (staff) => String(staff.unique_id) === String(rec.operator ?? "")
-          );
-
-        if (matchedStaff) {
-          setSelectedCompanyId(getCompanyId(matchedStaff));
-          setSelectedProjectId(getProjectId(matchedStaff));
-        }
 
         setFormData({
           staff_template: String(rec.staff_template ?? ""),
@@ -484,20 +292,7 @@ export default function AlternativeStaffTemplateForm() {
         ? tpl.extra_operator_id.map(String)
         : [],
     }));
-
-    const matchedStaff =
-      staffRecords.find(
-        (staff) => String(staff.unique_id) === String(tpl.driver_id ?? "")
-      ) ??
-      staffRecords.find(
-        (staff) => String(staff.unique_id) === String(tpl.operator_id ?? "")
-      );
-
-    if (matchedStaff) {
-      setSelectedCompanyId(getCompanyId(matchedStaff));
-      setSelectedProjectId(getProjectId(matchedStaff));
-    }
-  }, [formData.staff_template, selectedStaffTemplateData, staffRecords]);
+  }, [formData.staff_template, selectedStaffTemplateData]);
 
   /* ============================
      VALIDATE SELECTIONS WHEN OPTIONS CHANGE
@@ -609,10 +404,8 @@ export default function AlternativeStaffTemplateForm() {
       extra_operator: formData.extra_operator,
       change_reason: formData.change_reason,
       change_remarks: formData.change_remarks || null,
-      company_id: selectedCompanyId || undefined,
-      project_id: selectedProjectId || undefined,
     };
-    const payload = filterPayload(rawPayload, ["company_id", "project_id"]);
+    const payload = filterPayload(rawPayload);
 
     setLoading(true);
 
@@ -624,14 +417,7 @@ export default function AlternativeStaffTemplateForm() {
       }
 
       Swal.fire("Success", "Saved successfully", "success");
-        // sync global filters to match the form selection before returning
-        try { onGlobalCompanyChange(selectedCompanyId); } catch {}
-        try { setGlobalProjectId(selectedProjectId); } catch {}
-        navigate(
-          `${ENC_LIST_PATH}?company_unique_id=${encodeURIComponent(
-            String(selectedCompanyId || "")
-          )}&project_id=${encodeURIComponent(String(selectedProjectId || ""))}`
-        );
+        navigate(ENC_LIST_PATH);
     } catch (err: any) {
       const errorMessage =
         err?.response?.data?.detail ||
@@ -724,7 +510,7 @@ export default function AlternativeStaffTemplateForm() {
 
           <div className="grid md:grid-cols-2 gap-5">
 
-            {/* STAFF TEMPLATE — scoped to selected company + project */}
+            {/* STAFF TEMPLATE */}
             {showField("staff_template") && (
               <div>
                 <Label>Staff Template</Label>
@@ -798,7 +584,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )} */}
 
-            {/* DRIVER - scoped to selected company + project */}
+            {/* DRIVER */}
             {showField("driver") && (
               <div>
                 <Label>
@@ -817,7 +603,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )}
 
-            {/* OPERATOR - scoped to selected company + project */}
+            {/* OPERATOR */}
             {showField("operator") && (
               <div>
                 <Label>
@@ -836,7 +622,7 @@ export default function AlternativeStaffTemplateForm() {
               </div>
             )}
 
-            {/* EXTRA OPERATOR - scoped to selected company + project */}
+            {/* EXTRA OPERATOR */}
             {showField("extra_operator") && (
               <div>
                 <Label>
@@ -935,15 +721,7 @@ export default function AlternativeStaffTemplateForm() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                try { onGlobalCompanyChange(selectedCompanyId); } catch {}
-                try { setGlobalProjectId(selectedProjectId); } catch {}
-                navigate(
-                  `${ENC_LIST_PATH}?company_unique_id=${encodeURIComponent(
-                    String(selectedCompanyId || "")
-                  )}&project_id=${encodeURIComponent(String(selectedProjectId || ""))}`
-                );
-              }}
+              onClick={() => navigate(ENC_LIST_PATH)}
               className="border border-gray-300 px-5 py-2 rounded-lg text-gray-600"
             >
               {t("common.cancel")}

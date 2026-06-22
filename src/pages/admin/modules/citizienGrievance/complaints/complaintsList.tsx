@@ -289,11 +289,6 @@ export default function ComplaintsList() {
             style={{ minWidth: "160px" }}
           />
           <Column
-            header={t("admin.citizen_grievance.complaints.columns.zone_ward")}
-            body={(row: Complaint) => `${row.zone_name || (row.zone_id ? row.zone_id.split('-').pop() : '-')}/${row.ward_name || (row.ward_id ? row.ward_id.split('-').pop() : '-')}`}
-            style={{ minWidth: "140px" }}
-          />
-          <Column
             field="address"
             header={t("admin.citizen_grievance.complaints.columns.location")}
           />

@@ -1,7 +1,7 @@
 import type { HierarchyPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/select";
 import ComponentCard from "@/components/common/ComponentCard";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import type { ApiError } from "./types";
@@ -48,20 +47,6 @@ export default function HierarchyForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [areaTypes, setAreaTypes] = useState<{ value: string; label: string }[]>([]);
   const [pendingAreaTypeId, setPendingAreaTypeId] = useState("");
-
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
 
   // Fetch area types list
   useEffect(() => {
@@ -115,9 +100,6 @@ export default function HierarchyForm() {
         if (record.area_type ?? record.area_type_id) {
           setPendingAreaTypeId(String(record.area_type ?? record.area_type_id));
         }
-        applyCompanyProjectFromRecord(
-          record as unknown as Record<string, unknown>
-        );
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -132,7 +114,7 @@ export default function HierarchyForm() {
         });
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord]);
+  }, [id, isEdit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,22 +132,6 @@ export default function HierarchyForm() {
         title: t("common.warning"),
         text: t("common.missing_fields"),
       });
-      return;
-    }
-
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
-
-    if (!projectId) {
-      Swal.fire("Error", "Project is required", "error");
       return;
     }
 
@@ -188,13 +154,8 @@ export default function HierarchyForm() {
         level_name: name.trim(),
         area_type: areaTypeId,
         is_active: isActive,
-        company_id: companyUniqueId,
-        project_id: projectId,
       };
-      const basePayload = filterPayload(rawPayload, [
-        "company_id",
-        "project_id",
-      ]) as HierarchyPayload;
+      const basePayload = filterPayload(rawPayload) as HierarchyPayload;
       if (isEdit) {
         await adminApi.hierarchies.update(id as string, basePayload);
         Swal.fire({
@@ -212,7 +173,7 @@ export default function HierarchyForm() {
           showConfirmButton: false,
         });
       }
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error: unknown) {
       const message =
         (error as ApiError)?.response?.data?.detail ||
@@ -325,7 +286,7 @@ export default function HierarchyForm() {
           <Button
             type="button"
             variant="destructive"
-            onClick={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_LIST_PATH)}
           >
             {t("common.cancel")}
           </Button>

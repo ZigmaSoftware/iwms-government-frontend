@@ -1,5 +1,6 @@
 export type ContinentPayload = {
   name: string;
+  coordinates?: Array<{ latitude: number; longitude: number }>;
   is_active: boolean;
   [key: string]: unknown;
 };

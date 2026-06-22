@@ -5,8 +5,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
-import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
-
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -66,7 +64,6 @@ export default function SubComplaintCategoryList() {
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encSubComplaintCategory } = getEncryptedRoute();
-  const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const { newPath: NEW_PATH, editPath: EDIT_PATH } = createCrudRoutePaths(
     encCitizenGrivence,
@@ -79,9 +76,7 @@ export default function SubComplaintCategoryList() {
     const loadSubCategories = async () => {
       setIsLoading(true);
       try {
-        const data = await subCategoryApi.readAll(
-          companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined
-        );
+        const data = await subCategoryApi.readAll();
         if (mounted) setRecords(data as SubCategoryRecord[]);
       } catch (error) {
         if (mounted) {
@@ -101,7 +96,7 @@ export default function SubComplaintCategoryList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, t]);
+  }, [t]);
 
   const updateStatus = async (row: SubCategoryRecord, value: boolean) => {
     const rowId = String(row.unique_id);
@@ -115,7 +110,6 @@ export default function SubComplaintCategoryList() {
           name: row.name,
           mainCategory: row.mainCategory,
           is_active: value,
-          company_id: companyUniqueId,
         }
       );
       setRecords((current) =>

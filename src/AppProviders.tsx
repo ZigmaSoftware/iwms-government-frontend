@@ -10,8 +10,6 @@ import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
 import { RolesProvider } from "@/contexts/RolesContext";
-import { ProjectSelectorProvider } from "@/contexts/ProjectSelectorContext";
-
 type Props = {
   children: ReactNode;
 };
@@ -23,7 +21,6 @@ export function AppProviders({ children }: Props) {
         <ModuleProvider>
           <UserProvider>
             <PermissionProvider>
-              <ProjectSelectorProvider>
               <TooltipProvider>
                 <BrowserRouter>
                   {children}
@@ -32,7 +29,6 @@ export function AppProviders({ children }: Props) {
                   <Sonner />
                 </BrowserRouter>
               </TooltipProvider>
-              </ProjectSelectorProvider>
             </PermissionProvider>
           </UserProvider>
         </ModuleProvider>

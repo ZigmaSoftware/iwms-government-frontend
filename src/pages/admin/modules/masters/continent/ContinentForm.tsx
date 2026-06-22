@@ -16,11 +16,15 @@ import {
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
 
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
+import GeoFenceCoordinates, {
+  normalizeCoordinateDrafts,
+  serializeCoordinateDrafts,
+  type GeoCoordinateDraft,
+} from "../shared/GeoFenceCoordinates";
 
 const { encMasters, encContinents } = getEncryptedRoute();
 
@@ -28,6 +32,7 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encContinen
 
 const CONTINENT_FIELDS: Record<string, string[]> = {
   name: ["name"],
+  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -69,6 +74,9 @@ function ContinentEditor({
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("masters", "continents", CONTINENT_FIELDS);
   const [name, setName] = useState(initialPayload.name);
+  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
+    normalizeCoordinateDrafts(initialPayload.coordinates),
+  );
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,6 +99,7 @@ function ContinentEditor({
 
     const rawPayload = {
       name: trimmedName,
+      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
 
@@ -119,6 +128,10 @@ function ContinentEditor({
               required
             />
           </div>
+        )}
+
+        {showField("coordinates") && (
+          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         )}
 
         {showField("is_active") && (
@@ -166,9 +179,6 @@ function ContinentForm() {
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const { applyCompanyProjectFromRecord } = useCompanyProjectSelection({
-    isEdit,
-  });
 
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -187,7 +197,6 @@ function ContinentForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -241,10 +250,14 @@ function ContinentForm() {
   const initialPayload: ContinentPayload = recordData
     ? {
         name: String(recordData.name ?? ""),
+        coordinates: serializeCoordinateDrafts(
+          normalizeCoordinateDrafts(recordData.coordinates),
+        ),
         is_active: Boolean(recordData.is_active),
       }
     : {
         name: "",
+        coordinates: [],
         is_active: true,
       };
 

@@ -29,15 +29,10 @@ const {
   encAudits,
   encContinents,
   encCountries,
-  encDepartments,
-  encDesignations,
   encStates,
   encDistricts,
-  encCities,
-  encWards,
   encCollectionPoints,
   encWasteTypes,
-  encZones,
   encProperties,
   encSubProperties,
   encStaffCreation,
@@ -80,11 +75,11 @@ const {
   encTripPlans,
   encTripPlanCollectionPoints,
   encPanchayats,
-  encPanchayatLeaders,
   encAreaTypes,
+  encCorporations,
   encMunicipalities,
   encTownPanchayats,
-  encBlockPanchayatUnions,
+  encPanchayatUnions,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -113,7 +108,6 @@ type NavItem = {
 type SidebarSectionKey =
   | "main"
   | "attendance"
-  | "superadminMaster"
   | "commonMaster"
   | "master"
   | "wasteType"
@@ -125,7 +119,9 @@ type SidebarSectionKey =
   | "customerMasters"
   | "citizenGrievance"
   | "transportMasters"
-  | "scheduleMasters"
+  | "scheduleSetup"
+  | "scheduleOperations"
+  | "scheduleReports"
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
@@ -191,19 +187,12 @@ const masterItems: NavItem[] = [
     screen: "masters",
     subItems: [
       // ── Org / Department Setup ──────────────────────────────
-      {
-        nameKey: "admin.nav.department",
-        path: `/${encMasters}/${encDepartments}`,
-        module: "masters",
-        screen: "department-masters",
-      },
-      {
-        nameKey: "admin.nav.designation",
-        path: `/${encMasters}/${encDesignations}`,
-        module: "masters",
-        screen: "designation-masters",
-      },
-      // ── Administrative / Geographic Hierarchy ────────────────
+      // {
+      //   nameKey: "admin.nav.state",
+      //   path: `/${encMasters}/${encStates}`,
+      //   module: "masters",
+      //   screen: "states",
+      // },
       {
         nameKey: "admin.nav.district",
         path: `/${encMasters}/${encDistricts}`,
@@ -211,17 +200,16 @@ const masterItems: NavItem[] = [
         screen: "districts",
       },
       {
-        nameKey: "admin.nav.zone",
-        path: `/${encMasters}/${encZones}`,
+        nameKey: "admin.nav.area_type",
+        path: `/${encMasters}/${encAreaTypes}`,
         module: "masters",
-        screen: "zones",
+        screen: "areatypes",
       },
-      // ── Urban Local Bodies (ULB) — parallel at same level ───
       {
-        nameKey: "admin.nav.city",
-        path: `/${encMasters}/${encCities}`,
+        nameKey: "admin.nav.corporation",
+        path: `/${encMasters}/${encCorporations}`,
         module: "masters",
-        screen: "cities",
+        screen: "corporations",
       },
       {
         nameKey: "admin.nav.municipality",
@@ -235,37 +223,17 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "town-panchayats",
       },
-      // ── Rural Local Bodies — as per Rule 40 ─────────────────
       {
-        nameKey: "admin.nav.block_panchayat_union",
-        path: `/${encMasters}/${encBlockPanchayatUnions}`,
+        nameKey: "admin.nav.panchayat_union",
+        path: `/${encMasters}/${encPanchayatUnions}`,
         module: "masters",
-        screen: "block-panchayat-unions",
-      },
-      // ── Operational / Field Level ────────────────────────────
-      {
-        nameKey: "admin.nav.ward",
-        path: `/${encMasters}/${encWards}`,
-        module: "masters",
-        screen: "wards",
-      },
-      {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
-        module: "masters",
-        screen: "areatypes",
+        screen: "panchayat-unions",
       },
       {
         nameKey: "admin.nav.panchayat",
         path: `/${encMasters}/${encPanchayats}`,
         module: "masters",
         screen: "panchayats",
-      },
-      {
-        nameKey: "admin.nav.panchayat_leader",
-        path: `/${encMasters}/${encPanchayatLeaders}`,
-        module: "masters",
-        screen: "panchayat-leaders",
       },
     ],
   },
@@ -492,9 +460,10 @@ const transportMastersItems: NavItem[] = [
   },
 ];
 
-const scheduleMastersItems: NavItem[] = [
+// ── Schedule Setup: planning / configuration ────────────────────────────────
+const scheduleSetupItems: NavItem[] = [
   {
-    nameKey: "admin.nav.schedule_masters",
+    nameKey: "admin.nav.schedule_setup",
     icon: <LayoutGrid size={18} />,
     module: "schedule-masters",
     screen: "schedule-masters",
@@ -529,6 +498,18 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "trip-plan-collection-points",
       },
+    ],
+  },
+];
+
+// ── Schedule Operations: daily tracking & assignments ───────────────────────
+const scheduleOperationsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_operations",
+    icon: <CalendarCheck size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
       {
         nameKey: "admin.nav.daily_trip_assignment",
         path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
@@ -565,8 +546,20 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-trip-logs",
       },
+    ],
+  },
+];
+
+// ── Schedule Reports: waste analytics ───────────────────────────────────────
+const scheduleReportsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_reports",
+    icon: <BarChart3 size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
       {
-        nameKey: "Daily Waste Comparison",
+        nameKey: "admin.nav.daily_waste_comparison",
         path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
         module: "schedule-masters",
         screen: "daily-waste-comparisons",
@@ -752,7 +745,9 @@ const AppSidebar: React.FC = () => {
         { key: "customerMasters" as const, items: customerMasters },
         { key: "citizenGrievance" as const, items: citizenGrievanceItems },
         { key: "transportMasters" as const, items: transportMastersItems },
-        { key: "scheduleMasters" as const, items: scheduleMastersItems },
+        { key: "scheduleSetup" as const, items: scheduleSetupItems },
+        { key: "scheduleOperations" as const, items: scheduleOperationsItems },
+        { key: "scheduleReports" as const, items: scheduleReportsItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "fleetReports" as const, items: fleetReportItems },
       ];

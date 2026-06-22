@@ -18,6 +18,7 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
@@ -35,9 +36,6 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   contact_no: ["contact_no", "mobile"],
   apartment_name: ["apartment_name"],
   unit: ["block_no", "flat_no"],
-  ward_name: ["ward_id", "ward_name"],
-  zone_name: ["zone_id", "zone_name"],
-  city_name: ["city_id", "city_name"],
   state_name: ["state_id", "state_name"],
   panchayat_name: ["panchayat_id", "panchayat_name"],
   waste_types: ["waste_type_ids", "waste_types", "waste_type"],
@@ -56,9 +54,6 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "pincode", header: "pincode", sample: "600040" },
   { field: "latitude", header: "latitude", sample: "13.0827" },
   { field: "longitude", header: "longitude", sample: "80.2707" },
-  { field: "ward_name", header: "ward_name", sample: "Ward 10" },
-  { field: "zone_name", header: "zone_name", sample: "North Zone" },
-  { field: "city_name", header: "city_name", required: true, sample: "Chennai" },
   { field: "district_name", header: "district_name", required: true, sample: "Chennai" },
   { field: "state_name", header: "state_name", required: true, sample: "Tamil Nadu" },
   { field: "country_name", header: "country_name", required: true, sample: "India" },
@@ -86,13 +81,11 @@ export default function CustomerCreationListPage() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [selectedQr, setSelectedQr] = useState<string | null>(null);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
@@ -243,16 +236,6 @@ export default function CustomerCreationListPage() {
     </div>
   );
 
-  const openQrPopup = (qrUrl: string) => {
-    Swal.fire({
-      title: t("admin.customer_creation.qr_title"),
-      html: `<div class="flex justify-center">
-              <img src="${qrUrl}" style="width:200px;height:200px;" />
-            </div>`,
-      width: 350,
-    });
-  };
-
   const qrTemplate = (customer: Customer) => {
     if (!customer.qr_code) {
       return <span className="text-gray-400 text-xs">No QR</span>;
@@ -260,7 +243,8 @@ export default function CustomerCreationListPage() {
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => openQrPopup(customer.qr_code!)}
+        onClick={() => setSelectedQr(customer.qr_code!)}
+        title={t("admin.customer_creation.qr_show")}
       >
         <img src={customer.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
@@ -316,103 +300,108 @@ export default function CustomerCreationListPage() {
     options.rowIndex + 1;
 
   return (
-    <div className="p-3 ">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.customer_creation.title")}
-          </h1>
-          <p className="text-gray-500 text-sm">
-            {t("admin.customer_creation.subtitle")}
-          </p>
+    <>
+      <div className="p-3 ">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 mb-1">
+              {t("admin.customer_creation.title")}
+            </h1>
+            <p className="text-gray-500 text-sm">
+              {t("admin.customer_creation.subtitle")}
+            </p>
+          </div>
+
+          <div />
         </div>
 
-        <div />
+        <DataTable
+          value={customers}
+          bulkImportable={false}
+          dataKey="unique_id"
+          paginator
+          rows={10}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          loading={isLoading && customers.length === 0}
+          filters={filters}
+          globalFilterFields={[
+            "customer_name", "contact_no", "apartment_name",
+            "block_no", "flat_no", "waste_types",
+          ]}
+          header={header}
+          emptyMessage={t("admin.customer_creation.empty_message")}
+          stripedRows
+          showGridlines
+          className="p-datatable-sm"
+        >
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+          {showCol("customer_name") && (
+            <Column field="customer_name" header={t("admin.customer_creation.customer")} sortable />
+          )}
+          {showCol("contact_no") && (
+            <Column field="contact_no" header={t("common.mobile")} sortable />
+          )}
+          {showCol("apartment_name") && (
+            <Column
+              field="apartment_name"
+              header="Apartment"
+              body={(row: Customer) =>
+                row.apartment_name && row.apartment_name.trim() !== "" ? cap(row.apartment_name) : "-"
+              }
+            />
+          )}
+          {showCol("unit") && (
+            <Column
+              header="Unit"
+              body={(row: Customer) =>
+                row.block_no && row.flat_no ? `${row.block_no}-${row.flat_no}` : "-"
+              }
+            />
+          )}
+          {showCol("state_name") && (
+            <Column field="state_name" header={t("common.state")} sortable />
+          )}
+          {showCol("panchayat_name") && (
+            <Column
+              field="panchayat_name"
+              header={t("admin.nav.panchayat")}
+              body={(row: Customer) => row.panchayat_name || "-"}
+              sortable
+            />
+          )}
+          {showCol("waste_types") && (
+            <Column
+              field="waste_types"
+              header={t("common.waste_type")}
+              body={(row: Customer) =>
+                row.waste_types?.length
+                  ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
+                  : "-"
+              }
+            />
+          )}
+          {showCol("qr_code") && (
+            <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
+          )}
+          {showCol("is_active") && (
+            <Column field="is_active" header={t("common.status")} body={statusTemplate} />
+          )}
+          <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
+        </DataTable>
       </div>
 
-      <DataTable
-        value={customers}
-        bulkImportable={false}
-        dataKey="unique_id"
-        paginator
-        rows={10}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && customers.length === 0}
-        filters={filters}
-        globalFilterFields={[
-          "customer_name", "contact_no", "apartment_name",
-          "block_no", "flat_no", "ward_name", "zone_name",
-          "city_name", "waste_types",
-        ]}
-        header={header}
-        emptyMessage={t("admin.customer_creation.empty_message")}
-        stripedRows
-        showGridlines
-        className="p-datatable-sm"
-      >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-        {showCol("customer_name") && (
-          <Column field="customer_name" header={t("admin.customer_creation.customer")} sortable />
-        )}
-        {showCol("contact_no") && (
-          <Column field="contact_no" header={t("common.mobile")} sortable />
-        )}
-        {showCol("apartment_name") && (
-          <Column
-            field="apartment_name"
-            header="Apartment"
-            body={(row: Customer) =>
-              row.apartment_name && row.apartment_name.trim() !== "" ? cap(row.apartment_name) : "-"
-            }
-          />
-        )}
-        {showCol("unit") && (
-          <Column
-            header="Unit"
-            body={(row: Customer) =>
-              row.block_no && row.flat_no ? `${row.block_no}-${row.flat_no}` : "-"
-            }
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column field="ward_name" header={t("common.ward")} body={(row: Customer) => row.ward_name || "-"} sortable />
-        )}
-        {showCol("zone_name") && (
-          <Column field="zone_name" header={t("common.zone")} body={(row: Customer) => row.zone_name || "-"} sortable />
-        )}
-        {showCol("city_name") && (
-          <Column field="city_name" header={t("common.city")} sortable />
-        )}
-        {showCol("state_name") && (
-          <Column field="state_name" header={t("common.state")} sortable />
-        )}
-        {showCol("panchayat_name") && (
-          <Column
-            field="panchayat_name"
-            header={t("admin.nav.panchayat")}
-            body={(row: Customer) => row.panchayat_name || "-"}
-            sortable
-          />
-        )}
-        {showCol("waste_types") && (
-          <Column
-            field="waste_types"
-            header={t("common.waste_type")}
-            body={(row: Customer) =>
-              row.waste_types?.length
-                ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
-                : "-"
-            }
-          />
-        )}
-        {showCol("qr_code") && (
-          <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
-        )}
-        {showCol("is_active") && (
-          <Column field="is_active" header={t("common.status")} body={statusTemplate} />
-        )}
-        <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
-      </DataTable>
-    </div>
+      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+        <DialogContent className="w-auto max-w-[90vw] p-4">
+          <DialogTitle className="sr-only">{t("admin.customer_creation.qr_title")}</DialogTitle>
+          {selectedQr && (
+            <img
+              src={selectedQr}
+              alt={t("admin.customer_creation.qr_title")}
+              className="h-auto w-[min(75vw,320px)] object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

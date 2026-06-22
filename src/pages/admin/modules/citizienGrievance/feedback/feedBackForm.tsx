@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+
+const feedbackApi = adminApi.feedbacks;
 
 const CATEGORY_OPTIONS = [
   { value: "Excellent", label: "Excellent" },
@@ -38,19 +39,7 @@ export default function FeedBackForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const isEdit = Boolean(id);
-
-  const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, loggedInCompanyUniqueId,
-    setProjectId, onCompanyChange, applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encCitizenGrivence, encFeedback);
@@ -66,28 +55,13 @@ export default function FeedBackForm() {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Pending values — applied once their option lists are ready
-  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string;
-    projectId: string;
-    projectName: string;
-  } | null>(null);
-  const [pendingCustomerCandidates, setPendingCustomerCandidates] = useState<{
-    customerUniqueId: string;
-    customerId: string;
-    customerName: string;
-  } | null>(null);
-
   const resolveCustomerId = (c: any) => String(c.unique_id ?? c.id ?? "");
 
-  /* ── load customers filtered by company + project ── */
+  /* ── load customers ── */
   useEffect(() => {
-    if (!companyUniqueId) { setCustomers([]); return; }
     let cancelled = false;
     setFetchingCustomers(true);
-    const params: Record<string, string> = { company_id: companyUniqueId };
-    if (projectId) params.project_id = projectId;
-    adminApi.customerCreations.readAll({ params })
+    adminApi.customerCreations.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const list = Array.isArray(res) ? res : res?.results ?? [];
@@ -99,7 +73,7 @@ export default function FeedBackForm() {
       .catch(() => { if (!cancelled) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
       .finally(() => { if (!cancelled) setFetchingCustomers(false); });
     return () => { cancelled = true; };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   /* ── edit mode: load record ── */
   useEffect(() => {
@@ -109,22 +83,13 @@ export default function FeedBackForm() {
     feedbackApi.read(id)
       .then((res: any) => {
         if (cancelled) return;
-        // Set simple fields immediately
         setFeedbackCategory(res.category || "Excellent");
         setFeedbackDetails(res.feedback_details || "");
-        // Apply company (safe — won't clear project if record has none)
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
-        // Store project & customer to re-apply after option lists load
-        setPendingProjectCandidates({
-          projectUniqueId: String(res.project_unique_id ?? res.project?.unique_id ?? ""),
-          projectId: String(res.project_id ?? ""),
-          projectName: String(res.project_name ?? ""),
-        });
-        setPendingCustomerCandidates({
-          customerUniqueId: String(res.customer_unique_id ?? res.customer?.unique_id ?? ""),
-          customerId: String(res.customer_id ?? res.customer ?? ""),
-          customerName: String(res.customer_name ?? ""),
-        });
+        // Resolve customer id from record
+        const recordCustomerId = String(
+          res.customer_unique_id ?? res.customer?.unique_id ?? res.customer_id ?? res.customer ?? ""
+        );
+        if (recordCustomerId) setCustomerId(recordCustomerId);
         setLoadingRecord(false);
       })
       .catch((err: any) => {
@@ -133,33 +98,7 @@ export default function FeedBackForm() {
         Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? t("common.load_failed") });
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
-
-  /* ── flush project after hook loads project list ── */
-  useEffect(() => {
-    if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
-    if (!match) match = projects.find((p) => rawId && p.value === rawId);
-    if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
-    if (match) setProjectId(match.value);
-    setPendingProjectCandidates(null);
-  }, [projects, pendingProjectCandidates, setProjectId]);
-
-  /* ── flush customer after customers list loads ── */
-  useEffect(() => {
-    if (!pendingCustomerCandidates || customers.length === 0) return;
-    const { customerUniqueId, customerId: rawId, customerName } = pendingCustomerCandidates;
-    let match = customers.find((c) => customerUniqueId && resolveCustomerId(c) === customerUniqueId);
-    if (!match) match = customers.find((c) => rawId && resolveCustomerId(c) === rawId);
-    if (!match && customerName)
-      match = customers.find((c) =>
-        String(c.customer_name ?? "").toLowerCase() === customerName.toLowerCase()
-      );
-    if (match) setCustomerId(resolveCustomerId(match));
-    setPendingCustomerCandidates(null);
-  }, [customers, pendingCustomerCandidates]);
+  }, [id, isEdit, t]);
 
   const selectedCustomer = customers.find((c) => resolveCustomerId(c) === customerId);
 
@@ -187,7 +126,7 @@ export default function FeedBackForm() {
         await adminApi.feedbacks.create(payload);
         Swal.fire(t("common.success"), t("admin.citizen_grievance.feedback_form.saved"), "success");
       }
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(LIST_PATH);
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err) ?? t("admin.citizen_grievance.feedback_form.save_failed"), "error");
     } finally {
@@ -221,7 +160,7 @@ export default function FeedBackForm() {
                   label: String(c.customer_name ?? ""),
                 }))}
                 placeholder={fetchingCustomers ? "Loading..." : "Select customer"}
-                disabled={fetchingCustomers || !projectId}
+                disabled={fetchingCustomers}
               />
             </div>
 
@@ -309,7 +248,7 @@ export default function FeedBackForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(LIST_PATH)}
               className="rounded-lg bg-red-400 px-5 py-2.5 text-sm font-semibold text-white"
             >
               {t("common.cancel")}

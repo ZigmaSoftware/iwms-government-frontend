@@ -4,12 +4,7 @@
 // --------------------------------------------------------------
 
 import { adminApi } from "./registry";
-
-/* =========================
-   SUPERADMIN
-========================= */
-export const companyApi = adminApi.companies;
-export const projectApi = adminApi.projects;
+export { adminApi } from "./registry";
 
 /* =========================
    COMMON MASTERS
@@ -22,9 +17,6 @@ export const stateApi = adminApi.states;
    MASTERS
 ========================= */
 export const districtApi = adminApi.districts;
-export const cityApi = adminApi.cities;
-export const zoneApi = adminApi.zones;
-export const wardApi = adminApi.wards;
 export const departmentApi = adminApi.departments;
 export const designationApi = adminApi.designations;
 export const collectionPointApi = adminApi.collectionPoints;
@@ -33,9 +25,10 @@ export const panchayatApi = adminApi.panchayats;
 export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
+export const corporationApi = adminApi.corporations;
 export const municipalityApi = adminApi.municipalities;
 export const townPanchayatApi = adminApi.townPanchayats;
-export const blockPanchayatUnionApi = adminApi.blockPanchayatUnions;
+export const panchayatUnionApi = adminApi.panchayatUnions;
 
 /* =========================
    WASTE TYPES
@@ -66,6 +59,9 @@ export const staffUserTypeApi = adminApi.staffUserTypes;
 export const roleTypesApi = adminApi.roleTypes;
 export const contractorUserTypeApi = adminApi.contractorUserTypes;
 export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
+export const governmentUserTypeApi = adminApi.governmentUserTypes;
+export const governmentRoleTypesApi = adminApi.governmentRoleTypes;
+export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 
 /* =========================
    USER CREATION
@@ -79,7 +75,6 @@ export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 /* =========================
    PROCESS
 ========================= */
-export const zonePropertyLoadTrackerApi = adminApi.zonePropertyLoadTrackers;
 
 /* =========================
    AUTHENTICATION
@@ -93,7 +88,6 @@ export const customerCreationApi = adminApi.customerCreations;
 // NOTE: householdPickupEvents removed — not defined in adminEndpoints
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
-export const wardWiseCollectionApi = adminApi.wardWiseCollections;
 export const feedbackApi = adminApi.feedbacks;
 // export const collectionMonitoringApi = adminApi.pointCollections;
 

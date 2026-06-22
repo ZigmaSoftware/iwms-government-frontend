@@ -2,7 +2,7 @@ import type { Fuel } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -19,7 +19,6 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { fuelApi } from "@/helpers/admin";
 
@@ -32,9 +31,6 @@ const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -61,21 +57,6 @@ export default function FuelList() {
     fuel_type: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-  // ── Company / project selection ───────────────────────────────────────────
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
-
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encFuel } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -99,28 +80,6 @@ export default function FuelList() {
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
   }, [t]);
-
-  // ── Derived rows with client-side company/project filter ──────────────────
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as Fuel[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as Fuel[];
-
-    const hasContextFields = allFuels.some((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return Boolean(rowCompanyId || rowProjectId);
-    });
-
-    if (!hasContextFields) return allFuels;
-
-    return allFuels.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-      return companyMatches && projectMatches;
-    });
-  })();
 
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
@@ -205,60 +164,27 @@ export default function FuelList() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Company filter */}
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Project filter */}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           {/* Add button */}
           <Button
             label={t("admin.fuel.add")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
 
       <DataTable
-        value={rows}
+        value={allFuels}
         dataKey="unique_id"
         paginator
         rows={10}
-        loading={isLoading && rows.length === 0}
+        loading={isLoading && allFuels.length === 0}
         filters={filters}
         onFilter={onFilter}
         rowsPerPageOptions={[5, 10, 25, 50]}
         globalFilterFields={[
           ...(showCol("fuel_type") ? ["fuel_type"] : []),
-          "company_name",
-          "project_name",
         ]}
         header={header}
         emptyMessage={t("admin.fuel.empty_message")}

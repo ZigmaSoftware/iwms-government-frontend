@@ -32,7 +32,6 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
@@ -185,15 +184,6 @@ const PLBTooltip = ({ active, payload, label }: any) => {
 export default function MonthlyWasteComparisonListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({ isEdit: false });
 
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());

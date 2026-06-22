@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 
 import { adminApi } from "@/helpers/admin/registry";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecord } from "./types";
 
@@ -228,14 +227,6 @@ export default function SubPropertyForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const { applyCompanyProjectFromRecord, companyUniqueId, projectId } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
-
   const [subPropertyData, setSubPropertyData] = useState<any>(null);
   const [properties, setProperties] = useState<SubPropertyOptionRecord[]>([]);
   const [loadingRecord, setLoadingRecord] = useState(false);
@@ -271,7 +262,6 @@ export default function SubPropertyForm() {
       .then((res: any) => {
         if (cancelled) return;
         setSubPropertyData(res);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -285,7 +275,7 @@ export default function SubPropertyForm() {
         if (!cancelled) setLoadingRecord(false);
       });
     return () => { cancelled = true; };
-  }, [id, isEdit, applyCompanyProjectFromRecord, t]);
+  }, [id, isEdit, t]);
 
   const submitSubProperty = async (payload: SubPropertyPayload) => {
     setIsSubmitting(true);
@@ -308,7 +298,7 @@ export default function SubPropertyForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error: unknown) {
       const message = extractErrorMessage(error, t("common.save_failed_desc"));
       Swal.fire({
@@ -353,7 +343,7 @@ export default function SubPropertyForm() {
         properties={properties}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+        onCancel={() => navigate(ENC_LIST_PATH)}
         onSubmit={submitSubProperty}
       />
     </ComponentCard>

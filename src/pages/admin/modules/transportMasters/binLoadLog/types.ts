@@ -3,7 +3,6 @@ import type { FilterMatchMode } from "primereact/api";
 export type SelectOption = { value: string; label: string };
 
 export type BinLoadLogFormState = {
-  zone_id: string;
   vehicle_id: string;
   property_id: string;
   sub_property_id: string;
@@ -14,11 +13,6 @@ export type BinLoadLogFormState = {
 
 export type BinLoadLogApiRecord = {
   unique_id: string;
-
-  zone_details: {
-    unique_id: string;
-    name: string;
-  };
 
   vehicle_details: {
     unique_id: string;
@@ -55,7 +49,6 @@ export type BinLoadLogApiRecord = {
 
 export type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
-  zone_id?: { value: string | null; matchMode: FilterMatchMode };
   vehicle_id?: { value: string | null; matchMode: FilterMatchMode };
   property_id?: { value: string | null; matchMode: FilterMatchMode };
   sub_property_id?: { value: string | null; matchMode: FilterMatchMode };

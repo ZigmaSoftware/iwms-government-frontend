@@ -2,7 +2,7 @@ import type { HierarchyRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
@@ -13,14 +13,10 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
   level_name: ["level_name", "name"],
@@ -66,19 +62,6 @@ export default function HierarchyListPage() {
       matchMode: FilterMatchMode.STARTS_WITH,
     },
   });
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "hierarchies",
@@ -92,15 +75,7 @@ export default function HierarchyListPage() {
     encHierarchies,
   );
 
-  const records = hierarchies.filter((row) => {
-    const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-    const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-    const companyMatches = !companyUniqueId || rowCompanyId === companyUniqueId;
-    const projectMatches = !projectId || rowProjectId === projectId;
-
-    return companyMatches && projectMatches;
-  });
+  const records = hierarchies;
 
   const loadHierarchies = async () => {
     setIsLoading(true);
@@ -218,40 +193,11 @@ export default function HierarchyListPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -271,7 +217,7 @@ export default function HierarchyListPage() {
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.hierarchy"),
         })}
-        globalFilterFields={["level_name", "company_name", "project_name"]}
+        globalFilterFields={["level_name"]}
         className="p-datatable-sm"
       >
         <Column
