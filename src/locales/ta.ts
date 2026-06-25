@@ -856,7 +856,9 @@ const taResource = {
           "trip_summary": "பயண சுருக்கம்",
           "monthly_distance": "மாதாந்திர தூரம்",
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
-          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு"
+          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு",
+          "leader_login": "தலைவர் உள்நுழைவு",
+          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",

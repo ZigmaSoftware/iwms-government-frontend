@@ -874,7 +874,9 @@ const enResource = {
           "trip_summary": "Trip Summary",
           "monthly_distance": "Monthly Distance",
           "waste_collected_summary": "Waste Collected Summary",
-          "monthly_waste_comparison": "Monthly Waste Comparison"
+          "monthly_waste_comparison": "Monthly Waste Comparison",
+          "leader_login": "Leader Login",
+          "plb_leader_creation": "PLB Leader Creation"
         },
         "project": {
           "company_id": "Company ID",

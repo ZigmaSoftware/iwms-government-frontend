@@ -88,7 +88,9 @@ const {
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,
-  encDailyWasteComparison
+  encDailyWasteComparison,
+  encLeaderLogin,
+  encPlbLeaderCreation,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -125,7 +127,8 @@ type SidebarSectionKey =
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
-  | "fleetReports";
+  | "fleetReports"
+  | "leaderLogin";
 
 /* =====================
    MENU DEFINITIONS
@@ -644,6 +647,23 @@ const fleetReportItems: NavItem[] = [
   },
 ];
 
+const leaderLoginItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.leader_login",
+    icon: <Users size={18} />,
+    module: "leader-login",
+    screen: "leader-login",
+    subItems: [
+      {
+        nameKey: "admin.nav.plb_leader_creation",
+        path: `/${encLeaderLogin}/${encPlbLeaderCreation}`,
+        module: "leader-login",
+        screen: "plb-leader-creation",
+      },
+    ],
+  },
+];
+
 const menuButtonBase =
   "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300";
 const menuActiveClasses =
@@ -750,6 +770,7 @@ const AppSidebar: React.FC = () => {
         { key: "scheduleReports" as const, items: scheduleReportsItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "fleetReports" as const, items: fleetReportItems },
+        { key: "leaderLogin" as const, items: leaderLoginItems },
       ];
 
       // If superadmin, show ALL sections with ALL items

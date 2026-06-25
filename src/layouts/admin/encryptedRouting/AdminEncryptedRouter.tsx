@@ -251,6 +251,9 @@ const ROUTES: RouteMap = {
     "waste-collected-summary": { component: WasteSummary },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
   },
+  "leader-login": {
+    "plb-leader-creation": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
+  },
 };
 
 const MASTER_ALIASES: Record<string, string[]> = {

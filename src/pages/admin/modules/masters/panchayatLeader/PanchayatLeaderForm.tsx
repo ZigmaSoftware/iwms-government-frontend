@@ -341,8 +341,8 @@ export default function PanchayatLeaderForm() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
 
-  const { encMasters, encPanchayatLeaders } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
+  const { encLeaderLogin, encPlbLeaderCreation } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encLeaderLogin, encPlbLeaderCreation);
 
   const [recordData, setRecordData] = useState<RecordRow | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
