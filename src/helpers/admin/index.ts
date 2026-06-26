@@ -7,12 +7,6 @@ import { adminApi } from "./registry";
 export { adminApi } from "./registry";
 
 /* =========================
-   SUPERADMIN
-========================= */
-export const companyApi = adminApi.companies;
-export const projectApi = adminApi.projects;
-
-/* =========================
    COMMON MASTERS
 ========================= */
 export const continentApi = adminApi.continents;
@@ -68,6 +62,9 @@ export const staffUserTypeApi = adminApi.staffUserTypes;
 export const roleTypesApi = adminApi.roleTypes;
 export const contractorUserTypeApi = adminApi.contractorUserTypes;
 export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
+export const governmentUserTypeApi = adminApi.governmentUserTypes;
+export const governmentRoleTypesApi = adminApi.governmentRoleTypes;
+export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 
 /* =========================
    USER CREATION

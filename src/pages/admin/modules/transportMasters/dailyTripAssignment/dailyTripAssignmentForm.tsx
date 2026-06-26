@@ -78,12 +78,19 @@ export default function DailyTripAssignmentForm() {
   useEffect(() => {
     if (!id) return;
     dailyTripAssignmentApi.read(id).then((record: ApiRecord) => {
-      setTripPlanId(String(record.trip_plan_id ?? ""));
-      setStaffTemplateId(String(record.staff_template_id ?? ""));
-      setAltStaffTemplateId(String(record.alt_staff_template_id ?? ""));
-      setPanchayatId(String(record.panchayat_id ?? ""));
-      setWasteTypeId(String(record.waste_type_id ?? ""));
-      setVehicleId(String(record.vehicle_id ?? ""));
+      // FK fields are write_only in the serializer; read from nested read objects instead
+      setTripPlanId(String(record.trip_plan?.unique_id ?? record.trip_plan_id ?? ""));
+      setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
+      setAltStaffTemplateId(String(record.alt_staff_template?.unique_id ?? record.alt_staff_template_id ?? ""));
+      // Panchayat comes from the hierarchy read field
+      const hierarchy: ApiRecord = (record.hierarchy as ApiRecord) ?? {};
+      setPanchayatId(String(
+        record.panchayat?.unique_id ??
+        hierarchy.panchayat_id ??
+        record.panchayat_id ?? ""
+      ));
+      setWasteTypeId(String(record.waste_type?.unique_id ?? record.waste_type_id ?? ""));
+      setVehicleId(String(record.vehicle?.unique_id ?? record.vehicle_id ?? ""));
       setTripDate(String(record.trip_date ?? ""));
       setScheduledTime(String(record.scheduled_time ?? ""));
       setStatus(String(record.status ?? "Scheduled"));

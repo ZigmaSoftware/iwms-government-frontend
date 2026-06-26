@@ -7,6 +7,7 @@ export type Option = {
 
 export type StaffRecord = {
   unique_id?: string;
+  staff_unique_id?: string;
   company_id?: string;
   company_unique_id?: string;
   project_id?: string;
@@ -18,6 +19,8 @@ export type StaffRecord = {
   staffusertype_name?: string;
   contractorusertype_name?: string;
   designation?: string;
+  designation_name?: string;
+  designation_group?: string;
   is_active?: boolean;
   is_deleted?: boolean;
   active_status?: boolean | number | string | null;

@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -16,16 +16,9 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -35,24 +28,12 @@ const cap = (str?: string) =>
 export default function FeedBackFormList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
 
   const { encCitizenGrivence, encFeedback } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
     encCitizenGrivence,
     encFeedback,
   );
-
-  const {
-    companyUniqueId, projectId, projects, companies,
-    isSuperAdmin, setProjectId, onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const [feedbackList, setFeedbackList] = useState<FeedbackRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,41 +48,20 @@ export default function FeedBackFormList() {
 
   /* ── load feedbacks ── */
   useEffect(() => {
-    if (!companyUniqueId && !isSuperAdmin) { setFeedbackList([]); return; }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
-    adminApi.feedbacks.readAll({ params })
+    adminApi.feedbacks.readAll()
       .then((res: any) => {
         if (!mounted) return;
         const rows: FeedbackRecord[] = Array.isArray(res) ? res : res?.results ?? [];
-
-        // Only do client-side filtering if rows carry context fields
-        const hasContextFields = rows.some((row) =>
-          Boolean(normalizeId(row.company_id ?? row.company_unique_id) || normalizeId(row.project_id ?? row.project_unique_id))
-        );
-
-        if (!hasContextFields) {
-          setFeedbackList(rows);
-          return;
-        }
-
-        setFeedbackList(
-          rows.filter((row) => {
-            const rc = normalizeId(row.company_id ?? row.company_unique_id);
-            const rp = normalizeId(row.project_id ?? row.project_unique_id);
-            return (!companyUniqueId || rc === companyUniqueId) && (!projectId || rp === projectId);
-          })
-        );
+        setFeedbackList(rows);
       })
       .catch((err) => {
         if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(err) });
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
@@ -115,11 +75,7 @@ export default function FeedBackFormList() {
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(String(row.unique_id)), {
-            state: { companyUniqueId, projectId },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
         className="text-blue-600 hover:text-blue-800"
       >
         <PencilIcon className="size-5" />
@@ -148,36 +104,11 @@ export default function FeedBackFormList() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_new")}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>

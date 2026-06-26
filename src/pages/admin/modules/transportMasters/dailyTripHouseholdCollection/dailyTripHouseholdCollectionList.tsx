@@ -2,7 +2,6 @@ import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -13,7 +12,6 @@ import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -21,6 +19,11 @@ const STATUS_STYLES: Record<string, string> = {
   Collected: "bg-green-100 text-green-800",
   Skipped: "bg-red-100 text-red-800",
   Missed: "bg-orange-100 text-orange-800",
+};
+
+const COLLECTION_TYPE_LABELS: Record<string, string> = {
+  household_collection: "Household Collection",
+  bulk_waste_collection: "Bulk Waste Collection",
 };
 
 const Badge = ({ value }: { value?: string }) => (
@@ -69,26 +72,6 @@ const extractError = (error: unknown): string | null => {
 
 export default function DailyTripHouseholdCollectionList() {
   const { t } = useTranslation();
-  const location = useLocation();
-  const restoredState = location.state as {
-    companyUniqueId?: string;
-    projectId?: string;
-  } | null;
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
 
   const [allRecords, setAllRecords] = useState<
     DailyTripHouseholdCollectionRecord[]
@@ -98,27 +81,19 @@ export default function DailyTripHouseholdCollectionList() {
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _collection_type: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _customer: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   useEffect(() => {
-    if (!companyUniqueId && !isSuperAdmin) {
-      setAllRecords([]);
-      return;
-    }
     let mounted = true;
     setIsLoading(true);
-    const params: Record<string, string> = {};
-    if (companyUniqueId) params.company_id = companyUniqueId;
-    if (projectId) params.project_id = projectId;
     (
       dailyTripHouseholdCollectionApi.readAll({
-        params,
+        params: {},
       }) as Promise<DailyTripHouseholdCollectionRecord[]>
     )
       .then((data) => {
@@ -138,7 +113,7 @@ export default function DailyTripHouseholdCollectionList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   const rows = allRecords.map((rec) => ({
     ...rec,
@@ -148,34 +123,16 @@ export default function DailyTripHouseholdCollectionList() {
         "unique_id",
       ]) || rec.trip_assignment_id || "",
     _customer: nestedText(rec.customer as NamedRef, ["customer_name"]) || "",
+    _collection_type:
+      COLLECTION_TYPE_LABELS[String(rec.collection_type ?? "")] ??
+      text(rec.collection_type),
     _location:
       nestedText(rec.panchayat as NamedRef, ["panchayat_name"]) !== "-"
         ? nestedText(rec.panchayat as NamedRef, ["panchayat_name"])
         : "",
-    company_name: text(
-      (rec as any).company_name ??
-        (rec as any).company_id?.name ??
-        rec.company_id
-    ),
-    project_name: text(
-      (rec as any).project_name ??
-        (rec as any).project_id?.name ??
-        rec.project_id
-    ),
   }));
 
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-    return rows.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-      return (
-        (!companyUniqueId || rowCompanyId === companyUniqueId) &&
-        (!projectId || rowProjectId === projectId)
-      );
-    });
-  })();
+  const data = rows;
 
   const onFilter = (e: DataTableFilterEvent) =>
     setFilters(e.filters as DataTableFilterMeta);
@@ -204,37 +161,6 @@ export default function DailyTripHouseholdCollectionList() {
             Per-household collection status within daily trip assignments
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       <DataTable
@@ -252,9 +178,8 @@ export default function DailyTripHouseholdCollectionList() {
         emptyMessage="No household collection records found."
         globalFilterFields={[
           "unique_id",
-          "company_name",
-          "project_name",
           "_assignment",
+          "_collection_type",
           "_customer",
           "_location",
           "status",
@@ -275,22 +200,6 @@ export default function DailyTripHouseholdCollectionList() {
           style={{ minWidth: 150 }}
         />
         <Column
-          field="company_name"
-          header="Company"
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
-        />
-        <Column
-          field="project_name"
-          header="Project"
-          sortable
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
-        />
-        <Column
           field="_assignment"
           header="Trip Assignment"
           sortable
@@ -303,6 +212,14 @@ export default function DailyTripHouseholdCollectionList() {
               "unique_id",
             ])
           }
+        />
+        <Column
+          field="_collection_type"
+          header="Collection Type"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 160 }}
         />
         <Column
           field="_customer"

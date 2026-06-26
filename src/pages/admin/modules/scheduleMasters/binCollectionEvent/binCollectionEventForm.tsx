@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -18,17 +18,82 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 
-type Option = { value: string; label: string; panchayatId?: string };
+type Option = {
+  value: string;
+  label: string;
+  assignmentId?: string;
+  collectionPointId?: string;
+  binId?: string;
+  panchayatId?: string;
+};
 type ApiRecord = Record<string, any>;
 
-const toOptions = (items: any[], labelKey: string): Option[] =>
-  items
-    .map((item) => ({
-      value: String(item?.unique_id ?? item?.id ?? ""),
-      label: String(item?.[labelKey] ?? item?.display_code ?? item?.unique_id ?? item?.id ?? ""),
-      panchayatId: String(item?.panchayat_id ?? item?.panchayat?.unique_id ?? ""),
-    }))
-    .filter((item) => item.value);
+const idOf = (value: any): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    return String(value.unique_id ?? value.id ?? value.value ?? value.staff_unique_id ?? "");
+  }
+  return String(value);
+};
+
+const textOf = (...values: any[]): string => {
+  for (const value of values) {
+    if (value !== null && value !== undefined && String(value).trim()) {
+      return String(value);
+    }
+  }
+  return "";
+};
+
+const uniqueOptions = (items: Option[]): Option[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (!item.value || seen.has(item.value)) return false;
+    seen.add(item.value);
+    return true;
+  });
+};
+
+const ensureOption = (items: Option[], value: string, label?: string): Option[] => {
+  if (!value || items.some((item) => item.value === value)) return items;
+  return [{ value, label: label || value }, ...items];
+};
+
+const assignmentOption = (item: ApiRecord): Option => ({
+  value: idOf(item.unique_id ?? item.id),
+  label: textOf(item.display_code, item.trip_plan?.display_code, item.trip_plan_id?.display_code, item.unique_id),
+  panchayatId: idOf(item.panchayat_id ?? item.panchayat),
+});
+
+const collectionPointOption = (item: ApiRecord): Option => {
+  const collectionPoint = item.collection_point ?? item.collection_point_id;
+  return {
+    value: idOf(item.unique_id ?? item.id),
+    label: textOf(
+      item.collection_point_name,
+      collectionPoint?.cp_name,
+      collectionPoint?.name,
+      collectionPoint?.unique_id,
+      item.unique_id,
+    ),
+    assignmentId: idOf(item.trip_assignment_id ?? item.trip_assignment),
+    collectionPointId: idOf(item.collection_point_id ?? item.collection_point),
+    binId: idOf(item.bin_id ?? item.bin),
+    panchayatId: idOf(item.panchayat_id ?? item.panchayat ?? collectionPoint?.panchayat_id),
+  };
+};
+
+const binOption = (item: ApiRecord): Option => ({
+  value: idOf(item.unique_id ?? item.id),
+  label: textOf(item.bin_name, item.name, item.unique_id),
+  collectionPointId: idOf(item.collection_point_id ?? item.collection_point),
+  panchayatId: idOf(item.panchayat_id ?? item.panchayat),
+});
+
+const panchayatOption = (item: ApiRecord): Option => ({
+  value: idOf(item.unique_id ?? item.id),
+  label: textOf(item.panchayat_name, item.name, item.unique_id),
+});
 
 export default function BinCollectionEventForm() {
   const navigate = useNavigate();
@@ -59,32 +124,108 @@ export default function BinCollectionEventForm() {
       adminApi.bins.readAll(),
       panchayatApi.readAll(),
     ]).then(([assignmentRes, cpRes, binRes, panchayatRes]) => {
-      setAssignments(toOptions(normalizeList(assignmentRes), "display_code"));
-      setCollectionPoints(toOptions(normalizeList(cpRes), "collection_point_name"));
-      setBins(toOptions(normalizeList(binRes), "bin_name"));
-      setPanchayats(toOptions(normalizeList(panchayatRes), "panchayat_name"));
+      setAssignments(uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)));
+      setCollectionPoints(uniqueOptions(normalizeList(cpRes).map(collectionPointOption)));
+      setBins(uniqueOptions(normalizeList(binRes).map(binOption)));
+      setPanchayats(uniqueOptions(normalizeList(panchayatRes).map(panchayatOption)));
     });
   }, []);
 
   useEffect(() => {
     if (!id) return;
     binCollectionEventApi.read(id).then((record: ApiRecord) => {
-      setTripAssignmentId(String(record.trip_assignment_id ?? ""));
-      setTripCollectionPointId(String(record.trip_collection_point_id ?? ""));
-      setBinId(String(record.bin_id ?? ""));
-      setPanchayatId(String(record.panchayat_id ?? ""));
+      const assignmentId = idOf(record.trip_assignment_id ?? record.trip_assignment);
+      const tripCollectionPointId = idOf(record.trip_collection_point_id ?? record.trip_collection_point);
+      const selectedBinId = idOf(record.bin_id ?? record.bin);
+      const selectedPanchayatId = idOf(record.panchayat_id ?? record.panchayat ?? record.bin?.panchayat_id);
+
+      setTripAssignmentId(assignmentId);
+      setTripCollectionPointId(tripCollectionPointId);
+      setBinId(selectedBinId);
+      setPanchayatId(selectedPanchayatId);
       setCollectionDate(String(record.collection_date ?? ""));
       setCollectedWeightKg(String(record.collected_weight_kg ?? ""));
       setDriverLatitude(String(record.driver_latitude ?? ""));
       setDriverLongitude(String(record.driver_longitude ?? ""));
       setNotes(String(record.notes ?? ""));
+
+      setAssignments((items) =>
+        ensureOption(
+          items,
+          assignmentId,
+          textOf(record.trip_assignment?.display_code, record.trip_plan?.display_code, assignmentId),
+        ),
+      );
+      setCollectionPoints((items) =>
+        ensureOption(
+          items,
+          tripCollectionPointId,
+          textOf(record.collection_point?.cp_name, record.collection_point_name, tripCollectionPointId),
+        ),
+      );
+      setBins((items) => ensureOption(items, selectedBinId, textOf(record.bin?.bin_name, selectedBinId)));
+      setPanchayats((items) =>
+        ensureOption(items, selectedPanchayatId, textOf(record.panchayat_name, record.panchayat?.panchayat_name, selectedPanchayatId)),
+      );
     });
   }, [id]);
 
+  const selectedCollectionPoint = useMemo(
+    () => collectionPoints.find((item) => item.value === tripCollectionPointId),
+    [collectionPoints, tripCollectionPointId],
+  );
+
+  const visibleCollectionPoints = useMemo(() => {
+    const filtered = tripAssignmentId
+      ? collectionPoints.filter((item) => !item.assignmentId || item.assignmentId === tripAssignmentId)
+      : collectionPoints;
+    return ensureOption(filtered, tripCollectionPointId, selectedCollectionPoint?.label);
+  }, [collectionPoints, selectedCollectionPoint?.label, tripAssignmentId, tripCollectionPointId]);
+
+  const visibleBins = useMemo(() => {
+    const collectionPointId = selectedCollectionPoint?.collectionPointId;
+    const filtered = collectionPointId
+      ? bins.filter((item) => !item.collectionPointId || item.collectionPointId === collectionPointId)
+      : bins;
+    const selectedBin = bins.find((item) => item.value === binId);
+    return ensureOption(filtered, binId, selectedBin?.label);
+  }, [binId, bins, selectedCollectionPoint?.collectionPointId]);
+
+  const visiblePanchayats = useMemo(() => {
+    const selectedPanchayat = panchayats.find((item) => item.value === panchayatId);
+    return ensureOption(panchayats, panchayatId, selectedPanchayat?.label);
+  }, [panchayatId, panchayats]);
+
+  const handleAssignmentChange = (value: string) => {
+    setTripAssignmentId(value);
+    const assignment = assignments.find((item) => item.value === value);
+    if (assignment?.panchayatId) setPanchayatId(assignment.panchayatId);
+
+    const selectedCp = collectionPoints.find((item) => item.value === tripCollectionPointId);
+    if (selectedCp?.assignmentId && selectedCp.assignmentId !== value) {
+      setTripCollectionPointId("");
+      setBinId("");
+    }
+  };
+
+  const handleCollectionPointChange = (value: string) => {
+    setTripCollectionPointId(value);
+    const collectionPoint = collectionPoints.find((item) => item.value === value);
+    if (collectionPoint?.assignmentId) setTripAssignmentId(collectionPoint.assignmentId);
+    if (collectionPoint?.binId) setBinId(collectionPoint.binId);
+    if (collectionPoint?.panchayatId) setPanchayatId(collectionPoint.panchayatId);
+  };
+
+  const handleBinChange = (value: string) => {
+    setBinId(value);
+    const bin = bins.find((item) => item.value === value);
+    if (bin?.panchayatId) setPanchayatId(bin.panchayatId);
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!tripAssignmentId || !binId || !collectionDate) {
-      Swal.fire("Missing details", "Trip Assignment, Bin and Collection Date are required.", "warning");
+    if (!tripAssignmentId || !tripCollectionPointId || !binId || !collectionDate) {
+      Swal.fire("Missing details", "Trip Assignment, Collection Point, Bin and Collection Date are required.", "warning");
       return;
     }
     setSaving(true);
@@ -113,19 +254,19 @@ export default function BinCollectionEventForm() {
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Label>Trip Assignment *</Label>
-          <Select value={tripAssignmentId} onChange={(value) => setTripAssignmentId(String(value))} options={assignments} placeholder="Select Assignment" />
+          <Select value={tripAssignmentId} onChange={handleAssignmentChange} options={assignments} placeholder="Select Assignment" />
         </div>
         <div>
-          <Label>Collection Point</Label>
-          <Select value={tripCollectionPointId} onChange={(value) => setTripCollectionPointId(String(value))} options={collectionPoints} placeholder="Select Collection Point" />
+          <Label>Collection Point *</Label>
+          <Select value={tripCollectionPointId} onChange={handleCollectionPointChange} options={visibleCollectionPoints} placeholder="Select Collection Point" />
         </div>
         <div>
           <Label>Bin *</Label>
-          <Select value={binId} onChange={(value) => setBinId(String(value))} options={bins} placeholder="Select Bin" />
+          <Select value={binId} onChange={handleBinChange} options={visibleBins} placeholder="Select Bin" />
         </div>
         <div>
           <Label>Panchayat</Label>
-          <Select value={panchayatId} onChange={(value) => setPanchayatId(String(value))} options={panchayats} placeholder="Select Panchayat" />
+          <Select value={panchayatId} onChange={(value) => setPanchayatId(String(value))} options={visiblePanchayats} placeholder="Derived from Trip Stop" disabled />
         </div>
         <div>
           <Label>Collection Date *</Label>

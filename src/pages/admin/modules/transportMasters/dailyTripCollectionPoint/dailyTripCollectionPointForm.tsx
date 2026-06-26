@@ -2,7 +2,7 @@ import type { DailyTripCollectionPointRecord } from "./types";
 import type { ApiObject, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -10,7 +10,6 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 import { dailyTripAssignmentApi, dailyTripCollectionPointApi, binApi, staffCreationApi } from "@/helpers/admin";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 
@@ -100,25 +99,7 @@ export default function DailyTripCollectionPointForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
   const isEdit = Boolean(id);
-
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    loggedInCompanyUniqueId,
-    setProjectId,
-    onCompanyChange,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({
-    isEdit,
-    initialCompanyId: routeState?.companyUniqueId,
-    initialProjectId: routeState?.projectId,
-  });
 
   const { encScheduleMasters, encDailyTripCollectionPoint } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyTripCollectionPoint);
@@ -136,15 +117,12 @@ export default function DailyTripCollectionPointForm() {
   const [fetching, setFetching] = useState(false);
   const [record, setRecord] = useState<DailyTripCollectionPointRecord | null>(null);
   // Pending IDs — flushed once their option list is ready (Radix re-sync pattern)
-  const [pendingProjectCandidates, setPendingProjectCandidates] = useState<{
-    projectUniqueId: string; projectId: string; projectName: string;
-  } | null>(null);
   const [pendingAssignmentId, setPendingAssignmentId] = useState("");
   const [pendingCollectionPointId, setPendingCollectionPointId] = useState("");
   const [pendingBinId, setPendingBinId] = useState("");
   const [pendingCollectedBy, setPendingCollectedBy] = useState("");
   const [assignments, setAssignments] = useState<SelectOption[]>([]);
-  const locationOptions = useCollectionPointLocationOptions(companyUniqueId, projectId);
+  const locationOptions = useCollectionPointLocationOptions();
   const collectionPoints = locationOptions.collectionPoints;
   const [bins, setBins] = useState<(SelectOption & { collectionPointId?: string })[]>([]);
   const [staff, setStaff] = useState<SelectOption[]>([]);
@@ -156,12 +134,6 @@ export default function DailyTripCollectionPointForm() {
       .then((data: DailyTripCollectionPointRecord) => {
         const recordData = data as ApiObject;
         setRecord(data);
-        applyCompanyProjectFromRecord(recordData);
-        setPendingProjectCandidates({
-          projectUniqueId: String((recordData.project as ApiObject)?.unique_id ?? recordData.project_unique_id ?? ""),
-          projectId: String(recordData.project_id ?? ""),
-          projectName: String(recordData.project_name ?? ""),
-        });
         // Set non-select fields immediately (no Radix timing issue)
         setSequence(String(data.sequence ?? 1));
         setIsCollected(Boolean(data.is_collected));
@@ -180,19 +152,7 @@ export default function DailyTripCollectionPointForm() {
       })
       .catch((error: unknown) => Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
       .finally(() => setLoading(false));
-  }, [applyCompanyProjectFromRecord, id, isEdit, t]);
-
-  // Re-apply project after hook loads the project list
-  useEffect(() => {
-    if (!pendingProjectCandidates || projects.length === 0) return;
-    const { projectUniqueId, projectId: rawId, projectName } = pendingProjectCandidates;
-    let match = projects.find((p) => projectUniqueId && p.value === projectUniqueId);
-    if (!match) match = projects.find((p) => rawId && p.value === rawId);
-    if (!match && projectName)
-      match = projects.find((p) => p.label.toLowerCase() === projectName.toLowerCase());
-    if (match) setProjectId(match.value);
-    setPendingProjectCandidates(null);
-  }, [projects, pendingProjectCandidates, setProjectId]);
+  }, [id, isEdit, t]);
 
   // Flush trip assignment after assignments list loads
   useEffect(() => {
@@ -239,19 +199,11 @@ export default function DailyTripCollectionPointForm() {
   }, [pendingCollectedBy, staff]);
 
   useEffect(() => {
-    if (!companyUniqueId || !projectId) {
-      setAssignments([]);
-      setBins([]);
-      setStaff([]);
-      return;
-    }
-
     setFetching(true);
-    const params = { company_id: companyUniqueId, project_id: projectId };
     Promise.all([
-      dailyTripAssignmentApi.readAll({ params }).catch(() => []),
-      binApi.readAll({ params }).catch(() => []),
-      staffCreationApi.readAll({ params }).catch(() => []),
+      dailyTripAssignmentApi.readAll().catch(() => []),
+      binApi.readAll().catch(() => []),
+      staffCreationApi.readAll().catch(() => []),
     ])
       .then(([assignmentRes, binRes, staffRes]) => {
         const assignmentOptions = normalizeList(assignmentRes)
@@ -274,7 +226,7 @@ export default function DailyTripCollectionPointForm() {
       })
       .catch((error: unknown) => Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
       .finally(() => setFetching(false));
-  }, [companyUniqueId, projectId, t]);
+  }, [t]);
 
   const binOptions = useMemo(() => {
     const filtered = collectionPointId
@@ -333,7 +285,7 @@ export default function DailyTripCollectionPointForm() {
         await dailyTripCollectionPointApi.create(payload);
         Swal.fire(t("common.success"), t("common.added_success"), "success");
       }
-      navigate(LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(LIST_PATH);
     } catch (error: unknown) {
       Swal.fire(t("common.save_failed"), extractError(error) ?? t("common.save_failed_desc"), "error");
     } finally {
@@ -356,7 +308,7 @@ export default function DailyTripCollectionPointForm() {
                 onChange={setTripAssignmentId}
                 options={assignmentOptions}
                 placeholder="Select trip assignment"
-                disabled={fetching || !projectId}
+                disabled={fetching}
               />
             </div>
 
@@ -375,7 +327,7 @@ export default function DailyTripCollectionPointForm() {
                 }}
                 options={collectionPointOptions}
                 placeholder="Select collection point"
-                disabled={fetching || locationOptions.loading || !projectId}
+                disabled={fetching || locationOptions.loading}
               />
             </div>
 
@@ -452,7 +404,7 @@ export default function DailyTripCollectionPointForm() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(LIST_PATH, { state: { companyUniqueId, projectId } })}
+              onClick={() => navigate(LIST_PATH)}
               className="rounded bg-red-400 px-4 py-2 text-white"
             >
               {t("common.cancel")}

@@ -841,6 +841,10 @@ const enResource = {
           "sub_category": "Sub Category",
           "transport_masters": "Transport Masters",
           "schedule_masters": "Schedule Masters",
+          "schedule_setup": "Schedule Setup",
+          "schedule_operations": "Daily Operations",
+          "schedule_reports": "Waste Reports",
+          "daily_waste_comparison": "Daily Waste Comparison",
           "vehicle_type": "Vehicle Type",
           "vehicle_creation": "Vehicle Creation",
           "trip_plans": "Trip Plans",
@@ -873,7 +877,9 @@ const enResource = {
           "trip_summary": "Trip Summary",
           "monthly_distance": "Monthly Distance",
           "waste_collected_summary": "Waste Collected Summary",
-          "monthly_waste_comparison": "Monthly Waste Comparison"
+          "monthly_waste_comparison": "Monthly Waste Comparison",
+          "leader_login": "Leader Login",
+          "plb_leader_creation": "PLB Leader Creation"
         },
         "project": {
           "company_id": "Company ID",

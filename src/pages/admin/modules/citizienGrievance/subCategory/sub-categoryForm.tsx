@@ -1,7 +1,7 @@
 import type { MainCategoryRecord, SubCategoryEditorProps, SubCategoryPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useLocation} from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,6 @@ import ComponentCard from "@/components/common/ComponentCard";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { adminApi } from "@/helpers/admin/registry";
 
 
@@ -71,7 +70,6 @@ function SubCategoryEditor({
     const payload: SubCategoryPayload = {
       name,
       is_active: isActive,
-      company_id: initialPayload.company_id,
     };
 
     if (mainCategory) {
@@ -176,16 +174,6 @@ export default function SubComplaintCategoryForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
-  const location = useLocation();
-  const routeState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    loggedInCompanyUniqueId,
-    isSuperAdmin,
-    applyCompanyProjectFromRecord,
-  } = useCompanyProjectSelection({ isEdit, initialCompanyId: routeState?.companyUniqueId, initialProjectId: routeState?.projectId });
-
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [mainCategoriesList, setMainCategoriesList] = useState<MainCategoryRecord[]>([]);
@@ -201,7 +189,6 @@ export default function SubComplaintCategoryForm() {
         if (cancelled) return;
         setRecordData(res);
         setLoadingRecord(false);
-        applyCompanyProjectFromRecord(res as unknown as Record<string, unknown>);
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -218,7 +205,7 @@ export default function SubComplaintCategoryForm() {
   /* ---------------- LOAD MAIN CATEGORIES ---------------- */
   useEffect(() => {
     let cancelled = false;
-    adminApi.mainCategory.readAll(companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined)
+    adminApi.mainCategory.readAll()
       .then((res: any) => {
         if (cancelled) return;
         const arr = Array.isArray(res) ? res : (res?.results ?? []);
@@ -233,7 +220,7 @@ export default function SubComplaintCategoryForm() {
         );
       });
     return () => { cancelled = true; };
-  }, [companyUniqueId]);
+  }, []);
 
   const mainList = useMemo(
     () => mainCategoriesList.filter((item) => item.is_active === true),
@@ -241,24 +228,10 @@ export default function SubComplaintCategoryForm() {
   );
 
   const handleSubmit = async (payload: SubCategoryPayload) => {
-    if (!companyUniqueId) {
-      Swal.fire(
-        "Error",
-        !loggedInCompanyUniqueId && !isSuperAdmin
-          ? "Company is not mapped to this login. Only super admin can choose a company."
-          : "Company is required",
-        "error"
-      );
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       if (isEdit) {
-        await adminApi.subCategory.update(id as string, {
-          ...payload,
-          company_id: companyUniqueId,
-        });
+        await adminApi.subCategory.update(id as string, payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.sub_category_form.updated"),
@@ -266,10 +239,7 @@ export default function SubComplaintCategoryForm() {
           showConfirmButton: false,
         });
       } else {
-        await adminApi.subCategory.create({
-          ...payload,
-          company_id: companyUniqueId,
-        });
+        await adminApi.subCategory.create(payload);
         Swal.fire({
           icon: "success",
           title: t("admin.citizen_grievance.sub_category_form.added"),
@@ -278,7 +248,7 @@ export default function SubComplaintCategoryForm() {
         });
       }
 
-      navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } });
+      navigate(ENC_LIST_PATH);
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -320,13 +290,11 @@ export default function SubComplaintCategoryForm() {
         name: String(recordData.name ?? ""),
         mainCategory: String(recordData.mainCategory ?? ""),
         is_active: Boolean(recordData.is_active),
-        company_id: companyUniqueId,
       }
     : {
         name: "",
         mainCategory: "",
         is_active: true,
-        company_id: companyUniqueId,
       };
 
   const formKey = isEdit
@@ -347,7 +315,7 @@ export default function SubComplaintCategoryForm() {
         mainList={mainList}
         isEdit={isEdit}
         isSubmitting={isSubmitting}
-        onCancel={() => navigate(ENC_LIST_PATH, { state: { companyUniqueId, projectId } })}
+        onCancel={() => navigate(ENC_LIST_PATH)}
         onSubmit={handleSubmit}
       />
     </ComponentCard>

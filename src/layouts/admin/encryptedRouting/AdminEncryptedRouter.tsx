@@ -138,10 +138,6 @@ import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAudi
 import LoginAuditList from "@/pages/admin/modules/audits/loginAudit/loginAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
-import CompanyList from "@/pages/admin/modules/superadminMasters/company/companyListPage";
-import CompanyListForm from "@/pages/admin/modules/superadminMasters/company/companyForm";
-import ProjectList from "@/pages/admin/modules/superadminMasters/project/projectListPage";
-import ProjectForm from "@/pages/admin/modules/superadminMasters/project/projectForm";
 import ExternalAttendanceList from "@/pages/admin/modules/attendance/ExternalAttendanceList";
 
 
@@ -168,10 +164,6 @@ const ROUTES: RouteMap = {
     "mainscreens": {list: MainScreenList, form: MainScreenForm},
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
-  },
-  "superadmin-masters": {
-    "company-creation": { list: CompanyList, form: CompanyListForm },
-    "project-creation": { list: ProjectList, form: ProjectForm },
   },
   masters: {
     continents: { list: ContinentList, form: ContinentForm },
@@ -265,6 +257,9 @@ const ROUTES: RouteMap = {
     "waste-collected-summary": { component: WasteSummary },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
   },
+  "leader-login": {
+    "plb-leader-creation": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
+  },
 };
 
 const MASTER_ALIASES: Record<string, string[]> = {
@@ -277,7 +272,6 @@ const MASTER_ALIASES: Record<string, string[]> = {
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
   grivences: ["citizen-grievance"],
-  superadmin: ["superadmin-masters"],
   "common-masters": ["masters"],
   "waste-types": ["masters"],
   assets: ["masters"],
@@ -298,8 +292,6 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "staff-user-type": ["staffusertypes"],
   "mainscreen-type": ["mainscreentype"],
   userscreenpermissions: ["userscreenpermissions", "companywisescreenpermissions"],
-  "company-creation": ["company"],
-  "project-creation": ["project"],
   "customer-creation": ["customercreations"],
   "staff-templates": ["staff-template"],
   "alternative-staff-templates": ["alternative-staff-template"],

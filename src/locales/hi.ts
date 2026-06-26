@@ -812,6 +812,10 @@ const hiResource = {
           "household_pickup_event": "हाउसहोल्ड पिकअप इवेंट",
           "transport_masters": "ट्रांसपोर्ट मास्टर्स",
           "schedule_masters": "शेड्यूल मास्टर्स",
+          "schedule_setup": "शेड्यूल सेटअप",
+          "schedule_operations": "दैनिक संचालन",
+          "schedule_reports": "अपशिष्ट रिपोर्ट",
+          "daily_waste_comparison": "दैनिक अपशिष्ट तुलना",
           "fuel": "ईंधन",
           "vehicle_type": "वाहन प्रकार",
           "vehicle_creation": "वाहन निर्माण",
@@ -854,7 +858,9 @@ const hiResource = {
           "trip_summary": "ट्रिप सारांश",
           "monthly_distance": "मासिक दूरी",
           "waste_collected_summary": "संग्रहित कचरा सारांश",
-          "monthly_waste_comparison": "मासिक कचरा तुलना"
+          "monthly_waste_comparison": "मासिक कचरा तुलना",
+          "leader_login": "नेता लॉगिन",
+          "plb_leader_creation": "PLB नेता निर्माण"
         },
         "project": {
           "company_id": "कंपनी आईडी",

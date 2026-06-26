@@ -80,7 +80,9 @@ const {
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,
-  encDailyWasteComparison
+  encDailyWasteComparison,
+  encLeaderLogin,
+  encPlbLeaderCreation,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -111,11 +113,14 @@ type SidebarSectionKey =
   | "customerMasters"
   | "citizenGrievance"
   | "transportMasters"
-  | "scheduleMasters"
+  | "scheduleSetup"
+  | "scheduleOperations"
+  | "scheduleReports"
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
-  | "fleetReports";
+  | "fleetReports"
+  | "leaderLogin";
 
 /* =====================
    MENU DEFINITIONS
@@ -384,9 +389,10 @@ const transportMastersItems: NavItem[] = [
   },
 ];
 
-const scheduleMastersItems: NavItem[] = [
+// ── Schedule Setup: planning / configuration ────────────────────────────────
+const scheduleSetupItems: NavItem[] = [
   {
-    nameKey: "admin.nav.schedule_masters",
+    nameKey: "admin.nav.schedule_setup",
     icon: <LayoutGrid size={18} />,
     module: "schedule-masters",
     screen: "schedule-masters",
@@ -421,6 +427,18 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "trip-plan-collection-points",
       },
+    ],
+  },
+];
+
+// ── Schedule Operations: daily tracking & assignments ───────────────────────
+const scheduleOperationsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_operations",
+    icon: <CalendarCheck size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
       {
         nameKey: "admin.nav.daily_trip_assignment",
         path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
@@ -457,8 +475,20 @@ const scheduleMastersItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-trip-logs",
       },
+    ],
+  },
+];
+
+// ── Schedule Reports: waste analytics ───────────────────────────────────────
+const scheduleReportsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.schedule_reports",
+    icon: <BarChart3 size={18} />,
+    module: "schedule-masters",
+    screen: "schedule-masters",
+    subItems: [
       {
-        nameKey: "Daily Waste Comparison",
+        nameKey: "admin.nav.daily_waste_comparison",
         path: `/${encScheduleMasters}/${encDailyWasteComparison}`,
         module: "schedule-masters",
         screen: "daily-waste-comparisons",
@@ -538,6 +568,23 @@ const fleetReportItems: NavItem[] = [
         path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
         module: "workforce",
         screen: "WorkforceManagement",
+      },
+    ],
+  },
+];
+
+const leaderLoginItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.leader_login",
+    icon: <Users size={18} />,
+    module: "leader-login",
+    screen: "leader-login",
+    subItems: [
+      {
+        nameKey: "admin.nav.plb_leader_creation",
+        path: `/${encLeaderLogin}/${encPlbLeaderCreation}`,
+        module: "leader-login",
+        screen: "plb-leader-creation",
       },
     ],
   },
@@ -643,9 +690,12 @@ const AppSidebar: React.FC = () => {
         { key: "customerMasters" as const, items: customerMasters },
         { key: "citizenGrievance" as const, items: citizenGrievanceItems },
         { key: "transportMasters" as const, items: transportMastersItems },
-        { key: "scheduleMasters" as const, items: scheduleMastersItems },
+        { key: "scheduleSetup" as const, items: scheduleSetupItems },
+        { key: "scheduleOperations" as const, items: scheduleOperationsItems },
+        { key: "scheduleReports" as const, items: scheduleReportsItems },
         { key: "auditItems" as const, items: auditItems },
         { key: "fleetReports" as const, items: fleetReportItems },
+        { key: "leaderLogin" as const, items: leaderLoginItems },
       ];
 
       // If superadmin, show ALL sections with ALL items

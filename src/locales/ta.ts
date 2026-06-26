@@ -812,6 +812,10 @@ const taResource = {
           "household_pickup_event": "வீட்டு சேகரிப்பு பதிவு",
           "transport_masters": "போக்குவரத்து மாஸ்டர்கள்",
           "schedule_masters": "அட்டவணை மாஸ்டர்கள்",
+          "schedule_setup": "அட்டவணை அமைப்பு",
+          "schedule_operations": "தினசரி நடவடிக்கைகள்",
+          "schedule_reports": "கழிவு அறிக்கைகள்",
+          "daily_waste_comparison": "தினசரி கழிவு ஒப்பீடு",
           "fuel": "எரிபொருள்",
           "vehicle_type": "வாகன வகை",
           "vehicle_creation": "வாகன உருவாக்கம்",
@@ -855,7 +859,9 @@ const taResource = {
           "trip_summary": "பயண சுருக்கம்",
           "monthly_distance": "மாதாந்திர தூரம்",
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
-          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு"
+          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு",
+          "leader_login": "தலைவர் உள்நுழைவு",
+          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",

@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
-import { useNavigate, useLocation} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -14,18 +14,12 @@ import type { DataTableFilterMeta } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
 import type { WasteTypeListRecord } from "./types";
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
-  company_name: ["company_id", "company_name"],
-  project_name: ["project_id", "project_name"],
   is_active: ["is_active"],
 };
 
@@ -46,28 +40,7 @@ export default function WasteTypeListPage() {
       value: null as string | null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
-    company_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    project_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
   });
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true, initialCompanyId: restoredState?.companyUniqueId, initialProjectId: restoredState?.projectId });
 
   const { encMasters, encWasteTypes } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -85,16 +58,9 @@ export default function WasteTypeListPage() {
     let mounted = true;
 
     const loadWasteTypes = async () => {
-      if (!companyUniqueId && !isSuperAdmin) {
-        setAllWasteTypes([]);
-        return;
-      }
-
       setIsLoading(true);
       try {
-        const data = await wasteTypeApi.readAll({
-          params: { company_id: companyUniqueId, project_id: projectId || undefined },
-        });
+        const data = await wasteTypeApi.readAll();
         if (mounted) setAllWasteTypes(data as WasteTypeListRecord[]);
       } finally {
         if (mounted) setIsLoading(false);
@@ -106,24 +72,9 @@ export default function WasteTypeListPage() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, projectId]);
+  }, []);
 
-  const rows = (() => {
-    if (isSuperAdmin && companies.length === 0) return [] as WasteTypeListRecord[];
-    if (!companyUniqueId && !isSuperAdmin) return [] as WasteTypeListRecord[];
-
-    const list = Array.isArray(allWasteTypes) ? allWasteTypes : [];
-    return list.filter((row) => {
-      const rowCompanyId = normalizeId(row.company_id || row.company_unique_id);
-      const rowProjectId = normalizeId(row.project_id || row.project_unique_id);
-
-      const companyMatches =
-        !companyUniqueId || rowCompanyId === companyUniqueId;
-      const projectMatches = !projectId || rowProjectId === projectId;
-
-      return companyMatches && projectMatches;
-    });
-  })();
+  const rows = Array.isArray(allWasteTypes) ? allWasteTypes : [];
 
   const onFilter = (e: DataTableFilterEvent) => {
     setFilters(e.filters as DataTableFilterMeta);
@@ -155,11 +106,7 @@ export default function WasteTypeListPage() {
   const actionTemplate = (row: WasteTypeListRecord) => (
     <div className="flex gap-3 justify-center">
       <button
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), {
-            state: { companyUniqueId, projectId },
-          })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
         title={t("common.edit")}
       >
@@ -214,40 +161,11 @@ export default function WasteTypeListPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((company) => (
-              <option key={company.value} value={company.value}>
-                {company.label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((project) => (
-              <option key={project.value} value={project.value}>
-                {project.label}
-              </option>
-            ))}
-          </select>
-
           <Button
             label={t("common.add_item", { item: t("common.waste_type") })}
             icon="pi pi-plus"
             className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
@@ -268,10 +186,6 @@ export default function WasteTypeListPage() {
         globalFilterFields={[
           "unique_id",
           "waste_type_name",
-          "company_id",
-          "company_name",
-          "project_id",
-          "project_name",
         ]}
         emptyMessage={t("common.no_items_found", {
           item: t("common.waste_type"),
@@ -296,26 +210,6 @@ export default function WasteTypeListPage() {
             filter
             showFilterMatchModes={false}
             body={(row: WasteTypeListRecord) => cap(row.waste_type_name)}
-          />
-        )}
-        {showCol("company_name") && (
-          <Column
-            field="company_name"
-            header={t("admin.nav.company")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: WasteTypeListRecord) => cap(row.company_name)}
-          />
-        )}
-        {showCol("project_name") && (
-          <Column
-            field="project_name"
-            header={t("admin.nav.project")}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: WasteTypeListRecord) => cap(row.project_name)}
           />
         )}
         {showCol("is_active") && (

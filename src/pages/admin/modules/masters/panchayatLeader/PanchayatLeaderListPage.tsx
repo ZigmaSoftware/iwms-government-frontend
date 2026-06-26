@@ -1,8 +1,7 @@
 import type { PanchayatLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -16,44 +15,44 @@ import { PencilIcon } from "@/icons";
 import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
-import { useCompanyProjectSelection } from "@/hooks/useCompanyProjectSelection";
+import {
+  exportRecordsToExcel,
+  exportTemplateToExcel,
+  getAdminScreenExcelFilename,
+  excelFileToCsvFile,
+  type ExcelTemplateColumn,
+} from "@/utils/exportExcel";
+import { adminApi } from "@/helpers/admin/registry";
+import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 
+// ─── Template columns ──────────────────────────────────────────────────────────
+const PLB_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
+  { field: "username",    header: "username",    required: true, sample: "plb_leader_01" },
+  { field: "password",    header: "password",    required: true, sample: "SecurePass@123" },
+  { field: "leader_name", header: "leader_name", required: false, sample: "Ravi Kumar" },
+  { field: "email",       header: "email",       required: false, sample: "ravi@example.com" },
+  { field: "panchayat_id",header: "panchayat_id",required: true,  sample: "PNCHT-xxxx" },
+];
 
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
-
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function PanchayatLeaderListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
-  const restoredState = location.state as { companyUniqueId?: string; projectId?: string } | null;
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { encMasters, encPanchayatLeaders } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
-  const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encPanchayatLeaders);
+  const { encLeaderLogin, encPlbLeaderCreation } = getEncryptedRoute();
+  const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encLeaderLogin, encPlbLeaderCreation);
+  const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encLeaderLogin, encPlbLeaderCreation);
 
-  const {
-    companyUniqueId,
-    projectId,
-    projects,
-    companies,
-    isSuperAdmin,
-    setProjectId,
-    onCompanyChange,
-  } = useCompanyProjectSelection({
-    isEdit: false,
-    defaultToAll: true,
-    initialCompanyId: restoredState?.companyUniqueId,
-    initialProjectId: restoredState?.projectId,
-  });
-
-  const [allRecords, setAllRecords] = useState<PanchayatLeader[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [allRecords, setAllRecords]         = useState<PanchayatLeader[]>([]);
+  const [isLoading, setIsLoading]           = useState(false);
+  const [isUpdating, setIsUpdating]         = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState({
     global:        { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -62,42 +61,28 @@ export default function PanchayatLeaderListPage() {
     panchayat_name:{ value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
-  /* ── fetch all, filter client-side by company+project ── */
+  // ── Load ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
-
-    const load = async () => {
-      if (mounted) setIsLoading(true);
-      try {
-        const data: any = await panchayatLeaderApi.readAll();
+    setIsLoading(true);
+    panchayatLeaderApi
+      .readAll()
+      .then((data: unknown) => {
         if (!mounted) return;
-        const rows: PanchayatLeader[] = Array.isArray(data) ? data : (data?.results ?? []);
-        if (mounted) setAllRecords(rows);
-      } catch {
-        if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    void load();
+        const rows: PanchayatLeader[] = Array.isArray(data)
+          ? (data as PanchayatLeader[])
+          : ((data as any)?.results ?? []);
+        setAllRecords(rows);
+      })
+      .catch(() => {
+        if (mounted)
+          Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+      })
+      .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [t]);
+  }, [t, refetchTrigger]);
 
-  /* ── client-side company+project filter (same as PanchayatListPage) ── */
-  const data = (() => {
-    if (isSuperAdmin && companies.length === 0) return [];
-    if (!companyUniqueId && !isSuperAdmin) return [];
-
-    return allRecords.filter((row) => {
-      const rowCompany  = normalizeId(row.company_id  || row.company_unique_id);
-      const rowProject  = normalizeId(row.project_id  || row.project_unique_id);
-      const companyOk = !companyUniqueId || rowCompany === companyUniqueId;
-      const projectOk = !projectId       || rowProject === projectId;
-      return companyOk && projectOk;
-    });
-  })();
-
+  // ── Filters ─────────────────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,16 +91,58 @@ export default function PanchayatLeaderListPage() {
     setGlobalFilterValue(value);
   };
 
-  /* ── search header (search bar only — same as PanchayatListPage) ── */
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.panchayat_leader"),
-      }),
-    });
+  // ── Excel ────────────────────────────────────────────────────────────────────
+  const handleDownloadTemplate = () => {
+    exportTemplateToExcel(
+      PLB_TEMPLATE_COLUMNS,
+      getAdminScreenExcelFilename("template"),
+      "PLB Leaders",
+    );
+  };
 
+  const handleDownloadAll = () => {
+    exportRecordsToExcel(
+      allRecords as unknown as Record<string, unknown>[],
+      getAdminScreenExcelFilename("all"),
+      "PLB Leaders",
+    );
+  };
+
+  const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const csvFile = await excelFileToCsvFile(file, "plb_leader_bulk.csv");
+      const formData = new FormData();
+      formData.append("file", csvFile);
+
+      const res = await adminApi.panchayatLeaders.action("bulk-upload", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const errors = Array.isArray(res.errors) ? res.errors : [];
+      recordExcelAudit("upload_excel", {
+        file_name: file.name,
+        status: "completed",
+        success_count: Number(res.success_count ?? 0),
+        error_count: errors.length,
+      });
+
+      Swal.fire({
+        icon: "success",
+        title: "Upload Completed",
+        html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
+      });
+      setRefetchTrigger((p) => p + 1);
+    } catch {
+      recordExcelAudit("upload_excel", { file_name: file.name, status: "failed" });
+      Swal.fire("Error", "Upload failed", "error");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  // ── Status toggle ────────────────────────────────────────────────────────────
   const statusTemplate = (row: PanchayatLeader) => {
     const toggle = async (checked: boolean) => {
       setPendingStatusId(row.unique_id);
@@ -141,14 +168,13 @@ export default function PanchayatLeaderListPage() {
     );
   };
 
+  // ── Actions ─────────────────────────────────────────────────────────────────
   const actionTemplate = (row: PanchayatLeader) => (
     <div className="flex gap-3 justify-center">
       <button
         title={t("common.edit")}
         className="text-blue-600 hover:text-blue-800"
-        onClick={() =>
-          navigate(ENC_EDIT_PATH(row.unique_id), { state: { companyUniqueId, projectId } })
-        }
+        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
       >
         <PencilIcon className="size-5" />
       </button>
@@ -157,73 +183,92 @@ export default function PanchayatLeaderListPage() {
 
   const indexTemplate = (_: PanchayatLeader, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
+  // ── Table header toolbar ─────────────────────────────────────────────────────
+  const renderHeader = () => (
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      {/* Search */}
+      <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 shadow-sm">
+        <i className="pi pi-search text-gray-400 text-sm" />
+        <input
+          type="text"
+          value={globalFilterValue}
+          onChange={onGlobalFilterChange}
+          placeholder="Search"
+          className="border-0 outline-none text-sm bg-transparent text-gray-700 placeholder:text-gray-400 min-w-[180px]"
+        />
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          label="Download Template"
+          icon="pi pi-download"
+          severity="secondary"
+          className="p-button-sm !text-gray-700 !border-gray-300 !bg-white hover:!bg-gray-50"
+          onClick={handleDownloadTemplate}
+        />
+        <Button
+          label="Upload Excel"
+          icon="pi pi-upload"
+          className="p-button-sm !bg-blue-600 !border-blue-600 hover:!bg-blue-700"
+          onClick={() => fileInputRef.current?.click()}
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          hidden
+          onChange={handleUploadExcel}
+        />
+        <Button
+          label="Download All Excel"
+          icon="pi pi-download"
+          className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
+          onClick={handleDownloadAll}
+        />
+      </div>
+    </div>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="p-3">
 
-      {/* ── Title + company/project + Add button — outside DataTable (matches PanchayatListPage) ── */}
-      <div className="mb-6 flex items-center justify-between">
+      {/* ── Page header ── */}
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.nav.panchayat_leader")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("common.manage_item_records", { item: t("admin.nav.panchayat_leader") })}
-          </p>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">PLB Leader</h1>
+          <p className="text-sm text-gray-500">Manage PLB Leader records</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <select
-            value={companyUniqueId || ""}
-            onChange={(e) => onCompanyChange(e.target.value)}
-            disabled={!isSuperAdmin || companies.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Companies</option>
-            {companies.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={(!companyUniqueId && !isSuperAdmin) || projects.length === 0}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
+        <div className="flex flex-wrap items-center gap-3">
           <Button
-            label={t("common.add_item", { item: t("admin.nav.panchayat_leader") })}
+            label="Add PLB Leader"
             icon="pi pi-plus"
-            className="p-button-success"
-            disabled={!companyUniqueId || !projectId}
-            onClick={() => navigate(ENC_NEW_PATH, { state: { companyUniqueId, projectId } })}
+            className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
+            onClick={() => navigate(ENC_NEW_PATH)}
           />
         </div>
       </div>
 
       {/* ── DataTable ── */}
       <DataTable
-        value={data}
+        value={allRecords}
         dataKey="unique_id"
         paginator
         rows={10}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
+        loading={isLoading && allRecords.length === 0}
         filters={filters}
         onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
-        emptyMessage={t("common.no_items_found", { item: t("admin.nav.panchayat_leader") })}
-        globalFilterFields={["username", "leader_name", "email", "panchayat_name", "company_name"]}
+        emptyMessage="No PLB Leader found."
+        globalFilterFields={["username", "leader_name", "email", "panchayat_name"]}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column header="S.No" body={indexTemplate} style={{ width: "70px" }} />
 
         <Column
           field="username"
@@ -245,7 +290,7 @@ export default function PanchayatLeaderListPage() {
 
         <Column
           field="panchayat_name"
-          header={t("admin.nav.panchayat")}
+          header="PLB (Participating Local Bodies)"
           sortable
           filter
           showFilterMatchModes={false}
@@ -259,21 +304,15 @@ export default function PanchayatLeaderListPage() {
         />
 
         <Column
-          field="company_name"
-          header="Company"
-          body={(r: PanchayatLeader) => r.company_name || "-"}
-        />
-
-        <Column
-          header={t("common.status")}
+          header="Status"
           body={statusTemplate}
-          style={{ width: "140px" }}
+          style={{ width: "120px" }}
         />
 
         <Column
-          header={t("common.actions")}
+          header="Actions"
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "100px", textAlign: "center" }}
         />
       </DataTable>
     </div>

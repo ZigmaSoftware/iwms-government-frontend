@@ -34,7 +34,6 @@ import {
   binApi,
   collectionPointApi,
   columnPermissionApi,
-  companyApi,
   complaintApi,
   continentApi,
   countryApi,
@@ -49,7 +48,6 @@ import {
   mainScreenApi,
   mainScreenTypeApi,
   panchayatApi,
-  projectApi,
   propertiesApi,
   staffCreationApi,
   staffUserTypeApi,
@@ -70,8 +68,6 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type EntityKey =
-  | "companies"
-  | "projects"
   | "continents"
   | "countries"
   | "states"
@@ -309,8 +305,6 @@ const CHART_COLORS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const emptyData = (): DashboardData => ({
-  companies: [],
-  projects: [],
   continents: [],
   countries: [],
   states: [],
@@ -392,8 +386,6 @@ const extractUserTypeName = (permission: Record<string, unknown>): string => {
 };
 
 const entityRequests: Array<[EntityKey, () => Promise<unknown>]> = [
-  ["companies", () => companyApi.readAll()],
-  ["projects", () => projectApi.readAll()],
   ["continents", () => continentApi.readAll()],
   ["countries", () => countryApi.readAll()],
   ["states", () => stateApi.readAll()],
@@ -1261,20 +1253,7 @@ export default function AdminHome() {
 
         {/* ── Bottom Summary Stats ────────────────────────────────────────── */}
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <BottomStat
-            label="Companies"
-            value={data.companies.length}
-            icon={Building2}
-            color="bg-green-600"
-            loading={loading}
-          />
-          <BottomStat
-            label="Projects"
-            value={data.projects.length}
-            icon={Layers3}
-            color="bg-orange-500"
-            loading={loading}
-          />
+
           <BottomStat
             label="Screen Permissions"
             value={data.screenPermissions.length}

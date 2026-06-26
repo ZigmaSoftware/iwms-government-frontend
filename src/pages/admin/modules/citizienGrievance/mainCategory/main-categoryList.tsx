@@ -4,8 +4,6 @@ import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
-import { getCurrentCompanyUniqueId } from "@/utils/projectContext";
-
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -59,7 +57,6 @@ export default function MainComplaintCategoryList() {
 
   const navigate = useNavigate();
   const { encCitizenGrivence, encMainComplaintCategory } = getEncryptedRoute();
-  const companyUniqueId = getCurrentCompanyUniqueId() ?? "";
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
     encCitizenGrivence,
@@ -77,9 +74,7 @@ export default function MainComplaintCategoryList() {
     const loadMainCategories = async () => {
       setIsLoading(true);
       try {
-        const data = await mainCategoryApi.readAll(
-          companyUniqueId ? { params: { company_id: companyUniqueId } } : undefined
-        );
+        const data = await mainCategoryApi.readAll();
         if (mounted) setRecords(data as MainCategoryRecord[]);
       } catch (error) {
         if (mounted) {
@@ -99,7 +94,7 @@ export default function MainComplaintCategoryList() {
     return () => {
       mounted = false;
     };
-  }, [companyUniqueId, t]);
+  }, [t]);
 
   const updateStatus = async (
     row: MainCategoryRecord,
@@ -115,7 +110,6 @@ export default function MainComplaintCategoryList() {
         {
           main_categoryName: row.main_categoryName,
           is_active: value,
-          company_id: companyUniqueId,
         }
       );
       setRecords((current) =>

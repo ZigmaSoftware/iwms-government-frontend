@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowRight, Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import {
-  persistLoginSession,
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
@@ -19,6 +18,12 @@ export default function LocalBodyAuth() {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (localStorage.getItem("lb_access_token")) {
+      navigate("/localbody/dashboard", { replace: true });
+    }
+  }, [navigate]);
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -53,7 +58,7 @@ export default function LocalBodyAuth() {
       localStorage.setItem("lb_leader_name", profile.leader_name ?? profile.name ?? username);
       localStorage.setItem("lb_role", "panchayat_leader");
 
-      navigate("/localbody", { replace: true });
+      navigate("/localbody/dashboard", { replace: true });
     } catch (error: any) {
       const message =
         error?.response?.data?.non_field_errors?.[0] ||
