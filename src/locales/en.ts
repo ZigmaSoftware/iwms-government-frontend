@@ -797,8 +797,11 @@ const enResource = {
           "department": "Department Master",
           "designation": "Designation Master",
           "hierarchy": "Hierarchy",
+          "hierarchy_tree": "Hierarchy Tree",
+          "hierarchy_node": "Hierarchy Node",
+          "hierarchy_assign": "Assign Hierarchy",
 
-          
+
           "wastetype": "Property Type",
           "property": "Property",
           "sub_property": "SubProperty",

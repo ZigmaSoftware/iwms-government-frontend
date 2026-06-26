@@ -27,10 +27,6 @@ const {
   encAttendance,
   encMasters,
   encAudits,
-  encContinents,
-  encCountries,
-  encStates,
-  encDistricts,
   encCollectionPoints,
   encWasteTypes,
   encProperties,
@@ -74,12 +70,8 @@ const {
   encCommonAudit,
   encTripPlans,
   encTripPlanCollectionPoints,
-  encPanchayats,
-  encAreaTypes,
-  encCorporations,
-  encMunicipalities,
-  encTownPanchayats,
-  encPanchayatUnions,
+  encHierarchyTree,
+  encHierarchyAssign,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -109,7 +101,6 @@ type SidebarSectionKey =
   | "main"
   | "attendance"
   | "superadminMaster"
-  | "commonMaster"
   | "master"
   | "wasteType"
   | "assets"
@@ -149,35 +140,6 @@ const attendanceItems: NavItem[] = [
 ];
 
 
-const commonMasterItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.common_masters",
-    icon: <Settings size={18} />,
-    module: "common-masters",
-    screen: "common-masters",
-    subItems: [
-      {
-        nameKey: "admin.nav.continent",
-        path: `/${encMasters}/${encContinents}`,
-        module: "common-masters",
-        screen: "continents",
-      },
-      {
-        nameKey: "admin.nav.country",
-        path: `/${encMasters}/${encCountries}`,
-        module: "common-masters",
-        screen: "countries",
-      },
-      {
-        nameKey: "admin.nav.state",
-        path: `/${encMasters}/${encStates}`,
-        module: "common-masters",
-        screen: "states",
-      },
-    ],
-  },
-];
-
 const masterItems: NavItem[] = [
   { 
     nameKey: "admin.nav.masters",
@@ -185,54 +147,17 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
-      // ── Org / Department Setup ──────────────────────────────
-      // {
-      //   nameKey: "admin.nav.state",
-      //   path: `/${encMasters}/${encStates}`,
-      //   module: "masters",
-      //   screen: "states",
-      // },
       {
-        nameKey: "admin.nav.district",
-        path: `/${encMasters}/${encDistricts}`,
+        nameKey: "admin.nav.hierarchy_tree",
+        path: `/${encMasters}/${encHierarchyTree}`,
         module: "masters",
-        screen: "districts",
+        screen: "hierarchy-nodes",
       },
       {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
+        nameKey: "admin.nav.hierarchy_assign",
+        path: `/${encMasters}/${encHierarchyAssign}`,
         module: "masters",
-        screen: "areatypes",
-      },
-      {
-        nameKey: "admin.nav.corporation",
-        path: `/${encMasters}/${encCorporations}`,
-        module: "masters",
-        screen: "corporations",
-      },
-      {
-        nameKey: "admin.nav.municipality",
-        path: `/${encMasters}/${encMunicipalities}`,
-        module: "masters",
-        screen: "municipalities",
-      },
-      {
-        nameKey: "admin.nav.town_panchayat",
-        path: `/${encMasters}/${encTownPanchayats}`,
-        module: "masters",
-        screen: "town-panchayats",
-      },
-      {
-        nameKey: "admin.nav.panchayat_union",
-        path: `/${encMasters}/${encPanchayatUnions}`,
-        module: "masters",
-        screen: "panchayat-unions",
-      },
-      {
-        nameKey: "admin.nav.panchayat",
-        path: `/${encMasters}/${encPanchayats}`,
-        module: "masters",
-        screen: "panchayats",
+        screen: "hierarchy-assignments",
       },
     ],
   },
@@ -709,7 +634,6 @@ const AppSidebar: React.FC = () => {
       const allSections = [
         { key: "main" as const, items: navItems },
         { key: "attendance" as const, items: attendanceItems },
-        { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },
         { key: "assets" as const, items: assetItems },

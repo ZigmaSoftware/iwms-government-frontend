@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../iwms-government-backend"
+		},
+		{
+			"path": "../../closure"
+		}
+	],
+	"settings": {}
+}
