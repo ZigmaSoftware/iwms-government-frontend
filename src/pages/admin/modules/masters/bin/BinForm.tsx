@@ -2,20 +2,11 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import HierarchyNodeSelect, { type HierarchyLegacyValues } from "@/components/common/HierarchyNodeSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  binApi,
-  collectionPointApi,
-  corporationApi,
-  districtApi,
-  municipalityApi,
-  panchayatApi,
-  panchayatUnionApi,
-  townPanchayatApi,
-  wasteTypeApi,
-} from "@/helpers/admin";
+import { binApi, collectionPointApi, wasteTypeApi } from "@/helpers/admin";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -82,9 +73,11 @@ export default function BinForm() {
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  const [locationNodeId, setLocationNodeId] = useState("");
   const [districtId, setDistrictId] = useState("");
   const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("panchayat_id");
   const [hierarchyId, setHierarchyId] = useState("");
+  const [legacyMatch, setLegacyMatch] = useState<{ field: keyof HierarchyLegacyValues; value: string } | null>(null);
   const [collectionPointId, setCollectionPointId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
   const [binName, setBinName] = useState("");
@@ -95,37 +88,15 @@ export default function BinForm() {
     normalizeCoordinateDrafts(null),
   );
   const [isActive, setIsActive] = useState(true);
-  const [districts, setDistricts] = useState<Option[]>([]);
-  const [hierarchyOptions, setHierarchyOptions] = useState<Record<HierarchyLevel, Option[]>>({
-    corporation_id: [],
-    municipality_id: [],
-    town_panchayat_id: [],
-    panchayat_union_id: [],
-    panchayat_id: [],
-  });
   const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([
-      districtApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
       collectionPointApi.readAll(),
       wasteTypeApi.readAll(),
-    ]).then(([districtRes, corporationRes, municipalityRes, townRes, unionRes, panchayatRes, cpRes, wasteTypeRes]) => {
-      setDistricts(normalizeList(districtRes).map((item) => optionOf(item, "district_name")));
-      setHierarchyOptions({
-        corporation_id: normalizeList(corporationRes).map((item) => optionOf(item, "corporation_name")),
-        municipality_id: normalizeList(municipalityRes).map((item) => optionOf(item, "municipality_name")),
-        town_panchayat_id: normalizeList(townRes).map((item) => optionOf(item, "town_panchayat_name")),
-        panchayat_union_id: normalizeList(unionRes).map((item) => optionOf(item, "union_name")),
-        panchayat_id: normalizeList(panchayatRes).map((item) => optionOf(item, "panchayat_name")),
-      });
+    ]).then(([cpRes, wasteTypeRes]) => {
       setCollectionPoints(normalizeList(cpRes).map((item) => optionOf(item, "cp_name")));
       setWasteTypes(normalizeList(wasteTypeRes).map((item) => optionOf(item, "waste_type_name")));
     });
@@ -138,7 +109,9 @@ export default function BinForm() {
       const selectedLevel = hierarchyLevels.find((item) => idOf(record[item.value]));
       if (selectedLevel) {
         setHierarchyLevel(selectedLevel.value);
-        setHierarchyId(idOf(record[selectedLevel.value]));
+        const matchedId = idOf(record[selectedLevel.value]);
+        setHierarchyId(matchedId);
+        setLegacyMatch({ field: selectedLevel.value, value: matchedId });
       }
       setCollectionPointId(idOf(record.collection_point_id ?? record.collection_point));
       setWasteTypeId(idOf(record.wastetype_id ?? record.waste_type_id ?? record.waste_type));
@@ -150,11 +123,6 @@ export default function BinForm() {
       setIsActive(record.is_active !== false);
     });
   }, [id]);
-
-  const filteredHierarchyOptions = useMemo(
-    () => hierarchyOptions[hierarchyLevel].filter((item) => !districtId || !item.districtId || item.districtId === districtId),
-    [districtId, hierarchyLevel, hierarchyOptions],
-  );
 
   const filteredCollectionPoints = useMemo(
     () =>
@@ -196,25 +164,22 @@ export default function BinForm() {
   return (
     <ComponentCard title={isEdit ? "Edit Bin" : "Create Bin"}>
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <Label>District *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={districtId} onChange={(e) => { setDistrictId(e.target.value); setHierarchyId(""); setCollectionPointId(""); }}>
-            <option value="">Select District</option>
-            {districts.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>Location Type *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={hierarchyLevel} onChange={(e) => { setHierarchyLevel(e.target.value as HierarchyLevel); setHierarchyId(""); setCollectionPointId(""); }}>
-            {hierarchyLevels.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>{hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label} *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={hierarchyId} onChange={(e) => { setHierarchyId(e.target.value); setCollectionPointId(""); }}>
-            <option value="">Select {hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label}</option>
-            {filteredHierarchyOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
+        <div className="md:col-span-2">
+          <HierarchyNodeSelect
+            value={locationNodeId}
+            legacyMatch={legacyMatch}
+            allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
+            label="Bin Hierarchy"
+            placeholder="Select hierarchy to filter collection points"
+            onChange={(nodeId, legacy) => {
+              setLocationNodeId(nodeId);
+              setDistrictId(legacy.district_id ?? "");
+              const selected = hierarchyLevels.find((item) => legacy[item.value]);
+              setHierarchyLevel(selected?.value ?? "panchayat_id");
+              setHierarchyId(selected ? legacy[selected.value] ?? "" : "");
+              setCollectionPointId("");
+            }}
+          />
         </div>
         <div>
           <Label>Collection Point *</Label>

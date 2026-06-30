@@ -739,6 +739,13 @@ const taResource = {
         }
       },
       "admin": {
+        "daily_trip_assignment": {
+          "generate_button": "தினசரி டிரிப்களை உருவாக்கு",
+          "generating": "உருவாக்கப்படுகிறது…",
+          "generate_title": "தினசரி டிரிப்களை உருவாக்கு",
+          "generate_prompt": "இன்றைக்கான வேலை திட்டமிடலை இப்போது இயக்கவா? செயலில் உள்ள, அங்கீகரிக்கப்பட்ட auto-assign திட்டங்களிலிருந்து இன்றைய டிரிப்கள் உருவாக்கப்படும். ஏற்கனவே உருவாக்கப்பட்டவை தவிர்க்கப்படும்.",
+          "generate_run": "உருவாக்கு"
+        },
         "header": "நிர்வாகம் & மாஸ்டர் கட்டுப்பாடு",
         "subheader": "அடிப்படை மாஸ்டர் தரவை ஒருமுறை அமைத்தால் அனைத்து மாட்யூல்கள் ஒத்திசைவு பெறும்.",
         "global_settings": "சார்வதேச அமைப்புகள்",
@@ -795,6 +802,10 @@ const taResource = {
           "block_panchayat_union": "வட்டம் / பஞ்சாயத்து யூனியன்",
           "panchayat_union": "பஞ்சாயத்து யூனியன்",
           "corporation": "மாநகராட்சி",
+          "hierarchy_levels": "படிநிலை நிலைகள்",
+          "hierarchy_tree": "படிநிலை மரம்",
+          "hierarchy_node": "படிநிலை முனை",
+          "hierarchy_assign": "படிநிலையை ஒதுக்கு",
           "property": "சொத்து",
           "sub_property": "உப சொத்து",
           "staff_master": "பணியாளர் மாஸ்டர்",
@@ -856,7 +867,9 @@ const taResource = {
           "trip_summary": "பயண சுருக்கம்",
           "monthly_distance": "மாதாந்திர தூரம்",
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
-          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு"
+          "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு",
+          "leader_login": "தலைவர் உள்நுழைவு",
+          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",

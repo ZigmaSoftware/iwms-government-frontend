@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 import {
   excelFileToCsvFile,
   exportTemplateToExcel,
@@ -36,8 +37,7 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   contact_no: ["contact_no", "mobile"],
   apartment_name: ["apartment_name"],
   unit: ["block_no", "flat_no"],
-  state_name: ["state_id", "state_name"],
-  panchayat_name: ["panchayat_id", "panchayat_name"],
+  location_name: ["location_node_id", "location_node", "location_name"],
   waste_types: ["waste_type_ids", "waste_types", "waste_type"],
   qr_code: ["qr_code"],
   is_active: ["is_active"],
@@ -54,16 +54,16 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "pincode", header: "pincode", sample: "600040" },
   { field: "latitude", header: "latitude", sample: "13.0827" },
   { field: "longitude", header: "longitude", sample: "80.2707" },
-  { field: "district_name", header: "district_name", required: true, sample: "Chennai" },
-  { field: "state_name", header: "state_name", required: true, sample: "Tamil Nadu" },
-  { field: "country_name", header: "country_name", required: true, sample: "India" },
+  // Geography for import: district + panchayat names are resolved to the
+  // customer's single hierarchy node server-side (must already exist in the tree).
+  { field: "district_name", header: "district_name", required: true, sample: "Erode" },
+  { field: "panchayat_name", header: "panchayat_name", required: true, sample: "Sample Panchayat" },
   { field: "property_name", header: "property_name", required: true, sample: "Residential" },
   { field: "sub_property_name", header: "sub_property_name", required: true, sample: "Apartment" },
   { field: "waste_type_ids", header: "waste_type_ids", required: true, sample: "wst-2026abcd01,wst-2026efgh02" },
   { field: "apartment_name", header: "apartment_name", sample: "Sunrise Apt" },
   { field: "block_no", header: "block_no", sample: "A" },
   { field: "flat_no", header: "flat_no", sample: "101" },
-  { field: "panchayat_name", header: "panchayat_name" },
 ];
 
 export default function CustomerCreationListPage() {
@@ -81,13 +81,13 @@ export default function CustomerCreationListPage() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [hierarchyFilterId, setHierarchyFilterId] = useState("");
   const [selectedQr, setSelectedQr] = useState<string | null>(null);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    state_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
+    location_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const navigate = useNavigate();
@@ -102,7 +102,9 @@ export default function CustomerCreationListPage() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    customerCreationApi.readAll()
+    customerCreationApi.readAll({
+      params: hierarchyFilterId ? { location_node_id: hierarchyFilterId } : undefined,
+    })
       .then((data: unknown) => {
         if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
       })
@@ -117,7 +119,7 @@ export default function CustomerCreationListPage() {
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [t, refetchTrigger]);
+  }, [hierarchyFilterId, t, refetchTrigger]);
 
   const customers = useMemo<Customer[]>(() => {
     return allCustomers
@@ -195,43 +197,68 @@ export default function CustomerCreationListPage() {
   };
 
   const header = (
-    <div className="flex justify-between items-center">
-      <div className="flex items-center gap-3 px-3 py-2">
-        <Button
-          label={t("admin.customer_creation.add")}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
-        <Button
-          label="Download Template"
-          icon="pi pi-download"
-          className="p-button-secondary"
-          onClick={downloadTemplate}
-        />
-        <Button
-          label="Upload Excel"
-          icon="pi pi-upload"
-          className="p-button-info"
-          disabled={isUploading}
-          onClick={() => document.getElementById("excelUpload")?.click()}
-        />
+    <div className="grid gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3 px-3 py-2">
+          <Button
+            label={t("admin.customer_creation.add")}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+          <Button
+            label="Download Template"
+            icon="pi pi-download"
+            className="p-button-secondary"
+            onClick={downloadTemplate}
+          />
+          <Button
+            label="Upload Excel"
+            icon="pi pi-upload"
+            className="p-button-info"
+            disabled={isUploading}
+            onClick={() => document.getElementById("excelUpload")?.click()}
+          />
+        </div>
+        <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
+          <i className="pi pi-search text-gray-500" />
+          <InputText
+            value={globalFilterValue}
+            onChange={onGlobalFilterChange}
+            placeholder={t("admin.customer_creation.search_placeholder")}
+            className="p-inputtext-sm !border-0 !shadow-none"
+          />
+          <input
+            id="excelUpload"
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+            onChange={handleFileUpload}
+          />
+        </div>
       </div>
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.customer_creation.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-        <input
-          id="excelUpload"
-          type="file"
-          accept=".xlsx,.xls"
-          hidden
-          onChange={handleFileUpload}
-        />
+
+      <div className="rounded-md border border-gray-200 bg-white p-3">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <HierarchyNodeSelect
+              value={hierarchyFilterId}
+              label="Filter by Hierarchy"
+              placeholder="Select country / state / district / local body"
+              required={false}
+              showMap={false}
+              onChange={(nodeId) => setHierarchyFilterId(nodeId)}
+            />
+          </div>
+          {hierarchyFilterId && (
+            <Button
+              label="Clear"
+              icon="pi pi-times"
+              className="p-button-text p-button-secondary mt-6"
+              onClick={() => setHierarchyFilterId("")}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -358,14 +385,15 @@ export default function CustomerCreationListPage() {
               }
             />
           )}
-          {showCol("state_name") && (
-            <Column field="state_name" header={t("common.state")} sortable />
-          )}
-          {showCol("panchayat_name") && (
+          {showCol("location_name") && (
             <Column
-              field="panchayat_name"
-              header={t("admin.nav.panchayat")}
-              body={(row: Customer) => row.panchayat_name || "-"}
+              field="location_name"
+              header={t("common.location") || "Location"}
+              body={(row: Customer) =>
+                row.location_name
+                  ? `${row.location_name}${row.location_level ? ` (${row.location_level})` : ""}`
+                  : "-"
+              }
               sortable
             />
           )}

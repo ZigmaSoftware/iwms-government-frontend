@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import PasswordInput from "@/components/form/input/PasswordInput";
+import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 
 import {
   corporationApi,
@@ -124,6 +125,7 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   country_id: ["country_id", "country"],
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
+  location_node_id: ["location_node_id", "location_node"],
   corporation_id: ["corporation_id", "corporation"],
   municipality_id: ["municipality_id", "municipality"],
   town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
@@ -620,6 +622,7 @@ function CustomerEditor({
     country_id: initialPayload.country_id,
     state_id: initialPayload.state_id,
     district_id: initialPayload.district_id,
+    location_node_id: initialPayload.location_node_id,
     corporation_id: initialPayload.corporation_id,
     municipality_id: initialPayload.municipality_id,
     town_panchayat_id: initialPayload.town_panchayat_id,
@@ -772,6 +775,7 @@ function CustomerEditor({
     setSelectedHierarchyType(level);
     setFormData((prev) => ({
       ...prev,
+      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -781,11 +785,36 @@ function CustomerEditor({
     }));
   };
 
+  const setDynamicHierarchy = (nodeId: string, legacy: Record<string, string | undefined>) => {
+    setFormData((prev) => ({
+      ...prev,
+      location_node_id: nodeId,
+      country_id: legacy.country_id ?? prev.country_id,
+      state_id: legacy.state_id ?? prev.state_id,
+      district_id: legacy.district_id ?? prev.district_id,
+      corporation_id: legacy.corporation_id ?? "",
+      municipality_id: legacy.municipality_id ?? "",
+      town_panchayat_id: legacy.town_panchayat_id ?? "",
+      panchayat_union_id: legacy.panchayat_union_id ?? "",
+      panchayat_id: legacy.panchayat_id ?? "",
+    }));
+    const selectedLevel = hierarchyLevels.find((item) => legacy[item.value]);
+    setSelectedHierarchyType(selectedLevel?.value ?? "");
+    setSelectedAreaType(
+      selectedLevel
+        ? areaTypeHierarchyMap.urban.includes(selectedLevel.value)
+          ? "urban"
+          : "rural"
+        : "",
+    );
+  };
+
   const resetHierarchy = () => {
     setSelectedAreaType("");
     setSelectedHierarchyType("");
     setFormData((prev) => ({
       ...prev,
+      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -798,6 +827,7 @@ function CustomerEditor({
     setSelectedHierarchyType("");
     setFormData((prev) => ({
       ...prev,
+      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -836,9 +866,7 @@ function CustomerEditor({
       "sqft",
       "id_proof_type",
       "id_no",
-      "country_id",
-      "state_id",
-      "district_id",
+      "location_node_id",
       "property_id",
       "sub_property_id",
       "waste_type_ids",
@@ -861,14 +889,10 @@ function CustomerEditor({
       }
     }
 
-    if (!selectedAreaType) {
-      Swal.fire(t("common.warning") || "Warning", "Area type is required", "warning");
-      return false;
-    }
-    if (!isHierarchySelected) {
+    if (!formData.location_node_id) {
       Swal.fire(
         t("common.warning") || "Warning",
-        "Hierarchy level and destination are required",
+        "Location (hierarchy node) is required",
         "warning",
       );
       return false;
@@ -1458,98 +1482,18 @@ function CustomerEditor({
           <FormSection
             title={t("admin.customer_creation.location_details") || "Location Details"}
           >
-            {showField("country_id") && (
-              <ShadcnSelect
-                label={t("common.country") || "Country"}
-                value={formData.country_id}
-                onChange={(v: string) => {
-                  update("country_id", v);
-                  update("state_id", "");
-                  update("district_id", "");
-                  resetHierarchy();
-                }}
-                options={dropdowns.countries.map((c: any) => ({
-                  value: resolveId(c),
-                  label: c.name,
-                }))}
-                placeholder={
-                  t("common.select_item_placeholder", { item: t("common.country") }) ||
-                  "Select country"
-                }
+            {/* Geography is now a single dynamic hierarchy node. Pick any node
+                (Ward, Panchayat, Corporation, …) from the live tree; its full
+                ancestry is shown and stored as location_node. No hardcoded
+                country/state/district dropdowns. */}
+            <div className="md:col-span-2">
+              <HierarchyNodeSelect
+                value={formData.location_node_id}
+                label="Location (Hierarchy)"
+                placeholder="Search and select this customer's location in the hierarchy"
+                onChange={(nodeId) => update("location_node_id", nodeId)}
               />
-            )}
-            {showField("state_id") && (
-              <ShadcnSelect
-                label={t("common.state") || "State"}
-                value={formData.state_id}
-                onChange={(v: string) => {
-                  update("state_id", v);
-                  update("district_id", "");
-                  resetHierarchy();
-                }}
-                options={filteredStates.map((s: any) => ({
-                  value: resolveId(s),
-                  label: s.name,
-                }))}
-                placeholder={
-                  t("common.select_item_placeholder", { item: t("common.state") }) ||
-                  "Select state"
-                }
-              />
-            )}
-            {showField("district_id") && (
-              <ShadcnSelect
-                label={t("common.district") || "District"}
-                value={formData.district_id}
-                onChange={(v: string) => {
-                  update("district_id", v);
-                  resetHierarchy();
-                }}
-                options={filteredDistricts.map((d: any) => ({
-                  value: resolveId(d),
-                  label: d.name,
-                }))}
-                placeholder={
-                  t("common.select_item_placeholder", { item: t("common.district") }) ||
-                  "Select district"
-                }
-              />
-            )}
-            <ShadcnSelect
-              label="Area Type"
-              value={selectedAreaType}
-              onChange={(v: string) => {
-                setSelectedAreaType(v as AreaType);
-                resetHierarchyLevel();
-              }}
-              options={availableAreaTypes.map((at) => ({
-                value: at,
-                label: areaTypeLabels[at],
-              }))}
-              placeholder={formData.district_id ? "Select area type" : "Select district first"}
-              disabled={!formData.district_id}
-            />
-            <ShadcnSelect
-              label="Hierarchy Level"
-              value={selectedHierarchyType}
-              onChange={(v: string) => setHierarchyValue(v as HierarchyLevel, "")}
-              options={availableHierarchyLevels.map((item) => ({
-                value: item.value,
-                label: item.label,
-              }))}
-              placeholder="Select hierarchy level"
-              disabled={!selectedAreaType}
-            />
-            <ShadcnSelect
-              label="Destination"
-              value={selectedHierarchyId}
-              onChange={(v: string) =>
-                setHierarchyValue(selectedHierarchyType as HierarchyLevel, v)
-              }
-              options={destinationOptions}
-              placeholder={`Select ${hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.label ?? "destination"}`}
-              disabled={!selectedAreaType || !selectedHierarchyType}
-            />
+            </div>
           </FormSection>
 
           {/* STATUS */}
@@ -1884,6 +1828,7 @@ export default function CustomerCreationForm() {
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
+      location_node_id: String(d.location_node_id ?? d.location_node?.unique_id ?? ""),
       corporation_id: corporationId,
       municipality_id: municipalityId,
       town_panchayat_id: townPanchayatId,
@@ -1931,6 +1876,7 @@ export default function CustomerCreationForm() {
       country_id: "",
       state_id: "",
       district_id: "",
+      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",

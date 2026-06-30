@@ -53,6 +53,7 @@ export interface FormDataType {
   country_id: string;
   state_id: string;
   district_id: string;
+  location_node_id: string;
   corporation_id: string;
   municipality_id: string;
   town_panchayat_id: string;
@@ -80,10 +81,9 @@ export type Customer = {
   street: string;
   area: string;
   pincode: string;
-  panchayat_name: string;
-  district_name: string;
-  state_name: string;
-  country_name: string;
+  location_node_id?: string;
+  location_name?: string;
+  location_level?: string;
   property_name: string;
   sub_property_name: string;
   waste_types?: Array<{ unique_id: string; waste_type_name: string }>;
@@ -103,6 +103,5 @@ export type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   customer_name?: { value: string | null; matchMode: FilterMatchMode };
   contact_no?: { value: string | null; matchMode: FilterMatchMode };
-  state_name?: { value: string | null; matchMode: FilterMatchMode };
-  panchayat_name?: { value: string | null; matchMode: FilterMatchMode };
+  location_name?: { value: string | null; matchMode: FilterMatchMode };
 };
