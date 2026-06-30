@@ -739,6 +739,13 @@ const hiResource = {
         }
       },
       "admin": {
+        "daily_trip_assignment": {
+          "generate_button": "दैनिक ट्रिप जनरेट करें",
+          "generating": "जनरेट हो रहा है…",
+          "generate_title": "दैनिक ट्रिप जनरेट करें",
+          "generate_prompt": "अभी आज के लिए जॉब शेड्यूलर चलाएँ? यह सक्रिय, स्वीकृत ऑटो-असाइन प्लान से आज की ट्रिप बनाता है। पहले से बनी ट्रिप छोड़ दी जाती हैं।",
+          "generate_run": "जनरेट करें"
+        },
         "header": "एडमिन & मास्टर कंट्रोल",
         "subheader": "मुख्य मास्टर डेटा कॉन्फ़िगर करें और सभी मॉड्यूल को संरेखित रखें।",
         "global_settings": "ग्लोबल सेटिंग्स",
@@ -795,6 +802,10 @@ const hiResource = {
           "block_panchayat_union": "ब्लॉक / पंचायत संघ",
           "panchayat_union": "पंचायत संघ",
           "corporation": "निगम",
+          "hierarchy_levels": "पदानुक्रम स्तर",
+          "hierarchy_tree": "पदानुक्रम वृक्ष",
+          "hierarchy_node": "पदानुक्रम नोड",
+          "hierarchy_assign": "पदानुक्रम असाइन करें",
           "property": "प्रॉपर्टी",
           "sub_property": "सब-प्रॉपर्टी",
           "staff_master": "स्टाफ मास्टर",

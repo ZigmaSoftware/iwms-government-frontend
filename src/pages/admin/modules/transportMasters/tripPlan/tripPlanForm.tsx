@@ -2,21 +2,16 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import HierarchyNodeSelect, { type HierarchyLegacyValues } from "@/components/common/HierarchyNodeSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import {
-  corporationApi,
-  districtApi,
-  municipalityApi,
-  panchayatApi,
-  panchayatUnionApi,
   propertiesApi,
   staffCreationApi,
   staffTemplateApi,
   subPropertiesApi,
-  townPanchayatApi,
   tripPlanApi,
   vehicleCreationApi,
   wasteTypeApi,
@@ -89,9 +84,11 @@ export default function TripPlanForm() {
   const { listPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
   const [displayCode, setDisplayCode] = useState("");
+  const [locationNodeId, setLocationNodeId] = useState("");
   const [districtId, setDistrictId] = useState("");
   const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("corporation_id");
   const [hierarchyId, setHierarchyId] = useState("");
+  const [legacyMatch, setLegacyMatch] = useState<{ field: keyof HierarchyLegacyValues; value: string } | null>(null);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
@@ -113,14 +110,6 @@ export default function TripPlanForm() {
   const [status, setStatus] = useState("ACTIVE");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
 
-  const [districts, setDistricts] = useState<Option[]>([]);
-  const [hierarchyOptions, setHierarchyOptions] = useState<Record<HierarchyLevel, Option[]>>({
-    corporation_id: [],
-    municipality_id: [],
-    town_panchayat_id: [],
-    panchayat_union_id: [],
-    panchayat_id: [],
-  });
   const [staffTemplates, setStaffTemplates] = useState<Option[]>([]);
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [supervisors, setSupervisors] = useState<Option[]>([]);
@@ -131,28 +120,13 @@ export default function TripPlanForm() {
 
   useEffect(() => {
     Promise.all([
-      districtApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
       staffTemplateApi.readAll(),
       vehicleCreationApi.readAll(),
       staffCreationApi.readAll(),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       wasteTypeApi.readAll(),
-    ]).then(([districtRes, corporationRes, municipalityRes, townRes, unionRes, panchayatRes,
-              staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes]) => {
-      setDistricts(toOptions(normalizeList(districtRes), "district_name"));
-      setHierarchyOptions({
-        corporation_id: toOptions(normalizeList(corporationRes), "corporation_name"),
-        municipality_id: toOptions(normalizeList(municipalityRes), "municipality_name"),
-        town_panchayat_id: toOptions(normalizeList(townRes), "town_panchayat_name"),
-        panchayat_union_id: toOptions(normalizeList(unionRes), "union_name"),
-        panchayat_id: toOptions(normalizeList(panchayatRes), "panchayat_name"),
-      });
+    ]).then(([staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes]) => {
       setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
       setSupervisors(
@@ -186,7 +160,9 @@ export default function TripPlanForm() {
       const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
       if (detectedLevel) {
         setHierarchyLevel(detectedLevel.value);
-        setHierarchyId(hierarchyMap[detectedLevel.value] ?? "");
+        const matchedId = hierarchyMap[detectedLevel.value] ?? "";
+        setHierarchyId(matchedId);
+        setLegacyMatch({ field: detectedLevel.value, value: matchedId });
       }
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
@@ -297,24 +273,21 @@ export default function TripPlanForm() {
           </div>
         )}
 
-        <div>
-          <Label>District *</Label>
-          <Select value={districtId} onChange={(v) => setDistrictId(String(v))} options={districts} placeholder="Select District" />
-        </div>
-
-        <div>
-          <Label>Hierarchy Level *</Label>
-          <Select
-            value={hierarchyLevel}
-            onChange={(v) => { setHierarchyLevel(String(v) as HierarchyLevel); setHierarchyId(""); }}
-            options={hierarchyLevels}
-            placeholder="Select Hierarchy Level"
+        <div className="md:col-span-2">
+          <HierarchyNodeSelect
+            value={locationNodeId}
+            legacyMatch={legacyMatch}
+            allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
+            label="Operational Hierarchy"
+            placeholder="Select corporation / municipality / town panchayat / panchayat union / panchayat"
+            onChange={(nodeId, legacy) => {
+              setLocationNodeId(nodeId);
+              setDistrictId(legacy.district_id ?? "");
+              const selected = hierarchyLevels.find((item) => legacy[item.value]);
+              setHierarchyLevel(selected?.value ?? "corporation_id");
+              setHierarchyId(selected ? legacy[selected.value] ?? "" : "");
+            }}
           />
-        </div>
-
-        <div>
-          <Label>{hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label} *</Label>
-          <Select value={hierarchyId} onChange={(v) => setHierarchyId(String(v))} options={hierarchyOptions[hierarchyLevel]} placeholder="Select Hierarchy" />
         </div>
 
         <div>

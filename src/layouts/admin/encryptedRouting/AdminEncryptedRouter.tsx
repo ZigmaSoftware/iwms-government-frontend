@@ -1,4 +1,4 @@
-import { useMemo, type ComponentType } from "react";
+import { createElement, useMemo, type ComponentType } from "react";
 import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
@@ -33,6 +33,11 @@ import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeLis
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
 import HierarchyForm from "@/pages/admin/modules/masters/hierarchy/HierarchyForm";
+import HierarchyLevelListPage from "@/pages/admin/modules/masters/hierarchyTree/HierarchyLevelListPage";
+import HierarchyLevelForm from "@/pages/admin/modules/masters/hierarchyTree/HierarchyLevelForm";
+import HierarchyTreePage from "@/pages/admin/modules/masters/hierarchyTree/HierarchyTreePage";
+import HierarchyNodeDetailPage from "@/pages/admin/modules/masters/hierarchyTree/HierarchyNodeDetailPage";
+import HierarchyAssignPage from "@/pages/admin/modules/masters/hierarchyTree/HierarchyAssignPage";
 import MunicipalityListPage from "@/pages/admin/modules/masters/municipality/MunicipalityListPage";
 import MunicipalityForm from "@/pages/admin/modules/masters/municipality/MunicipalityForm";
 import TownPanchayatListPage from "@/pages/admin/modules/masters/townPanchayat/TownPanchayatListPage";
@@ -178,6 +183,10 @@ const ROUTES: RouteMap = {
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
+    "hierarchy-levels": { list: HierarchyLevelListPage, form: HierarchyLevelForm },
+    "hierarchy-tree": { component: HierarchyTreePage },
+    "hierarchy-node": { component: HierarchyNodeDetailPage },
+    "hierarchy-assign": { component: HierarchyAssignPage },
     corporations: { list: CorporationListPage, form: CorporationForm },
     municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
     "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
@@ -350,11 +359,11 @@ export default function AdminEncryptedRouter() {
   }
 
   const mode: "view" | "new" | "edit" = id ? "edit" : location.pathname.endsWith("/new") ? "new" : "view";
-    const Component = resolveComponent(moduleRoutes, mode);
+  const Component = resolveComponent(moduleRoutes, mode);
 
   if (!Component) {
     return <Navigate to="/" replace />;
   }
 
-  return <Component />;
+  return createElement(Component);
 }

@@ -4,7 +4,7 @@ import type { CollectionTypeKey } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -132,6 +132,7 @@ export default function DailyTripAssignmentList() {
   const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
   const [tripPlanLookup, setTripPlanLookup] = useState<Record<string, TripPlanRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -145,27 +146,64 @@ export default function DailyTripAssignmentList() {
   });
 
   /* ── load assignments ── */
-  useEffect(() => {
-    let mounted = true;
+  const loadAssignments = useCallback(async () => {
     setIsLoading(true);
-    Promise.all([
-      dailyTripAssignmentApi.readAll() as Promise<DailyTripAssignmentRecord[]>,
-      adminApi.tripPlans.readAll() as Promise<any>,
-    ])
-      .then(([assignmentData, tripPlanData]) => {
-        if (!mounted) return;
-        setAllAssignments(Array.isArray(assignmentData) ? assignmentData : []);
-        const lookup: Record<string, TripPlanRecord> = {};
-        normalizeList(tripPlanData).forEach((plan: TripPlanRecord) => {
-          const id = normalizeId(plan.unique_id ?? plan.id);
-          if (id) lookup[id] = plan;
-        });
-        setTripPlanLookup(lookup);
-      })
-      .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) }); })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
+    try {
+      const [assignmentData, tripPlanData] = await Promise.all([
+        dailyTripAssignmentApi.readAll() as Promise<DailyTripAssignmentRecord[]>,
+        adminApi.tripPlans.readAll() as Promise<any>,
+      ]);
+      setAllAssignments(Array.isArray(assignmentData) ? assignmentData : []);
+      const lookup: Record<string, TripPlanRecord> = {};
+      normalizeList(tripPlanData).forEach((plan: TripPlanRecord) => {
+        const id = normalizeId(plan.unique_id ?? plan.id);
+        if (id) lookup[id] = plan;
+      });
+      setTripPlanLookup(lookup);
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+    } finally {
+      setIsLoading(false);
+    }
   }, [t]);
+
+  useEffect(() => {
+    loadAssignments();
+  }, [loadAssignments]);
+
+  /* ── manually run the daily trip job scheduler (for today) ── */
+  const handleGenerateDaily = async () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { isConfirmed } = await Swal.fire({
+      icon: "question",
+      title: t("admin.daily_trip_assignment.generate_title", "Generate Daily Trips"),
+      text: t(
+        "admin.daily_trip_assignment.generate_prompt",
+        `Run the job scheduler now for ${todayStr}? This creates today's trips from active, approved auto-assign plans. Already-generated trips are skipped.`,
+      ),
+      showCancelButton: true,
+      confirmButtonText: t("admin.daily_trip_assignment.generate_run", "Generate"),
+    });
+    if (!isConfirmed) return;
+
+    setGenerating(true);
+    try {
+      const res: any = await dailyTripAssignmentApi.action(
+        "generate-daily",
+        { date: todayStr },
+      );
+      await Swal.fire({
+        icon: "success",
+        title: t("common.success"),
+        text: res?.message ?? `Created ${res?.created ?? 0}, skipped ${res?.skipped ?? 0}.`,
+      });
+      await loadAssignments();
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   /* ── enrich + filter rows ── */
   const rows = (() => {
@@ -241,6 +279,17 @@ export default function DailyTripAssignmentList() {
             <option value="bulk">Bulk Waste Collection</option>
             <option value="mixed">Mixed Collection</option>
           </select>
+
+          <Button
+            label={generating
+              ? t("admin.daily_trip_assignment.generating", "Generating…")
+              : t("admin.daily_trip_assignment.generate_button", "Generate Daily Trips")}
+            icon="pi pi-bolt"
+            className="p-button-help"
+            loading={generating}
+            disabled={generating}
+            onClick={handleGenerateDaily}
+          />
 
           <Button
             label="New Assignment"

@@ -97,6 +97,10 @@ export type EncryptedRoutes = {
   encPanchayats: string;
   encAreaTypes: string;
   encHierarchies: string;
+  encHierarchyLevels: string;
+  encHierarchyTree: string;
+  encHierarchyNode: string;
+  encHierarchyAssign: string;
   encPanchayatLeaders: string;
   encLeaderLogin: string;
   encPlbLeaderCreation: string;
@@ -191,6 +195,10 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayats: "panchayats",
   encAreaTypes: "area-types",
   encHierarchies: "hierarchies",
+  encHierarchyLevels: "hierarchy-levels",
+  encHierarchyTree: "hierarchy-tree",
+  encHierarchyNode: "hierarchy-node",
+  encHierarchyAssign: "hierarchy-assign",
   encPanchayatLeaders: "panchayat-leaders",
   encLeaderLogin: "leader-login",
   encPlbLeaderCreation: "plb-leader-creation",

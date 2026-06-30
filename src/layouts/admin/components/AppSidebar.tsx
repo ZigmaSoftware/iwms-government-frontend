@@ -27,10 +27,6 @@ const {
   encAttendance,
   encMasters,
   encAudits,
-  encContinents,
-  encCountries,
-  encStates,
-  encDistricts,
   encCollectionPoints,
   encWasteTypes,
   encProperties,
@@ -74,12 +70,9 @@ const {
   encCommonAudit,
   encTripPlans,
   encTripPlanCollectionPoints,
-  encPanchayats,
-  encAreaTypes,
-  encCorporations,
-  encMunicipalities,
-  encTownPanchayats,
-  encPanchayatUnions,
+  encHierarchyLevels,
+  encHierarchyTree,
+  encHierarchyAssign,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -110,7 +103,7 @@ type NavItem = {
 type SidebarSectionKey =
   | "main"
   | "attendance"
-  | "commonMaster"
+  | "superadminMaster"
   | "master"
   | "wasteType"
   | "assets"
@@ -153,35 +146,6 @@ const attendanceItems: NavItem[] = [
 ];
 
 
-const commonMasterItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.common_masters",
-    icon: <Settings size={18} />,
-    module: "common-masters",
-    screen: "common-masters",
-    subItems: [
-      {
-        nameKey: "admin.nav.continent",
-        path: `/${encMasters}/${encContinents}`,
-        module: "common-masters",
-        screen: "continents",
-      },
-      {
-        nameKey: "admin.nav.country",
-        path: `/${encMasters}/${encCountries}`,
-        module: "common-masters",
-        screen: "countries",
-      },
-      {
-        nameKey: "admin.nav.state",
-        path: `/${encMasters}/${encStates}`,
-        module: "common-masters",
-        screen: "states",
-      },
-    ],
-  },
-];
-
 const masterItems: NavItem[] = [
   { 
     nameKey: "admin.nav.masters",
@@ -189,54 +153,23 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
-      // ── Org / Department Setup ──────────────────────────────
-      // {
-      //   nameKey: "admin.nav.state",
-      //   path: `/${encMasters}/${encStates}`,
-      //   module: "masters",
-      //   screen: "states",
-      // },
       {
-        nameKey: "admin.nav.district",
-        path: `/${encMasters}/${encDistricts}`,
+        nameKey: "admin.nav.hierarchy_levels",
+        path: `/${encMasters}/${encHierarchyLevels}`,
         module: "masters",
-        screen: "districts",
+        screen: "hierarchy-levels",
       },
       {
-        nameKey: "admin.nav.area_type",
-        path: `/${encMasters}/${encAreaTypes}`,
+        nameKey: "admin.nav.hierarchy_tree",
+        path: `/${encMasters}/${encHierarchyTree}`,
         module: "masters",
-        screen: "areatypes",
+        screen: "hierarchy-nodes",
       },
       {
-        nameKey: "admin.nav.corporation",
-        path: `/${encMasters}/${encCorporations}`,
+        nameKey: "admin.nav.hierarchy_assign",
+        path: `/${encMasters}/${encHierarchyAssign}`,
         module: "masters",
-        screen: "corporations",
-      },
-      {
-        nameKey: "admin.nav.municipality",
-        path: `/${encMasters}/${encMunicipalities}`,
-        module: "masters",
-        screen: "municipalities",
-      },
-      {
-        nameKey: "admin.nav.town_panchayat",
-        path: `/${encMasters}/${encTownPanchayats}`,
-        module: "masters",
-        screen: "town-panchayats",
-      },
-      {
-        nameKey: "admin.nav.panchayat_union",
-        path: `/${encMasters}/${encPanchayatUnions}`,
-        module: "masters",
-        screen: "panchayat-unions",
-      },
-      {
-        nameKey: "admin.nav.panchayat",
-        path: `/${encMasters}/${encPanchayats}`,
-        module: "masters",
-        screen: "panchayats",
+        screen: "hierarchy-assignments",
       },
     ],
   },
@@ -704,7 +637,7 @@ const AppSidebar: React.FC = () => {
   );
 
   // Filter sub-items: only show items with permission
-  const filterSubItems = (
+  const filterSubItems = useCallback((
     subItems: NavItem["subItems"]
   ): NavItem["subItems"] => {
     if (!subItems) return undefined;
@@ -720,10 +653,10 @@ const AppSidebar: React.FC = () => {
       );
       return allowed;
     });
-  };
+  }, [checkPermission, isSuperAdmin]);
 
   // Check if menu item should be shown
-  const hasVisibleContent = (
+  const hasVisibleContent = useCallback((
     item: NavItem,
     filteredSubItems: NavItem["subItems"]
   ): boolean => {
@@ -747,7 +680,7 @@ const AppSidebar: React.FC = () => {
       `[Show Item] ${item.nameKey} (parent, has ${filteredSubItems?.length || 0} children) = ${hasChildren}`
     );
     return hasChildren;
-  };
+  }, [checkPermission]);
 
   // Build sidebar sections with strict filtering
   const sidebarSections = useMemo(
@@ -755,7 +688,6 @@ const AppSidebar: React.FC = () => {
       const allSections = [
         { key: "main" as const, items: navItems },
         { key: "attendance" as const, items: attendanceItems },
-        { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },
         { key: "assets" as const, items: assetItems },
@@ -801,7 +733,7 @@ const AppSidebar: React.FC = () => {
         })
         .filter((section) => section.items.length > 0); // Only show sections with visible items
     },
-    [hasPermission, isSuperAdmin, checkPermission]
+    [filterSubItems, hasVisibleContent, isSuperAdmin]
   );
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -893,7 +825,10 @@ const AppSidebar: React.FC = () => {
       });
     });
 
-    if (!matched) setOpenSubmenu(null);
+    if (!matched) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenSubmenu(null);
+    }
   }, [location, isActive, sidebarSections]);
 
   useEffect(() => {
