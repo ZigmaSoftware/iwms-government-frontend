@@ -6,6 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
+import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
@@ -268,7 +269,9 @@ const initialFormData = {
   staffusertype_id: "",
   contractorusertype_id: "",
   governmentusertype_id: "",
+  location_node_id: "",
   state_id: "",
+  district_id: "",
   municipality_id: "",
   corporation_id: "",
   town_panchayat_id: "",
@@ -322,6 +325,15 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   salary_type: ["salary_type"],
   active_status: ["active_status", "is_active"],
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
+  contractorusertype_id: ["contractorusertype_id", "contractor_user_type", "contractorusertype"],
+  governmentusertype_id: ["governmentusertype_id", "government_user_type", "governmentusertype"],
+  state_id: ["state_id", "state"],
+  district_id: ["district_id", "district"],
+  corporation_id: ["corporation_id", "corporation"],
+  municipality_id: ["municipality_id", "municipality"],
+  town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
+  panchayat_union_id: ["panchayat_union_id", "panchayat_union"],
+  panchayat_id: ["panchayat_id", "panchayat"],
   username: ["username"],
   password: ["password"],
   login_enabled: ["login_enabled"],
@@ -352,6 +364,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   permanent_pincode: ["permanent_pincode", "permanent_address.pincode"],
   contact_mobile: ["contact_mobile", "mobile"],
   contact_email: ["contact_email", "email"],
+  location_node_id: ["location_node_id", "location_node"],
   driving_licence_no: ["driving_licence_no", "driving_license_no"],
   driving_licence_expiry_date: ["driving_licence_expiry_date"],
   driving_licence_file: ["driving_licence_file", "driving_license_file"],
@@ -786,6 +799,14 @@ export default function StaffCreationForm() {
           staffusertype_id: normalizeEntityId(staff.staffusertype_id),
           contractorusertype_id: normalizeEntityId(staff.contractorusertype_id),
           governmentusertype_id: normalizeEntityId(staff.governmentusertype_id),
+          location_node_id: normalizeEntityId(staff.location_node_id ?? staff.location_node),
+          state_id: normalizeEntityId(staff.state_id ?? staff.state),
+          district_id: normalizeEntityId(staff.district_id ?? staff.district),
+          corporation_id: normalizeEntityId(staff.corporation_id ?? staff.corporation),
+          municipality_id: normalizeEntityId(staff.municipality_id ?? staff.municipality),
+          town_panchayat_id: normalizeEntityId(staff.town_panchayat_id ?? staff.town_panchayat),
+          panchayat_union_id: normalizeEntityId(staff.panchayat_union_id ?? staff.panchayat_union),
+          panchayat_id: normalizeEntityId(staff.panchayat_id ?? staff.panchayat),
           driving_licence_no: staff.driving_licence_no ?? "",
           driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
 
@@ -1098,6 +1119,23 @@ export default function StaffCreationForm() {
     });
   };
 
+  const handleLocationNodeChange = (
+    nodeId: string,
+    legacy: Record<string, string | undefined>,
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      location_node_id: nodeId,
+      state_id: legacy.state_id ?? prev.state_id,
+      district_id: legacy.district_id ?? prev.district_id,
+      corporation_id: legacy.corporation_id ?? "",
+      municipality_id: legacy.municipality_id ?? "",
+      town_panchayat_id: legacy.town_panchayat_id ?? "",
+      panchayat_union_id: legacy.panchayat_union_id ?? "",
+      panchayat_id: legacy.panchayat_id ?? "",
+    }));
+  };
+
   const calculateAge = (dobValue: string) => {
     const birthDate = new Date(dobValue);
     const today = new Date();
@@ -1221,6 +1259,17 @@ export default function StaffCreationForm() {
           userTypeCategory === "government"
             ? formData.governmentusertype_id || null
             : null,
+        location_node_id:
+          userTypeCategory === "government"
+            ? formData.location_node_id || null
+            : null,
+        state_id: formData.state_id || null,
+        district_id: formData.district_id || null,
+        corporation_id: formData.corporation_id || null,
+        municipality_id: formData.municipality_id || null,
+        town_panchayat_id: formData.town_panchayat_id || null,
+        panchayat_union_id: formData.panchayat_union_id || null,
+        panchayat_id: formData.panchayat_id || null,
         username: formData.username || null, // ← username in payload
         login_enabled: formData.login_enabled === "1",
 
@@ -1431,6 +1480,15 @@ export default function StaffCreationForm() {
                       ? "Select Staff User Type"
                       : "Select a level first"
                   }
+                />
+              </div>
+              <div className="md:col-span-2">
+                <HierarchyNodeSelect
+                  value={formData.location_node_id}
+                  allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
+                  label="Administrative Hierarchy"
+                  placeholder="Search and select staff hierarchy scope"
+                  onChange={handleLocationNodeChange}
                 />
               </div>
             </>

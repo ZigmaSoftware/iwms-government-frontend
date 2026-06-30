@@ -70,6 +70,7 @@ const {
   encCommonAudit,
   encTripPlans,
   encTripPlanCollectionPoints,
+  encHierarchyLevels,
   encHierarchyTree,
   encHierarchyAssign,
   encBins,
@@ -152,6 +153,12 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
+      {
+        nameKey: "admin.nav.hierarchy_levels",
+        path: `/${encMasters}/${encHierarchyLevels}`,
+        module: "masters",
+        screen: "hierarchy-levels",
+      },
       {
         nameKey: "admin.nav.hierarchy_tree",
         path: `/${encMasters}/${encHierarchyTree}`,
@@ -630,7 +637,7 @@ const AppSidebar: React.FC = () => {
   );
 
   // Filter sub-items: only show items with permission
-  const filterSubItems = (
+  const filterSubItems = useCallback((
     subItems: NavItem["subItems"]
   ): NavItem["subItems"] => {
     if (!subItems) return undefined;
@@ -646,10 +653,10 @@ const AppSidebar: React.FC = () => {
       );
       return allowed;
     });
-  };
+  }, [checkPermission, isSuperAdmin]);
 
   // Check if menu item should be shown
-  const hasVisibleContent = (
+  const hasVisibleContent = useCallback((
     item: NavItem,
     filteredSubItems: NavItem["subItems"]
   ): boolean => {
@@ -673,7 +680,7 @@ const AppSidebar: React.FC = () => {
       `[Show Item] ${item.nameKey} (parent, has ${filteredSubItems?.length || 0} children) = ${hasChildren}`
     );
     return hasChildren;
-  };
+  }, [checkPermission]);
 
   // Build sidebar sections with strict filtering
   const sidebarSections = useMemo(
@@ -726,7 +733,7 @@ const AppSidebar: React.FC = () => {
         })
         .filter((section) => section.items.length > 0); // Only show sections with visible items
     },
-    [hasPermission, isSuperAdmin, checkPermission]
+    [filterSubItems, hasVisibleContent, isSuperAdmin]
   );
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -818,7 +825,10 @@ const AppSidebar: React.FC = () => {
       });
     });
 
-    if (!matched) setOpenSubmenu(null);
+    if (!matched) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenSubmenu(null);
+    }
   }, [location, isActive, sidebarSections]);
 
   useEffect(() => {

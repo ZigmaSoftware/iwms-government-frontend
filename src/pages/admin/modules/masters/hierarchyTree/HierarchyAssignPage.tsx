@@ -1,17 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link2, ChevronRight, Trash2, Network } from "lucide-react";
+import { Link2, ChevronRight, Trash2, Network, MapPin } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import ComponentCard from "@/components/common/ComponentCard";
+import SearchableSelect, { type SearchableOption } from "@/components/common/SearchableSelect";
+import NodeMiniMap, { type MapPin as NodePin } from "@/components/common/NodeMiniMap";
 
 import { hierarchyAssignmentApi, hierarchyNodeApi } from "@/helpers/admin";
 import Swal from "@/lib/notify";
@@ -21,6 +16,7 @@ import {
   type HierarchyTreeNode,
 } from "./types";
 
+type Coordinates = { lat: number; lng: number } | null;
 type EntityType = { key: string; label: string };
 type EntityRecord = { id: string; label: string };
 type AssignmentPathNode = { unique_id: string; name: string; level_name: string | null; depth: number };
@@ -33,19 +29,37 @@ type Assignment = {
   entity_id: string;
   entity_label: string | null;
   is_primary: boolean;
+  coordinates?: Coordinates;
   path?: AssignmentPathNode[];
 };
 
-/** Flatten the nested tree into indented options for a single Select. */
-type FlatNode = { id: string; label: string; depth: number };
-const flattenTree = (nodes: HierarchyTreeNode[], depth = 0, out: FlatNode[] = []): FlatNode[] => {
+/** Flatten the nested tree, keeping depth, level, ancestry path + coordinates. */
+type FlatNode = {
+  id: string;
+  name: string;
+  levelName: string | null;
+  depth: number;
+  ancestry: string[];
+  coordinates: Coordinates;
+};
+const flattenTree = (
+  nodes: (HierarchyTreeNode & { coordinates?: Coordinates })[],
+  depth = 0,
+  trail: string[] = [],
+  out: FlatNode[] = [],
+): FlatNode[] => {
   for (const n of nodes) {
+    const ancestry = [...trail, n.name];
     out.push({
       id: n.unique_id,
-      label: `${"  ".repeat(depth)}${n.name}${n.level_name ? ` · ${n.level_name}` : ""}`,
+      name: n.name,
+      levelName: n.level_name,
       depth,
+      ancestry,
+      coordinates: (n as { coordinates?: Coordinates }).coordinates ?? null,
     });
-    if (n.children?.length) flattenTree(n.children, depth + 1, out);
+    if (n.children?.length)
+      flattenTree(n.children as (HierarchyTreeNode & { coordinates?: Coordinates })[], depth + 1, ancestry, out);
   }
   return out;
 };
@@ -138,6 +152,43 @@ export default function HierarchyAssignPage() {
     [records, entityId],
   );
 
+  // -- options for the searchable selects ---------------------------------
+  const typeOptions: SearchableOption[] = useMemo(
+    () => entityTypes.map((et) => ({ value: et.key, label: et.label })),
+    [entityTypes],
+  );
+  const recordOptions: SearchableOption[] = useMemo(
+    () => records.map((r) => ({ value: r.id, label: r.label, keywords: r.id })),
+    [records],
+  );
+  const nodeOptions: SearchableOption[] = useMemo(
+    () =>
+      flatNodes.map((n) => ({
+        value: n.id,
+        label: `${n.name}${n.levelName ? ` · ${n.levelName}` : ""}`,
+        keywords: n.ancestry.join(" "),
+        depth: n.depth,
+      })),
+    [flatNodes],
+  );
+
+  const selectedNode = useMemo(
+    () => flatNodes.find((n) => n.id === nodeId) ?? null,
+    [flatNodes, nodeId],
+  );
+
+  // The map pin: prefer the node being picked; else the most recent assignment.
+  const mapPin: NodePin | null = useMemo(() => {
+    if (selectedNode?.coordinates) {
+      return { ...selectedNode.coordinates, label: selectedNode.ancestry.join(" › ") };
+    }
+    const firstWithCoords = assignments.find((a) => a.coordinates);
+    if (firstWithCoords?.coordinates) {
+      return { ...firstWithCoords.coordinates, label: firstWithCoords.node_name ?? "" };
+    }
+    return null;
+  }, [selectedNode, assignments]);
+
   const handleAssign = async () => {
     if (!entityType || !entityId || !nodeId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
@@ -208,62 +259,65 @@ export default function HierarchyAssignPage() {
           <div className="grid gap-4">
             <div className="grid gap-1.5">
               <Label>Master type *</Label>
-              <Select value={entityType} onValueChange={setEntityType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a master" />
-                </SelectTrigger>
-                <SelectContent>
-                  {entityTypes.map((et) => (
-                    <SelectItem key={et.key} value={et.key}>
-                      {et.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                options={typeOptions}
+                value={entityType}
+                onChange={setEntityType}
+                placeholder="Select a master"
+                searchPlaceholder="Search master types…"
+                emptyText="No master types."
+              />
             </div>
 
             <div className="grid gap-1.5">
               <Label>Record *</Label>
-              <Select
+              <SearchableSelect
+                options={recordOptions}
                 value={entityId}
-                onValueChange={setEntityId}
-                disabled={!entityType || loadingRecords}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      loadingRecords
-                        ? `${t("common.loading")}…`
-                        : !entityType
-                          ? "Select a master type first"
-                          : "Select a record"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {records.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={setEntityId}
+                disabled={!entityType}
+                loading={loadingRecords}
+                placeholder={entityType ? "Select a record" : "Select a master type first"}
+                searchPlaceholder="Search records…"
+                emptyText="No records."
+              />
             </div>
 
             <div className="grid gap-1.5">
               <Label>Hierarchy node *</Label>
-              <Select value={nodeId} onValueChange={setNodeId} disabled={!entityId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a node" />
-                </SelectTrigger>
-                <SelectContent className="max-h-72">
-                  {flatNodes.map((n) => (
-                    <SelectItem key={n.id} value={n.id}>
-                      {n.label}
-                    </SelectItem>
+              <SearchableSelect
+                options={nodeOptions}
+                value={nodeId}
+                onChange={setNodeId}
+                disabled={!entityId}
+                placeholder="Select a node"
+                searchPlaceholder="Search any level (e.g. Chennai, Tamil Nadu)…"
+                emptyText="No nodes."
+              />
+              {/* Ancestry breadcrumb for the node being picked */}
+              {selectedNode && (
+                <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500">
+                  <Network size={12} className="text-indigo-400" />
+                  {selectedNode.ancestry.map((name, i) => (
+                    <span key={`${name}-${i}`} className="flex items-center gap-1">
+                      <span className={i === selectedNode.ancestry.length - 1 ? "font-medium text-gray-700 dark:text-gray-200" : ""}>
+                        {name}
+                      </span>
+                      {i < selectedNode.ancestry.length - 1 && (
+                        <ChevronRight size={11} className="text-gray-300" />
+                      )}
+                    </span>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Mini-map of the selected node (or latest assignment) */}
+            <div className="grid gap-1.5">
+              <Label className="flex items-center gap-1 text-gray-500">
+                <MapPin size={13} /> Location
+              </Label>
+              <NodeMiniMap pin={mapPin} height={200} />
             </div>
 
             <div className="flex justify-end">
@@ -315,6 +369,9 @@ export default function HierarchyAssignPage() {
                         <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-600">
                           Primary
                         </span>
+                      )}
+                      {a.coordinates && (
+                        <MapPin size={13} className="text-rose-400" />
                       )}
                     </div>
                     <button

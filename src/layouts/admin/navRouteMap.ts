@@ -67,6 +67,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encProjectCreation,
     encSuperAdminMaster,
     encHierarchyTree,
+    encHierarchyLevels,
     encHierarchyNode,
     encHierarchyAssign,
     encBins,
@@ -91,6 +92,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encDepartments}`, nameKey: "admin.nav.department", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDesignations}`, nameKey: "admin.nav.designation", parentNameKey: "admin.nav.masters" },
     // Administrative / Geographic Hierarchy
+    { path: `/${encMasters}/${encHierarchyLevels}`, nameKey: "admin.nav.hierarchy_levels", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encHierarchyTree}`, nameKey: "admin.nav.hierarchy_tree", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encHierarchyNode}`, nameKey: "admin.nav.hierarchy_node", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encHierarchyAssign}`, nameKey: "admin.nav.hierarchy_assign", parentNameKey: "admin.nav.masters" },

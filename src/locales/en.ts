@@ -744,6 +744,13 @@ const enResource = {
         }
       },
       "admin": {
+        "daily_trip_assignment": {
+          "generate_button": "Generate Daily Trips",
+          "generating": "Generating…",
+          "generate_title": "Generate Daily Trips",
+          "generate_prompt": "Run the job scheduler now for today? This creates today's trips from active, approved auto-assign plans. Already-generated trips are skipped.",
+          "generate_run": "Generate"
+        },
         "header": "Admin & Master Control",
         "subheader": "Configure core master data and keep every module aligned.",
         "global_settings": "Global settings",
@@ -797,6 +804,7 @@ const enResource = {
           "department": "Department Master",
           "designation": "Designation Master",
           "hierarchy": "Hierarchy",
+          "hierarchy_levels": "Hierarchy Levels",
           "hierarchy_tree": "Hierarchy Tree",
           "hierarchy_node": "Hierarchy Node",
           "hierarchy_assign": "Assign Hierarchy",
