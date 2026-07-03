@@ -1,8 +1,6 @@
-import type { AttachmentPreviewProps } from "@/features/grievances/types";
+import type { AttachmentPreviewProps } from "@/features/complaintTicketing/types";
 
-const FILE_ICON =
-  "https://cdn-icons-png.flaticon.com/512/337/337946.png";
-
+const FILE_ICON = "https://cdn-icons-png.flaticon.com/512/337/337946.png";
 const IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"];
 
 const isImage = (url: string) => {
@@ -12,15 +10,12 @@ const isImage = (url: string) => {
 
 export function AttachmentPreview({ label, fileUrl }: AttachmentPreviewProps) {
   const handleOpen = () => {
-    if (fileUrl) {
-      window.open(fileUrl, "_blank");
-    }
+    if (fileUrl) window.open(fileUrl, "_blank");
   };
 
   return (
     <div>
       <p className="mb-2 text-xs text-gray-500">{label}</p>
-
       {!fileUrl && <p>-</p>}
       {fileUrl && isImage(fileUrl) && (
         <img

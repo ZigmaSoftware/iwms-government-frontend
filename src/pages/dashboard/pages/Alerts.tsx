@@ -10,7 +10,7 @@ import { AlertTriangle, MapPin, Clock, Filter, BellRing, ShieldAlert, Activity }
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
-import { complaintApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
+import { complaintTicketApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 import { cn } from "@/lib/utils";
 import { filterActiveCustomers, normalizeCustomerArray } from "@/utils/customerUtils";
 
@@ -151,7 +151,7 @@ const pickVehicleTimestamp = (row: Record<string, any>) =>
 
 const fetchComplaintAlerts = async (): Promise<AlertItem[]> => {
   try {
-    const response = await complaintApi.readAll();
+    const response = await complaintTicketApi.readAll();
     const rows = extractArray(response);
     const alerts: AlertItem[] = [];
 
