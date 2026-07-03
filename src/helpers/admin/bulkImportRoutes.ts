@@ -4,8 +4,8 @@ import type { AdminEntity } from "./endpoints";
 import type { CrudHelpers } from "./crudHelpers";
 
 const routeEntityBySlug: Record<string, AdminEntity> = {
-  "company-creation": "companies",
-  "project-creation": "projects",
+  "company-creation": "companyCreation",
+  "project-creation": "projectCreation",
   continents: "continents",
   countries: "countries",
   states: "states",
@@ -34,9 +34,13 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "customer-creation": "customerCreations",
   "apartment-list": "customerCreations",
   feedback: "feedbacks",
-  complaint: "complaints",
-  "main-complaint-category": "mainCategory",
-  "sub-complaint-category": "subCategory",
+  complaint: "complaintTickets",
+  categories: "complaintCategories",
+  subcategories: "complaintSubcategories",
+  priorities: "complaintPriorities",
+  statuses: "complaintStatuses",
+  sources: "complaintSources",
+  teams: "complaintTeams",
   "vehicle-type": "vehicleTypes",
   "vehicle-creation": "vehicleCreations",
   "trip-plans": "tripPlans",

@@ -4,7 +4,7 @@ import type { ComplaintData } from "@/types";
 import { AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { complaintApi } from "@/helpers/admin";
+import { complaintTicketApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
 
 export function ComplaintsPanel() {
@@ -19,7 +19,7 @@ export function ComplaintsPanel() {
     let isMounted = true;
     const fetchComplaints = async () => {
       try {
-        const response = await complaintApi.readAll();
+        const response = await complaintTicketApi.readAll();
         const rows = Array.isArray(response) ? response : [];
         const deduped = new Map<string, ComplaintRecord>();
 

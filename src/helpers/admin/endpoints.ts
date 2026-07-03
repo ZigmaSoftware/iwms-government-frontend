@@ -10,6 +10,12 @@ export const adminEndpoints = {
   userpermission: "login/my-permissions",
 
   /* =========================
+     SUPERADMIN
+  ========================= */
+  companyCreation: "superadmin-masters/company-creation",
+  projectCreation: "superadmin-masters/project-creation",
+
+  /* =========================
      COMMON MASTERS
   ========================= */
   continents: "common-masters/continents",
@@ -105,11 +111,21 @@ export const adminEndpoints = {
   panchayatWiseCollections: "collections/panchayat-wise",
 
   /* =========================
-     GRIEVANCES
+     COMPLAINT TICKETING
   ========================= */
-  complaints: "grivences/complaints",
-  mainCategory: "grivences/main-category",
-  subCategory: "grivences/sub-category",
+  complaintTickets: "complaint-ticket/tickets",
+  complaintCategories: "complaint-ticket/categories",
+  complaintSubcategories: "complaint-ticket/subcategories",
+  complaintPriorities: "complaint-ticket/priorities",
+  complaintStatuses: "complaint-ticket/statuses",
+  complaintSources: "complaint-ticket/sources",
+  complaintLanguages: "complaint-ticket/languages",
+  complaintTeams: "complaint-ticket/teams",
+  complaintSlaRules: "complaint-ticket/sla-rules",
+  complaintRoutingRules: "complaint-ticket/routing-rules",
+  complaintFeedback: "complaint-ticket/feedback",
+  complaintReopenHistory: "complaint-ticket/reopen-history",
+  complaintAddressChange: "complaint-ticket/address-change",
 
   /* =========================
      TRANSPORT MASTERS

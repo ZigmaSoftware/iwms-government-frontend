@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { complaintApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
+import { complaintTicketApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 import { filterActiveCustomers, normalizeCustomerArray } from "@/utils/customerUtils";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
@@ -172,7 +172,7 @@ export function RecentActivityTimeline() {
   };
 
   const fetchComplaintStats = async () => {
-    const response = await complaintApi.readAll();
+    const response = await complaintTicketApi.readAll();
     const rows = Array.isArray(response)
       ? response
       : Array.isArray((response as any)?.data)
