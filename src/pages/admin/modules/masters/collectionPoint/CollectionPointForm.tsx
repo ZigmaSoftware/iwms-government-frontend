@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import HierarchyNodeSelect, { type HierarchyLegacyValues } from "@/components/common/HierarchyNodeSelect";
+import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,6 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 
 type ApiRecord = Record<string, unknown>;
-type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
 const { encMasters, encScheduleMasters, encCollectionPoints } = getEncryptedRoute();
 
@@ -41,14 +40,6 @@ const idOf = (value: unknown): string => {
   return String(value);
 };
 
-const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
-  { value: "corporation_id", label: "Corporation" },
-  { value: "municipality_id", label: "Municipality" },
-  { value: "town_panchayat_id", label: "Town Panchayat" },
-  { value: "panchayat_union_id", label: "Panchayat Union" },
-  { value: "panchayat_id", label: "Panchayat" },
-];
-
 export default function CollectionPointForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -56,11 +47,6 @@ export default function CollectionPointForm() {
   const LIST_PATH = useListPath();
 
   const [locationNodeId, setLocationNodeId] = useState("");
-  const [stateId, setStateId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("corporation_id");
-  const [hierarchyId, setHierarchyId] = useState("");
-  const [legacyMatch, setLegacyMatch] = useState<{ field: keyof HierarchyLegacyValues; value: string } | null>(null);
   const [cpName, setCpName] = useState("");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
@@ -73,15 +59,7 @@ export default function CollectionPointForm() {
   useEffect(() => {
     if (!id) return;
     collectionPointApi.read(id).then((record: ApiRecord) => {
-      setStateId(idOf(record.state_id ?? record.state));
-      setDistrictId(idOf(record.district_id ?? record.district));
-      const selectedLevel = hierarchyLevels.find((item) => idOf(record[item.value]));
-      if (selectedLevel) {
-        setHierarchyLevel(selectedLevel.value);
-        const matchedId = idOf(record[selectedLevel.value]);
-        setHierarchyId(matchedId);
-        setLegacyMatch({ field: selectedLevel.value, value: matchedId });
-      }
+      setLocationNodeId(idOf(record.location_node_id ?? record.location_node));
       setCpName(String(record.cp_name ?? ""));
       setLatitude(String(record.latitude ?? ""));
       setLongitude(String(record.longitude ?? ""));
@@ -97,22 +75,15 @@ export default function CollectionPointForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!stateId || !districtId || !hierarchyId || !cpName.trim()) {
-      Swal.fire("Missing details", "State, District, Hierarchy Level and Collection Point Name are required.", "warning");
+    if (!locationNodeId || !cpName.trim()) {
+      Swal.fire("Missing details", "Hierarchy node and Collection Point Name are required.", "warning");
       return;
     }
     setSubmitting(true);
     const coordinatePayload = serializeCoordinateDrafts(coordinates);
     const firstCoordinate = coordinatePayload[0];
     const payload = {
-      state_id: stateId,
-      district_id: districtId,
-      corporation_id: null,
-      municipality_id: null,
-      town_panchayat_id: null,
-      panchayat_union_id: null,
-      panchayat_id: null,
-      [hierarchyLevel]: hierarchyId,
+      location_node: locationNodeId,
       cp_name: cpName.trim(),
       latitude: firstCoordinate?.latitude ?? (latitude || null),
       longitude: firstCoordinate?.longitude ?? (longitude || null),
@@ -134,18 +105,10 @@ export default function CollectionPointForm() {
         <div className="md:col-span-2">
           <HierarchyNodeSelect
             value={locationNodeId}
-            legacyMatch={legacyMatch}
             allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
             label="Collection Point Hierarchy"
             placeholder="Select the hierarchy node for this collection point"
-            onChange={(nodeId, legacy) => {
-              setLocationNodeId(nodeId);
-              setStateId(legacy.state_id ?? "");
-              setDistrictId(legacy.district_id ?? "");
-              const selected = hierarchyLevels.find((item) => legacy[item.value]);
-              setHierarchyLevel(selected?.value ?? "corporation_id");
-              setHierarchyId(selected ? legacy[selected.value] ?? "" : "");
-            }}
+            onChange={(nodeId) => setLocationNodeId(nodeId)}
           />
         </div>
         <div>
