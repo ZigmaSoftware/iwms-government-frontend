@@ -104,9 +104,9 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "transport-master": ["transport-masters"],
   "transport-masters": ["transport-master"],
   "schedule-masters": ["schedule masters"],
-  "citizen-grievance": ["grivences", "grievance"],
-  grivences: ["citizen-grievance", "grievance"],
-  grievance: ["citizen-grievance", "grivences"],
+  "complaint-ticket": ["complaintticket", "complaint-ticketing"],
+  complaintticket: ["complaint-ticket", "complaint-ticketing"],
+  "complaint-ticketing": ["complaint-ticket", "complaintticket"],
   "superadmin-masters": ["superadmin"],
   superadmin: ["superadmin-masters"],
   "common-masters": ["masters"],
@@ -118,9 +118,10 @@ const MODULE_ALIASES: Record<string, string[]> = {
 };
 
 const SCREEN_ALIASES: Record<string, string[]> = {
-  complaint: ["complaints"],
-  "main-complaint-category": ["main-category"],
-  "sub-complaint-category": ["sub-category"],
+  complaint: ["tickets", "complaints"],
+  tickets: ["complaint"],
+  categories: ["category", "main-category"],
+  subcategories: ["subcategory", "sub-category"],
   feedback: ["feedbacks"],
   fuel: ["fuels"],
   panchayats: ["panchayat"],

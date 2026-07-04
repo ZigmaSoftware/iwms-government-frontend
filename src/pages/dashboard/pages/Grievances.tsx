@@ -28,10 +28,10 @@ import {
 } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchGrievances } from "@/features/grievances/api";
-import { AttachmentPreview } from "@/features/grievances/components/AttachmentPreview";
-import { InfoField } from "@/features/grievances/components/InfoField";
-import type { Grievance } from "@/features/grievances/types";
+import { fetchGrievances } from "@/features/complaintTicketing/api";
+import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
+import { InfoField } from "@/features/complaintTicketing/components/InfoField";
+import type { Grievance } from "@/features/complaintTicketing/types";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
