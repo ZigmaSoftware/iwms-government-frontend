@@ -10,9 +10,15 @@ import {
   complaintStatusApi,
   complaintTeamApi,
   complaintTicketApi,
+  geoHierarchyApi,
   ticketActions,
 } from "@/features/complaintTicketing/api";
-import type { ComplaintTicket } from "@/features/complaintTicketing/types";
+import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
+import type {
+  AssignableStaffOption,
+  ComplaintTicket,
+  HierarchyNode,
+} from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 
 const Field = ({ label, value }: { label: string; value: unknown }) => (
@@ -21,6 +27,16 @@ const Field = ({ label, value }: { label: string; value: unknown }) => (
     <div className="mt-1 text-sm text-gray-900">{value ? String(value) : "-"}</div>
   </div>
 );
+
+const SlaBadge = ({ ticket }: { ticket: ComplaintTicket }) => {
+  if (ticket.sla_breached) {
+    return <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Breached</span>;
+  }
+  if (typeof ticket.sla_time_remaining_seconds === "number" && ticket.sla_time_remaining_seconds < 0) {
+    return <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>;
+  }
+  return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">On Track</span>;
+};
 
 export default function TicketDetail() {
   const { id } = useParams();
@@ -40,23 +56,72 @@ export default function TicketDetail() {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Staff-head assignment scope: filter the staff dropdown by district/city.
+  const [districts, setDistricts] = useState<HierarchyNode[]>([]);
+  const [cities, setCities] = useState<HierarchyNode[]>([]);
+  const [district, setDistrict] = useState("");
+  const [city, setCity] = useState("");
+  const [assignableStaff, setAssignableStaff] = useState<AssignableStaffOption[]>([]);
+  const [staffScopeLabel, setStaffScopeLabel] = useState("");
+  const [staffLoading, setStaffLoading] = useState(false);
+
+  const loadAssignableStaff = async (locationNode?: string) => {
+    if (!id) return;
+    setStaffLoading(true);
+    try {
+      const res = await ticketActions.assignableStaff(id, locationNode ? { location_node: locationNode } : undefined);
+      setAssignableStaff(res.staff ?? []);
+      setStaffScopeLabel(
+        res.location_node_name ? `${res.location_level_name ?? ""}: ${res.location_node_name}`.trim() : "All districts"
+      );
+    } catch (err) {
+      setAssignableStaff([]);
+      setStaffScopeLabel(errorText(err, "Unable to load staff for this location"));
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
   const load = async () => {
     if (!id) return;
-    const [ticketRow, statusRows, teamRows] = await Promise.all([
+    const [ticketRow, statusRows, teamRows, districtRows] = await Promise.all([
       complaintTicketApi.read(id),
       complaintStatusApi.readAll().catch(() => []),
       complaintTeamApi.readAll().catch(() => []),
+      geoHierarchyApi.districts().catch(() => []),
     ]);
     setTicket(ticketRow as ComplaintTicket);
     setStatuses(asArray(statusRows));
     setTeams(asArray(teamRows));
+    setDistricts(asArray(districtRows));
     setStatusCode((ticketRow as ComplaintTicket).status_code ?? "");
     setTeam(String((ticketRow as ComplaintTicket).assigned_team ?? ""));
+    await loadAssignableStaff(city || district || undefined);
   };
 
   useEffect(() => {
     load().catch((err) => Swal.fire("Error", errorText(err, "Unable to load ticket"), "error"));
   }, [id]);
+
+  const onDistrictChange = async (value: string) => {
+    setDistrict(value);
+    setCity("");
+    setCities([]);
+    setStaff("");
+    if (!value) {
+      await loadAssignableStaff();
+      return;
+    }
+    const cityRows = await geoHierarchyApi.citiesInDistrict(value).catch(() => []);
+    setCities(cityRows);
+    await loadAssignableStaff(value);
+  };
+
+  const onCityChange = async (value: string) => {
+    setCity(value);
+    setStaff("");
+    await loadAssignableStaff(value || district || undefined);
+  };
 
   const run = async (message: string, fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -99,11 +164,30 @@ export default function TicketDetail() {
           <Field label="Assigned Staff" value={ticket.assigned_staff_name} />
           <Field label="Created" value={formatDateTime(ticket.created)} />
           <Field label="SLA Due" value={formatDateTime(ticket.sla_due_at)} />
+          <div>
+            <div className="text-xs font-medium uppercase text-gray-500">SLA Status</div>
+            <div className="mt-1"><SlaBadge ticket={ticket} /></div>
+          </div>
           <Field label="Resolved" value={formatDateTime(ticket.resolved_at)} />
           <Field label="Closed" value={formatDateTime(ticket.closed_at)} />
           <div className="md:col-span-4"><Field label="Title" value={ticket.title} /></div>
           <div className="md:col-span-4"><Field label="Description" value={ticket.description} /></div>
           <div className="md:col-span-4"><Field label="Location" value={ticket.location_text || ticket.location_node_name} /></div>
+        </div>
+      </ComponentCard>
+
+      <ComponentCard title="Attachments">
+        {(ticket.attachments ?? []).length === 0 && (
+          <p className="text-sm text-gray-500">No attachments uploaded yet.</p>
+        )}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {(ticket.attachments ?? []).map((item) => (
+            <AttachmentPreview
+              key={item.unique_id}
+              label={item.file_name || formatDateTime(item.created)}
+              fileUrl={item.file_url}
+            />
+          ))}
         </div>
       </ComponentCard>
 
@@ -125,7 +209,27 @@ export default function TicketDetail() {
               <option value="">Select team</option>
               {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.team_name}</option>)}
             </select>
-            <Input className="mt-3" value={staff} onChange={(e) => setStaff(e.target.value)} placeholder="Staff ID optional" />
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={district} onChange={(e) => onDistrictChange(e.target.value)}>
+                <option value="">All districts</option>
+                {districts.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+              </select>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={city} onChange={(e) => onCityChange(e.target.value)} disabled={!district}>
+                <option value="">All cities</option>
+                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name} ({item.level_name})</option>)}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Staff shown: {staffLoading ? "loading..." : staffScopeLabel || "-"}</p>
+
+            <select className="mt-3 h-11 w-full rounded-md border px-3 text-sm" value={staff} onChange={(e) => setStaff(e.target.value)}>
+              <option value="">Select staff (optional - defaults to team lead)</option>
+              {assignableStaff.map((item) => (
+                <option key={item.staff_unique_id} value={item.staff_unique_id}>
+                  {item.employee_name} - {item.department_name || "No department"} ({item.location_node_name || "No location"})
+                </option>
+              ))}
+            </select>
             <Input className="mt-3" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Reason" />
             <div className="mt-3 flex gap-2">
               <button disabled={busy || !team} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Ticket assigned.", () => ticketActions.assign(id, { team, staff: staff || undefined, reason: remarks }))}>Assign</button>
@@ -178,7 +282,7 @@ export default function TicketDetail() {
       </ComponentCard>
 
       <ComponentCard title="History">
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-4">
           <div>
             <h2 className="mb-2 font-semibold">Status History</h2>
             {(ticket.status_history ?? []).map((item) => (
@@ -196,6 +300,20 @@ export default function TicketDetail() {
                 <div>{item.from_team_name || "-"} {"->"} {item.to_team_name || "-"}</div>
                 <div className="text-gray-500">{formatDateTime(item.assigned_at)}</div>
                 <div>{item.assignment_reason || "-"}</div>
+              </div>
+            ))}
+          </div>
+          <div>
+            <h2 className="mb-2 font-semibold">Escalations</h2>
+            {(ticket.escalation_history ?? []).length === 0 && (
+              <p className="text-sm text-gray-500">No escalations yet.</p>
+            )}
+            {(ticket.escalation_history ?? []).map((item) => (
+              <div key={item.unique_id} className="mb-2 rounded border border-orange-200 bg-orange-50 p-3 text-sm">
+                <div className="font-medium">Level {item.escalation_level}: {item.escalated_from_team_name || "-"} {"->"} {item.escalated_to_team_name || "-"}</div>
+                <div>Escalated to {item.escalated_to_staff_name || "-"}</div>
+                <div className="text-gray-500">{formatDateTime(item.escalated_at)}</div>
+                <div>{item.reason || "-"}</div>
               </div>
             ))}
           </div>

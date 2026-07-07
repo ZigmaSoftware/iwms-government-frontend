@@ -36,7 +36,11 @@ export const RolesProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Skip admin API calls when there is no admin session (e.g. PLB leader portal)
-    if (!localStorage.getItem("access_token")) {
+    // or on fully public routes (e.g. public grievance form) that need no auth at all.
+    if (
+      !localStorage.getItem("access_token") ||
+      window.location.pathname.startsWith("/publicgrivence")
+    ) {
       setIsLoading(false);
       return;
     }

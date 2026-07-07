@@ -113,6 +113,8 @@ import CategoryList from "@/pages/admin/modules/complaintTicketing/category/Cate
 import CategoryForm from "@/pages/admin/modules/complaintTicketing/category/CategoryForm";
 import SubcategoryList from "@/pages/admin/modules/complaintTicketing/subcategory/SubcategoryList";
 import SubcategoryForm from "@/pages/admin/modules/complaintTicketing/subcategory/SubcategoryForm";
+import ModuleList from "@/pages/admin/modules/complaintTicketing/masters/ModuleList";
+import ModuleForm from "@/pages/admin/modules/complaintTicketing/masters/ModuleForm";
 import PriorityList from "@/pages/admin/modules/complaintTicketing/masters/PriorityList";
 import PriorityForm from "@/pages/admin/modules/complaintTicketing/masters/PriorityForm";
 import StatusList from "@/pages/admin/modules/complaintTicketing/masters/StatusList";
@@ -121,6 +123,8 @@ import SourceList from "@/pages/admin/modules/complaintTicketing/masters/SourceL
 import SourceForm from "@/pages/admin/modules/complaintTicketing/masters/SourceForm";
 import TeamList from "@/pages/admin/modules/complaintTicketing/masters/TeamList";
 import TeamForm from "@/pages/admin/modules/complaintTicketing/masters/TeamForm";
+import SlaRuleList from "@/pages/admin/modules/complaintTicketing/masters/SlaRuleList";
+import SlaRuleForm from "@/pages/admin/modules/complaintTicketing/masters/SlaRuleForm";
 import MainScreenTypeList from "@/pages/admin/modules/admin/mainScreenType/mainScreenTypeList";
 import MainScreenTypeForm from "@/pages/admin/modules/admin/mainScreenType/mainScreenTypeForm";
 import UserScreenActionList from "@/pages/admin/modules/admin/userScreenAction/userScreenActionList";
@@ -252,12 +256,14 @@ const ROUTES: RouteMap = {
   },
   "complaint-ticket": {
     complaint: { list: TicketList, form: TicketForm, editForm: TicketDetail },
+    modules: { list: ModuleList, form: ModuleForm },
     categories: { list: CategoryList, form: CategoryForm },
     subcategories: { list: SubcategoryList, form: SubcategoryForm },
     priorities: { list: PriorityList, form: PriorityForm },
     statuses: { list: StatusList, form: StatusForm },
     sources: { list: SourceList, form: SourceForm },
     teams: { list: TeamList, form: TeamForm },
+    "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
     feedback: { list: FeedbackList },
   },
   audits: {
@@ -313,6 +319,11 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "daily-trip-household-collections": ["daily-trip-household-collection"],
   "bin-collection-events": ["bin-collection-event"],
   "daily-trip-logs": ["daily-trip-log"],
+  "sla-rules": ["sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
+  "sla-rule": ["sla-rules", "sla_rules", "slaRules", "slarules", "sla"],
+  sla_rules: ["sla-rules", "sla-rule", "slaRules", "slarules", "sla"],
+  slaRules: ["sla-rules", "sla-rule", "sla_rules", "slarules", "sla"],
+  slarules: ["sla-rules", "sla-rule", "sla_rules", "slaRules", "sla"],
 };
 
 const resolveRouteConfig = (

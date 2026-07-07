@@ -602,7 +602,10 @@ export default function VehicleCreationListPage() {
             >
               X
             </button>
-            <img src={modalImage} className="w-[400px] h-[400px] rounded" />
+            <img
+              src={modalImage}
+              className="w-[400px] h-[400px] max-w-[92vw] max-h-[92vw] rounded"
+            />
           </div>
         </div>
       )}

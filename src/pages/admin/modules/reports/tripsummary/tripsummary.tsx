@@ -492,7 +492,7 @@ export default function TripSummary() {
               </div>
             }
             emptyMessage={t("admin.reports.trip_summary.empty_message")}
-            responsiveLayout="scroll"
+            responsiveLayout="stack"
             stripedRows
             showGridlines
             className="p-datatable-sm"

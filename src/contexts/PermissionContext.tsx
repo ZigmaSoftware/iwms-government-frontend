@@ -56,6 +56,10 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
    * All users follow the same flow - no role-based special cases
    */
   const fetchAndUpdatePermissions = useCallback(async () => {
+    // Fully public routes (e.g. public grievance form) need no auth at all.
+    if (window.location.pathname.startsWith("/publicgrivence")) {
+      return;
+    }
     try {
       // console.log("[PermissionContext] 📡 Fetching permissions from API...");
       const apiPermissions = await fetchPermissionsFromAPI();

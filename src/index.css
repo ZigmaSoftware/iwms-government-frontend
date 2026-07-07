@@ -30,6 +30,14 @@
   padding-left: 3.25rem !important;
 }
 
+.p-datatable {
+  min-width: 100%;
+}
+
+.p-datatable-wrapper {
+  overflow-x: auto;
+}
+
 .p-datatable-header .p-inputtext::placeholder {
   color: #6b7280;
   opacity: 1;
@@ -56,6 +64,56 @@
 .p-datatable-header .flex:has(> .pi.pi-search) .p-inputtext::placeholder {
   color: #6b7280;
   opacity: 1;
+}
+
+/* Mobile card/stacked view for SafeDataTable (responsiveLayout="stack") */
+.p-column-title {
+  font-weight: 600;
+  color: #6b7280;
+  margin-right: 0.75rem;
+}
+
+@media screen and (max-width: 768px) {
+  .p-datatable-header {
+    padding: 0.75rem !important;
+  }
+
+  .p-datatable-header .p-inputtext,
+  .p-datatable-header .flex:has(> .pi.pi-search) {
+    max-width: none;
+  }
+
+  .p-datatable .p-datatable-tbody > tr {
+    display: block;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0.5rem 0.25rem;
+  }
+
+  .p-datatable .p-datatable-tbody > tr > td {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  .p-datatable .p-datatable-tbody > tr > td .p-column-title {
+    min-width: 38%;
+    text-align: left;
+  }
+}
+
+.dark .p-column-title {
+  color: var(--admin-text);
+  opacity: 0.7;
+}
+
+.dark .p-datatable .p-datatable-tbody > tr {
+  border-bottom-color: var(--admin-border);
 }
 
 @custom-variant dark (&:is(.dark *));

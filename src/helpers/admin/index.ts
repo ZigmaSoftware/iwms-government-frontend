@@ -76,10 +76,6 @@ export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 
 /* =========================
-   PROCESS
-========================= */
-
-/* =========================
    AUTHENTICATION
 ========================= */
 export const loginApi = adminApi.loginUser;
@@ -98,6 +94,7 @@ export const feedbackApi = adminApi.feedbacks;
    COMPLAINT TICKETING
 ========================= */
 export const complaintTicketApi = adminApi.complaintTickets;
+export const complaintModuleApi = adminApi.complaintModules;
 export const complaintCategoryApi = adminApi.complaintCategories;
 export const complaintSubcategoryApi = adminApi.complaintSubcategories;
 export const complaintPriorityApi = adminApi.complaintPriorities;
