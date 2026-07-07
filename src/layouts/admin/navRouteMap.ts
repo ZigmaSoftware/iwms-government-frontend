@@ -124,7 +124,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Customer Masters
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
-    { path: `/${encWasteManagementMaster}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.customer_masters" },
+    { path: `/${encScheduleMasters}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.complaint_ticket" },
     // Complaint Ticketing
     { path: `/${encComplaintTicket}/${encComplaint}`, nameKey: "admin.nav.complaint_tickets", parentNameKey: "admin.nav.complaint_ticket" },

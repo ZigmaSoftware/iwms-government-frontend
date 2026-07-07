@@ -230,6 +230,7 @@ const ROUTES: RouteMap = {
     "daily-trip-log": { list: DailyTripLogList },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
@@ -241,7 +242,6 @@ const ROUTES: RouteMap = {
     "vehicle-history": { component: VehicleHistory },
   },
   "waste-management": {
-    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
   },

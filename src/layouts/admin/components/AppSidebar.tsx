@@ -320,12 +320,6 @@ const customerMasters: NavItem[] = [
         screen: "customercreations",
       },
       {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
-        module: "customers",
-        screen: "wastecollections",
-      },
-      {
         nameKey: "admin.nav.feedback",
         path: `/${encComplaintTicket}/${encFeedback}`,
         module: "customers",
@@ -508,6 +502,12 @@ const scheduleOperationsItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encDailyTripLog}`,
         module: "schedule-masters",
         screen: "daily-trip-logs",
+      },
+      {
+        nameKey: "admin.nav.waste_collected_data",
+        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
+        module: "schedule-masters",
+        screen: "wastecollections",
       },
     ],
   },
