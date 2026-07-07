@@ -21,6 +21,7 @@ import type { WasteTypeListRecord } from "./types";
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
   is_active: ["is_active"],
+  default_team: ["default_team"],
 };
 
 export default function WasteTypeListPage() {
@@ -210,6 +211,12 @@ export default function WasteTypeListPage() {
             filter
             showFilterMatchModes={false}
             body={(row: WasteTypeListRecord) => cap(row.waste_type_name)}
+          />
+        )}
+        {showCol("default_team") && (
+          <Column
+            header="Default Team"
+            body={(row: WasteTypeListRecord) => row.default_team_name || "-"}
           />
         )}
         {showCol("is_active") && (
