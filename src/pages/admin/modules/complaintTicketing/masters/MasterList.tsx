@@ -11,7 +11,9 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   complaintCategoryApi,
+  complaintModuleApi,
   complaintPriorityApi,
+  complaintSlaRuleApi,
   complaintSourceApi,
   complaintStatusApi,
   complaintSubcategoryApi,
@@ -19,28 +21,32 @@ import {
 } from "@/features/complaintTicketing/api";
 import { asArray, errorText, yesNo } from "../utils";
 
-type MasterKind = "category" | "subcategory" | "priority" | "status" | "source" | "team";
+type MasterKind = "module" | "category" | "subcategory" | "priority" | "status" | "source" | "team" | "slaRule";
 
 type Props = {
   kind: MasterKind;
 };
 
 const title: Record<MasterKind, string> = {
+  module: "Complaint Modules",
   category: "Complaint Categories",
   subcategory: "Complaint Subcategories",
   priority: "Priorities",
   status: "Statuses",
   source: "Sources",
   team: "Teams",
+  slaRule: "SLA Rules",
 };
 
 const routeModule: Record<MasterKind, keyof ReturnType<typeof getEncryptedRoute>> = {
+  module: "encComplaintModules",
   category: "encComplaintCategories",
   subcategory: "encComplaintSubcategories",
   priority: "encComplaintPriorities",
   status: "encComplaintStatuses",
   source: "encComplaintSources",
   team: "encComplaintTeams",
+  slaRule: "encComplaintSlaRules",
 };
 
 export default function MasterList({ kind }: Props) {
@@ -54,11 +60,13 @@ export default function MasterList({ kind }: Props) {
   });
 
   const api = useMemo(() => {
+    if (kind === "module") return complaintModuleApi;
     if (kind === "category") return complaintCategoryApi;
     if (kind === "subcategory") return complaintSubcategoryApi;
     if (kind === "priority") return complaintPriorityApi;
     if (kind === "status") return complaintStatusApi;
     if (kind === "source") return complaintSourceApi;
+    if (kind === "slaRule") return complaintSlaRuleApi;
     return complaintTeamApi;
   }, [kind]);
 
@@ -74,8 +82,10 @@ export default function MasterList({ kind }: Props) {
   const edit = (row: any) => navigate(editPath(row.unique_id));
 
   const fields =
-    kind === "category"
-      ? ["category_code", "category_name", "default_priority_code", "default_team_name"]
+    kind === "module"
+      ? ["module_code", "module_name"]
+      : kind === "category"
+      ? ["category_code", "category_name", "module_name", "default_priority_code", "default_team_name"]
       : kind === "subcategory"
         ? ["subcategory_code", "subcategory_name", "category_name"]
         : kind === "priority"
@@ -84,7 +94,9 @@ export default function MasterList({ kind }: Props) {
             ? ["status_code", "status_name"]
             : kind === "source"
               ? ["source_code", "source_name"]
-              : ["team_code", "team_name", "department_name", "lead_staff_name"];
+              : kind === "team"
+                ? ["team_code", "team_name", "department_name", "lead_staff_name"]
+                : ["category_code", "priority_code"];
 
   return (
     <div className="p-3">
@@ -123,8 +135,11 @@ export default function MasterList({ kind }: Props) {
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+        {kind === "module" && <Column field="module_code" header="Code" sortable />}
+        {kind === "module" && <Column field="module_name" header="Module" sortable />}
         {kind === "category" && <Column field="category_code" header="Code" sortable />}
         {kind === "category" && <Column field="category_name" header="Category" sortable />}
+        {kind === "category" && <Column field="module_name" header="Module" sortable />}
         {kind === "category" && <Column field="default_priority_code" header="Default Priority" />}
         {kind === "category" && <Column field="default_team_name" header="Default Team" />}
         {kind === "subcategory" && <Column field="subcategory_code" header="Code" sortable />}
@@ -142,6 +157,11 @@ export default function MasterList({ kind }: Props) {
         {kind === "team" && <Column field="team_name" header="Team" sortable />}
         {kind === "team" && <Column field="department_name" header="Department" />}
         {kind === "team" && <Column field="lead_staff_name" header="Lead Staff" />}
+        {kind === "slaRule" && <Column field="category_code" header="Category" sortable />}
+        {kind === "slaRule" && <Column field="priority_code" header="Priority" sortable />}
+        {kind === "slaRule" && <Column field="assign_within_minutes" header="Assign Minutes" />}
+        {kind === "slaRule" && <Column field="resolve_within_minutes" header="Resolve Minutes" />}
+        {kind === "slaRule" && <Column header="Working Hours" body={(row) => yesNo(row.working_hours_only)} />}
         <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
         <Column header="Actions" body={(row) => <button className="text-blue-600" onClick={() => edit(row)} title="Edit"><PencilIcon className="size-5" /></button>} style={{ width: "100px" }} />
       </DataTable>

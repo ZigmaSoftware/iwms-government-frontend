@@ -52,7 +52,7 @@ export function DataCard({
   return (
     <div
       className={cn(
-        "relative bg-white dark:bg-gray-800/95 rounded-xl border border-gray-100 dark:border-gray-700/60 overflow-hidden",
+        "relative min-w-0 bg-white dark:bg-gray-800/95 rounded-xl border border-gray-100 dark:border-gray-700/60 overflow-hidden",
         "shadow-[0_1px_3px_0_rgba(0,0,0,0.05),0_4px_16px_-2px_rgba(0,0,0,0.07)]",
         "dark:shadow-[0_1px_3px_0_rgba(0,0,0,0.3),0_4px_16px_-2px_rgba(0,0,0,0.2)]",
         compact ? "p-3" : "p-4",
@@ -68,15 +68,15 @@ export function DataCard({
         />
       )}
       {(title || action) && (
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-1.5">
+        <div className="mb-3 flex min-w-0 flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
             {icon && (
               <span className="shrink-0">{icon}</span>
             )}
             {title && (
               <h3
                 className={cn(
-                  "font-semibold text-gray-800 dark:text-gray-100 tracking-tight",
+                  "min-w-0 font-semibold text-gray-800 dark:text-gray-100 tracking-tight",
                   compact ? "text-sm" : "text-base"
                 )}
               >

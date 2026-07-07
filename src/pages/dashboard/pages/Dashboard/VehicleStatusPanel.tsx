@@ -186,7 +186,7 @@ export function VehicleStatusPanel() {
       compact
       accent="brand-accent"
       icon={<Truck className="w-3.5 h-3.5 text-(--admin-accent)" />}
-      className="h-[280px]"
+      className="h-56 lg:h-[280px]"
       action={
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-[10px] font-semibold text-green-600 dark:text-green-400">
