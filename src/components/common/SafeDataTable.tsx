@@ -331,7 +331,7 @@ const DataTableHeaderActions = ({
       type="button"
       onClick={handleExport}
       disabled={rows.length === 0}
-      className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-green-200 bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
     >
       <i className="pi pi-download" />
       Download All Excel
@@ -343,15 +343,15 @@ const DataTableHeaderActions = ({
     (Boolean(onImportRows) || Boolean(importApi));
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1">{header}</div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:auto-cols-max sm:grid-flow-col sm:grid-cols-none sm:items-center">
         {canImport && (
           <>
             <button
               type="button"
               onClick={handleTemplate}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
             >
               <i className="pi pi-file-excel" />
               Download Template
@@ -360,7 +360,7 @@ const DataTableHeaderActions = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={importing}
-              className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               <i className="pi pi-upload" />
               {importing ? "Uploading..." : "Upload Excel"}
@@ -424,7 +424,17 @@ export const DataTable = <TValue extends SafeTableRows>(
       tableProps.header
     );
 
-  return <PrimeDataTable {...tableProps} header={header} value={safeRows} />;
+  return (
+    <div className="min-w-0 overflow-x-auto">
+      <PrimeDataTable
+        responsiveLayout="stack"
+        breakpoint="768px"
+        {...tableProps}
+        header={header}
+        value={safeRows}
+      />
+    </div>
+  );
 };
 
 export type { DataTableFilterEvent } from "primereact/datatable";

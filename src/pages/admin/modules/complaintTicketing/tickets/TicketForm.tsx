@@ -18,7 +18,9 @@ import {
 } from "@/features/complaintTicketing/api";
 import { asArray, errorText } from "../utils";
 
-export default function TicketForm() {
+const steps = ["Citizen", "Complaint", "Location"];
+
+export default function TicketWizardForm() {
   const navigate = useNavigate();
   const { encComplaintTicket, encComplaint } = getEncryptedRoute();
   const { listPath } = createCrudRoutePaths(encComplaintTicket, encComplaint);
@@ -29,6 +31,7 @@ export default function TicketForm() {
   const [statuses, setStatuses] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [languages, setLanguages] = useState<any[]>([]);
+  const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     customer: "",
@@ -113,68 +116,108 @@ export default function TicketForm() {
     }
   };
 
+  const canContinue =
+    step === 0
+      ? Boolean(form.profile_name.trim() || form.customer || form.wa_phone.trim())
+      : step === 1
+        ? Boolean(form.category && form.priority && form.status && form.title.trim())
+        : true;
+
   return (
     <ComponentCard title="Add Complaint Ticket">
-      <form onSubmit={save} className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        <div>
-          <Label>Customer</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.customer} onChange={(e) => onCustomer(e.target.value)}>
-            <option value="">Walk-in / unknown</option>
-            {customers.map((item) => <option key={item.unique_id ?? item.id} value={item.unique_id ?? item.id}>{item.customer_name}</option>)}
-          </select>
+      <form onSubmit={save} className="space-y-5">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          {steps.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setStep(index)}
+              className={`min-h-10 rounded border px-2 py-2 text-sm font-medium ${index === step ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 bg-white text-gray-600"}`}
+            >
+              {index + 1}. {label}
+            </button>
+          ))}
         </div>
-        <div><Label>Phone</Label><Input value={form.wa_phone} onChange={(e) => setValue("wa_phone", e.target.value)} /></div>
-        <div><Label>Profile Name</Label><Input value={form.profile_name} onChange={(e) => setValue("profile_name", e.target.value)} /></div>
-        <div>
-          <Label>Category</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value, subcategory: "" }))} required>
-            <option value="">Select category</option>
-            {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.category_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>Subcategory</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
-            <option value="">None</option>
-            {filteredSubcategories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.subcategory_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>Priority</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
-            <option value="">Select priority</option>
-            {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.priority_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>Status</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.status} onChange={(e) => setValue("status", e.target.value)} required>
-            <option value="">Select status</option>
-            {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.status_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>Source</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
-            <option value="">None</option>
-            {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.source_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <Label>Language</Label>
-          <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.language} onChange={(e) => setValue("language", e.target.value)}>
-            <option value="">None</option>
-            {languages.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.language_name}</option>)}
-          </select>
-        </div>
-        <div className="md:col-span-3"><Label>Title</Label><Input value={form.title} onChange={(e) => setValue("title", e.target.value)} required /></div>
-        <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
-        <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
-        <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>
-        <div><Label>Longitude</Label><Input value={form.longitude} onChange={(e) => setValue("longitude", e.target.value)} /></div>
-        <div className="md:col-span-3 flex justify-end gap-3">
+
+        {step === 0 && (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <div>
+              <Label>Customer</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.customer} onChange={(e) => onCustomer(e.target.value)}>
+                <option value="">Walk-in / unknown</option>
+                {customers.map((item) => <option key={item.unique_id ?? item.id} value={item.unique_id ?? item.id}>{item.customer_name}</option>)}
+              </select>
+            </div>
+            <div><Label>Phone</Label><Input value={form.wa_phone} onChange={(e) => setValue("wa_phone", e.target.value)} /></div>
+            <div><Label>Profile Name</Label><Input value={form.profile_name} onChange={(e) => setValue("profile_name", e.target.value)} /></div>
+            <div>
+              <Label>Source</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
+                <option value="">None</option>
+                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.source_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Language</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.language} onChange={(e) => setValue("language", e.target.value)}>
+                <option value="">None</option>
+                {languages.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.language_name}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <div>
+              <Label>Category</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value, subcategory: "" }))} required>
+                <option value="">Select category</option>
+                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.category_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Subcategory</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
+                <option value="">None</option>
+                {filteredSubcategories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.subcategory_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Priority</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
+                <option value="">Select priority</option>
+                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.priority_name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.status} onChange={(e) => setValue("status", e.target.value)} required>
+                <option value="">Select status</option>
+                {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.status_name}</option>)}
+              </select>
+            </div>
+            <div className="md:col-span-3"><Label>Title</Label><Input value={form.title} onChange={(e) => setValue("title", e.target.value)} required /></div>
+            <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
+            <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>
+            <div><Label>Longitude</Label><Input value={form.longitude} onChange={(e) => setValue("longitude", e.target.value)} /></div>
+          </div>
+        )}
+
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(listPath)}>Cancel</button>
-          <button type="submit" disabled={saving} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+          {step > 0 && <button type="button" className="rounded border px-4 py-2" onClick={() => setStep((prev) => prev - 1)}>Back</button>}
+          {step < steps.length - 1 ? (
+            <button type="button" disabled={!canContinue} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => setStep((prev) => prev + 1)}>Next</button>
+          ) : (
+            <button type="submit" disabled={saving} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+          )}
         </div>
       </form>
     </ComponentCard>

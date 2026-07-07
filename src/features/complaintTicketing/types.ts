@@ -19,6 +19,9 @@ export type ComplaintTicket = {
   ticket_no?: string;
   source?: ApiId | null;
   source_code?: string | null;
+  module?: ApiId | null;
+  module_code?: string | null;
+  module_name?: string | null;
   customer?: ApiId | null;
   customer_name?: string | null;
   wa_phone?: string | null;
@@ -27,6 +30,9 @@ export type ComplaintTicket = {
   category: ApiId;
   category_name?: string | null;
   category_code?: string | null;
+  waste_types?: ApiId[] | null;
+  waste_type_names?: string[] | null;
+  waste_type_name?: string | null;
   subcategory?: ApiId | null;
   subcategory_name?: string | null;
   priority: ApiId;
@@ -41,6 +47,10 @@ export type ComplaintTicket = {
   longitude?: string | number | null;
   location_node?: ApiId | null;
   location_node_name?: string | null;
+  district_id?: ApiId | null;
+  district_name?: string | null;
+  city_id?: ApiId | null;
+  city_name?: string | null;
   assigned_team?: ApiId | null;
   assigned_team_name?: string | null;
   assigned_staff?: ApiId | null;
@@ -49,6 +59,9 @@ export type ComplaintTicket = {
   escalation_level?: number | null;
   sla_due_at?: string | null;
   first_response_due_at?: string | null;
+  sla_time_remaining_seconds?: number | null;
+  sla_breached?: boolean;
+  sla_breached_at?: string | null;
   resolved_at?: string | null;
   closed_at?: string | null;
   reopened_count?: number;
@@ -68,6 +81,9 @@ export type ComplaintCategory = {
   unique_id: string;
   category_code: string;
   category_name: string;
+  module?: ApiId | null;
+  module_code?: string | null;
+  module_name?: string | null;
   description?: string | null;
   default_priority?: ApiId | null;
   default_priority_code?: string | null;
@@ -77,6 +93,15 @@ export type ComplaintCategory = {
   requires_media?: boolean;
   requires_address_change_detail?: boolean;
   is_sensitive?: boolean;
+  sort_order?: number;
+  is_active?: boolean;
+};
+
+export type ComplaintModule = {
+  unique_id: string;
+  module_code: string;
+  module_name: string;
+  description?: string | null;
   sort_order?: number;
   is_active?: boolean;
 };
@@ -143,6 +168,22 @@ export type ComplaintTeam = {
   is_active?: boolean;
 };
 
+export type ComplaintSlaRule = {
+  unique_id: string;
+  category: ApiId;
+  category_code?: string | null;
+  subcategory?: ApiId | null;
+  priority: ApiId;
+  priority_code?: string | null;
+  source?: ApiId | null;
+  assign_within_minutes?: number | null;
+  resolve_within_minutes?: number | null;
+  working_hours_only?: boolean;
+  escalation_after_minutes?: number | null;
+  escalation_team?: ApiId | null;
+  is_active?: boolean;
+};
+
 export type ComplaintFeedback = {
   unique_id: string;
   ticket: ApiId;
@@ -206,6 +247,26 @@ export type ComplaintAttachment = {
   created?: string;
 };
 
+export type PublicGrievanceWasteType = {
+  unique_id: string;
+  waste_type_name: string;
+};
+
+export type PublicGrievanceLocationNode = {
+  unique_id: string;
+  name: string;
+};
+
+export type PublicGrievanceMeta = {
+  waste_types: PublicGrievanceWasteType[];
+};
+
+export type PublicGrievanceResponse = {
+  message: string;
+  ticket_no: string;
+  unique_id: string;
+};
+
 export type ComplaintTimelineItem = {
   status_code?: string | null;
   status_name?: string | null;
@@ -261,3 +322,54 @@ export interface AttachmentPreviewProps {
   label: string;
   fileUrl?: string | null;
 }
+
+export type AssignableStaffOption = {
+  staff_unique_id: string;
+  employee_name: string;
+  department_name?: string | null;
+  location_node_id?: string | null;
+  location_node_name?: string | null;
+  location_level_name?: string | null;
+};
+
+export type AssignableStaffResponse = {
+  location_node?: string | null;
+  location_node_name?: string | null;
+  location_level_name?: string | null;
+  count: number;
+  staff: AssignableStaffOption[];
+};
+
+export type HierarchyNode = {
+  unique_id: string;
+  level_id: string;
+  level_name?: string | null;
+  level_order?: number | null;
+  parent_id?: string | null;
+  parent_name?: string | null;
+  name: string;
+  code?: string | null;
+  is_active?: boolean;
+};
+
+export type ComplaintNotificationEventType =
+  | "ASSIGNED"
+  | "ESCALATED"
+  | "ESCALATED_TO"
+  | "RESOLVED"
+  | "REOPENED"
+  | string;
+
+export type ComplaintNotification = {
+  unique_id: string;
+  ticket?: ApiId | null;
+  ticket_no?: string | null;
+  ticket_status_code?: string | null;
+  event_type: ComplaintNotificationEventType;
+  event_type_display?: string;
+  title: string;
+  message?: string | null;
+  is_read: boolean;
+  read_at?: string | null;
+  created_at: string;
+};

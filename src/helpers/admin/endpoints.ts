@@ -114,6 +114,7 @@ export const adminEndpoints = {
      COMPLAINT TICKETING
   ========================= */
   complaintTickets: "complaint-ticket/tickets",
+  complaintModules: "complaint-ticket/modules",
   complaintCategories: "complaint-ticket/categories",
   complaintSubcategories: "complaint-ticket/subcategories",
   complaintPriorities: "complaint-ticket/priorities",
@@ -126,6 +127,7 @@ export const adminEndpoints = {
   complaintFeedback: "complaint-ticket/feedback",
   complaintReopenHistory: "complaint-ticket/reopen-history",
   complaintAddressChange: "complaint-ticket/address-change",
+  complaintNotifications: "complaint-ticket/notifications",
 
   /* =========================
      TRANSPORT MASTERS

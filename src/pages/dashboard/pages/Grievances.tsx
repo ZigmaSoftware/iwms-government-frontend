@@ -334,7 +334,7 @@ export default function Grievances() {
   );
 
   const tabsListClass = cn(
-    "grid w-full grid-cols-4 rounded-xl p-1",
+    "grid w-full grid-cols-2 sm:grid-cols-4 rounded-xl p-1",
     isDarkMode ? "bg-slate-900/70 border border-slate-800" : "bg-slate-100"
   );
 

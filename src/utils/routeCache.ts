@@ -8,6 +8,7 @@ export type EncryptedRoutes = {
   encCollectionMonitoring: string;
   encPanchayatBaseCollection: string;
   encComplaint: string;
+  encComplaintModules: string;
   encComplaintCategories: string;
   encComplaintSubcategories: string;
   encComplaintFeedback: string;
@@ -16,6 +17,7 @@ export type EncryptedRoutes = {
   encComplaintStatuses: string;
   encComplaintSources: string;
   encComplaintTeams: string;
+  encComplaintSlaRules: string;
   encContinents: string;
   encCountries: string;
   encBins: string;
@@ -124,6 +126,7 @@ const plainRoutes: EncryptedRoutes = {
   encCollectionMonitoring: "collection-monitoring",
   encPanchayatBaseCollection: "panchayat-base-collection",
   encComplaint: "complaint",
+  encComplaintModules: "modules",
   encComplaintCategories: "categories",
   encComplaintSubcategories: "subcategories",
   encComplaintFeedback: "feedback",
@@ -132,6 +135,7 @@ const plainRoutes: EncryptedRoutes = {
   encComplaintStatuses: "statuses",
   encComplaintSources: "sources",
   encComplaintTeams: "teams",
+  encComplaintSlaRules: "sla-rules",
   encContinents: "continents",
   encCountries: "countries",
   encBins: "bins",

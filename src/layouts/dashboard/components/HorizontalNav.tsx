@@ -17,7 +17,7 @@ const {
   encDashboardBins,
 } = getEncryptedRoute();
 
-const menuItems = [
+export const menuItems = [
   { labelKey: "dashboard.nav.dashboard", url: "/dashboard", icon: LayoutDashboard, moduleName: null },
   { labelKey: "dashboard.nav.overall", url: `/dashboard/${encDashboardOverall}`, icon: BarChart3, moduleName: "dashboard-overall" },
   { labelKey: "dashboard.nav.live_map", url: `/dashboard/${encDashboardLiveMap}`, icon: MapPin, moduleName: "dashboard-map" },
@@ -32,8 +32,7 @@ const menuItems = [
 ];
 
 
-export function HorizontalNav() {
-  const { t } = useTranslation();
+export function useDashboardActiveNav() {
   const location = useLocation();
   const pathSegments = location.pathname.split("/").filter(Boolean);
   const currentModuleName = pathSegments[0] === "dashboard" && pathSegments[1]
@@ -41,10 +40,18 @@ export function HorizontalNav() {
     : null;
   const isDashboardHome = location.pathname === "/dashboard";
 
+  return (item: (typeof menuItems)[number]) =>
+    item.moduleName === null ? isDashboardHome : currentModuleName === item.moduleName;
+}
+
+export function HorizontalNav() {
+  const { t } = useTranslation();
+  const isItemActive = useDashboardActiveNav();
+
   return (
-    <nav className="flex items-center gap-1">
+    <nav className="hidden lg:flex items-center gap-1">
       {menuItems.map((item) => {
-        const isActive = item.moduleName === null ? isDashboardHome : currentModuleName === item.moduleName;
+        const isActive = isItemActive(item);
 
         return (
           <Link

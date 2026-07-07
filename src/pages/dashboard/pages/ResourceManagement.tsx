@@ -282,13 +282,13 @@ export default function ResourceManagement() {
   };
 
   return (
-    <div className="h-[calc(100vh-80px)] overflow-hidden pb-4 pr-2 relative">
+    <div className="flex flex-col lg:h-[calc(100vh-80px)] lg:overflow-hidden pb-4 pr-2 relative">
       <div className="absolute inset-0 -z-10 bg-gradient-to-br from-white via-slate-50 to-sky-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900" />
       <div className="absolute inset-y-0 right-12 -z-10 w-64 blur-3xl opacity-50 bg-gradient-to-b from-sky-100 via-blue-50 to-emerald-100 dark:from-slate-800 dark:via-slate-900 dark:to-emerald-900/30 animate-pulse" />
-      <div className="grid grid-cols-12 gap-4 h-full">
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-12 lg:h-full">
 
         {/* LEFT PANEL — 30% */}
-        <div className="col-span-3 border-r border-border/30 pr-4 pl-2 flex flex-col gap-4 overflow-y-auto bg-white/80 dark:bg-slate-950/70 backdrop-blur rounded-3xl shadow-lg shadow-primary/5 dark:shadow-black/30 relative">
+        <div className="lg:col-span-3 border-r border-border/30 pr-4 pl-2 flex flex-col gap-4 lg:overflow-y-auto bg-white/80 dark:bg-slate-950/70 backdrop-blur rounded-3xl shadow-lg shadow-primary/5 dark:shadow-black/30 relative">
           <div className="absolute inset-0 rounded-3xl bg-gradient-to-b from-primary/5 via-transparent to-transparent dark:from-slate-900/60 opacity-70 pointer-events-none animate-pulse" />
 
           <div className="space-y-4 relative pt-4">
@@ -385,8 +385,8 @@ export default function ResourceManagement() {
         </div>
 
         {/* RIGHT PANEL — 70% */}
-        <div className="col-span-9 overflow-y-auto pl-2 flex flex-col gap-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mt-8">
+        <div className="lg:col-span-9 lg:overflow-y-auto pl-2 flex flex-col gap-4">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mt-8">
             {workforceStats.map((stat) => {
               const valueSize = stat.emphasis ? "text-4xl font-bold" : "text-3xl font-semibold";
               const accentOpacity = stat.emphasis ? "opacity-60" : "opacity-35";

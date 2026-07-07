@@ -21,13 +21,13 @@ export function ProjectSelectorBar() {
   const isMultiCompany = companies.length > 1;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-background/70 px-4 py-2.5 backdrop-blur-sm shadow-sm mb-4">
+    <div className="mb-4 flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-background/70 px-3 py-2.5 shadow-sm backdrop-blur-sm sm:flex-row sm:flex-wrap sm:items-center sm:px-4">
       {/* Company */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
         {isMultiCompany ? (
           <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-w-[140px]"
+            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring sm:min-w-[140px]"
             value={companyId}
             onChange={(e) => setCompanyId(e.target.value)}
             disabled={loading}
@@ -40,7 +40,7 @@ export function ProjectSelectorBar() {
             ))}
           </select>
         ) : (
-          <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
+          <span className="max-w-full truncate text-sm font-medium text-foreground sm:max-w-[200px]">
             {companyName || "—"}
           </span>
         )}
@@ -49,11 +49,11 @@ export function ProjectSelectorBar() {
       <span className="text-muted-foreground/40 hidden sm:block">|</span>
 
       {/* Project */}
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
         <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
         {projects.length > 1 ? (
           <select
-            className="h-8 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring min-w-[140px]"
+            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring sm:min-w-[140px]"
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             disabled={loading}
@@ -65,7 +65,7 @@ export function ProjectSelectorBar() {
             ))}
           </select>
         ) : (
-          <span className="text-sm font-medium text-foreground truncate max-w-[200px]">
+          <span className="max-w-full truncate text-sm font-medium text-foreground sm:max-w-[200px]">
             {projects[0]?.name ?? "—"}
           </span>
         )}
