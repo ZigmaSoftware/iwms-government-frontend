@@ -16,6 +16,7 @@ import type {
   ComplaintTicket,
   Grievance,
   HierarchyNode,
+  PublicGrievanceLocationNode,
   PublicGrievanceMeta,
   PublicGrievanceResponse,
 } from "./types";
@@ -126,6 +127,17 @@ export async function fetchGrievances(signal?: AbortSignal) {
 export const publicGrievanceApi = {
   meta: async (signal?: AbortSignal) => {
     const { data } = await api.get<PublicGrievanceMeta>("/publicgrivence/meta/", {
+      signal,
+    });
+    return data;
+  },
+  districts: async (signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceLocationNode[]>("/publicgrivence/districts/", { signal });
+    return data;
+  },
+  cities: async (districtNodeId: string, signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceLocationNode[]>("/publicgrivence/cities/", {
+      params: { district: districtNodeId },
       signal,
     });
     return data;

@@ -211,6 +211,7 @@ export default function TicketList() {
             "profile_name",
             "wa_phone",
             "category_name",
+            "waste_type_name",
             "subcategory_name",
             "status_name",
             "priority_code",
@@ -243,6 +244,7 @@ export default function TicketList() {
           <Column header="Customer" body={(row) => row.customer_name || row.profile_name || "-"} sortable sortField="customer_name" />
           <Column field="wa_phone" header="Phone" />
           <Column field="category_name" header="Category" sortable />
+          <Column field="waste_type_name" header="Waste Type" sortable />
           <Column field="subcategory_name" header="Subcategory" />
           <Column header="District" body={(row) => row.district_name || "-"} sortable sortField="district_name" />
           <Column header="City" body={(row) => row.city_name || "-"} sortable sortField="city_name" />
@@ -292,6 +294,11 @@ export default function TicketList() {
                       {row.category_name && (
                         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
                           {row.category_name}
+                        </span>
+                      )}
+                      {row.waste_type_name && (
+                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-700">
+                          {row.waste_type_name}
                         </span>
                       )}
                       {row.priority_code && (

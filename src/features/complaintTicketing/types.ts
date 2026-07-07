@@ -30,6 +30,9 @@ export type ComplaintTicket = {
   category: ApiId;
   category_name?: string | null;
   category_code?: string | null;
+  waste_types?: ApiId[] | null;
+  waste_type_names?: string[] | null;
+  waste_type_name?: string | null;
   subcategory?: ApiId | null;
   subcategory_name?: string | null;
   priority: ApiId;
@@ -244,16 +247,18 @@ export type ComplaintAttachment = {
   created?: string;
 };
 
-export type PublicGrievanceCategory = {
+export type PublicGrievanceWasteType = {
   unique_id: string;
-  category_code: string;
-  category_name: string;
-  requires_location?: boolean;
-  requires_media?: boolean;
+  waste_type_name: string;
+};
+
+export type PublicGrievanceLocationNode = {
+  unique_id: string;
+  name: string;
 };
 
 export type PublicGrievanceMeta = {
-  categories: PublicGrievanceCategory[];
+  waste_types: PublicGrievanceWasteType[];
 };
 
 export type PublicGrievanceResponse = {

@@ -20,6 +20,9 @@ import {
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteTypeApi } from "@/helpers/admin";
+import { complaintPriorityApi, complaintTeamApi } from "@/features/complaintTicketing/api";
+import { asArray } from "@/pages/admin/modules/complaintTicketing/utils";
+import type { ComplaintPriority, ComplaintTeam } from "@/features/complaintTicketing/types";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encWasteTypes);
@@ -30,6 +33,11 @@ const toStringOrEmpty = (value: unknown): string =>
 const WASTE_TYPE_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
   is_active: ["is_active"],
+  default_team: ["default_team"],
+  default_priority: ["default_priority"],
+  assign_within_minutes: ["assign_within_minutes"],
+  resolve_within_minutes: ["resolve_within_minutes"],
+  working_hours_only: ["working_hours_only"],
 };
 
 export default function WasteTypeForm() {
@@ -44,6 +52,19 @@ export default function WasteTypeForm() {
   const [isActive, setIsActive] = useState(true);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [teams, setTeams] = useState<ComplaintTeam[]>([]);
+  const [priorities, setPriorities] = useState<ComplaintPriority[]>([]);
+  const [defaultTeam, setDefaultTeam] = useState("");
+  const [defaultPriority, setDefaultPriority] = useState("");
+  const [assignWithinMinutes, setAssignWithinMinutes] = useState("");
+  const [resolveWithinMinutes, setResolveWithinMinutes] = useState("");
+  const [workingHoursOnly, setWorkingHoursOnly] = useState(false);
+
+  useEffect(() => {
+    complaintTeamApi.readAll().then((res) => setTeams(asArray(res))).catch(() => {});
+    complaintPriorityApi.readAll().then((res) => setPriorities(asArray(res))).catch(() => {});
+  }, []);
 
   const extractErr = useCallback(
     (error: unknown): string => {
@@ -74,6 +95,11 @@ export default function WasteTypeForm() {
           toStringOrEmpty(res.waste_type_name ?? res.name ?? res.property_name),
         );
         setIsActive(Boolean(res.is_active));
+        setDefaultTeam(toStringOrEmpty(res.default_team));
+        setDefaultPriority(toStringOrEmpty(res.default_priority));
+        setAssignWithinMinutes(toStringOrEmpty(res.assign_within_minutes));
+        setResolveWithinMinutes(toStringOrEmpty(res.resolve_within_minutes));
+        setWorkingHoursOnly(Boolean(res.working_hours_only));
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -105,6 +131,11 @@ export default function WasteTypeForm() {
     const rawPayload = {
       waste_type_name: wasteTypeName.trim(),
       is_active: isActive,
+      default_team: defaultTeam || null,
+      default_priority: defaultPriority || null,
+      assign_within_minutes: assignWithinMinutes ? Number(assignWithinMinutes) : null,
+      resolve_within_minutes: resolveWithinMinutes ? Number(resolveWithinMinutes) : null,
+      working_hours_only: workingHoursOnly,
     };
     const payload = filterPayload(rawPayload) as typeof rawPayload;
 
@@ -155,6 +186,76 @@ export default function WasteTypeForm() {
               <SelectContent>
                 <SelectItem value="true">{t("common.active")}</SelectItem>
                 <SelectItem value="false">{t("common.inactive")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* Public grievance routing: team/priority/SLA this waste type is assigned to */}
+        {showField("default_team") && (
+          <div>
+            <Label>Default Team</Label>
+            <Select value={defaultTeam || "__none__"} onValueChange={(v) => setDefaultTeam(v === "__none__" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {teams.map((team) => (
+                  <SelectItem key={team.unique_id} value={team.unique_id}>{team.team_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("default_priority") && (
+          <div>
+            <Label>Default Priority</Label>
+            <Select value={defaultPriority || "__none__"} onValueChange={(v) => setDefaultPriority(v === "__none__" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {priorities.map((priority) => (
+                  <SelectItem key={priority.unique_id} value={priority.unique_id}>{priority.priority_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {showField("assign_within_minutes") && (
+          <div>
+            <Label>Assign Within (minutes)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={assignWithinMinutes}
+              onChange={(e) => setAssignWithinMinutes(e.target.value)}
+              placeholder="e.g. 60"
+            />
+          </div>
+        )}
+
+        {showField("resolve_within_minutes") && (
+          <div>
+            <Label>Resolve Within (minutes)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={resolveWithinMinutes}
+              onChange={(e) => setResolveWithinMinutes(e.target.value)}
+              placeholder="e.g. 1440"
+            />
+          </div>
+        )}
+
+        {showField("working_hours_only") && (
+          <div>
+            <Label>Count Only Working Hours</Label>
+            <Select value={workingHoursOnly ? "true" : "false"} onValueChange={(v) => setWorkingHoursOnly(v === "true")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="true">Yes</SelectItem>
+                <SelectItem value="false">No</SelectItem>
               </SelectContent>
             </Select>
           </div>
