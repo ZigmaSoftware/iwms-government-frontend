@@ -72,11 +72,10 @@ import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/month
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
 import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
 import MonthlyWasteComparisonForm from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonForm";
-import ComplaintsList from "@/pages/admin/modules/citizienGrievance/complaints/complaintsList";
-import ComplaintAddForm from "@/pages/admin/modules/citizienGrievance/complaints/complaintsForm";
-import ComplaintEditForm from "@/pages/admin/modules/citizienGrievance/complaints/complaintsEditForm";
-import FeedBackFormList from "@/pages/admin/modules/citizienGrievance/feedback/feedBackFormListPage";
-import FeedBackForm from "@/pages/admin/modules/citizienGrievance/feedback/feedBackForm";
+import TicketList from "@/pages/admin/modules/complaintTicketing/tickets/TicketList";
+import TicketForm from "@/pages/admin/modules/complaintTicketing/tickets/TicketForm";
+import TicketDetail from "@/pages/admin/modules/complaintTicketing/tickets/TicketDetail";
+import FeedbackList from "@/pages/admin/modules/complaintTicketing/feedback/FeedbackList";
 import FuelList from "@/pages/admin/modules/transportMasters/fuel/fuelListPage";
 import FuelForm from "@/pages/admin/modules/transportMasters/fuel/fuelForm";
 import VehicleTypeCreation from "@/pages/admin/modules/transportMasters/vehicleTypecreation/vehicle-typeCreationList";
@@ -112,10 +111,22 @@ import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/was
 import StaffUserTypeForm from "@/pages/admin/modules/admin/staffUserType/staffUserTypeForm";
 import StaffUserTypeList from "@/pages/admin/modules/admin/staffUserType/staffUserTypeList";
 
-import MainComplaintCategoryList from "@/pages/admin/modules/citizienGrievance/mainCategory/main-categoryList";
-import { MainComplaintCategoryForm } from "@/pages/admin/modules/citizienGrievance/mainCategory/main-categoryForm";
-import SubCategoryComplaintList from "@/pages/admin/modules/citizienGrievance/subCategory/sub-categoryList";
-import SubCategoryComplaintForm from "@/pages/admin/modules/citizienGrievance/subCategory/sub-categoryForm";
+import CategoryList from "@/pages/admin/modules/complaintTicketing/category/CategoryList";
+import CategoryForm from "@/pages/admin/modules/complaintTicketing/category/CategoryForm";
+import SubcategoryList from "@/pages/admin/modules/complaintTicketing/subcategory/SubcategoryList";
+import SubcategoryForm from "@/pages/admin/modules/complaintTicketing/subcategory/SubcategoryForm";
+import ModuleList from "@/pages/admin/modules/complaintTicketing/masters/ModuleList";
+import ModuleForm from "@/pages/admin/modules/complaintTicketing/masters/ModuleForm";
+import PriorityList from "@/pages/admin/modules/complaintTicketing/masters/PriorityList";
+import PriorityForm from "@/pages/admin/modules/complaintTicketing/masters/PriorityForm";
+import StatusList from "@/pages/admin/modules/complaintTicketing/masters/StatusList";
+import StatusForm from "@/pages/admin/modules/complaintTicketing/masters/StatusForm";
+import SourceList from "@/pages/admin/modules/complaintTicketing/masters/SourceList";
+import SourceForm from "@/pages/admin/modules/complaintTicketing/masters/SourceForm";
+import TeamList from "@/pages/admin/modules/complaintTicketing/masters/TeamList";
+import TeamForm from "@/pages/admin/modules/complaintTicketing/masters/TeamForm";
+import SlaRuleList from "@/pages/admin/modules/complaintTicketing/masters/SlaRuleList";
+import SlaRuleForm from "@/pages/admin/modules/complaintTicketing/masters/SlaRuleForm";
 import MainScreenTypeList from "@/pages/admin/modules/admin/mainScreenType/mainScreenTypeList";
 import MainScreenTypeForm from "@/pages/admin/modules/admin/mainScreenType/mainScreenTypeForm";
 import UserScreenActionList from "@/pages/admin/modules/admin/userScreenAction/userScreenActionList";
@@ -246,11 +257,17 @@ const ROUTES: RouteMap = {
     "date-report": { component: DateReport },
     "day-report": { component: DayReport },
   },
-  "citizen-grievance": {
-    complaint: { list: ComplaintsList, form: ComplaintAddForm, editForm: ComplaintEditForm },
-    "main-complaint-category": { list: MainComplaintCategoryList, form: MainComplaintCategoryForm },
-    "sub-complaint-category": { list: SubCategoryComplaintList, form: SubCategoryComplaintForm },
-    feedback: { list: FeedBackFormList, form: FeedBackForm },
+  "complaint-ticket": {
+    complaint: { list: TicketList, form: TicketForm, editForm: TicketDetail },
+    modules: { list: ModuleList, form: ModuleForm },
+    categories: { list: CategoryList, form: CategoryForm },
+    subcategories: { list: SubcategoryList, form: SubcategoryForm },
+    priorities: { list: PriorityList, form: PriorityForm },
+    statuses: { list: StatusList, form: StatusForm },
+    sources: { list: SourceList, form: SourceForm },
+    teams: { list: TeamList, form: TeamForm },
+    "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
+    feedback: { list: FeedbackList },
   },
   audits: {
     "common-audit": { list: CommonAuditList },
@@ -278,7 +295,6 @@ const MASTER_ALIASES: Record<string, string[]> = {
   "user-creations": ["staff-masters"],
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
-  grivences: ["citizen-grievance"],
   "common-masters": ["masters"],
   "waste-types": ["masters"],
   assets: ["masters"],
@@ -307,6 +323,11 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "daily-trip-household-collections": ["daily-trip-household-collection"],
   "bin-collection-events": ["bin-collection-event"],
   "daily-trip-logs": ["daily-trip-log"],
+  "sla-rules": ["sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
+  "sla-rule": ["sla-rules", "sla_rules", "slaRules", "slarules", "sla"],
+  sla_rules: ["sla-rules", "sla-rule", "slaRules", "slarules", "sla"],
+  slaRules: ["sla-rules", "sla-rule", "sla_rules", "slarules", "sla"],
+  slarules: ["sla-rules", "sla-rule", "sla_rules", "slaRules", "sla"],
 };
 
 const resolveRouteConfig = (

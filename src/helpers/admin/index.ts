@@ -77,10 +77,6 @@ export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
 
 /* =========================
-   PROCESS
-========================= */
-
-/* =========================
    AUTHENTICATION
 ========================= */
 export const loginApi = adminApi.loginUser;
@@ -96,11 +92,20 @@ export const feedbackApi = adminApi.feedbacks;
 // export const collectionMonitoringApi = adminApi.pointCollections;
 
 /* =========================
-   GRIEVANCES
+   COMPLAINT TICKETING
 ========================= */
-export const complaintApi = adminApi.complaints;
-export const mainCategoryApi = adminApi.mainCategory;
-export const subCategoryApi = adminApi.subCategory;
+export const complaintTicketApi = adminApi.complaintTickets;
+export const complaintModuleApi = adminApi.complaintModules;
+export const complaintCategoryApi = adminApi.complaintCategories;
+export const complaintSubcategoryApi = adminApi.complaintSubcategories;
+export const complaintPriorityApi = adminApi.complaintPriorities;
+export const complaintStatusApi = adminApi.complaintStatuses;
+export const complaintSourceApi = adminApi.complaintSources;
+export const complaintLanguageApi = adminApi.complaintLanguages;
+export const complaintTeamApi = adminApi.complaintTeams;
+export const complaintSlaRuleApi = adminApi.complaintSlaRules;
+export const complaintRoutingRuleApi = adminApi.complaintRoutingRules;
+export const complaintFeedbackApi = adminApi.complaintFeedback;
 
 /* =========================
    TRANSPORT MASTERS

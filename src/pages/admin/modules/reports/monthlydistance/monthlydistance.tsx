@@ -411,7 +411,7 @@ export default function MonthlyDistance() {
             header={renderHeader()}
             stripedRows
             showGridlines
-            responsiveLayout="scroll"
+            responsiveLayout="stack"
             globalFilterFields={["vehicleId"]}
             className="p-datatable-sm"
           >

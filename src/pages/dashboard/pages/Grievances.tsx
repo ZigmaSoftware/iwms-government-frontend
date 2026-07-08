@@ -28,10 +28,10 @@ import {
 } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchGrievances } from "@/features/grievances/api";
-import { AttachmentPreview } from "@/features/grievances/components/AttachmentPreview";
-import { InfoField } from "@/features/grievances/components/InfoField";
-import type { Grievance } from "@/features/grievances/types";
+import { fetchGrievances } from "@/features/complaintTicketing/api";
+import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
+import { InfoField } from "@/features/complaintTicketing/components/InfoField";
+import type { Grievance } from "@/features/complaintTicketing/types";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -334,7 +334,7 @@ export default function Grievances() {
   );
 
   const tabsListClass = cn(
-    "grid w-full grid-cols-4 rounded-xl p-1",
+    "grid w-full grid-cols-2 sm:grid-cols-4 rounded-xl p-1",
     isDarkMode ? "bg-slate-900/70 border border-slate-800" : "bg-slate-100"
   );
 
