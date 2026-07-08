@@ -843,7 +843,16 @@ const enResource = {
           "feedback": "Feedback",
           "customer_tag": "Customer Tag",
           "household_pickup_event": "Household Pickup Event",
-          "citizen_grievance": "Citizen Grievance",
+          "complaint_ticket": "Complaint Ticketing",
+          "complaint_tickets": "Complaint Tickets",
+          "modules": "Modules",
+          "categories": "Categories",
+          "subcategories": "Subcategories",
+          "priorities": "Priorities",
+          "statuses": "Statuses",
+          "sources": "Sources",
+          "teams": "Teams",
+          "sla_rules": "SLA Rules",
           "complaints": "Complaints",
           "main_category": "Main Category",
           "sub_category": "Sub Category",
@@ -887,7 +896,8 @@ const enResource = {
           "waste_collected_summary": "Waste Collected Summary",
           "monthly_waste_comparison": "Monthly Waste Comparison",
           "leader_login": "Leader Login",
-          "plb_leader_creation": "PLB Leader Creation"
+          "plb_leader_creation": "PLB Leader Creation",
+          "district_leader_creation": "District Leader Creation"
         },
         "project": {
           "company_id": "Company ID",

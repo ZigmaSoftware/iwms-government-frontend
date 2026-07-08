@@ -3,11 +3,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { adminApi, type AdminEntity } from "./registry";
 import {
-  complaintApi,
+  complaintCategoryApi,
+  complaintSubcategoryApi,
+  complaintTicketApi,
   customerCreationApi,
-  mainCategoryApi,
   roleTypesApi,
-  subCategoryApi,
   userScreenPermissionApi,
 } from ".";
 
@@ -366,15 +366,15 @@ export const useFuelQuery = (id: string | number | null | undefined) => useDetai
 export const useCreateFuelMutation = () => useCreate<FuelPayload, FuelRecord>("fuels");
 export const useUpdateFuelMutation = () => useUpdate<FuelPayload, FuelRecord>("fuels");
 
-export const useMainCategoriesQuery = (_companyId?: string) => useList<AdminRecord>("mainCategory");
-export const useMainCategoryQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("mainCategory", id);
-export const useCreateMainCategoryMutation = (_companyId?: string) => useCreate("mainCategory");
-export const useUpdateMainCategoryMutation = (_companyId?: string) => useUpdate("mainCategory");
+export const useMainCategoriesQuery = (_companyId?: string) => useList<AdminRecord>("complaintCategories");
+export const useMainCategoryQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("complaintCategories", id);
+export const useCreateMainCategoryMutation = (_companyId?: string) => useCreate("complaintCategories");
+export const useUpdateMainCategoryMutation = (_companyId?: string) => useUpdate("complaintCategories");
 
-export const useSubCategoriesQuery = (_companyId?: string) => useList<AdminRecord>("subCategory");
-export const useSubCategoryQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("subCategory", id);
-export const useCreateSubCategoryMutation = (_companyId?: string) => useCreate("subCategory");
-export const useUpdateSubCategoryMutation = (_companyId?: string) => useUpdate("subCategory");
+export const useSubCategoriesQuery = (_companyId?: string) => useList<AdminRecord>("complaintSubcategories");
+export const useSubCategoryQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("complaintSubcategories", id);
+export const useCreateSubCategoryMutation = (_companyId?: string) => useCreate("complaintSubcategories");
+export const useUpdateSubCategoryMutation = (_companyId?: string) => useUpdate("complaintSubcategories");
 
 export const useUserTypesQuery = () => useList<AdminRecord>("userTypes");
 export const useUserTypeQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("userTypes", id);
@@ -482,13 +482,13 @@ export const useUpdateFeedbackMutation = () => useUpdate<FeedbackPayload, Feedba
 
 export const useCommonAuditsQuery = () => useList<CommonAuditRecord>("commonAudits");
 
-export const useComplaintsList = () => useList<any>("complaints");
-export const useComplaintQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("complaints", id);
-export const useUpdateComplaint = () => useUpdate("complaints");
+export const useComplaintsList = () => useList<any>("complaintTickets");
+export const useComplaintQuery = (id: string | number | null | undefined) => useDetail<AdminRecord>("complaintTickets", id);
+export const useUpdateComplaint = () => useUpdate("complaintTickets");
 export const useCreateComplaint = () =>
   useMutationAction<FormData, AdminRecord>(
     (payload) =>
-      complaintApi.create(payload, {
+      complaintTicketApi.create(payload, {
         headers: { "Content-Type": "multipart/form-data" },
       }) as Promise<AdminRecord>,
     ["complaints"]
@@ -502,7 +502,7 @@ export const useComplaintCustomers = () =>
 export const useComplaintMainCategories = (_companyId: string) =>
   useDirectQuery<any[]>(
     async () =>
-      toList<AdminRecord>(await mainCategoryApi.readAll()).filter(
+      toList<AdminRecord>(await complaintCategoryApi.readAll()).filter(
         (row) => row?.is_active !== false
       ),
     [],
@@ -511,7 +511,7 @@ export const useComplaintMainCategories = (_companyId: string) =>
 export const useComplaintAllSubCategories = (_companyId: string) =>
   useDirectQuery<any[]>(
     async () =>
-      toList<AdminRecord>(await subCategoryApi.readAll()).filter(
+      toList<AdminRecord>(await complaintSubcategoryApi.readAll()).filter(
         (row) => row?.is_active !== false
       ),
     [],

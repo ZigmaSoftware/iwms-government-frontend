@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { HorizontalNav } from "@/layouts/dashboard/components/HorizontalNav";
+import { MobileNavSheet } from "@/layouts/dashboard/components/MobileNavSheet";
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/ui/PageLoader";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -66,7 +67,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const AdminViewIcon = role === "superadmin" ? Crown : ShieldCheck;
 
   return (
-    <div className="flex min-h-screen w-full   flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="flex min-h-screen w-full min-w-0 flex-col bg-gray-50 dark:bg-gray-900">
 
       {/* TOPBAR */}
       <header
@@ -77,10 +78,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           shadow-sm
         "
       >
-        <div className="flex h-16 items-center justify-between px-2 md:px-4 lg:px-6">
+        <div className="flex h-16 min-w-0 items-center justify-between gap-2 px-2 md:px-4 lg:px-6">
 
           {/* LOGO */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <img
               src={ZigmaLogo}
               alt="Zigma Logo"
@@ -91,8 +92,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </h1> */}
           </div>
 
-          {/* NAVIGATION + ACTIONS */}
-          <div className="flex items-center gap-2">
+          {/* NAVIGATION + ACTIONS (desktop) */}
+          <div className="hidden items-center gap-2 lg:flex">
 
             {/* NAVIGATION */}
             <HorizontalNav />
@@ -133,8 +134,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               onClick={handleSignOut}
               className="
                 rainbow-border
-                flex items-center gap-1 
-                rounded-md 
+                flex items-center gap-1
+                rounded-md
                 border-gray-300 dark:border-gray-600
                 hover:bg-gray-100 dark:hover:bg-gray-800
                 transition-all
@@ -144,11 +145,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </Button>
           </div>
 
+          {/* NAVIGATION + ACTIONS (mobile) */}
+          <div className="flex items-center lg:hidden">
+            <MobileNavSheet
+              canSwitchToAdmin={canSwitchToAdmin}
+              onSwitchToAdmin={handleSwitchToAdmin}
+              onSignOut={handleSignOut}
+              adminViewIcon={AdminViewIcon}
+            />
+          </div>
+
         </div>
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 p-2 md:p-4 lg:p-6">
+      <main className="min-w-0 flex-1 overflow-x-hidden p-2 md:p-4 lg:p-6">
         {isNavigating ? (
           <PageLoader fullHeight message={t("common.loading_dashboard")} />
         ) : (

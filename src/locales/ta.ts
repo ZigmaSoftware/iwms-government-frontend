@@ -856,7 +856,16 @@ const taResource = {
           "collection_monitoring": "சேகரிப்பு கண்காணிப்பு",
           "panchayat_base_collection": "PLB பேஸ் கலெக்ஷன்",
           "ward_base_collection": "வார்டு பேஸ் கலெக்ஷன்",
-          "citizen_grievance": "குடிமக்கள் புகார்",
+          "complaint_ticket": "புகார் டிக்கெட்",
+          "complaint_tickets": "புகார் டிக்கெட்டுகள்",
+          "modules": "Modules",
+          "categories": "வகைகள்",
+          "subcategories": "துணை வகைகள்",
+          "priorities": "முன்னுரிமைகள்",
+          "statuses": "நிலைகள்",
+          "sources": "மூலங்கள்",
+          "teams": "குழுக்கள்",
+          "sla_rules": "SLA Rules",
           "complaints": "புகார்கள்",
           "main_category": "முதன்மை வகை",
           "sub_category": "துணை வகை",
@@ -869,7 +878,8 @@ const taResource = {
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
           "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு",
           "leader_login": "தலைவர் உள்நுழைவு",
-          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்"
+          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்",
+          "district_leader_creation": "மாவட்ட தலைவர் உருவாக்கம்"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",

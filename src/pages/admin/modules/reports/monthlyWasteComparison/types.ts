@@ -5,8 +5,8 @@ export type ReportRow = {
   project_id?: string;
   project_name?: string;
   month: string;
-  panchayat_id: string;
-  panchayat_name?: string;
+  location_node_id: string;
+  location_node_name?: string;
   waste_type: string;
   total_agreed_weight: number;
   total_actual_weight: number;
@@ -23,7 +23,7 @@ export type ReportRow = {
 export type ReportResponse = {
   results: ReportRow[];
   monthly_trends: Array<Record<string, number | string>>;
-  panchayat_comparison: Array<Record<string, number | string>>;
+  location_comparison: Array<Record<string, number | string>>;
   kpis: {
     total_agreed_weight: number;
     total_actual_weight: number;

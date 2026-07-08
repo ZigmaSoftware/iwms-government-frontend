@@ -136,7 +136,6 @@ export function HomeDashboard() {
   };
 
   const isMapMaximized = mapSize === "max";
-  const mapContainerHeight = "80%";
   const mapCard = (
     <DataCard
       className={`h-full overflow-hidden flex flex-col ${
@@ -197,14 +196,14 @@ export function HomeDashboard() {
   );
 
   return (
-    <div className="h-full min-h-0 overflow-hidden flex flex-col">
+    <div className="flex min-w-0 flex-col lg:min-h-[calc(100vh-7rem)]">
       <ProjectSelectorBar />
-      <DataCard className="h-full overflow-hidden">
+      <DataCard className="overflow-visible lg:flex-1 lg:overflow-hidden">
 
-        <div className="grid grid-cols-12 gap-3 h-full overflow-hidden">
+        <div className="flex min-w-0 flex-col gap-3 lg:grid lg:h-full lg:grid-cols-12 lg:overflow-hidden">
 
           {/* LEFT PANEL */}
-          <div className="col-span-3 space-y-3 h-full overflow-y-auto pr-1">
+          <div className="order-2 min-w-0 space-y-3 lg:order-0 lg:col-span-3 lg:h-full lg:overflow-y-auto lg:pr-1">
             <div className="space-y-4">
               <WastePieChart />
               <DataCard
@@ -222,7 +221,7 @@ export function HomeDashboard() {
                   </button>
                 }
               >
-                <div className="grid grid-cols-3 gap-2 text-center text-xs font-medium">
+                <div className="grid grid-cols-1 gap-2 text-center text-xs font-medium sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                   <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
                     <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
                       {t("common.total")}
@@ -255,19 +254,19 @@ export function HomeDashboard() {
           </div>
 
           {/* CENTER (MAP) PANEL */}
-          <div className="col-span-6 flex flex-col gap-3 h-full">
+          <div className="order-1 flex min-w-0 flex-col gap-3 lg:order-0 lg:col-span-6 lg:h-full">
             {isMapMaximized ? (
               <div className="fixed inset-0 z-50 bg-white">
                 {mapCard}
               </div>
             ) : (
-              <div ref={mapSectionRef} style={{ height: mapContainerHeight }}>
+              <div ref={mapSectionRef} className="h-[420px] max-h-[70vh] sm:h-[520px] lg:h-[80%] lg:max-h-none">
                 {mapCard}
               </div>
             )}
 
-            <div style={{ height: "16%" }}>
-              <div className="grid gap-3 mt-1 md:grid-cols-2">
+            <div className="h-auto lg:h-[16%]">
+              <div className="grid gap-3 mt-1 grid-cols-1 md:grid-cols-2">
                 <DataCard
                   compact
                   accent="brand-primary"
@@ -282,7 +281,7 @@ export function HomeDashboard() {
                     </Link>
                   }
                 >
-                  <div className="grid grid-cols-3 gap-2 text-xs font-medium">
+                  <div className="grid grid-cols-1 gap-2 text-xs font-medium sm:grid-cols-3">
                     <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700">
                       <div className="text-[10px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">
                         {t("common.active")}
@@ -316,7 +315,7 @@ export function HomeDashboard() {
           </div>
 
           {/* RIGHT PANEL */}
-          <div className="col-span-3 space-y-3 h-full overflow-y-auto">
+          <div className="order-3 min-w-0 space-y-3 lg:order-0 lg:col-span-3 lg:h-full lg:overflow-y-auto">
             <ComplaintsPanel />
             <VehicleStatusPanel />
             <WeighmentSummary />

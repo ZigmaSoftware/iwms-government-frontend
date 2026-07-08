@@ -854,7 +854,16 @@ const hiResource = {
           "collection_monitoring": "संग्रह मॉनिटरिंग",
           "panchayat_base_collection": "PLB बेस कलेक्शन",
           "ward_base_collection": "वार्ड बेस कलेक्शन",
-          "citizen_grievance": "नागरिक शिकायत",
+          "complaint_ticket": "शिकायत टिकटिंग",
+          "complaint_tickets": "शिकायत टिकट",
+          "modules": "Modules",
+          "categories": "श्रेणियां",
+          "subcategories": "उप श्रेणियां",
+          "priorities": "प्राथमिकताएं",
+          "statuses": "स्थितियां",
+          "sources": "स्रोत",
+          "teams": "टीमें",
+          "sla_rules": "SLA Rules",
           "complaints": "शिकायतें",
           "main_category": "मुख्य श्रेणी",
           "sub_category": "उप श्रेणी",
@@ -868,7 +877,8 @@ const hiResource = {
           "waste_collected_summary": "संग्रहित कचरा सारांश",
           "monthly_waste_comparison": "मासिक कचरा तुलना",
           "leader_login": "नेता लॉगिन",
-          "plb_leader_creation": "PLB नेता निर्माण"
+          "plb_leader_creation": "PLB नेता निर्माण",
+          "district_leader_creation": "ज़िला नेता निर्माण"
         },
         "project": {
           "company_id": "कंपनी आईडी",

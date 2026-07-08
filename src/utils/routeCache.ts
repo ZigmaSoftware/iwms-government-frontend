@@ -4,10 +4,20 @@ export type EncryptedRoutes = {
   encAttendance: string;
   encAdmins: string;
   encAudits: string;
-  encCitizenGrivence: string;
+  encComplaintTicket: string;
   encCollectionMonitoring: string;
   encPanchayatBaseCollection: string;
   encComplaint: string;
+  encComplaintModules: string;
+  encComplaintCategories: string;
+  encComplaintSubcategories: string;
+  encComplaintFeedback: string;
+  encComplaintMasters: string;
+  encComplaintPriorities: string;
+  encComplaintStatuses: string;
+  encComplaintSources: string;
+  encComplaintTeams: string;
+  encComplaintSlaRules: string;
   encContinents: string;
   encCountries: string;
   encBins: string;
@@ -19,7 +29,6 @@ export type EncryptedRoutes = {
   encDistricts: string;
   encFeedback: string;
   encFuel: string;
-  encMainComplaintCategory: string;
   encMasters: string;
   encStaffMasters: string;
   encScheduleMasters: string;
@@ -32,7 +41,6 @@ export type EncryptedRoutes = {
   encStaffCreation: string;
   encStaffUserType: string;
   encStates: string;
-  encSubComplaintCategory: string;
   encSubProperties: string;
   encTripSummary: string;
   encUserCreation: string;
@@ -104,6 +112,8 @@ export type EncryptedRoutes = {
   encPanchayatLeaders: string;
   encLeaderLogin: string;
   encPlbLeaderCreation: string;
+  encDistrictLeaders: string;
+  encDistrictLeaderCreation: string;
   encCorporations: string;
   encMunicipalities: string;
   encTownPanchayats: string;
@@ -114,10 +124,20 @@ const plainRoutes: EncryptedRoutes = {
   encAttendance: "attendance",
   encAdmins: "admins",
   encAudits: "audits",
-  encCitizenGrivence: "citizen-grievance",
+  encComplaintTicket: "complaint-ticket",
   encCollectionMonitoring: "collection-monitoring",
   encPanchayatBaseCollection: "panchayat-base-collection",
   encComplaint: "complaint",
+  encComplaintModules: "modules",
+  encComplaintCategories: "categories",
+  encComplaintSubcategories: "subcategories",
+  encComplaintFeedback: "feedback",
+  encComplaintMasters: "masters",
+  encComplaintPriorities: "priorities",
+  encComplaintStatuses: "statuses",
+  encComplaintSources: "sources",
+  encComplaintTeams: "teams",
+  encComplaintSlaRules: "sla-rules",
   encContinents: "continents",
   encCountries: "countries",
   encBins: "bins",
@@ -134,7 +154,6 @@ const plainRoutes: EncryptedRoutes = {
   encDistricts: "districts",
   encFeedback: "feedback",
   encFuel: "fuel",
-  encMainComplaintCategory: "main-complaint-category",
   encMasters: "masters",
   encStaffMasters: "staff-masters",
   encScheduleMasters: "schedule-masters",
@@ -147,7 +166,6 @@ const plainRoutes: EncryptedRoutes = {
   encStaffCreation: "staff-creation",
   encStaffUserType: "staff-user-type",
   encStates: "states",
-  encSubComplaintCategory: "sub-complaint-category",
   encSubProperties: "sub-properties",
   encTripSummary: "trip-summary",
   encUserCreation: "user-creation",
@@ -202,6 +220,8 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayatLeaders: "panchayat-leaders",
   encLeaderLogin: "leader-login",
   encPlbLeaderCreation: "plb-leader-creation",
+  encDistrictLeaders: "district-leaders",
+  encDistrictLeaderCreation: "district-leader-creation",
   encCorporations: "corporations",
   encMunicipalities: "municipalities",
   encTownPanchayats: "town-panchayats",

@@ -43,9 +43,17 @@ const {
   encTripSummary,
   encWasteCollectedSummary,
   encMonthlyWasteComparison,
-  encCitizenGrivence,
+  encComplaintTicket,
   encComplaint,
   encFeedback,
+  encComplaintModules,
+  encComplaintCategories,
+  encComplaintSubcategories,
+  encComplaintPriorities,
+  encComplaintStatuses,
+  encComplaintSources,
+  encComplaintTeams,
+  encComplaintSlaRules,
   encTransportMaster,
   encScheduleMasters,
   encFuel,
@@ -58,8 +66,6 @@ const {
   encWasteManagementMaster,
   encWorkforceManagement,
   encStaffUserType,
-  encMainComplaintCategory,
-  encSubComplaintCategory,
   encMainScreenType,
   encUserScreenAction,
   encMainScreen,
@@ -84,6 +90,7 @@ const {
   encDailyWasteComparison,
   encLeaderLogin,
   encPlbLeaderCreation,
+  encDistrictLeaderCreation,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -112,7 +119,7 @@ type SidebarSectionKey =
   | "userCreations"
   | "processItems"
   | "customerMasters"
-  | "citizenGrievance"
+  | "complaintTicket"
   | "transportMasters"
   | "scheduleSetup"
   | "scheduleOperations"
@@ -137,13 +144,6 @@ const navItems: NavItem[] = [
   },
 ];
 
-const attendanceItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.attendance",
-    icon: <CalendarCheck size={18} />,
-    path: `/${encAttendance}/${encAttendance}`,
-  },
-];
 
 
 const masterItems: NavItem[] = [
@@ -330,7 +330,7 @@ const customerMasters: NavItem[] = [
       },
       {
         nameKey: "admin.nav.feedback",
-        path: `/${encCitizenGrivence}/${encFeedback}`,
+        path: `/${encComplaintTicket}/${encFeedback}`,
         module: "customers",
         screen: "feedbacks",
       },
@@ -338,30 +338,72 @@ const customerMasters: NavItem[] = [
   },
 ];
 
-const citizenGrievanceItems: NavItem[] = [
+const complaintTicketItems: NavItem[] = [
   {
-    nameKey: "admin.nav.citizen_grievance",
+    nameKey: "admin.nav.complaint_ticket",
     icon: <AlertTriangle size={18} />,
-    module: "grivences",
-    screen: "grivences",
+    module: "complaint-ticket",
+    screen: "complaint-ticket",
     subItems: [
       {
-        nameKey: "admin.nav.complaints",
-        path: `/${encCitizenGrivence}/${encComplaint}`,
-        module: "grivences",
-        screen: "complaints",
+        nameKey: "admin.nav.complaint_tickets",
+        path: `/${encComplaintTicket}/${encComplaint}`,
+        module: "complaint-ticket",
+        screen: "tickets",
       },
       {
-        nameKey: "admin.nav.main_category",
-        path: `/${encCitizenGrivence}/${encMainComplaintCategory}`,
-        module: "grivences",
-        screen: "main-category",
+        nameKey: "admin.nav.modules",
+        path: `/${encComplaintTicket}/${encComplaintModules}`,
+        module: "complaint-ticket",
+        screen: "modules",
       },
       {
-        nameKey: "admin.nav.sub_category",
-        path: `/${encCitizenGrivence}/${encSubComplaintCategory}`,
-        module: "grivences",
-        screen: "sub-category",
+        nameKey: "admin.nav.categories",
+        path: `/${encComplaintTicket}/${encComplaintCategories}`,
+        module: "complaint-ticket",
+        screen: "categories",
+      },
+      {
+        nameKey: "admin.nav.subcategories",
+        path: `/${encComplaintTicket}/${encComplaintSubcategories}`,
+        module: "complaint-ticket",
+        screen: "subcategories",
+      },
+      {
+        nameKey: "admin.nav.priorities",
+        path: `/${encComplaintTicket}/${encComplaintPriorities}`,
+        module: "complaint-ticket",
+        screen: "priorities",
+      },
+      {
+        nameKey: "admin.nav.statuses",
+        path: `/${encComplaintTicket}/${encComplaintStatuses}`,
+        module: "complaint-ticket",
+        screen: "statuses",
+      },
+      {
+        nameKey: "admin.nav.sources",
+        path: `/${encComplaintTicket}/${encComplaintSources}`,
+        module: "complaint-ticket",
+        screen: "sources",
+      },
+      {
+        nameKey: "admin.nav.teams",
+        path: `/${encComplaintTicket}/${encComplaintTeams}`,
+        module: "complaint-ticket",
+        screen: "teams",
+      },
+      {
+        nameKey: "admin.nav.sla_rules",
+        path: `/${encComplaintTicket}/${encComplaintSlaRules}`,
+        module: "complaint-ticket",
+        screen: "sla-rules",
+      },
+      {
+        nameKey: "admin.nav.feedback",
+        path: `/${encComplaintTicket}/${encFeedback}`,
+        module: "complaint-ticket",
+        screen: "feedback",
       },
     ],
   },
@@ -593,6 +635,12 @@ const leaderLoginItems: NavItem[] = [
         module: "leader-login",
         screen: "plb-leader-creation",
       },
+      {
+        nameKey: "admin.nav.district_leader_creation",
+        path: `/${encLeaderLogin}/${encDistrictLeaderCreation}`,
+        module: "leader-login",
+        screen: "district-leader-creation",
+      },
     ],
   },
 ];
@@ -687,7 +735,6 @@ const AppSidebar: React.FC = () => {
     () => {
       const allSections = [
         { key: "main" as const, items: navItems },
-        { key: "attendance" as const, items: attendanceItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },
         { key: "assets" as const, items: assetItems },
@@ -695,7 +742,7 @@ const AppSidebar: React.FC = () => {
         { key: "roleAssigns" as const, items: roleAssignsItems },
         { key: "userCreations" as const, items: userCreationMasters },
         { key: "customerMasters" as const, items: customerMasters },
-        { key: "citizenGrievance" as const, items: citizenGrievanceItems },
+        { key: "complaintTicket" as const, items: complaintTicketItems },
         { key: "transportMasters" as const, items: transportMastersItems },
         { key: "scheduleSetup" as const, items: scheduleSetupItems },
         { key: "scheduleOperations" as const, items: scheduleOperationsItems },
