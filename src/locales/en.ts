@@ -887,7 +887,8 @@ const enResource = {
           "waste_collected_summary": "Waste Collected Summary",
           "monthly_waste_comparison": "Monthly Waste Comparison",
           "leader_login": "Leader Login",
-          "plb_leader_creation": "PLB Leader Creation"
+          "plb_leader_creation": "PLB Leader Creation",
+          "district_leader_creation": "District Leader Creation"
         },
         "project": {
           "company_id": "Company ID",
