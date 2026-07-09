@@ -8,6 +8,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import {
   areaTypeApi,
+  collectionPointApi,
   corporationApi,
   districtApi,
   municipalityApi,
@@ -23,6 +24,7 @@ import {
   vehicleCreationApi,
   wasteTypeApi,
 } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -31,6 +33,32 @@ import { normalizeList } from "@/utils/forms";
 type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
+
+type StopRow = {
+  key: string;
+  collection_point_id: string;
+  bin_id: string;
+  sequence: string;
+  is_active: boolean;
+};
+
+type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string };
+type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
+
+const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
+
+const makeStopKey = (() => {
+  let counter = 0;
+  return () => `stop-${counter++}`;
+})();
+
+const emptyStop = (sequence: number): StopRow => ({
+  key: makeStopKey(),
+  collection_point_id: "",
+  bin_id: "",
+  sequence: String(sequence),
+  is_active: true,
+});
 
 const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
   { value: "corporation_id", label: "Corporation" },
@@ -152,6 +180,11 @@ export default function TripPlanForm() {
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Collection point stops — merged in from the former Trip Plan Collection Point form.
+  const [stops, setStops] = useState<StopRow[]>([]);
+  const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
+  const [bins, setBins] = useState<BinOption[]>([]);
+
   const [states, setStates] = useState<any[]>([]);
   const [districts, setDistricts] = useState<any[]>([]);
   const [areaTypes, setAreaTypes] = useState<any[]>([]);
@@ -179,9 +212,12 @@ export default function TripPlanForm() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
+      collectionPointApi.readAll(),
+      adminApi.bins.readAll(),
     ]).then(([
       staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
+      collectionPointRes, binRes,
     ]) => {
       setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
@@ -204,6 +240,25 @@ export default function TripPlanForm() {
         panchayat_union_id: normalizeList(panchayatUnionRes),
         panchayat_id: normalizeList(panchayatRes),
       });
+      setCollectionPoints(
+        normalizeList(collectionPointRes).map((item: any) => {
+          const field = hierarchyIdFields.find((key) => item?.[key] ?? item?.[key.replace("_id", "")]?.unique_id);
+          return {
+            value: String(item?.unique_id ?? ""),
+            label: String(item?.cp_name ?? item?.unique_id ?? ""),
+            hierarchyField: field,
+            hierarchyId: field ? String(item?.[field] ?? item?.[field.replace("_id", "")]?.unique_id ?? "") : "",
+          };
+        }).filter((o: Option) => o.value),
+      );
+      setBins(
+        normalizeList(binRes).map((item: any) => ({
+          value: String(item?.unique_id ?? ""),
+          label: String(item?.bin_name ?? item?.unique_id ?? ""),
+          collectionPointId: String(item?.collection_point_id ?? item?.collection_point ?? ""),
+          wasteTypeId: String(item?.wastetype_id ?? item?.waste_type_id ?? item?.waste_type ?? ""),
+        })).filter((o: Option) => o.value),
+      );
     });
   }, []);
 
@@ -213,16 +268,40 @@ export default function TripPlanForm() {
   const filteredAreaTypes = areaTypes.filter(
     (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
   );
+
+  const ensureOption = <T extends Option>(items: T[], value: string, label?: string): T[] => {
+    if (!value || items.some((item) => item.value === value)) return items;
+    return [{ value, label: label || value } as T, ...items];
+  };
+
   const availableHierarchyLevels = areaTypeCategory
     ? hierarchyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
-    : [];
-  const hierarchyOptions = toGeoOptions(
-    (hierarchyRecords[hierarchyLevel] ?? []).filter(
-      (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+    : hierarchyLevel
+      ? [{ value: hierarchyLevel, label: hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label ?? "Local Body" }]
+      : [];
+
+  const hierarchyOptions = ensureOption(
+    toGeoOptions(
+      (hierarchyRecords[hierarchyLevel] ?? []).filter(
+        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+      ),
     ),
+    hierarchyId,
   );
 
-  useEffect(() => {
+useEffect(() => {
+  if (!areaTypeId || !areaTypes.length) {
+    if (!areaTypeId) setAreaTypeCategory("");
+    return;
+  }
+
+  const selectedAreaType = areaTypes.find((item) => resolveId(item) === areaTypeId);
+  if (selectedAreaType) {
+    setAreaTypeCategory(areaTypeCategoryFromName(String(selectedAreaType.name ?? "")));
+  }
+}, [areaTypeId, areaTypes]);
+
+useEffect(() => {
     if (!id) return;
     tripPlanApi.read(id).then((record: ApiRecord) => {
       setDisplayCode(String(record.display_code ?? ""));
@@ -280,6 +359,20 @@ export default function TripPlanForm() {
       setRepeatDays(Array.isArray(record.repeat_days) ? record.repeat_days : []);
       setStatus(String(record.status ?? "ACTIVE"));
       setApprovalStatus(String(record.approval_status ?? "PENDING"));
+
+      if (Array.isArray(record.plan_collection_points)) {
+        setStops(
+          record.plan_collection_points
+            .filter((stop: ApiRecord) => stop.collection_type === "bin_collection")
+            .map((stop: ApiRecord) => ({
+              key: makeStopKey(),
+              collection_point_id: String(stop.collection_point_id ?? ""),
+              bin_id: String(stop.bin_id ?? ""),
+              sequence: String(stop.sequence ?? "1"),
+              is_active: stop.is_active !== false,
+            })),
+        );
+      }
     });
   }, [id]);
 
@@ -295,6 +388,38 @@ export default function TripPlanForm() {
     );
   };
 
+  const addStop = () => {
+    setStops((prev) => [...prev, emptyStop(prev.length + 1)]);
+  };
+
+  const removeStop = (key: string) => {
+    setStops((prev) => prev.filter((stop) => stop.key !== key));
+  };
+
+  const updateStop = (key: string, patch: Partial<StopRow>) => {
+    setStops((prev) => prev.map((stop) => (stop.key === key ? { ...stop, ...patch } : stop)));
+  };
+
+  // Collection points are scoped to the Trip Plan's own local body (hierarchyLevel/hierarchyId).
+  const collectionPointsForLocalBody = (currentValue: string) => {
+    const filtered = hierarchyId
+      ? collectionPoints.filter((cp) => cp.hierarchyField === hierarchyLevel && cp.hierarchyId === hierarchyId)
+      : collectionPoints;
+    const current = collectionPoints.find((cp) => cp.value === currentValue);
+    return ensureOption(filtered, currentValue, current?.label);
+  };
+
+  // Bins are scoped to the selected stop's Collection Point, and to the Trip Plan's selected Waste Types.
+  const binsForStop = (collectionPointId: string, currentValue: string) => {
+    const filtered = bins.filter((bin) => {
+      if (collectionPointId && bin.collectionPointId && bin.collectionPointId !== collectionPointId) return false;
+      if (selectedWasteTypes.length > 0 && bin.wasteTypeId && !selectedWasteTypes.includes(bin.wasteTypeId)) return false;
+      return true;
+    });
+    const current = bins.find((bin) => bin.value === currentValue);
+    return ensureOption(filtered, currentValue, current?.label);
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!stateId || !districtId || !hierarchyId || !staffTemplateId || !vehicleId) {
@@ -304,6 +429,17 @@ export default function TripPlanForm() {
     if (selectedWasteTypes.length === 0) {
       Swal.fire("Missing details", "Select at least one Waste Type.", "warning");
       return;
+    }
+    if (collectionType === "bin_collection") {
+      if (stops.some((stop) => !stop.collection_point_id || !stop.bin_id)) {
+        Swal.fire("Missing details", "Every stop needs a Collection Point and a Bin.", "warning");
+        return;
+      }
+      const sequences = stops.map((stop) => stop.sequence);
+      if (new Set(sequences).size !== sequences.length) {
+        Swal.fire("Missing details", "Stop sequences must be unique.", "warning");
+        return;
+      }
     }
     const scheduledTime = to24h(timeHour, timeMinute, timePeriod);
     setSaving(true);
@@ -334,6 +470,15 @@ export default function TripPlanForm() {
       repeat_days: isAutoAssign ? repeatDays : [],
       status,
       approval_status: approvalStatus,
+      collection_points: collectionType === "bin_collection"
+        ? stops.map((stop) => ({
+            collection_type: collectionType,
+            collection_point_id: stop.collection_point_id,
+            bin_id: stop.bin_id,
+            sequence: Number(stop.sequence),
+            is_active: stop.is_active,
+          }))
+        : [],
     };
     try {
       if (isEdit && id) await tripPlanApi.update(id, payload);
@@ -417,7 +562,7 @@ export default function TripPlanForm() {
           />
         </div>
 
-        <div className="md:col-span-2">
+        <div>
           <Label>
             {hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body"} *
           </Label>
@@ -541,6 +686,63 @@ export default function TripPlanForm() {
             placeholder="Select Approval"
           />
         </div>
+
+        {/* Collection Point Stops — merged in from the former Trip Plan Collection Point form */}
+        {collectionType === "bin_collection" && (
+          <div className="md:col-span-2 rounded-md border p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <Label>Collection Point Stops</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addStop}>
+                + Add Stop
+              </Button>
+            </div>
+            {stops.length === 0 && (
+              <p className="text-sm text-gray-500">No stops added yet. Click "Add Stop" to attach a collection point and bin.</p>
+            )}
+            <div className="space-y-3">
+              {stops.map((stop) => (
+                <div key={stop.key} className="grid gap-3 md:grid-cols-[2fr_2fr_1fr_auto_auto]">
+                  <Select
+                    value={stop.collection_point_id}
+                    onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
+                    options={collectionPointsForLocalBody(stop.collection_point_id)}
+                    placeholder={hierarchyId ? "Collection Point" : "Select a Local Body first"}
+                  />
+                  <Select
+                    value={stop.bin_id}
+                    onChange={(v) => updateStop(stop.key, { bin_id: String(v) })}
+                    options={binsForStop(stop.collection_point_id, stop.bin_id)}
+                    placeholder={stop.collection_point_id ? "Bin" : "Select a Collection Point first"}
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    value={stop.sequence}
+                    onChange={(e) => updateStop(stop.key, { sequence: e.target.value })}
+                    placeholder="Seq"
+                  />
+                  <label className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={stop.is_active}
+                      onChange={(e) => updateStop(stop.key, { is_active: e.target.checked })}
+                    />
+                    Active
+                  </label>
+                  <Button type="button" variant="destructive" size="sm" onClick={() => removeStop(stop.key)}>
+                    Remove
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {["household_collection", "bulk_waste_collection"].includes(collectionType) && (
+          <div className="md:col-span-2 rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
+            Household and bulk waste stops are generated automatically for customers under this Trip Plan's local body — no manual stop list is needed here.
+          </div>
+        )}
 
         {/* Auto-assign toggle */}
         <div className="md:col-span-2">

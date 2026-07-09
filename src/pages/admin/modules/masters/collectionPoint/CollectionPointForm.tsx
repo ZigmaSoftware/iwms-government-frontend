@@ -7,14 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   areaTypeApi,
-  collectionPointApi,
   corporationApi,
+  collectionPointApi,
   districtApi,
   municipalityApi,
   panchayatApi,
   panchayatUnionApi,
   stateApi,
   townPanchayatApi,
+  wasteTypeApi,
 } from "@/helpers/admin";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -27,6 +28,43 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 
 type ApiRecord = Record<string, unknown>;
+
+const BIN_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
+];
+
+const COLLECTION_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "bin_collection", label: "Secondary Collection Point" },
+  { value: "household_collection", label: "Household Collection" },
+  { value: "bulk_waste_collection", label: "Bulk Waste Collection" },
+];
+
+type BinRow = {
+  key: string;
+  unique_id: string;
+  wastetype_id: string;
+  bin_name: string;
+  bin_capacity: string;
+  bin_type: string;
+  is_active: boolean;
+};
+
+const makeBinKey = (() => {
+  let counter = 0;
+  return () => `bin-${counter++}`;
+})();
+
+const emptyBinRow = (): BinRow => ({
+  key: makeBinKey(),
+  unique_id: "",
+  wastetype_id: "",
+  bin_name: "",
+  bin_capacity: "",
+  bin_type: "",
+  is_active: true,
+});
 type LocalBodyLevel =
   | "corporation_id"
   | "municipality_id"
@@ -223,6 +261,7 @@ export default function CollectionPointForm() {
 
   const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
   const [cpName, setCpName] = useState("");
+  const [collectionType, setCollectionType] = useState("bin_collection");
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
@@ -230,6 +269,20 @@ export default function CollectionPointForm() {
   );
   const [isActive, setIsActive] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // Bins — merged in from the standalone Bin form; created/edited inline here.
+  const [bins, setBins] = useState<BinRow[]>([]);
+  const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
+
+  useEffect(() => {
+    wasteTypeApi.readAll().then((res: unknown) => {
+      setWasteTypes(
+        normalizeList(res)
+          .map((item) => ({ value: idOf(item.unique_id), label: String(item.waste_type_name ?? item.unique_id ?? "") }))
+          .filter((option) => option.value),
+      );
+    });
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -244,6 +297,7 @@ export default function CollectionPointForm() {
         localBodyId: localBodyLevel ? idOf(record[localBodyLevel]) : "",
       });
       setCpName(String(record.cp_name ?? ""));
+      setCollectionType(String(record.collection_type ?? "bin_collection"));
       setLatitude(String(record.latitude ?? ""));
       setLongitude(String(record.longitude ?? ""));
       setCoordinates(
@@ -253,13 +307,36 @@ export default function CollectionPointForm() {
         }),
       );
       setIsActive(record.is_active !== false);
+
+      if (Array.isArray(record.bins_detail)) {
+        setBins(
+          (record.bins_detail as ApiRecord[]).map((bin) => ({
+            key: makeBinKey(),
+            unique_id: String(bin.unique_id ?? ""),
+            wastetype_id: String(bin.wastetype_id ?? ""),
+            bin_name: String(bin.bin_name ?? ""),
+            bin_capacity: String(bin.bin_capacity ?? ""),
+            bin_type: String(bin.bin_type ?? ""),
+            is_active: bin.is_active !== false,
+          })),
+        );
+      }
     });
   }, [id]);
+
+  const addBin = () => setBins((prev) => [...prev, emptyBinRow()]);
+  const removeBin = (key: string) => setBins((prev) => prev.filter((bin) => bin.key !== key));
+  const updateBin = (key: string, patch: Partial<BinRow>) =>
+    setBins((prev) => prev.map((bin) => (bin.key === key ? { ...bin, ...patch } : bin)));
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId || !cpName.trim()) {
       Swal.fire("Missing details", "Location and Collection Point Name are required.", "warning");
+      return;
+    }
+    if (bins.some((bin) => !bin.wastetype_id || !bin.bin_name.trim() || !bin.bin_capacity || !bin.bin_type)) {
+      Swal.fire("Missing details", "Every bin needs a Waste Type, Name, Capacity and Type.", "warning");
       return;
     }
     setSubmitting(true);
@@ -275,10 +352,19 @@ export default function CollectionPointForm() {
       panchayat_union_id: geo.localBodyLevel === "panchayat_union_id" ? geo.localBodyId : null,
       panchayat_id: geo.localBodyLevel === "panchayat_id" ? geo.localBodyId : null,
       cp_name: cpName.trim(),
+      collection_type: collectionType,
       latitude: firstCoordinate?.latitude ?? (latitude || null),
       longitude: firstCoordinate?.longitude ?? (longitude || null),
       coordinates: coordinatePayload,
       is_active: isActive,
+      bins: bins.map((bin) => ({
+        ...(bin.unique_id ? { unique_id: bin.unique_id } : {}),
+        wastetype_id: bin.wastetype_id,
+        bin_name: bin.bin_name.trim(),
+        bin_capacity: Number(bin.bin_capacity),
+        bin_type: bin.bin_type,
+        is_active: bin.is_active,
+      })),
     };
     try {
       if (isEdit && id) await collectionPointApi.update(id, payload);
@@ -298,18 +384,93 @@ export default function CollectionPointForm() {
           <Input value={cpName} onChange={(e) => setCpName(e.target.value)} />
         </div>
         <div>
+          <Label>Collection Type *</Label>
+          <select
+            className="h-10 w-full rounded-md border px-3 text-sm"
+            value={collectionType}
+            onChange={(e) => setCollectionType(e.target.value)}
+          >
+            {COLLECTION_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </div>
+        {/* <div>
           <Label>Latitude</Label>
           <Input value={latitude} onChange={(e) => setLatitude(e.target.value)} />
         </div>
         <div>
           <Label>Longitude</Label>
           <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} />
-        </div>
+        </div> */}
         <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
+
+        {/* Bins — merged in from the standalone Bin form */}
+        <div className="md:col-span-2 rounded-md border p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <Label>Bins</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addBin}>
+              + Add Bin
+            </Button>
+          </div>
+          {bins.length === 0 && (
+            <p className="text-sm text-gray-500">No bins added yet. Click "Add Bin" to create one for this collection point.</p>
+          )}
+          <div className="space-y-3">
+            {bins.map((bin) => (
+              <div key={bin.key} className="grid gap-3 md:grid-cols-[2fr_2fr_1fr_1fr_auto_auto]">
+                <select
+                  className="h-10 w-full rounded-md border px-3 text-sm"
+                  value={bin.wastetype_id}
+                  onChange={(e) => updateBin(bin.key, { wastetype_id: e.target.value })}
+                >
+                  <option value="">Select Waste Type</option>
+                  {wasteTypes.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <Input
+                  placeholder="Bin Name"
+                  value={bin.bin_name}
+                  onChange={(e) => updateBin(bin.key, { bin_name: e.target.value })}
+                />
+                <Input
+                  type="number"
+                  placeholder="Capacity"
+                  value={bin.bin_capacity}
+                  onChange={(e) => updateBin(bin.key, { bin_capacity: e.target.value })}
+                />
+                <select
+                  className="h-10 w-full rounded-md border px-3 text-sm"
+                  value={bin.bin_type}
+                  onChange={(e) => updateBin(bin.key, { bin_type: e.target.value })}
+                >
+                  <option value="">Bin Type</option>
+                  {BIN_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={bin.is_active}
+                    onChange={(e) => updateBin(bin.key, { is_active: e.target.checked })}
+                  />
+                  Active
+                </label>
+                <Button type="button" variant="destructive" size="sm" onClick={() => removeBin(bin.key)}>
+                  Remove
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
           Active
         </label>
+
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
           <Button type="button" variant="outline" onClick={() => navigate(LIST_PATH)}>Cancel</Button>

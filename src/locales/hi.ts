@@ -830,7 +830,7 @@ const hiResource = {
           "vehicle_creation": "वाहन निर्माण",
           "trip_plans": "ट्रिप प्लान",
           "trip_plan_collection_points": "ट्रिप प्लान कलेक्शन पॉइंट्स",
-          "daily_trip_assignment": "दैनिक ट्रिप असाइनमेंट",
+          "daily_trip_assignment": "दैनिक ट्रिप प्लान",
           "daily_trip_collection_point": "दैनिक ट्रिप कलेक्शन पॉइंट",
           "daily_trip_household_collection": "घरेलू संग्रह बिंदु",
           "daily_trip_log": "दैनिक ट्रिप लॉग",

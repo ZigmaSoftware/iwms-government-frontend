@@ -95,6 +95,12 @@ const toOption = (item: ApiRecord, labelKeys: string[]): Option => ({
   districtId: idOf(item.district_id ?? item.district),
 });
 
+const BIN_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "small", label: "Small" },
+  { value: "medium", label: "Medium" },
+  { value: "large", label: "Large" },
+];
+
 const hierarchyLevels: Array<{ value: HierarchyLevel; label: string; sourceType: string }> = [
   { value: "corporation_id", label: "Corporation", sourceType: "corporation" },
   { value: "municipality_id", label: "Municipality", sourceType: "municipality" },
@@ -240,7 +246,6 @@ export default function BinForm() {
   const [binName, setBinName] = useState("");
   const [binCapacity, setBinCapacity] = useState("");
   const [binType, setBinType] = useState("");
-  const [binQr, setBinQr] = useState("");
   const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
     normalizeCoordinateDrafts(null),
   );
@@ -280,7 +285,6 @@ export default function BinForm() {
       setBinName(String(record.bin_name ?? ""));
       setBinCapacity(String(record.bin_capacity ?? ""));
       setBinType(String(record.bin_type ?? ""));
-      setBinQr(String(record.bin_qr ?? ""));
       setCoordinates(normalizeCoordinateDrafts(record.coordinates));
       setIsActive(record.is_active !== false);
     });
@@ -291,7 +295,7 @@ export default function BinForm() {
       if (!geo.localBodyLevel || !geo.localBodyId) return [];
       return collectionPoints.filter((item) => {
         if (geo.districtId && item.districtId && item.districtId !== geo.districtId) return false;
-        return item[geo.localBodyLevel] === geo.localBodyId;
+        return item[geo.localBodyLevel as HierarchyLevel] === geo.localBodyId;
       });
     },
     [collectionPoints, geo.districtId, geo.localBodyId, geo.localBodyLevel],
@@ -311,7 +315,6 @@ export default function BinForm() {
       bin_name: binName.trim(),
       bin_capacity: binCapacity || null,
       bin_type: binType || null,
-      bin_qr: binQr || null,
       coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
@@ -361,11 +364,10 @@ export default function BinForm() {
         </div>
         <div>
           <Label>Bin Type</Label>
-          <Input value={binType} onChange={(e) => setBinType(e.target.value)} />
-        </div>
-        <div>
-          <Label>QR Code</Label>
-          <Input value={binQr} onChange={(e) => setBinQr(e.target.value)} />
+          <select className="h-10 w-full rounded-md border px-3 text-sm" value={binType} onChange={(e) => setBinType(e.target.value)}>
+            <option value="">Select Bin Type</option>
+            {BIN_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
         </div>
         <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         <label className="flex items-center gap-2 text-sm">

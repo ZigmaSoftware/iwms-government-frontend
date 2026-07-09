@@ -830,7 +830,7 @@ const taResource = {
           "vehicle_creation": "வாகன உருவாக்கம்",
           "trip_plans": "பயண திட்டங்கள்",
           "trip_plan_collection_points": "பயண திட்ட சேகரிப்பு இடங்கள்",
-          "daily_trip_assignment": "தினசரி பயண ஒதுக்கீடு",
+          "daily_trip_assignment": "தினசரி பயண திட்டம்",
           "daily_trip_collection_point": "தினசரி பயண சேகரிப்பு இடம்",
           "daily_trip_household_collection": "வீட்டு சேகரிப்பு புள்ளிகள்",
           "daily_trip_tracking": "தினசரி பயண கண்காணிப்பு",
