@@ -7,16 +7,26 @@ import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import {
+  areaTypeApi,
   binCollectionEventApi,
+  collectionPointApi,
+  corporationApi,
   dailyTripAssignmentApi,
   dailyTripCollectionPointApi,
+  districtApi,
+  municipalityApi,
   panchayatApi,
+  panchayatUnionApi,
+  stateApi,
+  townPanchayatApi,
 } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+
+type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
 type Option = {
   value: string;
@@ -25,6 +35,11 @@ type Option = {
   collectionPointId?: string;
   binId?: string;
   panchayatId?: string;
+  stateId?: string;
+  districtId?: string;
+  areaTypeId?: string;
+  localBodyLevel?: HierarchyLevel;
+  localBodyId?: string;
 };
 type ApiRecord = Record<string, any>;
 
@@ -59,6 +74,28 @@ const ensureOption = (items: Option[], value: string, label?: string): Option[] 
   return [{ value, label: label || value }, ...items];
 };
 
+const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
+
+const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat" },
+];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", HierarchyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
 const assignmentOption = (item: ApiRecord): Option => ({
   value: idOf(item.unique_id ?? item.id),
   label: textOf(item.display_code, item.trip_plan?.display_code, item.trip_plan_id?.display_code, item.unique_id),
@@ -67,6 +104,10 @@ const assignmentOption = (item: ApiRecord): Option => ({
 
 const collectionPointOption = (item: ApiRecord): Option => {
   const collectionPoint = item.collection_point ?? item.collection_point_id;
+  const localBodyField = hierarchyIdFields.find(
+    (key) => collectionPoint?.[key] ?? collectionPoint?.[key.replace("_id", "")]?.unique_id,
+  );
+
   return {
     value: idOf(item.unique_id ?? item.id),
     label: textOf(
@@ -80,6 +121,11 @@ const collectionPointOption = (item: ApiRecord): Option => {
     collectionPointId: idOf(item.collection_point_id ?? item.collection_point),
     binId: idOf(item.bin_id ?? item.bin),
     panchayatId: idOf(item.panchayat_id ?? item.panchayat ?? collectionPoint?.panchayat_id),
+    stateId: idOf(collectionPoint?.state_id ?? collectionPoint?.state),
+    districtId: idOf(collectionPoint?.district_id ?? collectionPoint?.district),
+    areaTypeId: idOf(collectionPoint?.area_type_id ?? collectionPoint?.area_type),
+    localBodyLevel: localBodyField,
+    localBodyId: localBodyField ? idOf(collectionPoint?.[localBodyField] ?? collectionPoint?.[localBodyField.replace("_id", "")]?.unique_id) : "",
   };
 };
 
@@ -106,6 +152,11 @@ export default function BinCollectionEventForm() {
   const [tripCollectionPointId, setTripCollectionPointId] = useState("");
   const [binId, setBinId] = useState("");
   const [panchayatId, setPanchayatId] = useState("");
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
+  const [localBodyLevel, setLocalBodyLevel] = useState<HierarchyLevel>("corporation_id");
   const [collectionDate, setCollectionDate] = useState("");
   const [collectedWeightKg, setCollectedWeightKg] = useState("");
   const [driverLatitude, setDriverLatitude] = useState("");
@@ -115,6 +166,16 @@ export default function BinCollectionEventForm() {
   const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
   const [bins, setBins] = useState<Option[]>([]);
   const [panchayats, setPanchayats] = useState<Option[]>([]);
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [hierarchyRecords, setHierarchyRecords] = useState<Record<HierarchyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -123,11 +184,40 @@ export default function BinCollectionEventForm() {
       dailyTripCollectionPointApi.readAll(),
       adminApi.bins.readAll(),
       panchayatApi.readAll(),
-    ]).then(([assignmentRes, cpRes, binRes, panchayatRes]) => {
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+    ]).then(([
+      assignmentRes,
+      cpRes,
+      binRes,
+      panchayatRes,
+      stateRes,
+      districtRes,
+      areaTypeRes,
+      corporationRes,
+      municipalityRes,
+      townPanchayatRes,
+      panchayatUnionRes,
+    ]) => {
       setAssignments(uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)));
       setCollectionPoints(uniqueOptions(normalizeList(cpRes).map(collectionPointOption)));
       setBins(uniqueOptions(normalizeList(binRes).map(binOption)));
       setPanchayats(uniqueOptions(normalizeList(panchayatRes).map(panchayatOption)));
+      setStates(normalizeList(stateRes));
+      setDistricts(normalizeList(districtRes));
+      setAreaTypes(normalizeList(areaTypeRes));
+      setHierarchyRecords({
+        corporation_id: normalizeList(corporationRes),
+        municipality_id: normalizeList(municipalityRes),
+        town_panchayat_id: normalizeList(townPanchayatRes),
+        panchayat_union_id: normalizeList(panchayatUnionRes),
+        panchayat_id: normalizeList(panchayatRes),
+      });
     });
   }, []);
 
@@ -167,13 +257,85 @@ export default function BinCollectionEventForm() {
       setPanchayats((items) =>
         ensureOption(items, selectedPanchayatId, textOf(record.panchayat_name, record.panchayat?.panchayat_name, selectedPanchayatId)),
       );
+
+      const selectedTripCollectionPoint = record.trip_collection_point ?? record.trip_collection_point_id ?? record.collection_point ?? record.collection_point_id;
+      if (selectedTripCollectionPoint) {
+        setStateId(idOf(selectedTripCollectionPoint.state_id ?? selectedTripCollectionPoint.state));
+        setDistrictId(idOf(selectedTripCollectionPoint.district_id ?? selectedTripCollectionPoint.district));
+        const storedAreaTypeId = idOf(selectedTripCollectionPoint.area_type_id ?? selectedTripCollectionPoint.area_type);
+        setAreaTypeId(storedAreaTypeId);
+        setAreaTypeCategory(areaTypeCategoryFromName(String(selectedTripCollectionPoint.area_type?.name ?? selectedTripCollectionPoint.area_type_name ?? "")));
+        const selectedLocalBodyLevel = hierarchyIdFields.find(
+          (key) => selectedTripCollectionPoint?.[key] ?? selectedTripCollectionPoint?.[key.replace("_id", "")]?.unique_id,
+        );
+        setLocalBodyLevel(selectedLocalBodyLevel ?? "corporation_id");
+        setPanchayatId(
+          idOf(
+            selectedTripCollectionPoint?.[selectedLocalBodyLevel ?? "panchayat_id"] ??
+              selectedTripCollectionPoint?.[selectedLocalBodyLevel?.replace("_id", "") ?? "panchayat"]?.unique_id,
+          ),
+        );
+      }
     });
   }, [id]);
+
+  useEffect(() => {
+    if (!areaTypeId) {
+      setAreaTypeCategory("");
+      return;
+    }
+    const selected = areaTypes.find((item) => String(item.unique_id ?? item.id) === areaTypeId);
+    setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? selected?.area_type_name ?? "")));
+  }, [areaTypeId, areaTypes]);
 
   const selectedCollectionPoint = useMemo(
     () => collectionPoints.find((item) => item.value === tripCollectionPointId),
     [collectionPoints, tripCollectionPointId],
   );
+
+  const stateOptions = useMemo(
+    () => states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+    [states],
+  );
+
+  const districtOptions = useMemo(
+    () =>
+      districts
+        .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
+        .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
+        .filter((item) => item.value),
+    [districts, stateId],
+  );
+
+  const areaTypeOptions = useMemo(
+    () =>
+      areaTypes
+        .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
+        .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
+        .filter((item) => item.value),
+    [areaTypes, districtId],
+  );
+
+  const availableHierarchyLevels = useMemo(
+    () =>
+      areaTypeCategory
+        ? hierarchyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+        : [{ value: localBodyLevel, label: hierarchyLevels.find((item) => item.value === localBodyLevel)?.label ?? "Local Body" }],
+    [areaTypeCategory, localBodyLevel],
+  );
+
+  const localBodyOptions = useMemo(() => {
+    const records = hierarchyRecords[localBodyLevel] ?? [];
+    const options = records
+      .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
+      .map((item) => ({
+        value: idOf(item.unique_id ?? item.id),
+        label: textOf(item.name, item.corporation_name, item.municipality_name, item.town_panchayat_name, item.union_name, item.panchayat_name, item.unique_id),
+      }))
+      .filter((item) => item.value);
+    const selectedLabel = options.find((item) => item.value === panchayatId)?.label;
+    return ensureOption(options, panchayatId, selectedLabel);
+  }, [hierarchyRecords, localBodyLevel, districtId, panchayatId]);
 
   const visibleCollectionPoints = useMemo(() => {
     const filtered = tripAssignmentId
@@ -193,8 +355,9 @@ export default function BinCollectionEventForm() {
 
   const visiblePanchayats = useMemo(() => {
     const selectedPanchayat = panchayats.find((item) => item.value === panchayatId);
-    return ensureOption(panchayats, panchayatId, selectedPanchayat?.label);
-  }, [panchayatId, panchayats]);
+    const fallbackLabel = localBodyOptions.find((item) => item.value === panchayatId)?.label;
+    return ensureOption(panchayats, panchayatId, selectedPanchayat?.label ?? fallbackLabel);
+  }, [localBodyOptions, panchayatId, panchayats]);
 
   const handleAssignmentChange = (value: string) => {
     setTripAssignmentId(value);
@@ -213,6 +376,10 @@ export default function BinCollectionEventForm() {
     const collectionPoint = collectionPoints.find((item) => item.value === value);
     if (collectionPoint?.assignmentId) setTripAssignmentId(collectionPoint.assignmentId);
     if (collectionPoint?.binId) setBinId(collectionPoint.binId);
+    setStateId(collectionPoint?.stateId ?? "");
+    setDistrictId(collectionPoint?.districtId ?? "");
+    setAreaTypeId(collectionPoint?.areaTypeId ?? "");
+    setLocalBodyLevel(collectionPoint?.localBodyLevel ?? "corporation_id");
     if (collectionPoint?.panchayatId) setPanchayatId(collectionPoint.panchayatId);
   };
 
@@ -261,13 +428,78 @@ export default function BinCollectionEventForm() {
           <Select value={tripCollectionPointId} onChange={handleCollectionPointChange} options={visibleCollectionPoints} placeholder="Select Collection Point" />
         </div>
         <div>
-          <Label>Bin *</Label>
-          <Select value={binId} onChange={handleBinChange} options={visibleBins} placeholder="Select Bin" />
+          <Label>State</Label>
+          <Select
+            value={stateId}
+            onChange={(value) => {
+              setStateId(String(value));
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyLevel("corporation_id");
+              setPanchayatId("");
+            }}
+            options={stateOptions}
+            placeholder="Select State"
+          />
         </div>
         <div>
+          <Label>District</Label>
+          <Select
+            value={districtId}
+            onChange={(value) => {
+              setDistrictId(String(value));
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyLevel("corporation_id");
+              setPanchayatId("");
+            }}
+            options={districtOptions}
+            placeholder={stateId ? "Select District" : "Select a State first"}
+            disabled={!stateId}
+          />
+        </div>
+        <div>
+          <Label>Area Type</Label>
+          <Select
+            value={areaTypeId}
+            onChange={(value) => {
+              setAreaTypeId(String(value));
+              setLocalBodyLevel("corporation_id");
+              setPanchayatId("");
+            }}
+            options={areaTypeOptions}
+            placeholder={districtId ? "Select Area Type" : "Select a District first"}
+            disabled={!districtId}
+          />
+        </div>
+        <div>
+          <Label>Local Body Type</Label>
+          <Select
+            value={localBodyLevel}
+            onChange={(value) => {
+              setLocalBodyLevel(value as HierarchyLevel);
+              setPanchayatId("");
+            }}
+            options={availableHierarchyLevels}
+            placeholder={areaTypeId ? "Select Local Body Type" : "Select an Area Type first"}
+            disabled={!areaTypeId}
+          />
+        </div>
+        <div>
+          <Label>Local Body</Label>
+          <Select
+            value={panchayatId}
+            onChange={(value) => setPanchayatId(String(value))}
+            options={localBodyOptions}
+            placeholder={localBodyLevel ? "Select Local Body" : "Select a Local Body Type first"}
+            disabled={!areaTypeId || !localBodyLevel}
+          />
+        </div>
+        {/* <div>
           <Label>Panchayat</Label>
           <Select value={panchayatId} onChange={(value) => setPanchayatId(String(value))} options={visiblePanchayats} placeholder="Derived from Trip Stop" disabled />
-        </div>
+        </div> */}
         <div>
           <Label>Collection Date *</Label>
           <Input type="date" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />

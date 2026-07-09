@@ -99,9 +99,6 @@ import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
 import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
 import DailyTripAssignmentList from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentList"
 import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentForm";
-import DailyTripCollectionPointList from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointList";
-import DailyTripCollectionPointForm from "@/pages/admin/modules/transportMasters/dailyTripCollectionPoint/dailyTripCollectionPointForm";
-import DailyTripHouseholdCollectionList from "@/pages/admin/modules/transportMasters/dailyTripHouseholdCollection/dailyTripHouseholdCollectionList";
 import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
 
@@ -143,8 +140,6 @@ import StaffTemplateList from "@/pages/admin/modules/staffMasters/staffTemplate/
 import StaffTemplateForm from "@/pages/admin/modules/staffMasters/staffTemplate/staffTemplateForm";
 import AlternativeStaffTemplateList from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateList";
 import AlternativeStaffTemplateForm from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateForm";
-import TripPlanCollectionPointList from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointList";
-import TripPlanCollectionPointForm from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointForm";
 import BinCollectionEventList from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonList";
@@ -193,8 +188,6 @@ const ROUTES: RouteMap = {
     designations: { list: DesignationList, form: DesignationForm },
     bins: { list: BinListPage, form: BinForm },
     "waste-types": { list: WasteTypeListPage, form: WasteTypeForm },
-    // bins: { list: BinListPage, form: BinForm },
-
 
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
@@ -233,10 +226,7 @@ const ROUTES: RouteMap = {
     "alternative-staff-template": {list: AlternativeStaffTemplateList, form: AlternativeStaffTemplateForm},
     "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
     "trip-plans": { list: TripPlanList, form: TripPlanForm },
-    "trip-plan-collection-points": { list: TripPlanCollectionPointList, form: TripPlanCollectionPointForm },
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
-    "daily-trip-collection-point": { list: DailyTripCollectionPointList, form: DailyTripCollectionPointForm },
-    "daily-trip-household-collection": { list: DailyTripHouseholdCollectionList },
     "daily-trip-tracking": { component: DailyTripTracking },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "daily-trip-log": { list: DailyTripLogList },
