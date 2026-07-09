@@ -19,6 +19,7 @@ import type {
   PublicGrievanceLocationNode,
   PublicGrievanceMeta,
   PublicGrievanceResponse,
+  PublicGrievanceStatusResult,
 } from "./types";
 
 export const complaintTicketApi = adminApi.complaintTickets as typeof adminApi.complaintTickets;
@@ -145,6 +146,13 @@ export const publicGrievanceApi = {
   create: async (payload: FormData) => {
     const { data } = await api.post<PublicGrievanceResponse>("/publicgrivence/", payload, {
       headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data;
+  },
+  status: async (params: { ticket_no?: string; mobile?: string }, signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceStatusResult[]>("/publicgrivence/status/", {
+      params,
+      signal,
     });
     return data;
   },

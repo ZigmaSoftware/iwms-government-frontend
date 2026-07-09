@@ -257,14 +257,44 @@ export type PublicGrievanceLocationNode = {
   name: string;
 };
 
+export type PublicGrievanceCategory = {
+  unique_id: string;
+  category_name: string;
+};
+
+export type PublicGrievanceSubcategory = {
+  unique_id: string;
+  category: string;
+  subcategory_name: string;
+};
+
 export type PublicGrievanceMeta = {
   waste_types: PublicGrievanceWasteType[];
+  categories: PublicGrievanceCategory[];
+  subcategories: PublicGrievanceSubcategory[];
 };
 
 export type PublicGrievanceResponse = {
   message: string;
   ticket_no: string;
   unique_id: string;
+};
+
+export type PublicGrievanceStatusResult = {
+  ticket_no: string;
+  status: string | null;
+  status_code?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  description?: string | null;
+  location_text?: string | null;
+  created?: string;
+  timeline?: {
+    status: string | null;
+    status_code?: string | null;
+    at?: string;
+    remarks?: string | null;
+  }[];
 };
 
 export type ComplaintTimelineItem = {
