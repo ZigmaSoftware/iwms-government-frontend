@@ -24,11 +24,11 @@ import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
-} from "../shared/GeoFenceCoordinates";
+} from "@/pages/admin/modules/masters/shared/GeoFenceCoordinates";
 
-const { encMasters, encContinents } = getEncryptedRoute();
+const { encCommonMasters, encContinents } = getEncryptedRoute();
 
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encContinents);
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCommonMasters, encContinents);
 
 const CONTINENT_FIELDS: Record<string, string[]> = {
   name: ["name"],
@@ -72,7 +72,7 @@ function ContinentEditor({
 }: ContinentEditorProps) {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "continents", CONTINENT_FIELDS);
+    useFieldVisibility("common-masters", "continents", CONTINENT_FIELDS);
   const [name, setName] = useState(initialPayload.name);
   const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
     normalizeCoordinateDrafts(initialPayload.coordinates),

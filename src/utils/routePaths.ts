@@ -32,3 +32,10 @@ export function appendRouteQuery(
   const queryString = query.toString();
   return queryString ? `${path}?${queryString}` : path;
 }
+
+export const routePaths = {
+  staffAccessConfiguration: createCrudRoutePaths(
+    "staff-masters",
+    "staff-access-configuration",
+  ),
+};

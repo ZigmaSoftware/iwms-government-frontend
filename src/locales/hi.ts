@@ -810,6 +810,7 @@ const hiResource = {
           "sub_property": "सब-प्रॉपर्टी",
           "staff_master": "स्टाफ मास्टर",
           "staff_creation": "स्टाफ निर्माण",
+          "staff_access_configuration": "Staff Access Configuration",
           "staff_template": "स्टाफ टेम्पलेट",
           "alternative_staff_template": "वैकल्पिक स्टाफ टेम्पलेट",
           "staff_template_audit": "स्टाफ टेम्पलेट ऑडिट",

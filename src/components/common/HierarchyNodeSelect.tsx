@@ -54,6 +54,8 @@ type Props = {
   required?: boolean;
   disabled?: boolean;
   allowedSourceTypes?: string[];
+  /** Only nodes at or below this source type's rank are selectable; ancestors stay visible but disabled. */
+  minSourceType?: string;
   placeholder?: string;
   legacyMatch?: LegacyMatch;
   showMap?: boolean;
@@ -73,6 +75,20 @@ const SOURCE_TO_FIELD: Record<string, keyof HierarchyLegacyValues> = {
 const FIELD_TO_SOURCE = Object.fromEntries(
   Object.entries(SOURCE_TO_FIELD).map(([source, field]) => [field, source]),
 ) as Record<keyof HierarchyLegacyValues, string>;
+
+// Mirrors GEO_LEVELS order in the backend seeder (geo_to_hierarchy.py).
+const SOURCE_TYPE_RANK: Record<string, number> = {
+  continent: 1,
+  country: 2,
+  state: 3,
+  district: 4,
+  areatype: 5,
+  corporation: 6,
+  municipality: 6,
+  town_panchayat: 6,
+  panchayat_union: 6,
+  panchayat: 6,
+};
 
 const flattenTreeWithIds = (
   nodes: RawHierarchyNode[],
@@ -122,13 +138,12 @@ export default function HierarchyNodeSelect({
   required = true,
   disabled = false,
   allowedSourceTypes,
+  minSourceType,
   placeholder = "Select hierarchy node",
   legacyMatch = null,
   showMap = true,
 }: Props) {
-  const [tree, setTree] = useState<RawHierarchyNode[]>([]);
   const [nodes, setNodes] = useState<FlatHierarchyNode[]>([]);
-  const [pathIds, setPathIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -138,7 +153,6 @@ export default function HierarchyNodeSelect({
       .then((tree) => {
         if (!mounted) return;
         const safeTree = Array.isArray(tree) ? tree : [];
-        setTree(safeTree);
         setNodes(flattenTreeWithIds(safeTree));
       })
       .finally(() => {
@@ -159,8 +173,7 @@ export default function HierarchyNodeSelect({
     [allowedSourceTypes],
   );
 
-  const isSelectable = (node: FlatHierarchyNode | null) =>
-    Boolean(node && (!allowedSet || allowedSet.has(node.sourceType)));
+  const minRank = minSourceType ? SOURCE_TYPE_RANK[minSourceType] ?? null : null;
 
   useEffect(() => {
     if (value || !legacyMatch?.value || nodes.length === 0) return;
@@ -175,38 +188,39 @@ export default function HierarchyNodeSelect({
     () => (value ? nodeById.get(value) ?? null : null),
     [nodeById, value],
   );
-  const activePathIds = selectedNode?.ancestryIds ?? pathIds;
 
-  const levels = useMemo(() => {
-    const result: { depth: number; label: string; nodes: RawHierarchyNode[]; value: string }[] = [];
-    let options = tree;
-    let depth = 0;
-
-    while (options.length) {
-      const currentValue = activePathIds[depth] ?? "";
-      const label =
-        options.find((node) => node.unique_id === currentValue)?.level_name ??
-        options[0]?.level_name ??
-        `Level ${depth + 1}`;
-      result.push({ depth, label, nodes: options, value: currentValue });
-
-      if (!currentValue) break;
-      const selected = options.find((node) => node.unique_id === currentValue);
-      options = selected?.children ?? [];
-      depth += 1;
-    }
-
-    return result;
-  }, [activePathIds, tree]);
-
-  const activeNodeForDisplay = activePathIds.length
-  ? nodeById.get(activePathIds[activePathIds.length - 1])
-  : undefined;
-
-const selectedForDisplay = activeNodeForDisplay ?? selectedNode;
+  const selectedForDisplay = selectedNode;
   const mapPin: NodePin | null = selectedForDisplay?.coordinates
     ? { ...selectedForDisplay.coordinates, label: selectedForDisplay.ancestry.join(" > ") }
     : null;
+
+  const nodeOptions: SearchableOption[] = useMemo(
+    () =>
+      nodes
+        .filter((node) => {
+          if (minRank === null || !minSourceType) return true;
+          const nodeRank = SOURCE_TYPE_RANK[node.sourceType];
+          if (nodeRank === undefined) return true;
+          if (nodeRank < minRank) return true; // ancestor tier: keep (shown disabled below)
+          // Same tier: only the exact selected source type stays (siblings like
+          // Corporation/Municipality/Town Panchayat share a rank but aren't each other's scope).
+          // Deeper tiers: hidden entirely — the selected level is the leaf of the visible tree.
+          return nodeRank === minRank && node.sourceType === minSourceType;
+        })
+        .map((node) => {
+          const nodeRank = SOURCE_TYPE_RANK[node.sourceType];
+          const aboveMinRank = minRank !== null && nodeRank !== undefined && nodeRank < minRank;
+          const notAllowedType = Boolean(allowedSet) && !allowedSet!.has(node.sourceType);
+          return {
+            value: node.id,
+            label: `${node.name}${node.levelName ? ` · ${node.levelName}` : ""}`,
+            keywords: node.ancestry.join(" "),
+            depth: node.depth,
+            disabled: aboveMinRank || notAllowedType,
+          };
+        }),
+    [nodes, allowedSet, minRank, minSourceType],
+  );
 
   return (
     <div className="grid gap-1.5">
@@ -214,51 +228,23 @@ const selectedForDisplay = activeNodeForDisplay ?? selectedNode;
         {label}
         {required && <span className="ml-1 text-red-500">*</span>}
       </Label>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {levels.map((level) => {
-          const options: SearchableOption[] = level.nodes.map((node) => {
-            const flat = nodeById.get(node.unique_id);
-            return {
-              value: node.unique_id,
-              label: `${node.name}${node.level_name ? ` · ${node.level_name}` : ""}`,
-              keywords: `${flat?.ancestry.join(" ") ?? node.name} ${flat?.sourceType ?? ""}`,
-            };
-          });
-
-          return (
-            <div key={level.depth} className="grid gap-1.5">
-              <Label className="text-xs text-gray-600">{level.label}</Label>
-              <SearchableSelect
-                options={options}
-                value={level.value}
-                onChange={(nodeId) => {
-                  const nextPath = nodeId
-                    ? [...activePathIds.slice(0, level.depth), nodeId]
-                    : activePathIds.slice(0, level.depth);
-                  setPathIds(nextPath);
-
-                  const node = nodeId ? nodeById.get(nodeId) ?? null : null;
-                  if (!node) {
-                    onChange("", {}, null);
-                    return;
-                  }
-
-                  if (isSelectable(node)) {
-                    onChange(node.id, node.legacyValues, node);
-                  } else {
-                    onChange("", {}, null);
-                  }
-                }}
-                placeholder={level.depth === 0 ? placeholder : `Select ${level.label}`}
-                searchPlaceholder={`Search ${level.label.toLowerCase()}...`}
-                emptyText={`No ${level.label.toLowerCase()} nodes.`}
-                disabled={disabled}
-                loading={loading}
-              />
-            </div>
-          );
-        })}
-      </div>
+      <SearchableSelect
+        options={nodeOptions}
+        value={value}
+        onChange={(nodeId) => {
+          const node = nodeId ? nodeById.get(nodeId) ?? null : null;
+          if (!node) {
+            onChange("", {}, null);
+            return;
+          }
+          onChange(node.id, node.legacyValues, node);
+        }}
+        placeholder={placeholder}
+        searchPlaceholder="Search any level (e.g. Chennai, Tamil Nadu)…"
+        emptyText="No nodes."
+        disabled={disabled}
+        loading={loading}
+      />
       {selectedForDisplay && (
         <div className="flex flex-wrap items-center gap-1 text-xs text-gray-500">
           <Network size={12} className="text-indigo-500" />

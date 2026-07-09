@@ -16,7 +16,7 @@ import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
-} from "../shared/GeoFenceCoordinates";
+} from "@/pages/admin/modules/masters/shared/GeoFenceCoordinates";
 
 type Option = { value: string; label: string; stateId?: string; districtId?: string; areaTypeName?: string };
 type RecordRow = Record<string, any>;
@@ -57,8 +57,8 @@ export default function StateForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
-  const { encMasters, encStates } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encStates);
+  const { encCommonMasters, encStates } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encCommonMasters, encStates);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");

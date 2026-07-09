@@ -25,6 +25,8 @@ export type SearchableOption = {
   keywords?: string;
   /** Optional left indentation (e.g. tree depth) in rem-ish px. */
   depth?: number;
+  /** Shown in the list but not selectable (e.g. non-leaf ancestor rows). */
+  disabled?: boolean;
 };
 
 type Props = {
@@ -90,6 +92,7 @@ export default function SearchableSelect({
                 <CommandItem
                   key={opt.value}
                   value={opt.value}
+                  disabled={opt.disabled}
                   onSelect={(v) => {
                     onChange(v === value ? "" : v);
                     setOpen(false);

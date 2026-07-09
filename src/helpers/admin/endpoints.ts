@@ -97,13 +97,14 @@ export const adminEndpoints = {
   ========================= */
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
+  staffAccessConfiguration: "user-creations/staff-access-configuration",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  wasteCollections: "customer-masters/wastecollections",
+  wasteCollections: "schedule-masters/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================
