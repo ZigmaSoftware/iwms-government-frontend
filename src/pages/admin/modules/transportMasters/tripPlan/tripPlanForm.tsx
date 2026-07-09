@@ -417,7 +417,7 @@ export default function TripPlanForm() {
           />
         </div>
 
-        <div className="md:col-span-2">
+        <div>
           <Label>
             {hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body"} *
           </Label>
