@@ -122,7 +122,7 @@ export default function App() {
       <Route path="/localbody" element={<LocalBodyAuth />} />
       <Route path="/localbody/dashboard" element={<LocalBodyDashboard />} />
       <Route path="/localbody/data" element={<Navigate to="/localbody/dashboard" replace />} />
-      <Route path="/publicgrivence" element={<PublicGrievance />} />
+      <Route path="/publicgrivence/*" element={<PublicGrievance />} />
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
