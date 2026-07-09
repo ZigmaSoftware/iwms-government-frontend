@@ -23,6 +23,7 @@ export const collectionPointApi = adminApi.collectionPoints;
 export const wasteTypeApi = adminApi.wasteTypes;
 export const panchayatApi = adminApi.panchayats;
 export const panchayatLeaderApi = adminApi.panchayatLeaders;
+export const districtLeaderApi = adminApi.districtLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
 export const hierarchyLevelApi = adminApi.hierarchyLevels;
@@ -71,6 +72,7 @@ export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 ========================= */
 export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
+export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;

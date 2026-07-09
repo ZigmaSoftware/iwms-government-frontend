@@ -829,6 +829,7 @@ const enResource = {
           "staff_user_type": "Staff User Type",
           "user_creations": "Staff Creations",
           "staff_creation": "Staff Creation",
+          "staff_access_configuration": "Staff Access Configuration",
           "staff_template": "Staff Template",
           "alternative_staff_template": "Alternative Staff Template",
           "staff_template_audit": "Staff Template Audit",
@@ -896,7 +897,8 @@ const enResource = {
           "waste_collected_summary": "Waste Collected Summary",
           "monthly_waste_comparison": "Monthly Waste Comparison",
           "leader_login": "Leader Login",
-          "plb_leader_creation": "PLB Leader Creation"
+          "plb_leader_creation": "PLB Leader Creation",
+          "district_leader_creation": "District Leader Creation"
         },
         "project": {
           "company_id": "Company ID",

@@ -2,16 +2,23 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import HierarchyNodeSelect, { type HierarchyLegacyValues } from "@/components/common/HierarchyNodeSelect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import {
+  areaTypeApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
   propertiesApi,
   staffCreationApi,
   staffTemplateApi,
+  stateApi,
   subPropertiesApi,
+  townPanchayatApi,
   tripPlanApi,
   vehicleCreationApi,
   wasteTypeApi,
@@ -32,6 +39,32 @@ const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
   { value: "panchayat_union_id", label: "Panchayat Union" },
   { value: "panchayat_id", label: "Panchayat" },
 ];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", HierarchyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
+const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      resolveId(record),
+  );
+const toGeoOptions = (records: any[]): Option[] =>
+  records.filter((r) => resolveId(r)).map((r) => ({ value: resolveId(r), label: resolveName(r) }));
 
 const collectionTypes = [
   { value: "bin_collection", label: "Secondary Collection Point" },
@@ -84,11 +117,12 @@ export default function TripPlanForm() {
   const { listPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
   const [displayCode, setDisplayCode] = useState("");
-  const [locationNodeId, setLocationNodeId] = useState("");
+  const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
   const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("corporation_id");
   const [hierarchyId, setHierarchyId] = useState("");
-  const [legacyMatch, setLegacyMatch] = useState<{ field: keyof HierarchyLegacyValues; value: string } | null>(null);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
@@ -118,6 +152,17 @@ export default function TripPlanForm() {
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [hierarchyRecords, setHierarchyRecords] = useState<Record<HierarchyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
+
   useEffect(() => {
     Promise.all([
       staffTemplateApi.readAll(),
@@ -126,7 +171,18 @@ export default function TripPlanForm() {
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       wasteTypeApi.readAll(),
-    ]).then(([staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes]) => {
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+    ]).then(([
+      staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes,
+      stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
+    ]) => {
       setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
       setSupervisors(
@@ -138,16 +194,45 @@ export default function TripPlanForm() {
       setProperties(toOptions(normalizeList(propertyRes), "property_name"));
       setSubProperties(toOptions(normalizeList(subPropertyRes), "sub_property_name"));
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
+      setStates(normalizeList(stateRes));
+      setDistricts(normalizeList(districtRes));
+      setAreaTypes(normalizeList(areaTypeRes));
+      setHierarchyRecords({
+        corporation_id: normalizeList(corporationRes),
+        municipality_id: normalizeList(municipalityRes),
+        town_panchayat_id: normalizeList(townPanchayatRes),
+        panchayat_union_id: normalizeList(panchayatUnionRes),
+        panchayat_id: normalizeList(panchayatRes),
+      });
     });
   }, []);
+
+  const filteredDistricts = districts.filter(
+    (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
+  );
+  const filteredAreaTypes = areaTypes.filter(
+    (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
+  );
+  const availableHierarchyLevels = areaTypeCategory
+    ? hierarchyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+    : [];
+  const hierarchyOptions = toGeoOptions(
+    (hierarchyRecords[hierarchyLevel] ?? []).filter(
+      (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+    ),
+  );
 
   useEffect(() => {
     if (!id) return;
     tripPlanApi.read(id).then((record: ApiRecord) => {
       setDisplayCode(String(record.display_code ?? ""));
 
-      // district comes as nested object (district_id is write_only in serializer)
+      // Geo fields come as nested read-only objects (write via *_id fields)
+      setStateId(String(record.state?.unique_id ?? record.state_id ?? ""));
       setDistrictId(String(record.district?.unique_id ?? record.district_id ?? ""));
+      const areaTypeName = String(record.area_type?.name ?? "");
+      setAreaTypeId(String(record.area_type?.unique_id ?? record.area_type_id ?? ""));
+      setAreaTypeCategory(areaTypeCategoryFromName(areaTypeName));
 
       // Hierarchy — read from nested read-only objects
       const hierarchyMap: Record<HierarchyLevel, string | undefined> = {
@@ -160,9 +245,7 @@ export default function TripPlanForm() {
       const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
       if (detectedLevel) {
         setHierarchyLevel(detectedLevel.value);
-        const matchedId = hierarchyMap[detectedLevel.value] ?? "";
-        setHierarchyId(matchedId);
-        setLegacyMatch({ field: detectedLevel.value, value: matchedId });
+        setHierarchyId(hierarchyMap[detectedLevel.value] ?? "");
       }
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
@@ -214,8 +297,8 @@ export default function TripPlanForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!districtId || !hierarchyId || !staffTemplateId || !vehicleId) {
-      Swal.fire("Missing details", "District, Hierarchy, Staff Template and Vehicle are required.", "warning");
+    if (!stateId || !districtId || !hierarchyId || !staffTemplateId || !vehicleId) {
+      Swal.fire("Missing details", "State, District, Local Body, Staff Template and Vehicle are required.", "warning");
       return;
     }
     if (selectedWasteTypes.length === 0) {
@@ -225,7 +308,9 @@ export default function TripPlanForm() {
     const scheduledTime = to24h(timeHour, timeMinute, timePeriod);
     setSaving(true);
     const payload: Record<string, any> = {
+      state_id: stateId,
       district_id: districtId,
+      area_type_id: areaTypeId || null,
       corporation_id: null,
       municipality_id: null,
       town_panchayat_id: null,
@@ -273,20 +358,74 @@ export default function TripPlanForm() {
           </div>
         )}
 
-        <div className="md:col-span-2">
-          <HierarchyNodeSelect
-            value={locationNodeId}
-            legacyMatch={legacyMatch}
-            allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
-            label="Operational Hierarchy"
-            placeholder="Select corporation / municipality / town panchayat / panchayat union / panchayat"
-            onChange={(nodeId, legacy) => {
-              setLocationNodeId(nodeId);
-              setDistrictId(legacy.district_id ?? "");
-              const selected = hierarchyLevels.find((item) => legacy[item.value]);
-              setHierarchyLevel(selected?.value ?? "corporation_id");
-              setHierarchyId(selected ? legacy[selected.value] ?? "" : "");
+        <div>
+          <Label>State *</Label>
+          <Select
+            value={stateId}
+            onChange={(v) => {
+              setStateId(String(v));
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setHierarchyId("");
             }}
+            options={toGeoOptions(states)}
+            placeholder="Select State"
+          />
+        </div>
+
+        <div>
+          <Label>District *</Label>
+          <Select
+            value={districtId}
+            onChange={(v) => {
+              setDistrictId(String(v));
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setHierarchyId("");
+            }}
+            options={toGeoOptions(filteredDistricts)}
+            placeholder={stateId ? "Select District" : "Select a State first"}
+          />
+        </div>
+
+        <div>
+          <Label>Area Type</Label>
+          <Select
+            value={areaTypeId}
+            onChange={(v) => {
+              const selected = filteredAreaTypes.find((a) => resolveId(a) === v);
+              setAreaTypeId(String(v));
+              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+              setHierarchyId("");
+            }}
+            options={toGeoOptions(filteredAreaTypes)}
+            placeholder={districtId ? "Select Area Type" : "Select a District first"}
+          />
+        </div>
+
+        <div>
+          <Label>Local Body Type *</Label>
+          <Select
+            value={hierarchyLevel}
+            onChange={(v) => {
+              setHierarchyLevel(v as HierarchyLevel);
+              setHierarchyId("");
+            }}
+            options={availableHierarchyLevels}
+            placeholder={areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <Label>
+            {hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body"} *
+          </Label>
+          <Select
+            value={hierarchyId}
+            onChange={(v) => setHierarchyId(String(v))}
+            options={hierarchyOptions}
+            placeholder="Select"
           />
         </div>
 

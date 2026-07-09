@@ -1,81 +1,177 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
-FRONTEND_DIR="/home/admin/localserver/iwms-frontend"
-LOG="/home/admin/frontend_sync.log"
+FRONTEND_DIR="/home/admin/localserver/iwmsGovernment/iwms-government-frontend"
+LOG_DIR="/home/admin/localserver/iwmsGovernment/logs"
+LOG="$LOG_DIR/frontend_sync.log"
 BRANCH="main"
 SERVICE="vite-frontend.service"
 TOKEN_FILE="$HOME/Downloads/BP.txt"
+PASSWORD_FILE="/home/admin/admin_password.txt"
 USERNAME="ZigmaSoftware"
-TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+REPO_URL="https://github.com/ZigmaSoftware/iwms-government-frontend.git"
+NPM_BIN="/usr/local/bin/npm"
 
-echo "[$TIMESTAMP] Frontend sync started" >> "$LOG"
+STASH_CREATED=0
+PREV_COMMIT=""
+AUTH_REPO_URL=""
+BOOTSTRAPPED_DEPS=0
 
-cd "$FRONTEND_DIR"
+log() {
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] $1" >> "$LOG"
+}
 
-# Load token
-TOKEN=$(cat "$TOKEN_FILE" | tr -d ' \n')
+ensure_origin_remote() {
+    local current_remote=""
 
-# Ensure authenticated remote URL
-REMOTE_URL=$(git remote get-url origin)
-if [[ "$REMOTE_URL" != https://$USERNAME:* ]]; then
-    NEW_URL="https://$USERNAME:$TOKEN@${REMOTE_URL#https://}"
-    git remote set-url origin "$NEW_URL"
-    echo "[$TIMESTAMP] Updated Git remote with credentials." >> "$LOG"
-fi
+    if git remote get-url origin >/dev/null 2>&1; then
+        current_remote=$(git remote get-url origin)
+        if [[ "$current_remote" != "$REPO_URL" ]]; then
+            git remote set-url origin "$REPO_URL"
+            log "Updated origin to $REPO_URL."
+        fi
+    else
+        git remote add origin "$REPO_URL"
+        log "Added missing origin remote: $REPO_URL."
+    fi
+}
 
-git stash --include-untracked >> "$LOG" 2>&1 || true
-git fetch origin "$BRANCH" >> "$LOG" 2>&1
+restore_stash() {
+    if [[ "$STASH_CREATED" -eq 1 ]]; then
+        if git stash pop >> "$LOG" 2>&1; then
+            log "Restored stashed local changes."
+        else
+            log "Stash restore needs manual attention."
+        fi
+    fi
+}
 
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/$BRANCH)
+restart_service() {
+    if [[ -f "$PASSWORD_FILE" ]]; then
+        sudo -S systemctl restart "$SERVICE" < "$PASSWORD_FILE" >> "$LOG" 2>&1
+    else
+        sudo systemctl restart "$SERVICE" >> "$LOG" 2>&1
+    fi
+}
 
-if [ "$LOCAL" = "$REMOTE" ]; then
-    echo "[$TIMESTAMP] Frontend already up to date." >> "$LOG"
-    exit 0
-fi
+rollback() {
+    if [[ -n "$PREV_COMMIT" ]]; then
+        log "Rolling back to $PREV_COMMIT."
+        git reset --hard "$PREV_COMMIT" >> "$LOG" 2>&1
+        restart_service || true
+    fi
+}
 
-PREV_COMMIT=$(git rev-parse HEAD)
+trap restore_stash EXIT
 
-# Pull & rebase
-if ! git pull --rebase >> "$LOG" 2>&1; then
-    echo "[$TIMESTAMP] Merge error. Aborting rebase." >> "$LOG"
-    git rebase --abort >> "$LOG" 2>&1 || true
-    git stash pop >> "$LOG" 2>&1 || true
+mkdir -p "$LOG_DIR"
+log "Frontend sync started."
+
+if [[ ! -d "$FRONTEND_DIR/.git" ]]; then
+    log "Frontend repo not found at $FRONTEND_DIR."
     exit 1
 fi
 
-# Detect frontend-relevant changes only
-if git diff --name-only $PREV_COMMIT HEAD | grep -qE "src/|package.json|vite.config|tailwind.config"; then
-    echo "[$TIMESTAMP] Frontenadmin@Admin:~$ systemctl list-units --type=service | grep -i react
-systemctl list-units --type=service | grep -i front
-systemctl list-units --type=service | grep -i iwms
-systemctl list-unit-files | grep -i react
-systemctl list-unit-files | grep -i front
-systemctl list-unit-files | grep -i iwms
-  vite-frontend.service                                 loaded    active running Vite Frontend Dev Server
-  iwms-dashboard.service                                loaded    active running IWMS Dashboard - Vite Server
-vite-frontend.service                                                     enabled         enabled
-iwms-dashboard.service                                                    enabled         enabled
-admin@Admin:~$ 
-d code changed. Running npm install..." >> "$LOG"
-
-    if ! npm install >> "$LOG" 2>&1; then
-        echo "[$TIMESTAMP] npm install FAILED — rolling back to safe commit." >> "$LOG"
-        git reset --hard "$PREV_COMMIT" >> "$LOG"
-        exit 1
-    fi
-
-    echo "[$TIMESTAMP] Restarting frontend service..." >> "$LOG"
-    if ! sudo -S systemctl restart "$SERVICE" < /home/admin/admin_password.txt >> "$LOG" 2>&1; then
-        echo "[$TIMESTAMP] Frontend restart FAILED — rolling back to stable version." >> "$LOG"
-        git reset --hard "$PREV_COMMIT" >> "$LOG"
-        sudo -S systemctl restart "$SERVICE" < /home/admin/admin_password.txt >> "$LOG" 2>&1
-        exit 1
-    fi
-else
-    echo "[$TIMESTAMP] No relevant frontend files changed — skipping npm install + restart." >> "$LOG"
+if [[ ! -r "$TOKEN_FILE" ]]; then
+    log "Token file not found at $TOKEN_FILE."
+    exit 1
 fi
 
-git push origin "$BRANCH" >> "$LOG" 2>&1
-echo "[$TIMESTAMP] Frontend sync completed." >> "$LOG"
+TOKEN=$(tr -d ' \n' < "$TOKEN_FILE")
+if [[ -z "$TOKEN" ]]; then
+    log "Token file is empty."
+    exit 1
+fi
+
+AUTH_REPO_URL="https://${USERNAME}:${TOKEN}@github.com/ZigmaSoftware/iwms-government-frontend.git"
+
+cd "$FRONTEND_DIR"
+
+ensure_origin_remote
+
+if [[ ! -x "$NPM_BIN" ]]; then
+    log "npm not found at $NPM_BIN."
+    exit 1
+fi
+
+HAS_UNTRACKED=0
+if [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
+    HAS_UNTRACKED=1
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet || [[ "$HAS_UNTRACKED" -eq 1 ]]; then
+    git stash push --include-untracked -m "frontend-sync-$(date +%s)" >> "$LOG" 2>&1
+    STASH_CREATED=1
+    log "Stashed local changes before sync."
+fi
+
+git fetch "$AUTH_REPO_URL" "$BRANCH:refs/remotes/origin/$BRANCH" >> "$LOG" 2>&1
+
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse "origin/$BRANCH")
+
+if [[ "$LOCAL" == "$REMOTE" ]]; then
+    if [[ ! -d node_modules ]]; then
+        log "node_modules missing. Installing dependencies before exit."
+        if ! "$NPM_BIN" install >> "$LOG" 2>&1; then
+            log "npm install failed while bootstrapping dependencies."
+            exit 1
+        fi
+
+        BOOTSTRAPPED_DEPS=1
+    fi
+
+    if [[ "$BOOTSTRAPPED_DEPS" -eq 1 ]]; then
+        log "Restarting frontend service after dependency bootstrap."
+        if ! restart_service; then
+            log "Frontend restart failed after dependency bootstrap."
+            exit 1
+        fi
+    fi
+
+    log "Frontend already up to date."
+    exit 0
+fi
+
+PREV_COMMIT="$LOCAL"
+
+if ! git pull --rebase "$AUTH_REPO_URL" "$BRANCH" >> "$LOG" 2>&1; then
+    log "Merge error. Aborting rebase."
+    git rebase --abort >> "$LOG" 2>&1 || true
+    exit 1
+fi
+
+CHANGED_FILES=$(git diff --name-only "$PREV_COMMIT" HEAD)
+if [[ -n "$CHANGED_FILES" ]]; then
+    log "Frontend repo updated."
+
+    if [[ ! -d node_modules ]] || echo "$CHANGED_FILES" | grep -qE '(^package\.json$|^package-lock\.json$)'; then
+        log "Installing npm dependencies."
+        if ! "$NPM_BIN" install >> "$LOG" 2>&1; then
+            log "npm install failed."
+            rollback
+            exit 1
+        fi
+    fi
+
+    log "Restarting frontend service."
+    if ! restart_service; then
+        log "Frontend restart failed."
+        rollback
+        exit 1
+    fi
+fi
+
+AHEAD_COUNT=$(git rev-list --count "origin/$BRANCH..HEAD")
+if [[ "$AHEAD_COUNT" -gt 0 ]]; then
+    log "Local branch is ahead by $AHEAD_COUNT commit(s). Pushing to origin."
+    if ! git push "$AUTH_REPO_URL" "$BRANCH" >> "$LOG" 2>&1; then
+        log "Push failed after successful sync."
+        exit 1
+    fi
+fi
+
+log "Frontend sync completed."

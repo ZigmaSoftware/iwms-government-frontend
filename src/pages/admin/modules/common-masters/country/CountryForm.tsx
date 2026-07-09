@@ -24,10 +24,10 @@ import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
-} from "../shared/GeoFenceCoordinates";
+} from "@/pages/admin/modules/masters/shared/GeoFenceCoordinates";
 
-const { encMasters, encCountries } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encMasters, encCountries);
+const { encCommonMasters, encCountries } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCommonMasters, encCountries);
 
 const COUNTRY_FIELDS: Record<string, string[]> = {
   continent_id: ["continent_id"],
@@ -60,7 +60,7 @@ const resolveId = (
 export default function CountryForm() {
   const { t } = useTranslation();
   const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "countries", COUNTRY_FIELDS);
+    useFieldVisibility("common-masters", "countries", COUNTRY_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);

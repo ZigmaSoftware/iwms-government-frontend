@@ -16,7 +16,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
-import { formatCoordinates } from "../shared/formatCoordinates";
+import { formatCoordinates } from "@/pages/admin/modules/masters/shared/formatCoordinates";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -24,11 +24,11 @@ import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
 
 
-const { encMasters, encContinents } = getEncryptedRoute();
+const { encCommonMasters, encContinents } = getEncryptedRoute();
 
 const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
 
-  encMasters,
+  encCommonMasters,
 
   encContinents,
 
@@ -78,7 +78,7 @@ export default function ContinentList() {
     name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
-    "masters",
+    "common-masters",
     "continents",
     CONTINENT_COLUMN_FIELDS,
   );

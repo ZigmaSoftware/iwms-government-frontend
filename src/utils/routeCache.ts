@@ -39,6 +39,7 @@ export type EncryptedRoutes = {
   encProperties: string;
   encReport: string;
   encStaffCreation: string;
+  encStaffAccessConfiguration: string;
   encStaffUserType: string;
   encStates: string;
   encSubProperties: string;
@@ -100,6 +101,7 @@ export type EncryptedRoutes = {
   encLoginAudits: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
+  encCommonMasters: string;
 
 
   encPanchayats: string;
@@ -112,6 +114,8 @@ export type EncryptedRoutes = {
   encPanchayatLeaders: string;
   encLeaderLogin: string;
   encPlbLeaderCreation: string;
+  encDistrictLeaders: string;
+  encDistrictLeaderCreation: string;
   encCorporations: string;
   encMunicipalities: string;
   encTownPanchayats: string;
@@ -145,6 +149,7 @@ const plainRoutes: EncryptedRoutes = {
   encApartmentList: "apartment-list",
   encCustomerMaster: "customer-master",
   encSuperAdminMaster: "superadmin-masters",
+  encCommonMasters: "common-masters",
   encCompanyCreation: "company-creation",
   encCommonAudit: "common-audit",
   encLoginAudits: "login-audits",
@@ -162,6 +167,7 @@ const plainRoutes: EncryptedRoutes = {
   encProperties: "properties",
   encReport: "reports",
   encStaffCreation: "staff-creation",
+  encStaffAccessConfiguration: "staff-access-configuration",
   encStaffUserType: "staff-user-type",
   encStates: "states",
   encSubProperties: "sub-properties",
@@ -218,6 +224,8 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayatLeaders: "panchayat-leaders",
   encLeaderLogin: "leader-login",
   encPlbLeaderCreation: "plb-leader-creation",
+  encDistrictLeaders: "district-leaders",
+  encDistrictLeaderCreation: "district-leader-creation",
   encCorporations: "corporations",
   encMunicipalities: "municipalities",
   encTownPanchayats: "town-panchayats",

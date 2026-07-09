@@ -5,12 +5,12 @@ import { decryptSegment } from "@/utils/routeCrypto";
 
 
 // Import your actual page components
-import ContinentList from "@/pages/admin/modules/masters/continent/ContinentListPage";
-import ContinentForm from "@/pages/admin/modules/masters/continent/ContinentForm";
-import CountryList from "@/pages/admin/modules/masters/country/CountryListPage";
-import CountryForm from "@/pages/admin/modules/masters/country/CountryForm";
-import StateList from "@/pages/admin/modules/masters/state/StateListPage";
-import StateForm from "@/pages/admin/modules/masters/state/StateForm";
+import ContinentList from "@/pages/admin/modules/common-masters/continent/ContinentListPage";
+import ContinentForm from "@/pages/admin/modules/common-masters/continent/ContinentForm";
+import CountryList from "@/pages/admin/modules/common-masters/country/CountryListPage";
+import CountryForm from "@/pages/admin/modules/common-masters/country/CountryForm";
+import StateList from "@/pages/admin/modules/common-masters/state/StateListPage";
+import StateForm from "@/pages/admin/modules/common-masters/state/StateForm";
 import DistrictList from "@/pages/admin/modules/masters/district/DistrictListPage";
 import DistrictForm from "@/pages/admin/modules/masters/district/DistrictForm";
 import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
@@ -29,6 +29,8 @@ import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/Panchayat
 import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
 import PanchayatLeaderListPage from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderListPage";
 import PanchayatLeaderForm from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderForm";
+import DistrictLeaderListPage from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderListPage";
+import DistrictLeaderForm from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderForm";
 import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
@@ -54,6 +56,8 @@ import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubProper
 import SubPropertyForm from "@/pages/admin/modules/masters/subproperty/SubPropertyForm";
 import StaffCreationList from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationlist";
 import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationForm";
+import StaffAccessConfigList from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigList";
+import StaffAccessConfigPage from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigPage";
 // Admin
 import UserTypeList from "@/pages/admin/modules/admin/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/admin/userType/user-typeForm";
@@ -178,10 +182,12 @@ const ROUTES: RouteMap = {
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
   },
-  masters: {
+  "common-masters": {
     continents: { list: ContinentList, form: ContinentForm },
     countries: { list: CountryList, form: CountryForm },
     states: { list: StateList, form: StateForm },
+  },
+  masters: {
     districts: { list: DistrictList, form: DistrictForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
@@ -192,6 +198,7 @@ const ROUTES: RouteMap = {
 
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
+    "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
     "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
     "hierarchy-levels": { list: HierarchyLevelListPage, form: HierarchyLevelForm },
@@ -209,6 +216,7 @@ const ROUTES: RouteMap = {
   },
   "staff-masters": {
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
+    "staff-access-configuration": { list: StaffAccessConfigList, form: StaffAccessConfigPage },
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
     "unassigned-staff-pool": { list: UnassignedStaffPoolList, form: UnassignedStaffPoolForm },
   },
@@ -234,6 +242,7 @@ const ROUTES: RouteMap = {
     "daily-trip-log": { list: DailyTripLogList },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
   },
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
@@ -245,7 +254,6 @@ const ROUTES: RouteMap = {
     "vehicle-history": { component: VehicleHistory },
   },
   "waste-management": {
-    "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
     // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
   },
@@ -279,6 +287,7 @@ const ROUTES: RouteMap = {
   },
   "leader-login": {
     "plb-leader-creation": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
+    "district-leader-creation": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
   },
 };
 
@@ -291,7 +300,6 @@ const MASTER_ALIASES: Record<string, string[]> = {
   "user-creations": ["staff-masters"],
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
-  "common-masters": ["masters"],
   "waste-types": ["masters"],
   assets: ["masters"],
   collections: ["waste-management"],

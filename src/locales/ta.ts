@@ -810,6 +810,7 @@ const taResource = {
           "sub_property": "உப சொத்து",
           "staff_master": "பணியாளர் மாஸ்டர்",
           "staff_creation": "பணியாளர் உருவாக்கம்",
+          "staff_access_configuration": "Staff Access Configuration",
           "staff_template": "பணியாளர் டெம்ப்ளேட்",
           "alternative_staff_template": "மாற்று பணியாளர் டெம்ப்ளேட்",
           "staff_template_audit": "பணியாளர் டெம்ப்ளேட் ஆய்வு",
@@ -878,7 +879,8 @@ const taResource = {
           "waste_collected_summary": "கழிவு சேகரிப்பு சுருக்கம்",
           "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு",
           "leader_login": "தலைவர் உள்நுழைவு",
-          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்"
+          "plb_leader_creation": "PLB தலைவர் உருவாக்கம்",
+          "district_leader_creation": "மாவட்ட தலைவர் உருவாக்கம்"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",
