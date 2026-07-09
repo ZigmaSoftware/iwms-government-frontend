@@ -170,7 +170,7 @@ export default function StaffAccessConfigList() {
         />
       </div>
       <span className="p-input-icon-left w-full md:w-80">
-        <i className="pi pi-search" />
+      
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}

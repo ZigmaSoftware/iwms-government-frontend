@@ -3,10 +3,7 @@ import axios, { type AxiosInstance } from "axios";
 /* --------------------------------------------------------
    ENV
 -------------------------------------------------------- */
-const IS_PROD = import.meta.env.VITE_PROD === "true";
-const API_ROOT = IS_PROD
-  ? import.meta.env.VITE_API_PROD
-  : import.meta.env.VITE_API_LOCAL;
+import { API_ROOT } from "../config/configApi";
 
 const isRemovedScopeKey = (key: string): boolean => {
   const normalized = key.replace(/[^a-z]/gi, "").toLowerCase();
