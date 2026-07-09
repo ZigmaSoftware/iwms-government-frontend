@@ -41,12 +41,6 @@ export type NestedRef = Record<string, unknown> | null | undefined;
 
 export type BinCollectionEventRecord = {
   unique_id: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
   trip_assignment_id?: string;
   trip_collection_point_id?: string;
   collection_point_id?: string;

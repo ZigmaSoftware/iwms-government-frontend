@@ -142,6 +142,11 @@ import AlternativeStaffTemplateList from "@/pages/admin/modules/staffMasters/alt
 import AlternativeStaffTemplateForm from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateForm";
 import BinCollectionEventList from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventForm";
+import VehicleBreakdownList from "@/pages/admin/modules/scheduleMasters/vehicleBreakdown/vehicleBreakdownList";
+import VehicleBreakdownForm from "@/pages/admin/modules/scheduleMasters/vehicleBreakdown/vehicleBreakdownForm";
+import SchedulerConfigPage from "@/pages/admin/modules/scheduleMasters/schedulerConfig/SchedulerConfigPage";
+import TripPlanCollectionPointList from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointList";
+import TripPlanCollectionPointForm from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonList";
 import DailyWasteComparisonForm from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditList";
@@ -229,6 +234,9 @@ const ROUTES: RouteMap = {
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-tracking": { component: DailyTripTracking },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
+    "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
+    "scheduler-config": { component: SchedulerConfigPage },
+    "trip-plan-collection-points": { list: TripPlanCollectionPointList, form: TripPlanCollectionPointForm },
     "daily-trip-log": { list: DailyTripLogList },
     "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
@@ -316,6 +324,8 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "daily-trip-collection-points": ["daily-trip-collection-point"],
   "daily-trip-household-collections": ["daily-trip-household-collection"],
   "bin-collection-events": ["bin-collection-event"],
+  "vehicle-breakdowns": ["vehicle-breakdown"],
+  "trip-plan-collection-points": ["trip-plan-collection-point"],
   "daily-trip-logs": ["daily-trip-log"],
   "sla-rules": ["sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
   "sla-rule": ["sla-rules", "sla_rules", "slaRules", "slarules", "sla"],

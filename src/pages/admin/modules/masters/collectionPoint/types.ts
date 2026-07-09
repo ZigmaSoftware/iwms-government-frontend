@@ -11,8 +11,6 @@ import type { FilterMatchMode } from "primereact/api";
 export type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
   cp_name: { value: string | null; matchMode: FilterMatchMode };
-  company_name: { value: string | null; matchMode: FilterMatchMode };
-  project_name: { value: string | null; matchMode: FilterMatchMode };
   state_name: { value: string | null; matchMode: FilterMatchMode };
   district_name: { value: string | null; matchMode: FilterMatchMode };
   panchayat_name: { value: string | null; matchMode: FilterMatchMode };

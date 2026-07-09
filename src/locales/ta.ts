@@ -836,6 +836,8 @@ const taResource = {
           "daily_trip_tracking": "தினசரி பயண கண்காணிப்பு",
           "daily_trip_log": "தினசரி பயண பதிவு",
           "bin_collection_event": "குப்பைத்தொட்டி சேகரிப்பு நிகழ்வு",
+          "vehicle_breakdown": "வாகன செயலிழப்பு",
+          "scheduler_config": "தானியங்கி அட்டவணை அமைப்புகள்",
           "bin_load_log": "பின் ஏற்ற பதிவு",
           "trip_instance": "பயண நிகழ்வு",
           "trip_attendance": "பயண வருகை",

@@ -95,8 +95,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
             total_weight: 0,
             records: [],
             zone_name: scope === "ward" ? (row.zone_name ?? "-") : undefined,
-            company_names: [],
-            project_names: [],
             collection_dates: [],
           };
         }
@@ -305,14 +303,8 @@ export default function BaseCollectionListPage({ scope }: Props) {
           filters={filters}
           globalFilterFields={
             isWard
-              ? [
-                  "name",
-                  "zone_name",
-                  "company_names",
-                  "project_names",
-                  "collection_dates",
-                ]
-              : ["name", "company_names", "project_names", "collection_dates"]
+              ? ["name", "zone_name", "collection_dates"]
+              : ["name", "collection_dates"]
           }
           header={tableHeader}
           emptyMessage={`No ${scopeLabel.toLowerCase()} collection records found.`}
@@ -326,22 +318,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
             style={{ width: "80px" }}
           />
 
-          <Column
-            field="company_names"
-            header="Company"
-            sortable
-            body={(row: SummaryRow) =>
-              row.company_names.length ? row.company_names.join(", ") : "-"
-            }
-          />
-          <Column
-            field="project_names"
-            header="Project"
-            sortable
-            body={(row: SummaryRow) =>
-              row.project_names.length ? row.project_names.join(", ") : "-"
-            }
-          />
           <Column
             field="collection_dates"
             header="Date"
@@ -403,8 +379,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
               "collection_point_name",
               "collection_date",
               "trip_id",
-              "company_name",
-              "project_name",
             ]}
             header={tableHeader}
             emptyMessage={`No records found for this ${scopeLabel.toLowerCase()}.`}
@@ -476,18 +450,6 @@ export default function BaseCollectionListPage({ scope }: Props) {
               header="Trip"
               sortable
               body={(row: CollectionRecord) => normalizeText(row.trip_id)}
-            />
-            <Column
-              field="company_name"
-              header="Company"
-              sortable
-              body={(row: CollectionRecord) => normalizeText(row.company_name)}
-            />
-            <Column
-              field="project_name"
-              header="Project"
-              sortable
-              body={(row: CollectionRecord) => normalizeText(row.project_name)}
             />
             <Column
               field="latitude"

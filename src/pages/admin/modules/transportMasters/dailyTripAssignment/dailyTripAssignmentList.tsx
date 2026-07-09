@@ -21,6 +21,17 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { dailyTripAssignmentApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
+import { api } from "@/api";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
+
+type SchedulerStatus = {
+  enabled?: boolean;
+  is_enabled?: boolean;
+  run_time?: string;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  is_running?: boolean;
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -133,6 +144,10 @@ export default function DailyTripAssignmentList() {
   const [tripPlanLookup, setTripPlanLookup] = useState<Record<string, TripPlanRecord>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
+  const [isSavingSchedulerConfig, setIsSavingSchedulerConfig] = useState(false);
+  const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
+  const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -171,6 +186,47 @@ export default function DailyTripAssignmentList() {
     loadAssignments();
   }, [loadAssignments]);
 
+  /* ── background auto-schedule status + config ── */
+  const loadSchedulerStatus = useCallback(() => {
+    dailyTripAssignmentApi
+      .action<SchedulerStatus>("scheduler-status")
+      .then((status) => {
+        setSchedulerStatus(status);
+        if (status.run_time) setSchedulerRunTime(status.run_time.slice(0, 5));
+        if (typeof status.enabled === "boolean") setSchedulerEnabled(status.enabled);
+        else if (typeof status.is_enabled === "boolean") setSchedulerEnabled(status.is_enabled);
+      })
+      .catch(() => setSchedulerStatus(null));
+  }, []);
+
+  useEffect(() => loadSchedulerStatus(), [loadSchedulerStatus]);
+
+  const saveSchedulerConfig = async () => {
+    if (!schedulerRunTime) {
+      Swal.fire({ icon: "warning", title: t("admin.daily_trip_assignment.select_time", "Select auto-generation time") });
+      return;
+    }
+    setIsSavingSchedulerConfig(true);
+    try {
+      const { data } = await api.patch(adminEndpoints.schedulerConfig, {
+        run_time: schedulerRunTime,
+        is_enabled: schedulerEnabled,
+      });
+      setSchedulerRunTime(String(data.run_time ?? schedulerRunTime).slice(0, 5));
+      setSchedulerEnabled(Boolean(data.is_enabled ?? schedulerEnabled));
+      loadSchedulerStatus();
+      Swal.fire({
+        icon: "success",
+        title: t("admin.daily_trip_assignment.scheduler_updated", "Scheduler updated"),
+        text: `Daily trip plans will auto-generate at ${String(data.run_time ?? schedulerRunTime).slice(0, 5)}.`,
+      });
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to update scheduler time" });
+    } finally {
+      setIsSavingSchedulerConfig(false);
+    }
+  };
+
   /* ── manually run the daily trip job scheduler (for today) ── */
   const handleGenerateDaily = async () => {
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -198,6 +254,7 @@ export default function DailyTripAssignmentList() {
         text: res?.message ?? `Created ${res?.created ?? 0}, skipped ${res?.skipped ?? 0}.`,
       });
       await loadAssignments();
+      loadSchedulerStatus();
     } catch (err) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
     } finally {
@@ -297,6 +354,56 @@ export default function DailyTripAssignmentList() {
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
+        </div>
+      </div>
+
+      {/* ── Auto-schedule config bar ── */}
+      <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <span className="text-sm font-semibold text-gray-700">
+            {t("admin.daily_trip_assignment.auto_schedule", "Auto Schedule")}
+          </span>
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            {t("admin.daily_trip_assignment.run_time", "Generation time (IST)")}
+            <input
+              type="time"
+              value={schedulerRunTime}
+              onChange={(e) => setSchedulerRunTime(e.target.value)}
+              className="border rounded px-2 py-1.5 text-sm bg-white"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={schedulerEnabled}
+              onChange={(e) => setSchedulerEnabled(e.target.checked)}
+              className="h-4 w-4"
+            />
+            {t("admin.daily_trip_assignment.scheduler_enabled", "Enabled")}
+          </label>
+          <Button
+            label={isSavingSchedulerConfig
+              ? t("common.saving", "Saving…")
+              : t("admin.daily_trip_assignment.save_schedule", "Save Schedule")}
+            icon="pi pi-clock"
+            className="p-button-sm p-button-secondary"
+            loading={isSavingSchedulerConfig}
+            disabled={isSavingSchedulerConfig}
+            onClick={saveSchedulerConfig}
+          />
+          {schedulerStatus && (
+            <span className="ml-auto text-xs text-gray-500">
+              {schedulerStatus.is_running
+                ? t("admin.daily_trip_assignment.scheduler_running", "Scheduler running…")
+                : (schedulerStatus.enabled ?? schedulerStatus.is_enabled)
+                  ? `${t("admin.daily_trip_assignment.next_run", "Next run")}: ${
+                      schedulerStatus.next_run_at
+                        ? new Date(schedulerStatus.next_run_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+                        : "—"
+                    }`
+                  : t("admin.daily_trip_assignment.scheduler_disabled", "Auto-schedule disabled")}
+            </span>
+          )}
         </div>
       </div>
 

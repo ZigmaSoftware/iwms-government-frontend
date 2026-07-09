@@ -48,8 +48,6 @@ export default function WasteCollectedDataList() {
     ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    company_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    project_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   /* ── load data ── */
@@ -148,7 +146,7 @@ export default function WasteCollectedDataList() {
         showGridlines
         emptyMessage={t("admin.waste_collected_data.empty_message")}
         className="p-datatable-sm"
-        globalFilterFields={["customer_name", "zone_name", "ward_name", "panchayat_name", "city_name", "company_name", "project_name"]}
+        globalFilterFields={["customer_name", "zone_name", "ward_name", "panchayat_name", "city_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column

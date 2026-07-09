@@ -12,10 +12,6 @@ export type Customer = {
   district_name?: string;
   state_name?: string;
   country_name?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
 };
 
 export type WasteCollection = {
@@ -39,10 +35,4 @@ export type WasteCollection = {
   collection_date?: string;
   collection_time?: string;
   is_active: boolean;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
 };
