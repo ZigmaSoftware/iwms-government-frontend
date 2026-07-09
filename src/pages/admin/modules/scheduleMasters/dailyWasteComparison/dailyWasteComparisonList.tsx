@@ -102,7 +102,7 @@ const PlbEffRow = ({ plb }: { plb: any }) => {
     <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
       <div className="w-24 shrink-0">
         <p className="text-xs font-semibold text-gray-800 truncate">
-          {plb.panchayat_name ?? plb.panchayat_id}
+          {plb.location_node_name ?? plb.location_node_id}
         </p>
         <p className="text-[10px] text-gray-400 mt-0.5">
           {fmtKg(actual)} / {fmtKg(agreed)} kg
@@ -195,7 +195,7 @@ export default function DailyWasteComparisonList() {
     DailyReportResponse["date_trends"]
   >([]);
   const [plbCompare, setPlbCompare] = useState<
-    DailyReportResponse["panchayat_comparison"]
+    DailyReportResponse["location_comparison"]
   >([]);
   const [kpis, setKpis] = useState<DailyReportResponse["kpis"]>(initialKpis);
   const [loading, setLoading] = useState(false);
@@ -221,8 +221,8 @@ export default function DailyWasteComparisonList() {
       setRows(Array.isArray(data?.results) ? data.results : []);
       setDateTrends(Array.isArray(data?.date_trends) ? data.date_trends : []);
       setPlbCompare(
-        Array.isArray(data?.panchayat_comparison)
-          ? data.panchayat_comparison
+        Array.isArray(data?.location_comparison)
+          ? data.location_comparison
           : [],
       );
       setKpis(data?.kpis ?? initialKpis);
@@ -245,7 +245,7 @@ export default function DailyWasteComparisonList() {
   const handleDelete = async (row: DailyReportRow) => {
     const result = await Swal.fire({
       title: t("common.are_you_sure"),
-      text: `Delete record for ${row.panchayat_name ?? row.panchayat_id} — ${row.collection_date}?`,
+      text: `Delete record for ${row.location_node_name ?? row.location_node_id} — ${row.collection_date}?`,
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#ef4444",
@@ -271,10 +271,7 @@ export default function DailyWasteComparisonList() {
   const plbChartData = useMemo(
     () =>
       (plbCompare as any[]).slice(0, 8).map((p) => ({
-        name: String(p.panchayat_name ?? p.panchayat_id).replace(
-          "Panchayat ",
-          "PLB ",
-        ),
+        name: String(p.location_node_name ?? p.location_node_id),
         Agreed: Number(p.agreed_weight_kg ?? p.total_agreed_weight ?? 0),
         Actual: Number(p.actual_weight_kg ?? p.total_actual_weight ?? 0),
       })),
@@ -293,7 +290,7 @@ export default function DailyWasteComparisonList() {
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Date: r.collection_date,
-          PLB: r.panchayat_name ?? r.panchayat_id,
+          Location: r.location_node_name ?? r.location_node_id,
           "Waste Type": r.waste_type,
           "Agreed (kg)": r.agreed_weight_kg,
           "Actual (kg)": r.actual_weight_kg,
@@ -329,7 +326,7 @@ export default function DailyWasteComparisonList() {
             Daily Waste Collection Comparison
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Daily aggregate — agreed vs actual by PLB and waste type
+            Daily aggregate — agreed vs actual by location and waste type
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -555,14 +552,14 @@ export default function DailyWasteComparisonList() {
         {/* PLB Efficiency — progress bars */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            PLB Collection Efficiency
+            Location Collection Efficiency
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Actual ÷ Agreed — per PLB (Participating Local Body)
+            Actual ÷ Agreed — per location
           </p>
           {plbCompare.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
-              No PLB data yet.
+              No location data yet.
             </div>
           ) : (
             <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
@@ -573,13 +570,13 @@ export default function DailyWasteComparisonList() {
           )}
         </div>
 
-        {/* PLB Agreed vs Actual — grouped bar (full width) */}
+        {/* Location Agreed vs Actual — grouped bar (full width) */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 lg:col-span-2">
           <h2 className="text-sm font-semibold text-gray-800">
-            PLB Collection — Agreed vs Actual
+            Location Collection — Agreed vs Actual
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Side-by-side daily totals per PLB&nbsp;·&nbsp;
+            Side-by-side daily totals per location&nbsp;·&nbsp;
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-300 mr-1 align-middle" />
             Agreed&nbsp;&nbsp;
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-600 mr-1 align-middle" />
@@ -781,11 +778,11 @@ export default function DailyWasteComparisonList() {
             ))}
           </div>
 
-          {/* PLB breakdown cards */}
+          {/* Location breakdown cards */}
           {plbCompare.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                PLB Breakdown — {plbCompare.length} Participating Local Bodies
+                Location Breakdown — {plbCompare.length} Locations
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(plbCompare as any[]).slice(0, 8).map((p, i) => {
@@ -805,7 +802,7 @@ export default function DailyWasteComparisonList() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="text-xs font-bold text-gray-800">
-                            {p.panchayat_name ?? p.panchayat_id}
+                            {p.location_node_name ?? p.location_node_id}
                           </p>
                           <p className="text-[10px] text-gray-400 mt-0.5">
                             {p.waste_type ?? "All types"}
@@ -849,7 +846,7 @@ export default function DailyWasteComparisonList() {
                           </p>
                         </div>
                       </div>
-                      {rows.filter((r) => r.panchayat_id === p.panchayat_id)
+                      {rows.filter((r) => r.location_node_id === p.location_node_id)
                         .length > 0 && (
                         <div className="mt-2 flex justify-between items-center">
                           <span className="text-[10px] text-gray-400">
@@ -857,7 +854,7 @@ export default function DailyWasteComparisonList() {
                             <strong className="text-gray-600">
                               {rows
                                 .filter(
-                                  (r) => r.panchayat_id === p.panchayat_id,
+                                  (r) => r.location_node_id === p.location_node_id,
                                 )
                                 .reduce((s, r) => s + r.total_trips, 0)}
                             </strong>
@@ -866,12 +863,12 @@ export default function DailyWasteComparisonList() {
                             onClick={() =>
                               navigate(
                                 dailyComparisonEditPath(
-                                  rows.find((r) => r.panchayat_id === p.panchayat_id)?.unique_id ?? "",
+                                  rows.find((r) => r.location_node_id === p.location_node_id)?.unique_id ?? "",
                                 ),
                                 {
                                   state: {
                                     record: rows.find(
-                                      (r) => r.panchayat_id === p.panchayat_id,
+                                      (r) => r.location_node_id === p.location_node_id,
                                     ),
                                   },
                                 },
@@ -894,7 +891,7 @@ export default function DailyWasteComparisonList() {
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by PLB &amp; Waste Type — {rows.length} row
+                Breakdown by Location &amp; Waste Type — {rows.length} row
                 {rows.length !== 1 ? "s" : ""}
               </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -905,7 +902,7 @@ export default function DailyWasteComparisonList() {
                         Date
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        PLB (Panchayat)
+                        Location
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
                         Waste Type
@@ -951,7 +948,7 @@ export default function DailyWasteComparisonList() {
                             {r.collection_date}
                           </td>
                           <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
-                            {r.panchayat_name ?? r.panchayat_id}
+                            {r.location_node_name ?? r.location_node_id}
                           </td>
                           <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                             {r.waste_type}

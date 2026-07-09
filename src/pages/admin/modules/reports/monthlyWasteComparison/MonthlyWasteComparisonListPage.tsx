@@ -119,7 +119,7 @@ const PlbEffRow = ({ plb }: { plb: any }) => {
     <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
       <div className="w-24 shrink-0">
         <p className="text-xs font-semibold text-gray-800 truncate">
-          {plb.panchayat_name ?? plb.panchayat_id}
+          {plb.location_node_name ?? plb.location_node_id}
         </p>
         <p className="text-[10px] text-gray-400 mt-0.5">
           {fmtKg(plb.total_actual_weight)} / {fmtKg(plb.total_agreed_weight)} kg
@@ -194,7 +194,7 @@ export default function MonthlyWasteComparisonListPage() {
     ReportResponse["monthly_trends"]
   >([]);
   const [plbComparison, setPlbComparison] = useState<
-    ReportResponse["panchayat_comparison"]
+    ReportResponse["location_comparison"]
   >([]);
   const [kpis, setKpis] = useState<ReportResponse["kpis"]>(initialKpis);
   const [loading, setLoading] = useState(false);
@@ -209,21 +209,11 @@ export default function MonthlyWasteComparisonListPage() {
 
   /* ── fetch ── */
   const fetchReport = async () => {
-    if (isSuperAdmin && companies.length === 0) return;
-    if (!companyUniqueId && !isSuperAdmin) {
-      setRows([]);
-      setMonthlyTrends([]);
-      setPlbComparison([]);
-      setKpis(initialKpis);
-      return;
-    }
     setLoading(true);
     setError("");
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
-      if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
 
       const { data } = await api.get<ReportResponse>(
         "/reports/monthly-waste-comparison/",
@@ -234,8 +224,8 @@ export default function MonthlyWasteComparisonListPage() {
         Array.isArray(data?.monthly_trends) ? data.monthly_trends : [],
       );
       setPlbComparison(
-        Array.isArray(data?.panchayat_comparison)
-          ? data.panchayat_comparison
+        Array.isArray(data?.location_comparison)
+          ? data.location_comparison
           : [],
       );
       setKpis(data?.kpis ?? initialKpis);
@@ -252,7 +242,7 @@ export default function MonthlyWasteComparisonListPage() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedMonth, sortMode, source, companyUniqueId, projectId, companies.length]);
+  }, [appliedMonth, sortMode, source]);
 
   /* ── delete ── */
   const handleDelete = async (uniqueId: string, label: string) => {
@@ -282,10 +272,7 @@ export default function MonthlyWasteComparisonListPage() {
   const plbChartData = useMemo(
     () =>
       (plbComparison as any[]).slice(0, 8).map((p) => ({
-        name: String(p.panchayat_name ?? p.panchayat_id).replace(
-          "Panchayat ",
-          "PLB ",
-        ),
+        name: String(p.location_node_name ?? p.location_node_id),
         Agreed: Number(p.total_agreed_weight ?? 0),
         Actual: Number(p.total_actual_weight ?? 0),
         eff: Number(p.collection_efficiency_percent ?? 0),
@@ -298,8 +285,6 @@ export default function MonthlyWasteComparisonListPage() {
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
-      if (companyUniqueId) params.company_id = companyUniqueId;
-      if (projectId) params.project_id = projectId;
 
       const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
@@ -307,7 +292,7 @@ export default function MonthlyWasteComparisonListPage() {
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
-          PLB: r.panchayat_name ?? r.panchayat_id,
+          Location: r.location_node_name ?? r.location_node_id,
           "Waste Type": r.waste_type,
           "Agreed (kg)": r.total_agreed_weight,
           "Actual (kg)": r.total_actual_weight,
@@ -346,40 +331,10 @@ export default function MonthlyWasteComparisonListPage() {
             Monthly Waste Collection Comparison
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Monthly aggregate — agreed vs actual by PLB and waste type
+            Monthly aggregate — agreed vs actual by location and waste type
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isSuperAdmin && (
-            <select
-              value={companyUniqueId || ""}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              disabled={companies.length === 0}
-              className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              <option value="">All Companies</option>
-              {companies.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          )}
-          <select
-            value={projectId || ""}
-            onChange={(e) => setProjectId(e.target.value)}
-            disabled={
-              (!companyUniqueId && !isSuperAdmin) || projects.length === 0
-            }
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          >
-            <option value="">All Projects</option>
-            {projects.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
           <input
             type="month"
             value={monthValue}
@@ -612,14 +567,14 @@ export default function MonthlyWasteComparisonListPage() {
         {/* PLB Efficiency — progress bars (no up/down bars) */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            PLB Collection Efficiency
+            Location Collection Efficiency
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Actual ÷ Agreed — per PLB (Participating Local Body)
+            Actual ÷ Agreed — per location
           </p>
           {plbComparison.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
-              No PLB data yet.
+              No location data yet.
             </div>
           ) : (
             <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
@@ -630,13 +585,13 @@ export default function MonthlyWasteComparisonListPage() {
           )}
         </div>
 
-        {/* PLB Agreed vs Actual — grouped bar (full width) */}
+        {/* Location Agreed vs Actual — grouped bar (full width) */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 lg:col-span-2">
           <h2 className="text-sm font-semibold text-gray-800">
-            PLB Collection — Agreed vs Actual
+            Location Collection — Agreed vs Actual
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Side-by-side monthly totals per PLB&nbsp;·&nbsp;
+            Side-by-side monthly totals per location&nbsp;·&nbsp;
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-300 mr-1 align-middle" />
             Agreed&nbsp;&nbsp;
             <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-600 mr-1 align-middle" />
@@ -840,12 +795,11 @@ export default function MonthlyWasteComparisonListPage() {
             ))}
           </div>
 
-          {/* PLB breakdown cards */}
+          {/* Location breakdown cards */}
           {plbComparison.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                PLB Breakdown — {plbComparison.length} Participating Local
-                Bodies
+                Location Breakdown — {plbComparison.length} Locations
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {(plbComparison as any[]).slice(0, 8).map((p, i) => {
@@ -859,7 +813,7 @@ export default function MonthlyWasteComparisonListPage() {
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="text-xs font-bold text-gray-800">
-                            {p.panchayat_name ?? p.panchayat_id}
+                            {p.location_node_name ?? p.location_node_id}
                           </p>
                           <p className="text-[10px] text-gray-400 mt-0.5">
                             {p.waste_type ?? "All types"}
@@ -914,7 +868,7 @@ export default function MonthlyWasteComparisonListPage() {
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by PLB &amp; Waste Type — {rows.length} row
+                Breakdown by Location &amp; Waste Type — {rows.length} row
                 {rows.length !== 1 ? "s" : ""}
               </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -925,7 +879,7 @@ export default function MonthlyWasteComparisonListPage() {
                         Month
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        PLB (Panchayat)
+                        Location
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
                         Waste Type
@@ -968,7 +922,7 @@ export default function MonthlyWasteComparisonListPage() {
                             {r.month}
                           </td>
                           <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
-                            {r.panchayat_name ?? r.panchayat_id}
+                            {r.location_node_name ?? r.location_node_id}
                           </td>
                           <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                             {r.waste_type}

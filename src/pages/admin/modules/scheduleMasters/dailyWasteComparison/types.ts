@@ -12,8 +12,8 @@ export type TripLogData = {
 export type DailyReportRow = {
   unique_id: string;
   collection_date: string;
-  panchayat_id: string;
-  panchayat_name?: string;
+  location_node_id: string;
+  location_node_name?: string;
   waste_type: string;
   agreed_weight_kg: number;
   actual_weight_kg: number;
@@ -30,7 +30,7 @@ export type DailyReportRow = {
 export type DailyReportResponse = {
   results: DailyReportRow[];
   date_trends: Array<Record<string, number | string>>;
-  panchayat_comparison: Array<Record<string, number | string>>;
+  location_comparison: Array<Record<string, number | string>>;
   kpis: {
     total_agreed_weight_kg: number;
     total_actual_weight_kg: number;
