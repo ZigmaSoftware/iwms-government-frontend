@@ -71,6 +71,7 @@ export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 ========================= */
 export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
+export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;

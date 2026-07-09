@@ -15,6 +15,7 @@
  *   }
  * }
  */
+import { routePaths } from "@/utils/routePaths";
 
 export type RouteMapConfig = Record<string, Record<string, string>>;
 
@@ -23,6 +24,9 @@ export type RouteMapConfig = Record<string, Record<string, string>>;
  * Module names should match exactly what comes from the API
  */
 const ROUTE_MAP: RouteMapConfig = {
+  "user-creations": {
+    "staff-access-configuration": routePaths.staffAccessConfiguration.listPath,
+  },
   // Example: Uncomment and customize based on your actual modules
   // "Staff": {
   //   "Staff Creation": "/staff/create",

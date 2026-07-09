@@ -22,6 +22,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encProperties,
     encSubProperties,
     encStaffCreation,
+    encStaffAccessConfiguration,
     encAdmins,
     encUserScreen,
     encUserType,
@@ -120,6 +121,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encAdmins}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.roleAssigns" },
     // User Creations
     { path: `/${encStaffMasters}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
+    { path: `/${encStaffMasters}/${encStaffAccessConfiguration}`, nameKey: "admin.nav.staff_access_configuration", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
     // Process Items

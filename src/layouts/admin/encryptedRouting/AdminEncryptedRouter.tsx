@@ -5,12 +5,12 @@ import { decryptSegment } from "@/utils/routeCrypto";
 
 
 // Import your actual page components
-import ContinentList from "@/pages/admin/modules/masters/continent/ContinentListPage";
-import ContinentForm from "@/pages/admin/modules/masters/continent/ContinentForm";
-import CountryList from "@/pages/admin/modules/masters/country/CountryListPage";
-import CountryForm from "@/pages/admin/modules/masters/country/CountryForm";
-import StateList from "@/pages/admin/modules/masters/state/StateListPage";
-import StateForm from "@/pages/admin/modules/masters/state/StateForm";
+import ContinentList from "@/pages/admin/modules/common-masters/continent/ContinentListPage";
+import ContinentForm from "@/pages/admin/modules/common-masters/continent/ContinentForm";
+import CountryList from "@/pages/admin/modules/common-masters/country/CountryListPage";
+import CountryForm from "@/pages/admin/modules/common-masters/country/CountryForm";
+import StateList from "@/pages/admin/modules/common-masters/state/StateListPage";
+import StateForm from "@/pages/admin/modules/common-masters/state/StateForm";
 import DistrictList from "@/pages/admin/modules/masters/district/DistrictListPage";
 import DistrictForm from "@/pages/admin/modules/masters/district/DistrictForm";
 import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentListPage";
@@ -54,6 +54,8 @@ import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubProper
 import SubPropertyForm from "@/pages/admin/modules/masters/subproperty/SubPropertyForm";
 import StaffCreationList from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationlist";
 import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationForm";
+import StaffAccessConfigList from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigList";
+import StaffAccessConfigPage from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigPage";
 // Admin
 import UserTypeList from "@/pages/admin/modules/admin/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/admin/userType/user-typeForm";
@@ -178,10 +180,12 @@ const ROUTES: RouteMap = {
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
   },
-  masters: {
+  "common-masters": {
     continents: { list: ContinentList, form: ContinentForm },
     countries: { list: CountryList, form: CountryForm },
     states: { list: StateList, form: StateForm },
+  },
+  masters: {
     districts: { list: DistrictList, form: DistrictForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
@@ -209,6 +213,7 @@ const ROUTES: RouteMap = {
   },
   "staff-masters": {
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
+    "staff-access-configuration": { list: StaffAccessConfigList, form: StaffAccessConfigPage },
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
     "unassigned-staff-pool": { list: UnassignedStaffPoolList, form: UnassignedStaffPoolForm },
   },
@@ -291,7 +296,6 @@ const MASTER_ALIASES: Record<string, string[]> = {
   "user-creations": ["staff-masters"],
   "process-items": ["staff-masters"],
   audits: ["staff-masters"],
-  "common-masters": ["masters"],
   "waste-types": ["masters"],
   assets: ["masters"],
   collections: ["waste-management"],

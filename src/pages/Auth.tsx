@@ -28,6 +28,32 @@ import ZigmaLogo from "../images/logo.png";
 
 type LoginResponse = LoginEnvelope;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object";
+
+const getLoginErrorMessage = (error: unknown) => {
+  const data = isRecord(error) && isRecord(error.response)
+    ? error.response.data
+    : undefined;
+  if (data && typeof data === "object") {
+    const errorData = data as Record<string, unknown>;
+    if (Array.isArray(errorData.non_field_errors) && errorData.non_field_errors[0]) {
+      return String(errorData.non_field_errors[0]);
+    }
+    if (typeof errorData.detail === "string") return errorData.detail;
+    if (typeof errorData.message === "string") return errorData.message;
+    const firstValue = Object.values(errorData).find((value) => {
+      if (Array.isArray(value)) return Boolean(value[0]);
+      return typeof value === "string" && value.trim();
+    });
+    if (Array.isArray(firstValue)) return String(firstValue[0]);
+    if (typeof firstValue === "string") return firstValue;
+  }
+  return isRecord(error) && typeof error.message === "string"
+    ? error.message
+    : "Invalid credentials";
+};
+
 /**
  * Check if the permissions object has at least one module
  * with at least one screen that has any action allowed.
@@ -35,7 +61,7 @@ type LoginResponse = LoginEnvelope;
  *   - Array format:  { "common-masters": { "continents": ["view"] } }
  *   - Object format: { "common-masters": { "continents": { "view": true } } }
  */
-function hasAnyPermission(permissions: Record<string, any>): boolean {
+function hasAnyPermission(permissions: Record<string, unknown>): boolean {
   if (!permissions || typeof permissions !== "object") return false;
 
   return Object.values(permissions).some((module) => {
@@ -72,7 +98,7 @@ export default function Auth() {
       toast({ title: "Password Reset", description: successMessage });
       window.history.replaceState({}, "");
     }
-  }, []);
+  }, [location.state, toast]);
 
   // Get updatePermissions so we can force React state sync after login
   const { updatePermissions } = usePermission();
@@ -112,7 +138,7 @@ export default function Auth() {
       const hasAdminAccess =
         isAdmin(normalizedRole) ||
         hasAnyPermission(freshPermissions) ||
-        hasAnyPermission((payload.permissions ?? {}) as Record<string, any>);
+        hasAnyPermission((payload.permissions ?? {}) as Record<string, unknown>);
 
       console.log(
         "[Auth] Role:", normalizedRole,
@@ -127,13 +153,10 @@ export default function Auth() {
         clearAdminViewPreference();
         navigate("/", { replace: true });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[Auth] ❌ Login failed:", error);
 
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.message ||
-        "Invalid credentials";
+      const errorMessage = getLoginErrorMessage(error);
 
       toast({
         title: t("login.title"),

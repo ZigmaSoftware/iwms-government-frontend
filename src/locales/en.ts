@@ -829,6 +829,7 @@ const enResource = {
           "staff_user_type": "Staff User Type",
           "user_creations": "Staff Creations",
           "staff_creation": "Staff Creation",
+          "staff_access_configuration": "Staff Access Configuration",
           "staff_template": "Staff Template",
           "alternative_staff_template": "Alternative Staff Template",
           "staff_template_audit": "Staff Template Audit",

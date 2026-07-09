@@ -53,6 +53,7 @@ export interface FormDataType {
   country_id: string;
   state_id: string;
   district_id: string;
+  area_type_id: string;
   location_node_id: string;
   corporation_id: string;
   municipality_id: string;
