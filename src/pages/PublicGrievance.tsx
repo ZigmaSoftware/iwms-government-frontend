@@ -33,7 +33,7 @@ import ZigmaLogo from "@/images/logo.png";
 import { publicGrievanceApi } from "@/features/complaintTicketing/api";
 import type {
   PublicGrievanceCategory,
-  PublicGrievanceLocationNode,
+  PublicGrievanceLocationOption,
   PublicGrievanceResponse,
   PublicGrievanceStatusResult,
   PublicGrievanceSubcategory,
@@ -449,8 +449,10 @@ export default function PublicGrievance() {
   const [result, setResult] = useState<PublicGrievanceResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const [districts, setDistricts] = useState<PublicGrievanceLocationNode[]>([]);
-  const [cities, setCities] = useState<PublicGrievanceLocationNode[]>([]);
+  const [states, setStates] = useState<PublicGrievanceLocationOption[]>([]);
+  const [districts, setDistricts] = useState<PublicGrievanceLocationOption[]>([]);
+  const [cities, setCities] = useState<PublicGrievanceLocationOption[]>([]);
+  const [stateId, setStateId] = useState("");
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
 
@@ -476,8 +478,8 @@ export default function PublicGrievance() {
         setError("Unable to load complaint types.");
       });
     publicGrievanceApi
-      .districts(controller.signal)
-      .then(setDistricts)
+      .states(controller.signal)
+      .then(setStates)
       .catch((err) => {
         if (axios.isCancel(err)) return;
       });
@@ -511,6 +513,19 @@ export default function PublicGrievance() {
   const onCategoryChange = (value: string) => {
     setCategoryId(value);
     setSubcategoryId("");
+  };
+
+  const onStateChange = async (value: string) => {
+    setStateId(value);
+    setDistrict("");
+    setCity("");
+    setCities([]);
+    if (!value) {
+      setDistricts([]);
+      return;
+    }
+    const districtRows = await publicGrievanceApi.districts(value).catch(() => []);
+    setDistricts(districtRows);
   };
 
   const onDistrictChange = async (value: string) => {
@@ -591,8 +606,10 @@ export default function PublicGrievance() {
     setPhoto(null);
     setCategoryId("");
     setSubcategoryId("");
+    setStateId("");
     setDistrict("");
     setCity("");
+    setDistricts([]);
     setCities([]);
     autoLocateAttemptedRef.current = false;
   };
@@ -675,7 +692,13 @@ export default function PublicGrievance() {
     payload.append("longitude", longitude);
     payload.append("category", categoryId);
     if (subcategoryId) payload.append("subcategory", subcategoryId);
-    if (city || district) payload.append("location_node", city || district);
+    if (stateId) payload.append("state", stateId);
+    if (district) payload.append("district", district);
+    if (city) {
+      payload.append("city", city);
+      const cityType = cities.find((item) => item.unique_id === city)?.type;
+      if (cityType) payload.append("city_type", cityType);
+    }
     if (photo) payload.append("photo", photo);
 
     setIsSubmitting(true);
@@ -737,6 +760,7 @@ export default function PublicGrievance() {
   const subcategoryName = subcategoriesForCategory.find(
     (item) => item.unique_id === subcategoryId,
   )?.subcategory_name;
+  const stateName = states.find((item) => item.unique_id === stateId)?.name;
   const districtName = districts.find((item) => item.unique_id === district)?.name;
   const cityName = cities.find((item) => item.unique_id === city)?.name;
 
@@ -1223,9 +1247,20 @@ export default function PublicGrievance() {
 
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className={labelClass}>
+                          State
+                          <SelectField value={stateId} onChange={onStateChange}>
+                            <option value="">Select state</option>
+                            {states.map((item) => (
+                              <option key={item.unique_id} value={item.unique_id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </SelectField>
+                        </label>
+                        <label className={labelClass}>
                           District
-                          <SelectField value={district} onChange={onDistrictChange}>
-                            <option value="">Select district</option>
+                          <SelectField value={district} onChange={onDistrictChange} disabled={!stateId}>
+                            <option value="">{stateId ? "Select district" : "Select a state first"}</option>
                             {districts.map((item) => (
                               <option key={item.unique_id} value={item.unique_id}>
                                 {item.name}
@@ -1434,8 +1469,8 @@ export default function PublicGrievance() {
                             rows: (
                               <>
                                 <ReviewRow
-                                  label="District / City"
-                                  value={[districtName, cityName].filter(Boolean).join(" / ") || "-"}
+                                  label="State / District / City"
+                                  value={[stateName, districtName, cityName].filter(Boolean).join(" / ") || "-"}
                                 />
                                 <ReviewRow
                                   label="Street / Landmark"

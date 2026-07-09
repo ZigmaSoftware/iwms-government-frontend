@@ -10,14 +10,15 @@ import {
   complaintStatusApi,
   complaintTeamApi,
   complaintTicketApi,
-  geoHierarchyApi,
+  geoApi,
   ticketActions,
 } from "@/features/complaintTicketing/api";
 import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
 import type {
   AssignableStaffOption,
   ComplaintTicket,
-  HierarchyNode,
+  GeoOption,
+  LocalBodyOption,
 } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 
@@ -56,23 +57,29 @@ export default function TicketDetail() {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Staff-head assignment scope: filter the staff dropdown by district/city.
-  const [districts, setDistricts] = useState<HierarchyNode[]>([]);
-  const [cities, setCities] = useState<HierarchyNode[]>([]);
+  // Staff-head assignment scope: filter the staff dropdown by district/city
+  // (flat geo masters, same State -> District cascade as the other forms).
+  const [districts, setDistricts] = useState<GeoOption[]>([]);
+  const [cities, setCities] = useState<LocalBodyOption[]>([]);
   const [district, setDistrict] = useState("");
   const [city, setCity] = useState("");
   const [assignableStaff, setAssignableStaff] = useState<AssignableStaffOption[]>([]);
   const [staffScopeLabel, setStaffScopeLabel] = useState("");
   const [staffLoading, setStaffLoading] = useState(false);
 
-  const loadAssignableStaff = async (locationNode?: string) => {
+  const loadAssignableStaff = async (scope?: { district?: string; city?: string }) => {
     if (!id) return;
     setStaffLoading(true);
     try {
-      const res = await ticketActions.assignableStaff(id, locationNode ? { location_node: locationNode } : undefined);
+      const params = scope && (scope.district || scope.city) ? scope : undefined;
+      const res = await ticketActions.assignableStaff(id, params);
       setAssignableStaff(res.staff ?? []);
       setStaffScopeLabel(
-        res.location_node_name ? `${res.location_level_name ?? ""}: ${res.location_node_name}`.trim() : "All districts"
+        res.city_name
+          ? `City: ${res.city_name}`
+          : res.district_name
+            ? `District: ${res.district_name}`
+            : "All districts"
       );
     } catch (err) {
       setAssignableStaff([]);
@@ -88,7 +95,7 @@ export default function TicketDetail() {
       complaintTicketApi.read(id),
       complaintStatusApi.readAll().catch(() => []),
       complaintTeamApi.readAll().catch(() => []),
-      geoHierarchyApi.districts().catch(() => []),
+      geoApi.districts().catch(() => []),
     ]);
     setTicket(ticketRow as ComplaintTicket);
     setStatuses(asArray(statusRows));
@@ -96,7 +103,7 @@ export default function TicketDetail() {
     setDistricts(asArray(districtRows));
     setStatusCode((ticketRow as ComplaintTicket).status_code ?? "");
     setTeam(String((ticketRow as ComplaintTicket).assigned_team ?? ""));
-    await loadAssignableStaff(city || district || undefined);
+    await loadAssignableStaff({ district, city });
   };
 
   useEffect(() => {
@@ -112,15 +119,15 @@ export default function TicketDetail() {
       await loadAssignableStaff();
       return;
     }
-    const cityRows = await geoHierarchyApi.citiesInDistrict(value).catch(() => []);
+    const cityRows = await geoApi.localBodies(value).catch(() => []);
     setCities(cityRows);
-    await loadAssignableStaff(value);
+    await loadAssignableStaff({ district: value });
   };
 
   const onCityChange = async (value: string) => {
     setCity(value);
     setStaff("");
-    await loadAssignableStaff(value || district || undefined);
+    await loadAssignableStaff({ district, city: value || undefined });
   };
 
   const run = async (message: string, fn: () => Promise<unknown>) => {
@@ -172,7 +179,16 @@ export default function TicketDetail() {
           <Field label="Closed" value={formatDateTime(ticket.closed_at)} />
           <div className="md:col-span-4"><Field label="Title" value={ticket.title} /></div>
           <div className="md:col-span-4"><Field label="Description" value={ticket.description} /></div>
-          <div className="md:col-span-4"><Field label="Location" value={ticket.location_text || ticket.location_node_name} /></div>
+          <div className="md:col-span-4">
+            <Field
+              label="Location"
+              value={
+                [ticket.location_text, ticket.city_name, ticket.district_name, ticket.state_name]
+                  .filter(Boolean)
+                  .join(", ")
+              }
+            />
+          </div>
         </div>
       </ComponentCard>
 
@@ -217,7 +233,7 @@ export default function TicketDetail() {
               </select>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={city} onChange={(e) => onCityChange(e.target.value)} disabled={!district}>
                 <option value="">All cities</option>
-                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name} ({item.level_name})</option>)}
+                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
               </select>
             </div>
             <p className="mt-1 text-xs text-gray-500">Staff shown: {staffLoading ? "loading..." : staffScopeLabel || "-"}</p>
@@ -226,7 +242,7 @@ export default function TicketDetail() {
               <option value="">Select staff (optional - defaults to team lead)</option>
               {assignableStaff.map((item) => (
                 <option key={item.staff_unique_id} value={item.staff_unique_id}>
-                  {item.employee_name} - {item.department_name || "No department"} ({item.location_node_name || "No location"})
+                  {item.employee_name} - {item.department_name || "No department"} ({item.local_body_name || item.district_name || "No location"})
                 </option>
               ))}
             </select>
