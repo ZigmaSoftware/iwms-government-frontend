@@ -9,8 +9,8 @@ import { FilterMatchMode } from "primereact/api";
 import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { complaintTicketApi, geoHierarchyApi } from "@/features/complaintTicketing/api";
-import type { ComplaintTicket, HierarchyNode } from "@/features/complaintTicketing/types";
+import { complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
+import type { ComplaintTicket, GeoOption, LocalBodyOption } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
@@ -45,8 +45,10 @@ export default function TicketList() {
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
-  const [districts, setDistricts] = useState<HierarchyNode[]>([]);
-  const [cities, setCities] = useState<HierarchyNode[]>([]);
+  const [states, setStates] = useState<GeoOption[]>([]);
+  const [districts, setDistricts] = useState<GeoOption[]>([]);
+  const [cities, setCities] = useState<LocalBodyOption[]>([]);
+  const [stateFilter, setStateFilter] = useState("");
   const [districtFilter, setDistrictFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
 
@@ -54,10 +56,25 @@ export default function TicketList() {
     complaintTicketApi.readAll({ params: { all: 1 } })
       .then((response) => setRecords(asArray<ComplaintTicket>(response)))
       .catch((err) => Swal.fire("Error", errorText(err, "Unable to load tickets"), "error"));
-    geoHierarchyApi.districts()
+    geoApi.states()
+      .then(setStates)
+      .catch(() => setStates([]));
+    geoApi.districts()
       .then(setDistricts)
       .catch(() => setDistricts([]));
   }, []);
+
+  const filteredDistricts = useMemo(
+    () => districts.filter((item) => !stateFilter || item.state_id === stateFilter),
+    [districts, stateFilter],
+  );
+
+  const onStateFilterChange = (value: string) => {
+    setStateFilter(value);
+    setDistrictFilter("");
+    setCityFilter("");
+    setCities([]);
+  };
 
   const onDistrictFilterChange = async (value: string) => {
     setDistrictFilter(value);
@@ -66,7 +83,7 @@ export default function TicketList() {
       setCities([]);
       return;
     }
-    const cityRows = await geoHierarchyApi.citiesInDistrict(value).catch(() => []);
+    const cityRows = await geoApi.localBodies(value).catch(() => []);
     setCities(cityRows);
   };
 
@@ -74,10 +91,11 @@ export default function TicketList() {
     let rows = records;
     if (sourceFilter === "public") rows = rows.filter(isPublic);
     else if (sourceFilter === "internal") rows = rows.filter((row) => !isPublic(row));
+    if (stateFilter) rows = rows.filter((row) => String(row.state_id ?? row.state ?? "") === stateFilter);
     if (districtFilter) rows = rows.filter((row) => String(row.district_id ?? "") === districtFilter);
     if (cityFilter) rows = rows.filter((row) => String(row.city_id ?? "") === cityFilter);
     return rows;
-  }, [records, sourceFilter, districtFilter, cityFilter]);
+  }, [records, sourceFilter, stateFilter, districtFilter, cityFilter]);
 
   const publicCount = useMemo(() => records.filter(isPublic).length, [records]);
 
@@ -156,11 +174,21 @@ export default function TicketList() {
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="h-9 rounded-md border px-2 text-sm"
+            value={stateFilter}
+            onChange={(e) => onStateFilterChange(e.target.value)}
+          >
+            <option value="">All states</option>
+            {states.map((item) => (
+              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border px-2 text-sm"
             value={districtFilter}
             onChange={(e) => onDistrictFilterChange(e.target.value)}
           >
             <option value="">All districts</option>
-            {districts.map((item) => (
+            {filteredDistricts.map((item) => (
               <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
             ))}
           </select>
@@ -172,7 +200,7 @@ export default function TicketList() {
           >
             <option value="">All cities</option>
             {cities.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name} ({item.level_name})</option>
+              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
             ))}
           </select>
         </div>

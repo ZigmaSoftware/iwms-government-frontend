@@ -45,12 +45,20 @@ export type ComplaintTicket = {
   location_text?: string | null;
   latitude?: string | number | null;
   longitude?: string | number | null;
-  location_node?: ApiId | null;
-  location_node_name?: string | null;
+  state?: ApiId | null;
+  state_id?: ApiId | null;
+  state_name?: string | null;
+  district?: ApiId | null;
   district_id?: ApiId | null;
   district_name?: string | null;
+  corporation?: ApiId | null;
+  municipality?: ApiId | null;
+  town_panchayat?: ApiId | null;
+  panchayat_union?: ApiId | null;
+  panchayat?: ApiId | null;
   city_id?: ApiId | null;
   city_name?: string | null;
+  city_type?: LocalBodyType | string | null;
   assigned_team?: ApiId | null;
   assigned_team_name?: string | null;
   assigned_staff?: ApiId | null;
@@ -252,9 +260,33 @@ export type PublicGrievanceWasteType = {
   waste_type_name: string;
 };
 
-export type PublicGrievanceLocationNode = {
+/* Flat geo masters (State / District / local body) used instead of the
+   old hierarchy-node tree. */
+export type LocalBodyType =
+  | "corporation"
+  | "municipality"
+  | "town_panchayat"
+  | "panchayat_union"
+  | "panchayat";
+
+export type GeoOption = {
   unique_id: string;
   name: string;
+  state_id?: string | null;
+  district_id?: string | null;
+};
+
+export type LocalBodyOption = {
+  unique_id: string;
+  name: string;
+  type: LocalBodyType;
+};
+
+export type PublicGrievanceLocationOption = {
+  unique_id: string;
+  name: string;
+  state_id?: string | null;
+  type?: LocalBodyType;
 };
 
 export type PublicGrievanceCategory = {
@@ -357,29 +389,18 @@ export type AssignableStaffOption = {
   staff_unique_id: string;
   employee_name: string;
   department_name?: string | null;
-  location_node_id?: string | null;
-  location_node_name?: string | null;
+  district_name?: string | null;
+  local_body_name?: string | null;
   location_level_name?: string | null;
 };
 
 export type AssignableStaffResponse = {
-  location_node?: string | null;
-  location_node_name?: string | null;
-  location_level_name?: string | null;
+  district_id?: string | null;
+  district_name?: string | null;
+  city_id?: string | null;
+  city_name?: string | null;
   count: number;
   staff: AssignableStaffOption[];
-};
-
-export type HierarchyNode = {
-  unique_id: string;
-  level_id: string;
-  level_name?: string | null;
-  level_order?: number | null;
-  parent_id?: string | null;
-  parent_name?: string | null;
-  name: string;
-  code?: string | null;
-  is_active?: boolean;
 };
 
 export type ComplaintNotificationEventType =

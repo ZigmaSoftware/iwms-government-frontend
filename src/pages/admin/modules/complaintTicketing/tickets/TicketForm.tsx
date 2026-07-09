@@ -15,8 +15,18 @@ import {
   complaintStatusApi,
   complaintSubcategoryApi,
   complaintTicketApi,
+  geoApi,
 } from "@/features/complaintTicketing/api";
+import type { GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { asArray, errorText } from "../utils";
+
+const LOCAL_BODY_TYPES: LocalBodyType[] = [
+  "corporation",
+  "municipality",
+  "town_panchayat",
+  "panchayat_union",
+  "panchayat",
+];
 
 const steps = ["Citizen", "Complaint", "Location"];
 
@@ -33,6 +43,9 @@ export default function TicketWizardForm() {
   const [languages, setLanguages] = useState<any[]>([]);
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [states, setStates] = useState<GeoOption[]>([]);
+  const [districts, setDistricts] = useState<GeoOption[]>([]);
+  const [cities, setCities] = useState<LocalBodyOption[]>([]);
   const [form, setForm] = useState({
     customer: "",
     wa_phone: "",
@@ -48,6 +61,10 @@ export default function TicketWizardForm() {
     location_text: "",
     latitude: "",
     longitude: "",
+    state: "",
+    district: "",
+    city: "",
+    city_type: "" as LocalBodyType | "",
   });
 
   useEffect(() => {
@@ -74,20 +91,71 @@ export default function TicketWizardForm() {
         source: asArray<any>(sourceRows).find((item) => item.source_code === "ADMIN")?.unique_id ?? asArray<any>(sourceRows)[0]?.unique_id ?? "",
       }));
     });
+    geoApi.states().then(setStates).catch(() => setStates([]));
+    geoApi.districts().then(setDistricts).catch(() => setDistricts([]));
   }, []);
 
   const setValue = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
   const filteredSubcategories = form.category ? subcategories.filter((item) => String(item.category) === form.category) : subcategories;
+  const filteredDistricts = form.state ? districts.filter((item) => item.state_id === form.state) : districts;
+
+  const onStateChange = (value: string) => {
+    setForm((prev) => ({ ...prev, state: value, district: "", city: "", city_type: "" }));
+    setCities([]);
+  };
+
+  const onDistrictChange = async (value: string) => {
+    setForm((prev) => ({ ...prev, district: value, city: "", city_type: "" }));
+    setCities([]);
+    if (value) {
+      const cityRows = await geoApi.localBodies(value).catch(() => []);
+      setCities(cityRows);
+    }
+  };
+
+  const onCityChange = (value: string) => {
+    const selected = cities.find((item) => item.unique_id === value);
+    setForm((prev) => ({ ...prev, city: value, city_type: selected?.type ?? "" }));
+  };
+
+  const entityId = (value: unknown): string => {
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      return String(record.unique_id ?? record.id ?? "");
+    }
+    return value == null ? "" : String(value);
+  };
 
   const onCustomer = (id: string) => {
     const customer = customers.find((item) => String(item.unique_id ?? item.id) === id);
+    // Prefill the ticket's location from the customer's own flat geo fields.
+    const customerState = entityId(customer?.state_id ?? customer?.state);
+    const customerDistrict = entityId(customer?.district_id ?? customer?.district);
+    let customerCity = "";
+    let customerCityType: LocalBodyType | "" = "";
+    for (const type of LOCAL_BODY_TYPES) {
+      const value = entityId(customer?.[`${type}_id`] ?? customer?.[type]);
+      if (value) {
+        customerCity = value;
+        customerCityType = type;
+        break;
+      }
+    }
     setForm((prev) => ({
       ...prev,
       customer: id,
       wa_phone: customer?.contact_no ?? customer?.phone ?? customer?.mobile ?? prev.wa_phone,
       profile_name: customer?.customer_name ?? prev.profile_name,
       location_text: [customer?.building_no, customer?.street, customer?.area, customer?.pincode].filter(Boolean).join(", "),
+      state: customerState || prev.state,
+      district: customerDistrict || prev.district,
+      city: customerCity,
+      city_type: customerCityType,
     }));
+    setCities([]);
+    if (customerDistrict) {
+      geoApi.localBodies(customerDistrict).then(setCities).catch(() => setCities([]));
+    }
   };
 
   const save = async (event: React.FormEvent) => {
@@ -98,14 +166,23 @@ export default function TicketWizardForm() {
     }
     setSaving(true);
     try {
+      // The selected "city" maps onto exactly one of the five local-body FKs.
+      const localBodyPayload: Record<string, string | null> = Object.fromEntries(
+        LOCAL_BODY_TYPES.map((type) => [type, null]),
+      );
+      if (form.city && form.city_type) localBodyPayload[form.city_type] = form.city;
+      const { city: _city, city_type: _cityType, ...ticketFields } = form;
       await complaintTicketApi.create({
-        ...form,
+        ...ticketFields,
         customer: form.customer || null,
         subcategory: form.subcategory || null,
         source: form.source || null,
         language: form.language || null,
         latitude: form.latitude || null,
         longitude: form.longitude || null,
+        state: form.state || null,
+        district: form.district || null,
+        ...localBodyPayload,
       });
       Swal.fire("Saved", "Ticket created successfully.", "success");
       navigate(listPath);
@@ -204,6 +281,27 @@ export default function TicketWizardForm() {
 
         {step === 2 && (
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <div>
+              <Label>State</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.state} onChange={(e) => onStateChange(e.target.value)}>
+                <option value="">Select state</option>
+                {states.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>District</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.district} onChange={(e) => onDistrictChange(e.target.value)} disabled={!form.state}>
+                <option value="">{form.state ? "Select district" : "Select a state first"}</option>
+                {filteredDistricts.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>City / Local Body</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.city} onChange={(e) => onCityChange(e.target.value)} disabled={!form.district}>
+                <option value="">{form.district ? "Select city" : "Select a district first"}</option>
+                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+              </select>
+            </div>
             <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
             <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>
             <div><Label>Longitude</Label><Input value={form.longitude} onChange={(e) => setValue("longitude", e.target.value)} /></div>
