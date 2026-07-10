@@ -57,7 +57,6 @@ export const adminEndpoints = {
   staffTemplateCreation: "schedule-masters/staff-templates",
   alternativeStaffTemplate: "schedule-masters/alternative-staff-templates",
   tripPlans: "schedule-masters/trip-plans",
-  tripPlanCollectionPoints: "schedule-masters/trip-plan-collection-points",
   dailyTripAssignment: "schedule-masters/daily-trip-assignments",
   dailyTripLog: "schedule-masters/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",

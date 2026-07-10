@@ -45,7 +45,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "vehicle-creation": "vehicleCreations",
   "trip-plans": "tripPlans",
   fuel: "fuels",
-  "trip-plan-collection-points": "tripPlanCollectionPoints",
   "daily-trip-assignment": "dailyTripAssignment",
   "daily-trip-collection-point": "dailyTripCollectionPoint",
   "bin-collection-event": "binCollectionEvent",

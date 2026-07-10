@@ -111,7 +111,6 @@ export const complaintFeedbackApi = adminApi.complaintFeedback;
 export const vehicleTypeApi = adminApi.vehicleTypes;
 export const vehicleCreationApi = adminApi.vehicleCreations;
 export const tripPlanApi = adminApi.tripPlans;
-export const tripPlanCollectionPointApi = adminApi.tripPlanCollectionPoints;
 export const tripAttendanceApi = adminApi.tripAttendances;
 export const fuelApi = adminApi.fuels;
 export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;

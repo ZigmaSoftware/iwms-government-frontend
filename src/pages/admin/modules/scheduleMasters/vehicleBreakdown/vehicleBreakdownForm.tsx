@@ -433,7 +433,7 @@ export default function VehicleBreakdownForm() {
   if (loadingRecord) {
     return (
       <div className="flex items-center justify-center py-24 text-gray-400 gap-3">
-        <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-orange-500 rounded-full" />
+        <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-green-500 rounded-full" />
         Loading…
       </div>
     );
@@ -573,7 +573,7 @@ export default function VehicleBreakdownForm() {
               value={form.breakdown_remarks}
               onChange={(e) => setField("breakdown_remarks", e.target.value)}
               placeholder="Additional notes about the breakdown…"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 resize-none"
             />
           </div>
         </div>
@@ -644,16 +644,9 @@ export default function VehicleBreakdownForm() {
       {/* ── Submit ── */}
       <div className="flex justify-end gap-3 pb-8">
         <button
-          type="button"
-          onClick={() => navigate(LIST_PATH)}
-          className="px-5 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 font-medium"
-        >
-          Cancel
-        </button>
-        <button
           type="submit"
           disabled={saving}
-          className="flex items-center gap-2 px-6 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {saving ? (
             <>
@@ -663,6 +656,13 @@ export default function VehicleBreakdownForm() {
           ) : (
             isEdit ? "Update Record" : "Report Breakdown"
           )}
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(LIST_PATH)}
+          className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
+        >
+          Cancel
         </button>
       </div>
     </form>

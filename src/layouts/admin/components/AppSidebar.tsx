@@ -74,7 +74,6 @@ const {
   encAlternativeStaffTemplate,
   encCommonAudit,
   encTripPlans,
-  encTripPlanCollectionPoints,
   encVehicleBreakdown,
   encSchedulerConfig,
   encCommonMasters,
@@ -532,12 +531,6 @@ const scheduleSetupItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encTripPlans}`,
         module: "schedule-masters",
         screen: "trip-plans",
-      },
-      {
-        nameKey: "admin.nav.trip_plan_collection_points",
-        path: `/${encScheduleMasters}/${encTripPlanCollectionPoints}`,
-        module: "schedule-masters",
-        screen: "trip-plan-collection-points",
       },
       {
         nameKey: "admin.nav.scheduler_config",

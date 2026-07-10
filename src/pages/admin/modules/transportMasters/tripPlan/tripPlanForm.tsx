@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { MultiSelect } from "primereact/multiselect";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import {
@@ -38,7 +39,6 @@ type StopRow = {
   key: string;
   collection_point_id: string;
   bin_id: string;
-  sequence: string;
   is_active: boolean;
 };
 
@@ -52,11 +52,10 @@ const makeStopKey = (() => {
   return () => `stop-${counter++}`;
 })();
 
-const emptyStop = (sequence: number): StopRow => ({
+const emptyStop = (): StopRow => ({
   key: makeStopKey(),
   collection_point_id: "",
   bin_id: "",
-  sequence: String(sequence),
   is_active: true,
 });
 
@@ -118,25 +117,6 @@ const toOptions = (items: any[], labelKey: string): Option[] =>
     }))
     .filter((item) => item.value);
 
-// Convert 24h "HH:MM" to { hour12: "HH", minute: "MM", period: "AM"|"PM" }
-function to12h(time24: string): { hour12: string; minute: string; period: "AM" | "PM" } {
-  if (!time24) return { hour12: "12", minute: "00", period: "AM" };
-  const [hStr, mStr] = time24.split(":");
-  let h = parseInt(hStr, 10);
-  const period: "AM" | "PM" = h >= 12 ? "PM" : "AM";
-  if (h === 0) h = 12;
-  else if (h > 12) h -= 12;
-  return { hour12: String(h).padStart(2, "0"), minute: (mStr ?? "00").slice(0, 2), period };
-}
-
-// Convert 12h + period to 24h "HH:MM"
-function to24h(hour12: string, minute: string, period: "AM" | "PM"): string {
-  let h = parseInt(hour12, 10);
-  if (period === "AM" && h === 12) h = 0;
-  else if (period === "PM" && h !== 12) h += 12;
-  return `${String(h).padStart(2, "0")}:${minute.padStart(2, "0")}`;
-}
-
 export default function TripPlanForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -161,10 +141,7 @@ export default function TripPlanForm() {
   const [wasteTypeId, setWasteTypeId] = useState("");
   // Multiple waste types
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
-  // Time stored as 24h internally
-  const [timeHour, setTimeHour] = useState("07");
-  const [timeMinute, setTimeMinute] = useState("00");
-  const [timePeriod, setTimePeriod] = useState<"AM" | "PM">("AM");
+  const [scheduledTime, setScheduledTime] = useState("07:00");
   const [tripTriggerWeightKg, setTripTriggerWeightKg] = useState("");
   const [maxVehicleCapacityKg, setMaxVehicleCapacityKg] = useState("");
   const [isAutoAssign, setIsAutoAssign] = useState(false);
@@ -181,7 +158,8 @@ export default function TripPlanForm() {
   const [saving, setSaving] = useState(false);
 
   // Collection point stops — merged in from the former Trip Plan Collection Point form.
-  const [stops, setStops] = useState<StopRow[]>([]);
+  const [stops, setStops] = useState<StopRow[]>([emptyStop()]);
+  const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [bins, setBins] = useState<BinOption[]>([]);
 
@@ -344,14 +322,8 @@ useEffect(() => {
         setSelectedWasteTypes([String(record.waste_type.unique_id)]);
       }
 
-      // Parse time to 12h AM/PM
       const timeStr = String(record.scheduled_time ?? "");
-      if (timeStr) {
-        const parsed = to12h(timeStr.slice(0, 5));
-        setTimeHour(parsed.hour12);
-        setTimeMinute(parsed.minute);
-        setTimePeriod(parsed.period);
-      }
+      if (timeStr) setScheduledTime(timeStr.slice(0, 5));
 
       setTripTriggerWeightKg(String(record.trip_trigger_weight_kg ?? ""));
       setMaxVehicleCapacityKg(String(record.max_vehicle_capacity_kg ?? ""));
@@ -361,26 +333,19 @@ useEffect(() => {
       setApprovalStatus(String(record.approval_status ?? "PENDING"));
 
       if (Array.isArray(record.plan_collection_points)) {
-        setStops(
-          record.plan_collection_points
-            .filter((stop: ApiRecord) => stop.collection_type === "bin_collection")
-            .map((stop: ApiRecord) => ({
-              key: makeStopKey(),
-              collection_point_id: String(stop.collection_point_id ?? ""),
-              bin_id: String(stop.bin_id ?? ""),
-              sequence: String(stop.sequence ?? "1"),
-              is_active: stop.is_active !== false,
-            })),
-        );
+        const loadedStops = record.plan_collection_points
+          .filter((stop: ApiRecord) => stop.collection_type === "bin_collection")
+          .sort((a: ApiRecord, b: ApiRecord) => Number(a.sequence ?? 0) - Number(b.sequence ?? 0))
+          .map((stop: ApiRecord) => ({
+            key: makeStopKey(),
+            collection_point_id: String(stop.collection_point_id ?? ""),
+            bin_id: String(stop.bin_id ?? ""),
+            is_active: stop.is_active !== false,
+          }));
+        setStops(loadedStops.length ? loadedStops : [emptyStop()]);
       }
     });
   }, [id]);
-
-  const toggleWasteType = (uid: string) => {
-    setSelectedWasteTypes((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
-  };
 
   const toggleRepeatDay = (day: number) => {
     setRepeatDays((prev) =>
@@ -389,22 +354,36 @@ useEffect(() => {
   };
 
   const addStop = () => {
-    setStops((prev) => [...prev, emptyStop(prev.length + 1)]);
+    setStops((prev) => [...prev, emptyStop()]);
   };
 
   const removeStop = (key: string) => {
-    setStops((prev) => prev.filter((stop) => stop.key !== key));
+    setStops((prev) => (prev.length > 1 ? prev.filter((stop) => stop.key !== key) : prev));
   };
 
   const updateStop = (key: string, patch: Partial<StopRow>) => {
     setStops((prev) => prev.map((stop) => (stop.key === key ? { ...stop, ...patch } : stop)));
   };
 
-  // Collection points are scoped to the Trip Plan's own local body (hierarchyLevel/hierarchyId).
+  const moveStop = (from: number, to: number) => {
+    if (from === to) return;
+    setStops((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  // Collection points are scoped to the Trip Plan's own local body (hierarchyLevel/hierarchyId),
+  // excluding points already used by other stops.
   const collectionPointsForLocalBody = (currentValue: string) => {
-    const filtered = hierarchyId
+    const filtered = (hierarchyId
       ? collectionPoints.filter((cp) => cp.hierarchyField === hierarchyLevel && cp.hierarchyId === hierarchyId)
-      : collectionPoints;
+      : collectionPoints
+    ).filter(
+      (cp) => cp.value === currentValue || !stops.some((stop) => stop.collection_point_id === cp.value),
+    );
     const current = collectionPoints.find((cp) => cp.value === currentValue);
     return ensureOption(filtered, currentValue, current?.label);
   };
@@ -430,18 +409,26 @@ useEffect(() => {
       Swal.fire("Missing details", "Select at least one Waste Type.", "warning");
       return;
     }
+    const triggerWeight = Number(tripTriggerWeightKg);
+    const maxCapacity = Number(maxVehicleCapacityKg);
+    if (
+      tripTriggerWeightKg &&
+      maxVehicleCapacityKg &&
+      (!Number.isFinite(triggerWeight) || !Number.isFinite(maxCapacity) || triggerWeight >= maxCapacity)
+    ) {
+      Swal.fire("Warning", "Trigger weight must be less than vehicle capacity.", "warning");
+      return;
+    }
     if (collectionType === "bin_collection") {
+      if (!stops.length) {
+        Swal.fire("Missing details", "Add at least one collection point stop.", "warning");
+        return;
+      }
       if (stops.some((stop) => !stop.collection_point_id || !stop.bin_id)) {
         Swal.fire("Missing details", "Every stop needs a Collection Point and a Bin.", "warning");
         return;
       }
-      const sequences = stops.map((stop) => stop.sequence);
-      if (new Set(sequences).size !== sequences.length) {
-        Swal.fire("Missing details", "Stop sequences must be unique.", "warning");
-        return;
-      }
     }
-    const scheduledTime = to24h(timeHour, timeMinute, timePeriod);
     setSaving(true);
     const payload: Record<string, any> = {
       state_id: stateId,
@@ -471,11 +458,11 @@ useEffect(() => {
       status,
       approval_status: approvalStatus,
       collection_points: collectionType === "bin_collection"
-        ? stops.map((stop) => ({
+        ? stops.map((stop, index) => ({
             collection_type: collectionType,
             collection_point_id: stop.collection_point_id,
             bin_id: stop.bin_id,
-            sequence: Number(stop.sequence),
+            sequence: index + 1,
             is_active: stop.is_active,
           }))
         : [],
@@ -488,9 +475,6 @@ useEffect(() => {
       setSaving(false);
     }
   };
-
-  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-  const minutes = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
   return (
     <ComponentCard title={isEdit ? "Edit Trip Plan" : "Create Trip Plan"}>
@@ -590,11 +574,6 @@ useEffect(() => {
         </div>
 
         <div>
-          <Label>Collection Type *</Label>
-          <Select value={collectionType} onChange={(v) => setCollectionType(String(v))} options={collectionTypes} placeholder="Select Collection Type" />
-        </div>
-
-        <div>
           <Label>Property</Label>
           <Select value={propertyId} onChange={(v) => setPropertyId(String(v))} options={properties} placeholder="Select Property" />
         </div>
@@ -605,71 +584,52 @@ useEffect(() => {
         </div>
 
         {/* Multiple Waste Types */}
-        <div className="md:col-span-2">
-          <Label>Waste Types * (select one or more)</Label>
-          <div className="mt-1 flex flex-wrap gap-2">
-            {wasteTypes.map((wt) => (
-              <label
-                key={wt.value}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors ${
-                  selectedWasteTypes.includes(wt.value)
-                    ? "border-green-500 bg-green-50 text-green-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-green-300"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  className="hidden"
-                  checked={selectedWasteTypes.includes(wt.value)}
-                  onChange={() => toggleWasteType(wt.value)}
-                />
-                {wt.label}
-              </label>
-            ))}
-          </div>
+        <div>
+          <Label>Waste Type *</Label>
+          <MultiSelect
+            value={selectedWasteTypes}
+            onChange={(event) => {
+              const raw = Array.isArray(event.value) ? event.value : [];
+              // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setSelectedWasteTypes(values);
+              setStops((current) => current.map((stop) => ({ ...stop, bin_id: "" })));
+            }}
+            options={wasteTypes}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={3}
+            placeholder="Select waste types"
+            className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+            pt={{
+              labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+              label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+              trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+              dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+              panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+            }}
+            filter
+          />
           {selectedWasteTypes.length === 0 && (
             <p className="mt-1 text-xs text-red-500">Select at least one waste type</p>
           )}
         </div>
 
-        {/* Scheduled Time — 12h IST format */}
         <div>
-          <Label>Scheduled Time (IST) *</Label>
-          <div className="flex gap-2">
-            <select
-              className="h-10 flex-1 rounded-md border border-gray-300 px-2 text-sm focus:border-green-400 focus:outline-none"
-              value={timeHour}
-              onChange={(e) => setTimeHour(e.target.value)}
-            >
-              {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-            </select>
-            <span className="flex items-center text-gray-500">:</span>
-            <select
-              className="h-10 w-20 rounded-md border border-gray-300 px-2 text-sm focus:border-green-400 focus:outline-none"
-              value={timeMinute}
-              onChange={(e) => setTimeMinute(e.target.value)}
-            >
-              {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <select
-              className="h-10 w-20 rounded-md border border-gray-300 px-2 text-sm focus:border-green-400 focus:outline-none"
-              value={timePeriod}
-              onChange={(e) => setTimePeriod(e.target.value as "AM" | "PM")}
-            >
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
-            </select>
-          </div>
+          <Label>Start Time *</Label>
+          <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
         </div>
 
         <div>
-          <Label>Trip Trigger Weight (kg)</Label>
-          <Input type="number" value={tripTriggerWeightKg} onChange={(e) => setTripTriggerWeightKg(e.target.value)} placeholder="e.g. 200" />
+          <Label>Trigger Weight (kg)</Label>
+          <Input type="number" min={0} value={tripTriggerWeightKg} onChange={(e) => setTripTriggerWeightKg(e.target.value)} placeholder="e.g. 200" />
         </div>
 
         <div>
           <Label>Max Vehicle Capacity (kg)</Label>
-          <Input type="number" value={maxVehicleCapacityKg} onChange={(e) => setMaxVehicleCapacityKg(e.target.value)} placeholder="e.g. 5000" />
+          <Input type="number" min={0} value={maxVehicleCapacityKg} onChange={(e) => setMaxVehicleCapacityKg(e.target.value)} placeholder="e.g. 5000" />
         </div>
 
         <div>
@@ -688,61 +648,99 @@ useEffect(() => {
         </div>
 
         {/* Collection Point Stops — merged in from the former Trip Plan Collection Point form */}
-        {collectionType === "bin_collection" && (
-          <div className="md:col-span-2 rounded-md border p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <Label>Collection Point Stops</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addStop}>
-                + Add Stop
-              </Button>
+        <div className="md:col-span-2 space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Collection Points</h2>
+              <p className="text-sm text-gray-500">Add all stops for this trip plan before saving.</p>
             </div>
-            {stops.length === 0 && (
-              <p className="text-sm text-gray-500">No stops added yet. Click "Add Stop" to attach a collection point and bin.</p>
+            {collectionType === "bin_collection" && (
+              <button
+                type="button"
+                onClick={addStop}
+                className="rounded-lg bg-green-custom px-4 py-2 text-sm font-semibold text-white"
+              >
+                Add Stop
+              </button>
             )}
+          </div>
+
+          {collectionType === "bin_collection" ? (
             <div className="space-y-3">
-              {stops.map((stop) => (
-                <div key={stop.key} className="grid gap-3 md:grid-cols-[2fr_2fr_1fr_auto_auto]">
-                  <Select
-                    value={stop.collection_point_id}
-                    onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
-                    options={collectionPointsForLocalBody(stop.collection_point_id)}
-                    placeholder={hierarchyId ? "Collection Point" : "Select a Local Body first"}
-                  />
-                  <Select
-                    value={stop.bin_id}
-                    onChange={(v) => updateStop(stop.key, { bin_id: String(v) })}
-                    options={binsForStop(stop.collection_point_id, stop.bin_id)}
-                    placeholder={stop.collection_point_id ? "Bin" : "Select a Collection Point first"}
-                  />
-                  <Input
-                    type="number"
-                    min={1}
-                    value={stop.sequence}
-                    onChange={(e) => updateStop(stop.key, { sequence: e.target.value })}
-                    placeholder="Seq"
-                  />
-                  <label className="flex items-center gap-1.5 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={stop.is_active}
-                      onChange={(e) => updateStop(stop.key, { is_active: e.target.checked })}
+              {stops.map((stop, index) => (
+                <div
+                  key={stop.key}
+                  draggable
+                  onDragStart={() => setDraggedStopIndex(index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => {
+                    if (draggedStopIndex !== null) moveStop(draggedStopIndex, index);
+                    setDraggedStopIndex(null);
+                  }}
+                  onDragEnd={() => setDraggedStopIndex(null)}
+                  className="grid cursor-move grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[72px_minmax(160px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_92px]"
+                >
+                  <div>
+                    <Label>Seq</Label>
+                    <Input type="number" min={1} value={index + 1} disabled className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <Label>Type</Label>
+                    <Select
+                      value={collectionType}
+                      onChange={(v) => setCollectionType(String(v))}
+                      options={collectionTypes}
                     />
-                    Active
-                  </label>
-                  <Button type="button" variant="destructive" size="sm" onClick={() => removeStop(stop.key)}>
-                    Remove
-                  </Button>
+                  </div>
+                  <div>
+                    <Label>Collection Point</Label>
+                    <Select
+                      value={stop.collection_point_id}
+                      onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
+                      options={collectionPointsForLocalBody(stop.collection_point_id)}
+                      placeholder={hierarchyId ? "Select an option" : "Select a Local Body first"}
+                    />
+                  </div>
+                  <div>
+                    <Label>Bin</Label>
+                    <Select
+                      value={stop.bin_id}
+                      onChange={(v) => updateStop(stop.key, { bin_id: String(v) })}
+                      options={binsForStop(stop.collection_point_id, stop.bin_id)}
+                      placeholder={stop.collection_point_id ? "Select an option" : "Select a Collection Point first"}
+                    />
+                  </div>
+                  <div>
+                    <Label>Active</Label>
+                    <div className="flex h-10 items-center">
+                      <Switch checked={stop.is_active} onCheckedChange={(checked) => updateStop(stop.key, { is_active: checked })} />
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => removeStop(stop.key)}
+                      disabled={stops.length === 1}
+                      className="h-10 w-full rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {["household_collection", "bulk_waste_collection"].includes(collectionType) && (
-          <div className="md:col-span-2 rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-            Household and bulk waste stops are generated automatically for customers under this Trip Plan's local body — no manual stop list is needed here.
-          </div>
-        )}
+          ) : (
+            <div className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[minmax(160px,240px)_1fr]">
+              <div>
+                <Label>Type</Label>
+                <Select value={collectionType} onChange={(v) => setCollectionType(String(v))} options={collectionTypes} />
+              </div>
+              <div className="flex items-center rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                Household and bulk waste stops are generated automatically for customers under this Trip Plan's local body — no manual stop list is needed here.
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Auto-assign toggle */}
         <div className="md:col-span-2">
@@ -783,9 +781,21 @@ useEffect(() => {
           </div>
         )}
 
-        <div className="flex gap-2 md:col-span-2">
-          <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-          <Button type="button" variant="outline" onClick={() => navigate(listPath)}>Cancel</Button>
+        <div className="flex justify-end gap-3 md:col-span-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving..." : isEdit ? "Update" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(listPath)}
+            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
+          >
+            Cancel
+          </button>
         </div>
       </form>
     </ComponentCard>
