@@ -73,10 +73,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encCompanyCreation,
     encProjectCreation,
     encSuperAdminMaster,
-    encHierarchyTree,
-    encHierarchyLevels,
-    encHierarchyNode,
-    encHierarchyAssign,
     encBins,
     encScheduleMasters,
     encDailyTripAssignment,
@@ -98,11 +94,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Org / Department Setup
     { path: `/${encMasters}/${encDepartments}`, nameKey: "admin.nav.department", parentNameKey: "admin.nav.masters" },
     { path: `/${encMasters}/${encDesignations}`, nameKey: "admin.nav.designation", parentNameKey: "admin.nav.masters" },
-    // Administrative / Geographic Hierarchy
-    { path: `/${encMasters}/${encHierarchyLevels}`, nameKey: "admin.nav.hierarchy_levels", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encHierarchyTree}`, nameKey: "admin.nav.hierarchy_tree", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encHierarchyNode}`, nameKey: "admin.nav.hierarchy_node", parentNameKey: "admin.nav.masters" },
-    { path: `/${encMasters}/${encHierarchyAssign}`, nameKey: "admin.nav.hierarchy_assign", parentNameKey: "admin.nav.masters" },
     // Waste Types
     { path: `/${encMasters}/${encProperties}`, nameKey: "admin.nav.property", parentNameKey: "admin.nav.wastetype" },
     { path: `/${encMasters}/${encSubProperties}`, nameKey: "admin.nav.sub_property", parentNameKey: "admin.nav.wastetype" },
