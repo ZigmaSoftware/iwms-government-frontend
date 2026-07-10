@@ -149,20 +149,20 @@ const defaultValues: FormValues = {
 };
 
 const optionLabel = (record: ApiOptionRecord) =>
-  record.name ??
   record.employee_name ??
   record.department_name ??
   record.designation_name ??
-  record.state_name ??
-  record.district_name ??
-  record.area_type_name ??
   record.corporation_name ??
   record.municipality_name ??
   record.town_panchayat_name ??
   record.panchayat_union_name ??
   record.panchayat_name ??
+  record.area_type_name ??
+  record.district_name ??
+  record.state_name ??
   record.vehicle_no ??
   record.registration_number ??
+  record.name ??
   record.unique_id ??
   record.id ??
   "";
@@ -270,7 +270,7 @@ export default function StaffAccessConfigPage() {
           adminApi.governmentUserTypes.readAll(),
           adminApi.departments.readAll(),
           adminApi.designations.readAll(),
-          adminApi.hierarchyNodes.readAll(),
+          adminApi.hierarchies.readAll(),
           adminApi.vehicleCreations.readAll(),
           adminApi.states.readAll(),
           adminApi.districts.readAll(),
@@ -982,7 +982,7 @@ export default function StaffAccessConfigPage() {
         <button
           type="button"
           onClick={() => navigate(listPath)}
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+          className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white"
         >
           Cancel
         </button>
@@ -990,7 +990,7 @@ export default function StaffAccessConfigPage() {
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Confirm & Save
@@ -1033,7 +1033,7 @@ export default function StaffAccessConfigPage() {
             <button
               type="button"
               onClick={() => navigate(listPath)}
-              className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+              className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white"
             >
               Cancel
             </button>
@@ -1041,7 +1041,7 @@ export default function StaffAccessConfigPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab((tab) => Math.max(tab - 1, 0))}
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700"
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
               >
                 Back
               </button>
@@ -1049,7 +1049,7 @@ export default function StaffAccessConfigPage() {
             <button
               type="button"
               onClick={nextTab}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white"
             >
               Next
             </button>
