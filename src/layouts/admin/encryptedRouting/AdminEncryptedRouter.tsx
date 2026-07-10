@@ -68,7 +68,6 @@ import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
 import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
 import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
-import MonthlyWasteComparisonForm from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonForm";
 import TicketList from "@/pages/admin/modules/complaintTicketing/tickets/TicketList";
 import TicketForm from "@/pages/admin/modules/complaintTicketing/tickets/TicketForm";
 import TicketDetail from "@/pages/admin/modules/complaintTicketing/tickets/TicketDetail";
@@ -143,7 +142,6 @@ import SchedulerConfigPage from "@/pages/admin/modules/scheduleMasters/scheduler
 import TripPlanCollectionPointList from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointList";
 import TripPlanCollectionPointForm from "@/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/tripPlanCollectionPointForm";
 import DailyWasteComparisonList from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonList";
-import DailyWasteComparisonForm from "@/pages/admin/modules/scheduleMasters/dailyWasteComparison/dailyWasteComparisonForm";
 import StaffTemplateAuditList from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditList";
 import StaffTemplateAuditForm from "@/pages/admin/modules/staffMasters/staffTemplateAudit/staffTemplateAuditForm";
 import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
@@ -229,8 +227,8 @@ const ROUTES: RouteMap = {
     "scheduler-config": { component: SchedulerConfigPage },
     "trip-plan-collection-points": { list: TripPlanCollectionPointList, form: TripPlanCollectionPointForm },
     "daily-trip-log": { list: DailyTripLogList },
-    "daily-waste-comparisons": { list: DailyWasteComparisonList, form: DailyWasteComparisonForm },
-    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "daily-waste-comparisons": { list: DailyWasteComparisonList },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
   },
   "customer-master": {
@@ -272,7 +270,7 @@ const ROUTES: RouteMap = {
     "trip-summary": { component: TripSummary },
     "monthly-distance": { component: MonthlyDistance },
     "waste-collected-summary": { component: WasteSummary },
-    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage, form: MonthlyWasteComparisonForm },
+    "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
   },
   "leader-login": {
     "plb-leader-creation": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
