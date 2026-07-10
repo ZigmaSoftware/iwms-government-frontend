@@ -5,18 +5,14 @@ import type {
   WasteTypeBreakdownRow,
 } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   BarChart3,
   Calendar,
   Download,
   MapPin,
-  Pencil,
   PieChart as PieChartIcon,
-  Plus,
   Recycle,
   Scale,
-  Trash2,
   Truck,
 } from "lucide-react";
 import Swal from "@/lib/notify";
@@ -35,8 +31,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import {
   areaTypeApi,
@@ -256,7 +250,6 @@ const WasteTypeLegend = ({ payload }: any) => (
 ══════════════════════════════════════════════════════════════════ */
 export default function DailyWasteComparisonList() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   const [dateValue, setDateValue] = useState("");
   const [appliedDate, setAppliedDate] = useState("");
@@ -294,10 +287,6 @@ export default function DailyWasteComparisonList() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-
-  const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
-  const { newPath: dailyComparisonNewPath, editPath: dailyComparisonEditPath } =
-    createCrudRoutePaths(encScheduleMasters, encDailyWasteComparison);
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
@@ -405,28 +394,6 @@ export default function DailyWasteComparisonList() {
   useEffect(() => {
     void fetchReport();
   }, [appliedDate, sortMode, source, localBodyLevel, localBodyId]);
-
-  /* ── delete ── */
-  const handleDelete = async (row: DailyReportRow) => {
-    const result = await Swal.fire({
-      title: t("common.are_you_sure"),
-      text: `Delete record for ${row.local_body_name} — ${row.collection_date}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
-    });
-    if (!result.isConfirmed) return;
-    try {
-      await dailyWasteComparisonApi.delete(row.unique_id);
-      await fetchReport();
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
-    } catch {
-      Swal.fire(t("common.error"), "Failed to delete record.", "error");
-    }
-  };
 
   /* ── derived ── */
   const plbChartData = useMemo(
@@ -1128,9 +1095,6 @@ export default function DailyWasteComparisonList() {
                       <th className="px-4 py-3 text-right font-semibold">
                         Points
                       </th>
-                      <th className="px-4 py-3 text-center font-semibold">
-                        Actions
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -1159,33 +1123,6 @@ export default function DailyWasteComparisonList() {
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600">
                           {r.collection_points_covered}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() =>
-                                navigate(
-                                  dailyComparisonEditPath(r.unique_id),
-                                  {
-                                    state: {
-                                      record: r,
-                                    },
-                                  },
-                                )
-                              }
-                              className="text-blue-500 hover:text-blue-700"
-                              title="Edit"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(r)}
-                              className="text-red-400 hover:text-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
                         </td>
                       </tr>
                     ))}
