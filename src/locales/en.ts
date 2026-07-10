@@ -866,7 +866,6 @@ const enResource = {
           "vehicle_type": "Vehicle Type",
           "vehicle_creation": "Vehicle Creation",
           "trip_plans": "Trip Plans",
-          "trip_plan_collection_points": "Trip Plan Collection Points",
           "trip_instance": "Trip Instance",
           "trip_attendance": "Trip Attendance",
           "fuel": "Fuel",

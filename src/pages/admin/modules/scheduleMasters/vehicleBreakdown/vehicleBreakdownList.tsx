@@ -9,8 +9,8 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { InputTextarea } from "primereact/inputtextarea";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { Dialog } from "primereact/dialog";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
@@ -394,17 +394,11 @@ export default function VehicleBreakdownList() {
   );
 
   /* ── Header ─────────────────────────────────────────────────────── */
-  const header = (
-    <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white w-fit">
-      <i className="pi pi-search text-gray-500" />
-      <InputText
-        value={globalFilterValue}
-        onChange={onGlobalFilterChange}
-        placeholder="Search breakdowns…"
-        className="border-none text-sm"
-      />
-    </div>
-  );
+  const header = renderListSearchHeader({
+    value: globalFilterValue,
+    onChange: onGlobalFilterChange,
+    placeholder: "Search breakdowns...",
+  });
 
   /* ════════════════════════════════════════════════════════════════
       RENDER
@@ -414,14 +408,14 @@ export default function VehicleBreakdownList() {
       {/* Title row */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Vehicle Breakdown</h1>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">Vehicle Breakdowns</h1>
           <p className="text-sm text-gray-500">Report breakdowns and arrange replacement vehicles for trips</p>
         </div>
         <div className="flex items-center gap-3">
           <Button
             label="Report Breakdown"
             icon="pi pi-plus"
-            className="p-button-success p-button-sm"
+            className="p-button-success"
             onClick={() => navigate(newPath)}
           />
         </div>
@@ -471,18 +465,17 @@ export default function VehicleBreakdownList() {
         />
         <Column
           field="trip_assignment_id"
-          header="Trip ID"
+          header="Trip"
           sortable
           filter
           showFilterMatchModes={false}
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_trip_date"
-          header="Trip Date"
-          sortable
-          style={{ minWidth: 110 }}
-          body={(r: any) => r._trip_date || "-"}
+          style={{ minWidth: 160 }}
+          body={(r: any) => (
+            <div className="text-sm text-gray-800">
+              {r.trip_assignment_id}
+              {r._trip_date && <div className="text-xs text-gray-400">{r._trip_date}</div>}
+            </div>
+          )}
         />
         <Column
           field="_location"
@@ -492,35 +485,28 @@ export default function VehicleBreakdownList() {
         />
         <Column
           field="_breakdown_vehicle"
-          header="Broken Vehicle"
+          header="Vehicle (Broken → Replacement)"
           filter
           showFilterMatchModes={false}
-          style={{ minWidth: 140 }}
+          style={{ minWidth: 200 }}
           body={(r: any) => (
-            <span className="font-semibold text-red-700">{r._breakdown_vehicle}</span>
-          )}
-        />
-        <Column
-          field="_replacement_vehicle"
-          header="Replacement Vehicle"
-          filter
-          showFilterMatchModes={false}
-          style={{ minWidth: 160 }}
-          body={(r: any) => (
-            <span className="font-semibold text-green-700">{r._replacement_vehicle}</span>
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="font-semibold text-red-700">{r._breakdown_vehicle}</span>
+              <i className="pi pi-arrow-right text-[10px] text-gray-400" />
+              <span className="font-semibold text-green-700">{r._replacement_vehicle}</span>
+            </div>
           )}
         />
         <Column
           field="_repl_driver"
-          header="Repl. Driver"
-          style={{ minWidth: 130 }}
-          body={(r: any) => r._repl_driver || "-"}
-        />
-        <Column
-          field="_repl_operator"
-          header="Repl. Operator"
-          style={{ minWidth: 130 }}
-          body={(r: any) => r._repl_operator || "-"}
+          header="Replacement Crew"
+          style={{ minWidth: 170 }}
+          body={(r: any) => (
+            <div className="text-xs text-gray-700 leading-snug">
+              <div><span className="text-gray-400">Drv:</span> {r._repl_driver || "-"}</div>
+              <div><span className="text-gray-400">Opr:</span> {r._repl_operator || "-"}</div>
+            </div>
+          )}
         />
         <Column
           field="_breakdown_reason"
@@ -528,7 +514,11 @@ export default function VehicleBreakdownList() {
           filter
           showFilterMatchModes={false}
           style={{ minWidth: 140 }}
-          body={(r: any) => r._breakdown_reason}
+          body={(r: any) => (
+            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+              {r._breakdown_reason}
+            </span>
+          )}
         />
         <Column
           field="status"

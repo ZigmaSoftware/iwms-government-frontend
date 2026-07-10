@@ -1,62 +1,72 @@
-# Task: Port Schedule Masters to IWMS Government (Frontend + Backend) & Remove Company/Project ID
+# Task: Trip Plan with Inline Collection Points (IWMS Government) & Remove the Separate Trip Plan Collection Point Form
 
 ## Context
 There are two IWMS systems in this workspace:
 - **Source (reference implementation):** `/home/sathya/iwms/web/iwms-frontend` and `/home/sathya/iwms/web/iwms-backend`
 - **Target (to implement in):** `/home/sathya/iwms/government/iwms-government-frontend` and `/home/sathya/iwms/government/iwms-government-backend`
 
-The source system has a fully working **Schedule Masters** module. The government system needs the
-same functionality, adapted to its corporation-based structure.
+The Schedule Masters port into the government system is already done. This task reworks the
+**Trip Plan** form and removes the standalone **Trip Plan Collection Point** form.
 
-## Part 1 — Port Schedule Masters into the Government system
+## Part 1 — Trip Plan form: use the source UI with inline Collection Points
 
-Study these 5 forms in the source system (frontend UI + backend models/serializers/views/URLs)
-and re-implement them in the government frontend and backend:
+Use the source system's Trip Plan form as the UI blueprint:
+- Source form: `iwms-frontend/src/pages/admin/modules/transportMasters/tripPlan/tripPlanForm.tsx`
+- Source serializer (nested stop writes): `iwms-backend/app/serializers/schedule_masters/trip_plan_serializer.py`
+- Target form to update: `iwms-government-frontend/src/pages/admin/modules/transportMasters/tripPlan/tripPlanForm.tsx`
 
-1. **Trip Plans** (`scheduleMasters/tripPlan`, `app/serializers/schedule_masters/trip_plan_serializer.py`)
-2. **Daily Trip Plan** (daily trip assignment/tracking — see `daily_trip_assignment_serializer.py`,
-   `dailyTripTracking/`)
-3. **Bin Collection Event** (`binCollectionEvent/`, `bin_collection_event_serializer.py`)
-4. **Waste Collected Data** (`wasteManagementMasters/wasteCollectedData/`)
-5. **Collection Points** (`masters/collectionPoint/`, `schedule_masters/collection_point_serializer.py`)
+The government Trip Plan form must match that UI exactly (see the reference screenshot):
 
-Also port the **auto-schedule logic** from the source backend:
-- `app/services/daily_trip_scheduler.py`
-- `app/services/daily_trip_generation.py`
-- any related management commands / cron entries (`scheduler.sh`, `promote_draft_trip_logs.py`, etc.)
+**Top section (two-column grid):**
+- District, City, Zone, PLB (Participating Local Bodies) — cascading location dropdowns,
+  scoped by corporation from the Config (government hierarchy, NOT company/project/panchayat/ward)
+- Staff Template, Vehicle, Supervisor
+- Waste Type (multi-select)
+- Start Time (time picker), Trigger Weight (kg), Max Vehicle Capacity (kg)
+- Status (Active/Inactive), Approval Status (Pending/Approved/Rejected)
+- Keep the source validations: "Select either Zone or PLB", "Trigger weight must be less than
+  vehicle capacity", required-field checks — adapted to government field names.
 
-Placement in the government frontend:
-- Master/setup forms (Trip Plans, Collection Points, and related config) go under a **"Schedule Setup"** section.
-- Transactional/day-to-day forms (Daily Trip Plan, Bin Collection Event, Waste Collected Data) go under a
-  **"Daily Operations"** section.
-- Register routes in `AdminEncryptedRouter.tsx`, add sidebar entries in `AppSidebar.tsx`, and follow the
-  government frontend's existing module structure (`src/pages/admin/modules/...`), form/table components,
-  and API-hook conventions — match the government codebase's patterns, not the source's, where they differ.
+**Collection Points section (embedded card inside the same form, NOT a separate page):**
+- Header: "Collection Points" with subtitle "Add all stops for this trip plan before saving."
+  and an **Add Stop** button on the right.
+- One row per stop with columns: **Seq** (auto, read-only), **Type** (Bin Collection /
+  Household Collection dropdown), **Collection Point** (dropdown, filtered by the selected
+  location and excluding points already used in other rows), **Bin** (dropdown scoped to the
+  selected Collection Point and the plan's Waste Types), **Active** (toggle), **Remove** button
+  (disabled when only one row remains).
+- Stops are saved **with the trip plan in one request** as nested `collection_points`, exactly
+  like the source `trip_plan_serializer.py` does (create/replace child rows on save, return
+  them as `plan_collection_points` on read). Update the government
+  `trip_plan_serializer.py` / views to support this nested write if they don't already.
 
-Backend: create the corresponding Django models, serializers, views, URLs, and migrations in
-`iwms-government-backend`, following its existing app structure and permission/middleware conventions.
+## Part 2 — Remove the standalone Trip Plan Collection Point form
 
-## Part 2 — Remove Company ID and Project ID (corporation-based instead)
+Since stops now live inside the Trip Plan form, remove the separate module:
+- Delete the frontend module `iwms-government-frontend/src/pages/admin/modules/scheduleMasters/tripPlanCollectionPoint/`
+  (form, list, types), its route in `AdminEncryptedRouter.tsx`, and its sidebar entry.
+- Backend: keep the `trip_plan_collection_point` model/table (it stores the nested stops), but
+  remove the standalone CRUD API for it (serializer-as-endpoint, views, URLs) if it exists —
+  it must only be written through the Trip Plan nested serializer.
+- Remove any i18n/locale keys, permissions entries, and TypeScript types that only existed for
+  the standalone form.
 
-The government system is scoped **per corporation** via the Config form — company and project are
-no longer needed:
-- Remove `company` / `company_id` and `project` / `project_id` fields and filters from the government
-  frontend and backend, starting with **Staff Creation** and the **Config form** (the Config form has
-  already been reworked to be per-corporation — use it as the reference for how scoping should work).
-- Apply the same corporation-based scoping to the newly ported Schedule Setup / Daily Operations
-  modules: anywhere the source system filtered by company/project, the government version should scope
-  by corporation from the config instead.
-- Update backend models, serializers, querysets, and validations accordingly, with migrations for any
-  removed/changed fields.
+## Part 3 — AppSidebar: use my fixed version, don't add extras
+
+I have already fixed `iwms-government-frontend/src/layouts/admin/components/AppSidebar.tsx` so it
+respects exactly the 5 ported forms (Trip Plans, Daily Trip Plan, Bin Collection Event, Waste
+Collected Data, Collection Points). The earlier port added extra sidebar items I don't want.
+- Do NOT restructure the sidebar or add new sections/entries.
+- Only change allowed: remove the **Trip Plan Collection Point** entry (per Part 2) if it is
+  still there.
+- Register/keep routes consistent with what the fixed sidebar exposes.
 
 ## Requirements
-- Reuse the source system's business logic and UI as the blueprint, but adapt naming, auth, and scoping
-  to the government system's conventions.
-- Keep TypeScript types, i18n/locales, and encrypted routing consistent with existing government modules.
-- Run migrations cleanly and verify each of the 5 forms end-to-end (list, create, edit, delete, and
-  auto-schedule generation).
-- Work through this module by module; after each module, confirm the frontend builds and backend checks pass.
+- Corporation-based scoping everywhere (from the Config form) — no company/project fields or filters.
+- Match the government codebase's conventions: encrypted routing, API hooks, form/table components,
+  TypeScript types, i18n/locales.
+- Run backend checks and migrations cleanly; confirm the frontend builds.
+- Verify end-to-end: create a Trip Plan with multiple stops, edit it (stops reload and re-save
+  correctly), delete it, and confirm the removed standalone form is gone from routes and sidebar.
 
-dont ask me, i'll give you a full access to you so place that and i'll add upon fix the vehicle breakdown too which and all forms need to be in the government
-
-continue
+dont ask me, i'll give you full access — work through it and fix anything related you find along the way.

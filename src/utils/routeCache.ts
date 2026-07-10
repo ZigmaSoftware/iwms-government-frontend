@@ -68,7 +68,6 @@ export type EncryptedRoutes = {
   encMainScreen: string;
   encUserScreen: string;
   encTripPlans: string;
-  encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
   encDailyTripHouseholdCollection: string;
@@ -198,7 +197,6 @@ const plainRoutes: EncryptedRoutes = {
   encUserScreen: "userscreens",
   encUserScreenPermission: "userscreenpermissions",
   encTripPlans: "trip-plans",
-  encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
   encDailyTripHouseholdCollection: "daily-trip-household-collection",

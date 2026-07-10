@@ -137,7 +137,6 @@ const SCREEN_ALIASES: Record<string, string[]> = {
     "alternative staff template",
   ],
   "trip-plans": ["tripplans", "tripplan", "trip-plans", "trip plans"],
-  "trip-plan-collection-points": ["tripplancollectionpoint", "trip-plan-collection-points"],
   "daily-trip-assignments": ["daily-trip-assignment", "dailytripassignment"],
   "daily-trip-collection-points": ["daily-trip-collection-point", "dailytripcollectionpoint"],
   "bin-collection-events": ["bin-collection-event", "bincollectionevent"],

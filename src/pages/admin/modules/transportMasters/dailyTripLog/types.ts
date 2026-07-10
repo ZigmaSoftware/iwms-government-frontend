@@ -16,8 +16,20 @@ export type StaffTemplateInfo = {
   alt?: StaffTemplateDetail | null;
 };
 
+export type LocationDetail = {
+  state?: string | null;
+  district?: string | null;
+  // "Urban Local Body" / "Rural Local Body" — from the AreaType master
+  classification?: string | null;
+  local_body_name?: string | null;
+  local_body_level?: string | null;
+};
+
 export type DailyTripLogRecord = {
   unique_id: string;
+  location?: LocationDetail | null;
+  location_name?: string | null;
+  location_level?: string | null;
   trip_assignment_id?: string;
   trip_assignment?: NamedRef & { display_code?: string };
   staff_template?: StaffTemplateInfo | null;
