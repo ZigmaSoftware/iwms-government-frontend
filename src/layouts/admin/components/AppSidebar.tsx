@@ -77,9 +77,6 @@ const {
   encTripPlanCollectionPoints,
   encVehicleBreakdown,
   encSchedulerConfig,
-  encHierarchyLevels,
-  encHierarchyTree,
-  encHierarchyAssign,
   encCommonMasters,
   encContinents,
   encCountries,
@@ -166,24 +163,6 @@ const masterItems: NavItem[] = [
     module: "masters",
     screen: "masters",
     subItems: [
-      {
-        nameKey: "admin.nav.hierarchy_levels",
-        path: `/${encMasters}/${encHierarchyLevels}`,
-        module: "masters",
-        screen: "hierarchy-levels",
-      },
-      {
-        nameKey: "admin.nav.hierarchy_tree",
-        path: `/${encMasters}/${encHierarchyTree}`,
-        module: "masters",
-        screen: "hierarchy-nodes",
-      },
-      {
-        nameKey: "admin.nav.hierarchy_assign",
-        path: `/${encMasters}/${encHierarchyAssign}`,
-        module: "masters",
-        screen: "hierarchy-assignments",
-      },
       {
         nameKey: "admin.nav.district",
         path: `/${encMasters}/${encDistricts}`,

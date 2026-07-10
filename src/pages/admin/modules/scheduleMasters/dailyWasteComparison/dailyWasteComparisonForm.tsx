@@ -16,7 +16,17 @@ import {
 } from "@/components/ui/select";
 
 import { adminApi } from "@/helpers/admin/registry";
-import { panchayatApi, wasteTypeApi } from "@/helpers/admin";
+import {
+  areaTypeApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
+  stateApi,
+  townPanchayatApi,
+  wasteTypeApi,
+} from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api";
@@ -123,9 +133,49 @@ const fmtKg = (v?: number | string | null) => {
 };
 
 /* ────────────────────────────────────────────
-   Types
+   Local body hierarchy (State -> District -> Area Type -> Local Body Type -> Local Body)
 ──────────────────────────────────────────── */
 
+type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+const localBodyLevels: Array<{ value: LocalBodyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat" },
+];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
+const resolveGeoId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveGeoName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      resolveGeoId(record),
+  );
+const toGeoOptions = (records: any[]): SelectOption[] =>
+  records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
 
 /* ────────────────────────────────────────────
    Component
@@ -144,18 +194,35 @@ export default function DailyWasteComparisonForm() {
   const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encDailyWasteComparison);
 
+  /* ── Local body hierarchy fields ── */
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
+  const [localBodyLevel, setLocalBodyLevel] = useState<LocalBodyLevel>("corporation_id");
+  const [localBodyId, setLocalBodyId] = useState("");
+
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [localBodyRecords, setLocalBodyRecords] = useState<Record<LocalBodyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
+  const [panchayatDataMap, setPanchayatDataMap] = useState<
+    Record<string, { agreed_weight_kg?: number }>
+  >({});
+
   /* ── Criteria fields ── */
-  const [panchayatId, setPanchayatId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
   const [collectionDate, setCollectionDate] = useState(
     new Date().toISOString().split("T")[0],
   );
 
   /* ── Dropdown options ── */
-  const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
-  const [panchayatDataMap, setPanchayatDataMap] = useState<
-    Record<string, { agreed_weight_kg?: number }>
-  >({});
   const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
 
   /* ── Auto-fetched trip log data ── */
@@ -167,22 +234,41 @@ export default function DailyWasteComparisonForm() {
   const [loading, setLoading] = useState(false);
   const [recordData] = useState<Record<string, unknown> | null>(routeState?.record ?? null);
 
-  /* fetch panchayat dropdown — store agreed_weight_kg per panchayat */
+  /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
-    panchayatApi
-      .readAll()
-      .then((res) => {
-        const records = toRecordList(res).filter((x) => x.is_active !== false);
-        const opts = records
-          .map((x) => ({
-            value: normalizeId(x.unique_id ?? x.panchayat_id),
-            label: toText(x.panchayat_name ?? x.name ?? x.unique_id),
-          }))
-          .filter((x) => x.value && x.label);
-        setPanchayatOptions(opts);
+    Promise.all([
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+    ]).then(
+      ([
+        stateRes,
+        districtRes,
+        areaTypeRes,
+        corporationRes,
+        municipalityRes,
+        townPanchayatRes,
+        panchayatUnionRes,
+        panchayatRes,
+      ]) => {
+        setStates(toRecordList(stateRes));
+        setDistricts(toRecordList(districtRes));
+        setAreaTypes(toRecordList(areaTypeRes));
+        setLocalBodyRecords({
+          corporation_id: toRecordList(corporationRes),
+          municipality_id: toRecordList(municipalityRes),
+          town_panchayat_id: toRecordList(townPanchayatRes),
+          panchayat_union_id: toRecordList(panchayatUnionRes),
+          panchayat_id: toRecordList(panchayatRes),
+        });
 
         const dataMap: Record<string, { agreed_weight_kg?: number }> = {};
-        for (const x of records) {
+        for (const x of toRecordList(panchayatRes)) {
           const uid = normalizeId(x.unique_id ?? x.panchayat_id);
           if (uid) {
             dataMap[uid] = {
@@ -191,11 +277,8 @@ export default function DailyWasteComparisonForm() {
           }
         }
         setPanchayatDataMap(dataMap);
-      })
-      .catch(() => {
-        setPanchayatOptions([]);
-        setPanchayatDataMap({});
-      });
+      },
+    );
   }, []);
 
   /* fetch waste type dropdown */
@@ -215,18 +298,68 @@ export default function DailyWasteComparisonForm() {
       .catch(() => setWasteTypeOptions([]));
   }, []);
 
+  /* area type -> urban/rural category */
+  useEffect(() => {
+    if (!areaTypeId || !areaTypes.length) {
+      if (!areaTypeId) setAreaTypeCategory("");
+      return;
+    }
+    const selected = areaTypes.find((item) => resolveGeoId(item) === areaTypeId);
+    if (selected) {
+      setAreaTypeCategory(areaTypeCategoryFromName(String(selected.name ?? "")));
+    }
+  }, [areaTypeId, areaTypes]);
+
   /* hydrate edit record's criteria */
   useEffect(() => {
     if (!isEdit || !routeState?.record) return;
-    setPanchayatId(normalizeId(routeState.record.panchayat_id ?? routeState.record.panchayat));
-    setWasteTypeId(normalizeId(routeState.record.waste_type_id));
-    const date = toText(routeState.record.collection_date);
+    const record = routeState.record;
+
+    setStateId(normalizeId((record.state as any)?.unique_id ?? record.state_id));
+    setDistrictId(normalizeId((record.district as any)?.unique_id ?? record.district_id));
+    setAreaTypeId(normalizeId((record.area_type as any)?.unique_id ?? record.area_type_id));
+
+    const hierarchyMap: Record<LocalBodyLevel, string> = {
+      corporation_id: normalizeId((record.corporation as any)?.unique_id ?? record.corporation_id),
+      municipality_id: normalizeId((record.municipality as any)?.unique_id ?? record.municipality_id),
+      town_panchayat_id: normalizeId((record.town_panchayat as any)?.unique_id ?? record.town_panchayat_id),
+      panchayat_union_id: normalizeId((record.panchayat_union as any)?.unique_id ?? record.panchayat_union_id),
+      panchayat_id: normalizeId((record.panchayat as any)?.unique_id ?? record.panchayat_id),
+    };
+    const detectedLevel = localBodyLevels.find((item) => hierarchyMap[item.value]);
+    if (detectedLevel) {
+      setLocalBodyLevel(detectedLevel.value);
+      setLocalBodyId(hierarchyMap[detectedLevel.value]);
+    }
+
+    setWasteTypeId(normalizeId(record.waste_type_id));
+    const date = toText(record.collection_date);
     if (date) setCollectionDate(date.slice(0, 10));
   }, [isEdit, routeState?.record]);
 
+  const filteredDistricts = districts.filter(
+    (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
+  );
+  const filteredAreaTypes = areaTypes.filter(
+    (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
+  );
+
+  const availableLocalBodyLevels = areaTypeCategory
+    ? localBodyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+    : [];
+
+  const localBodyOptions = ensureSelectedOption(
+    toGeoOptions(
+      (localBodyRecords[localBodyLevel] ?? []).filter(
+        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+      ),
+    ),
+    localBodyId,
+  );
+
   /* ── Auto-fetch from trip logs when all criteria are set ── */
   const canFetch =
-    Boolean(panchayatId) &&
+    Boolean(localBodyId) &&
     Boolean(wasteTypeId) &&
     Boolean(collectionDate);
 
@@ -239,13 +372,13 @@ export default function DailyWasteComparisonForm() {
       const { data } = await api.get("/schedule-masters/daily-waste-comparisons/", {
         params: {
           date: collectionDate,
-          panchayat_id: panchayatId,
+          [localBodyLevel]: localBodyId,
           waste_type_id: wasteTypeId,
         },
       });
       const results: TripLogData[] = Array.isArray(data?.results) ? data.results : [];
       if (results.length === 0) {
-        setFetchError("No trip logs found for the selected date, panchayat, and waste type.");
+        setFetchError("No trip logs found for the selected date, local body, and waste type.");
         return;
       }
       setTripData(results[0]);
@@ -265,12 +398,13 @@ export default function DailyWasteComparisonForm() {
       setFetchError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [panchayatId, wasteTypeId, collectionDate]);
+  }, [localBodyLevel, localBodyId, wasteTypeId, collectionDate]);
 
-  /* ── Agreed weight from panchayat master ── */
-  const panchayatAgreedWeight = panchayatId
-    ? panchayatDataMap[panchayatId]?.agreed_weight_kg
-    : undefined;
+  /* ── Agreed weight from panchayat master (only meaningful when local body is a Panchayat) ── */
+  const panchayatAgreedWeight =
+    localBodyLevel === "panchayat_id" && localBodyId
+      ? panchayatDataMap[localBodyId]?.agreed_weight_kg
+      : undefined;
 
   const statusBadgeCls = (s: string) =>
     s === "Surplus"
@@ -288,7 +422,9 @@ export default function DailyWasteComparisonForm() {
     }
 
     const missing: string[] = [];
-    if (!panchayatId) missing.push(t("admin.nav.panchayat"));
+    if (!stateId) missing.push("State");
+    if (!districtId) missing.push("District");
+    if (!localBodyId) missing.push("Local Body");
     if (!wasteTypeId) missing.push(t("common.waste_type"));
     if (!collectionDate) missing.push("Collection Date");
 
@@ -299,8 +435,16 @@ export default function DailyWasteComparisonForm() {
 
     setLoading(true);
     try {
-      const payload = {
-        panchayat_id: panchayatId,
+      const payload: Record<string, any> = {
+        state_id: stateId,
+        district_id: districtId,
+        area_type_id: areaTypeId || null,
+        corporation_id: null,
+        municipality_id: null,
+        town_panchayat_id: null,
+        panchayat_union_id: null,
+        panchayat_id: null,
+        [localBodyLevel]: localBodyId,
         waste_type_id: wasteTypeId,
         collection_date: collectionDate,
         agreed_weight_kg: tripData.agreed_weight_kg,
@@ -328,11 +472,6 @@ export default function DailyWasteComparisonForm() {
     }
   };
 
-  const panchayatOptionsWithSelected = ensureSelectedOption(
-    panchayatOptions,
-    panchayatId,
-    toText(recordData?.panchayat_name ?? recordData?.panchayat),
-  );
   const wasteTypeOptionsWithSelected = ensureSelectedOption(
     wasteTypeOptions,
     wasteTypeId,
@@ -354,7 +493,7 @@ export default function DailyWasteComparisonForm() {
           <Info className="h-4 w-4 mt-0.5 shrink-0" />
           <span>
             Waste weights are <strong>automatically calculated</strong> from daily trip logs
-            for the selected date, panchayat, and waste type.
+            for the selected date, local body, and waste type.
             Only <strong>submitted</strong> and <strong>verified</strong> trip logs are included.
           </span>
         </div>
@@ -362,12 +501,62 @@ export default function DailyWasteComparisonForm() {
         {/* ── Report criteria ── */}
         <FormSection title="Report Criteria">
           <ShadcnSelect
-            label={t("admin.nav.panchayat")}
-            value={panchayatId}
-            onChange={setPanchayatId}
-            options={panchayatOptionsWithSelected}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
-            disabled={panchayatOptionsWithSelected.length === 0}
+            label="State"
+            value={stateId}
+            onChange={(v) => {
+              setStateId(v);
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyId("");
+            }}
+            options={toGeoOptions(states)}
+            placeholder="Select State"
+          />
+          <ShadcnSelect
+            label="District"
+            value={districtId}
+            onChange={(v) => {
+              setDistrictId(v);
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyId("");
+            }}
+            options={toGeoOptions(filteredDistricts)}
+            placeholder={stateId ? "Select District" : "Select a State first"}
+            disabled={!stateId}
+          />
+          <ShadcnSelect
+            label="Area Type"
+            value={areaTypeId}
+            onChange={(v) => {
+              const selected = filteredAreaTypes.find((a) => resolveGeoId(a) === v);
+              setAreaTypeId(v);
+              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+              setLocalBodyId("");
+            }}
+            options={toGeoOptions(filteredAreaTypes)}
+            placeholder={districtId ? "Select Area Type" : "Select a District first"}
+            disabled={!districtId}
+          />
+          <ShadcnSelect
+            label="Local Body Type"
+            value={localBodyLevel}
+            onChange={(v) => {
+              setLocalBodyLevel(v as LocalBodyLevel);
+              setLocalBodyId("");
+            }}
+            options={availableLocalBodyLevels}
+            placeholder={areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}
+            disabled={!areaTypeCategory}
+          />
+          <ShadcnSelect
+            label={localBodyLevels.find((l) => l.value === localBodyLevel)?.label ?? "Local Body"}
+            value={localBodyId}
+            onChange={setLocalBodyId}
+            options={localBodyOptions}
+            placeholder="Select"
+            disabled={!localBodyLevel}
           />
           <ShadcnSelect
             label={t("common.waste_type")}
@@ -422,7 +611,7 @@ export default function DailyWasteComparisonForm() {
 
           {!canFetch && (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-400">
-              Select panchayat, waste type, and date to load trip log data.
+              Select the local body, waste type, and date to load trip log data.
             </div>
           )}
 

@@ -1,5 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { RefreshCw, Info } from "lucide-react";
@@ -16,7 +16,17 @@ import {
 } from "@/components/ui/select";
 
 import { adminApi } from "@/helpers/admin/registry";
-import { panchayatApi, wasteTypeApi } from "@/helpers/admin";
+import {
+  areaTypeApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
+  stateApi,
+  townPanchayatApi,
+  wasteTypeApi,
+} from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { api } from "@/api";
@@ -162,21 +172,50 @@ const ensureSelectedOption = (
   return [...options, { value: selectedId, label: selectedLabel || selectedId }];
 };
 
-const resolveOptionValue = (
-  options: SelectOption[],
-  id: string,
-  label: string
-) => {
-  if (id && options.some((option) => option.value === id)) return id;
+/* ────────────────────────────────────────────
+   Local body hierarchy (State -> District -> Area Type -> Local Body Type -> Local Body)
+──────────────────────────────────────────── */
 
-  const normalizedLabel = label.trim().toLowerCase();
-  if (!normalizedLabel) return id;
+type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
 
-  return (
-    options.find((option) => option.label.trim().toLowerCase() === normalizedLabel)
-      ?.value ?? id
-  );
+const localBodyLevels: Array<{ value: LocalBodyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat" },
+];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
 };
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
+const resolveGeoId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveGeoName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      resolveGeoId(record),
+  );
+const toGeoOptions = (records: any[]): SelectOption[] =>
+  records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
 
 /* ────────────────────────────────────────────
    Component
@@ -191,8 +230,26 @@ export default function MonthlyWasteComparisonForm() {
   const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
   const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encMonthlyWasteComparison);
 
+  /* ── Local body hierarchy fields ── */
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
+  const [localBodyLevel, setLocalBodyLevel] = useState<LocalBodyLevel>("corporation_id");
+  const [localBodyId, setLocalBodyId] = useState("");
+
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [localBodyRecords, setLocalBodyRecords] = useState<Record<LocalBodyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
+
   /* field state */
-  const [panchayatId, setPanchayatId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
   const [month, setMonth] = useState("");
   const [agreedWeight, setAgreedWeight] = useState("");
@@ -205,7 +262,6 @@ export default function MonthlyWasteComparisonForm() {
   const [fetchError, setFetchError] = useState("");
 
   /* dropdown data */
-  const [panchayatOptions, setPanchayatOptions] = useState<SelectOption[]>([]);
   const [wasteTypeOptions, setWasteTypeOptions] = useState<SelectOption[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -219,24 +275,40 @@ export default function MonthlyWasteComparisonForm() {
     }
   }, [month]);
 
-  /* fetch dropdowns */
+  /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
-    panchayatApi
-      .readAll()
-      .then((panchayatRes) => {
-        const panchayats = toRecordList(panchayatRes)
-          .filter((x) => x.is_active !== false)
-          .map((x) => ({
-            value: normalizeId(x.unique_id ?? x.panchayat_id),
-            label: toText(x.panchayat_name ?? x.name ?? x.unique_id),
-          }))
-          .filter((x) => x.value && x.label);
-
-        setPanchayatOptions(panchayats);
-      })
-      .catch(() => {
-        setPanchayatOptions([]);
-      });
+    Promise.all([
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+    ]).then(
+      ([
+        stateRes,
+        districtRes,
+        areaTypeRes,
+        corporationRes,
+        municipalityRes,
+        townPanchayatRes,
+        panchayatUnionRes,
+        panchayatRes,
+      ]) => {
+        setStates(toRecordList(stateRes));
+        setDistricts(toRecordList(districtRes));
+        setAreaTypes(toRecordList(areaTypeRes));
+        setLocalBodyRecords({
+          corporation_id: toRecordList(corporationRes),
+          municipality_id: toRecordList(municipalityRes),
+          town_panchayat_id: toRecordList(townPanchayatRes),
+          panchayat_union_id: toRecordList(panchayatUnionRes),
+          panchayat_id: toRecordList(panchayatRes),
+        });
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -258,10 +330,42 @@ export default function MonthlyWasteComparisonForm() {
       });
   }, []);
 
+  /* area type -> urban/rural category */
+  useEffect(() => {
+    if (!areaTypeId || !areaTypes.length) {
+      if (!areaTypeId) setAreaTypeCategory("");
+      return;
+    }
+    const selected = areaTypes.find((item) => resolveGeoId(item) === areaTypeId);
+    if (selected) {
+      setAreaTypeCategory(areaTypeCategoryFromName(String(selected.name ?? "")));
+    }
+  }, [areaTypeId, areaTypes]);
+
+  const filteredDistricts = districts.filter(
+    (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
+  );
+  const filteredAreaTypes = areaTypes.filter(
+    (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
+  );
+
+  const availableLocalBodyLevels = areaTypeCategory
+    ? localBodyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+    : [];
+
+  const localBodyOptions = ensureSelectedOption(
+    toGeoOptions(
+      (localBodyRecords[localBodyLevel] ?? []).filter(
+        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+      ),
+    ),
+    localBodyId,
+  );
+
   /* auto-fetch monthly aggregates from DailyTripLog when criteria are complete (create mode) */
   const canFetch =
     !isEdit &&
-    Boolean(panchayatId) &&
+    Boolean(localBodyId) &&
     Boolean(wasteTypeId) &&
     Boolean(month);
 
@@ -276,7 +380,7 @@ export default function MonthlyWasteComparisonForm() {
     api
       .get("/schedule-masters/monthly-waste-comparison/", {
         params: {
-          panchayat_id: panchayatId,
+          [localBodyLevel]: localBodyId,
           waste_type_id: wasteTypeId,
           month,
         },
@@ -309,34 +413,36 @@ export default function MonthlyWasteComparisonForm() {
       cancelled = true;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canFetch, panchayatId, wasteTypeId, month]);
+  }, [canFetch, localBodyLevel, localBodyId, wasteTypeId, month]);
 
   /* hydrate edit record immediately; resolve dropdown labels as options arrive */
   useEffect(() => {
     if (!recordData) return;
 
-    const panchayatLabel = toText(
-      recordData.panchayat_name ?? recordData.panchayat
-    );
+    setStateId(normalizeId((recordData.state as any)?.unique_id ?? recordData.state_id));
+    setDistrictId(normalizeId((recordData.district as any)?.unique_id ?? recordData.district_id));
+    setAreaTypeId(normalizeId((recordData.area_type as any)?.unique_id ?? recordData.area_type_id));
+
+    const hierarchyMap: Record<LocalBodyLevel, string> = {
+      corporation_id: normalizeId((recordData.corporation as any)?.unique_id ?? recordData.corporation_id),
+      municipality_id: normalizeId((recordData.municipality as any)?.unique_id ?? recordData.municipality_id),
+      town_panchayat_id: normalizeId((recordData.town_panchayat as any)?.unique_id ?? recordData.town_panchayat_id),
+      panchayat_union_id: normalizeId((recordData.panchayat_union as any)?.unique_id ?? recordData.panchayat_union_id),
+      panchayat_id: normalizeId((recordData.panchayat as any)?.unique_id ?? recordData.panchayat_id),
+    };
+    const detectedLevel = localBodyLevels.find((item) => hierarchyMap[item.value]);
+    if (detectedLevel) {
+      setLocalBodyLevel(detectedLevel.value);
+      setLocalBodyId(hierarchyMap[detectedLevel.value]);
+    }
+
     const wasteTypeLabel = toText(
       recordData.waste_type_name ??
         recordData.wastetype_name ??
         recordData.waste_type ??
         recordData.waste_type_label
     );
-    const resolvedPanchayatId = resolveOptionValue(
-      panchayatOptions,
-      normalizeId(recordData.panchayat_id ?? recordData.panchayat),
-      panchayatLabel
-    );
-    const resolvedWasteTypeId = resolveOptionValue(
-      wasteTypeOptions,
-      normalizeId(recordData.waste_type_id ?? recordData.waste_type_unique_id),
-      wasteTypeLabel
-    );
-
-    setPanchayatId(resolvedPanchayatId || panchayatLabel);
-    setWasteTypeId(resolvedWasteTypeId || wasteTypeLabel);
+    setWasteTypeId(normalizeId(recordData.waste_type_id) || wasteTypeLabel);
     setMonth(toMonthValue(recordData.month));
     setAgreedWeight(
       toText(recordData.agreed_weight_kg ?? recordData.total_agreed_weight)
@@ -346,7 +452,7 @@ export default function MonthlyWasteComparisonForm() {
     );
     setTotalTrips(toText(recordData.total_trips));
     setCollectionPointsCovered(toText(recordData.collection_points_covered));
-  }, [recordData, panchayatOptions, wasteTypeOptions]);
+  }, [recordData]);
 
   /* load record for edit */
   useEffect(() => {
@@ -368,11 +474,6 @@ export default function MonthlyWasteComparisonForm() {
       });
   }, [id, isEdit, t]);
 
-  const panchayatOptionsWithSelected = ensureSelectedOption(
-    panchayatOptions,
-    panchayatId,
-    toText(recordData?.panchayat_name ?? recordData?.panchayat)
-  );
   const wasteTypeOptionsWithSelected = ensureSelectedOption(
     wasteTypeOptions,
     wasteTypeId,
@@ -388,7 +489,9 @@ export default function MonthlyWasteComparisonForm() {
     e.preventDefault();
 
     const missing: string[] = [];
-    if (!panchayatId) missing.push(t("admin.nav.panchayat"));
+    if (!stateId) missing.push("State");
+    if (!districtId) missing.push("District");
+    if (!localBodyId) missing.push("Local Body");
     if (!wasteTypeId) missing.push(t("common.waste_type"));
     if (!month) missing.push("Month");
     if (!agreedWeight.trim()) missing.push("Agreed Weight");
@@ -400,8 +503,16 @@ export default function MonthlyWasteComparisonForm() {
 
     setLoading(true);
     try {
-      const payload = {
-        panchayat_id: panchayatId,
+      const payload: Record<string, any> = {
+        state_id: stateId,
+        district_id: districtId,
+        area_type_id: areaTypeId || null,
+        corporation_id: null,
+        municipality_id: null,
+        town_panchayat_id: null,
+        panchayat_union_id: null,
+        panchayat_id: null,
+        [localBodyLevel]: localBodyId,
         waste_type_id: wasteTypeId,
         month,
         agreed_weight_kg: parseFloat(agreedWeight) || 0,
@@ -440,12 +551,62 @@ export default function MonthlyWasteComparisonForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <FormSection title="Report Details">
           <ShadcnSelect
-            label={t("admin.nav.panchayat")}
-            value={panchayatId}
-            onChange={setPanchayatId}
-            options={panchayatOptionsWithSelected}
-            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.panchayat") })}
-            disabled={panchayatOptionsWithSelected.length === 0}
+            label="State"
+            value={stateId}
+            onChange={(v) => {
+              setStateId(v);
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyId("");
+            }}
+            options={toGeoOptions(states)}
+            placeholder="Select State"
+          />
+          <ShadcnSelect
+            label="District"
+            value={districtId}
+            onChange={(v) => {
+              setDistrictId(v);
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyId("");
+            }}
+            options={toGeoOptions(filteredDistricts)}
+            placeholder={stateId ? "Select District" : "Select a State first"}
+            disabled={!stateId}
+          />
+          <ShadcnSelect
+            label="Area Type"
+            value={areaTypeId}
+            onChange={(v) => {
+              const selected = filteredAreaTypes.find((a) => resolveGeoId(a) === v);
+              setAreaTypeId(v);
+              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+              setLocalBodyId("");
+            }}
+            options={toGeoOptions(filteredAreaTypes)}
+            placeholder={districtId ? "Select Area Type" : "Select a District first"}
+            disabled={!districtId}
+          />
+          <ShadcnSelect
+            label="Local Body Type"
+            value={localBodyLevel}
+            onChange={(v) => {
+              setLocalBodyLevel(v as LocalBodyLevel);
+              setLocalBodyId("");
+            }}
+            options={availableLocalBodyLevels}
+            placeholder={areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}
+            disabled={!areaTypeCategory}
+          />
+          <ShadcnSelect
+            label={localBodyLevels.find((l) => l.value === localBodyLevel)?.label ?? "Local Body"}
+            value={localBodyId}
+            onChange={setLocalBodyId}
+            options={localBodyOptions}
+            placeholder="Select"
+            disabled={!localBodyLevel}
           />
           <ShadcnSelect
             label={t("common.waste_type")}

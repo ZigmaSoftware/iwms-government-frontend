@@ -23,7 +23,6 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { customerCreationApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
-import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 import {
   excelFileToCsvFile,
   exportTemplateToExcel,
@@ -81,7 +80,6 @@ export default function CustomerCreationListPage() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [hierarchyFilterId, setHierarchyFilterId] = useState("");
   const [selectedQr, setSelectedQr] = useState<string | null>(null);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -102,9 +100,7 @@ export default function CustomerCreationListPage() {
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    customerCreationApi.readAll({
-      params: hierarchyFilterId ? { location_node_id: hierarchyFilterId } : undefined,
-    })
+    customerCreationApi.readAll()
       .then((data: unknown) => {
         if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
       })
@@ -119,7 +115,7 @@ export default function CustomerCreationListPage() {
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [hierarchyFilterId, t, refetchTrigger]);
+  }, [t, refetchTrigger]);
 
   const customers = useMemo<Customer[]>(() => {
     return allCustomers
@@ -235,29 +231,6 @@ export default function CustomerCreationListPage() {
             hidden
             onChange={handleFileUpload}
           />
-        </div>
-      </div>
-
-      <div className="rounded-md border border-gray-200 bg-white p-3">
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            <HierarchyNodeSelect
-              value={hierarchyFilterId}
-              label="Filter by Hierarchy"
-              placeholder="Select country / state / district / local body"
-              required={false}
-              showMap={false}
-              onChange={(nodeId) => setHierarchyFilterId(nodeId)}
-            />
-          </div>
-          {hierarchyFilterId && (
-            <Button
-              label="Clear"
-              icon="pi pi-times"
-              className="p-button-text p-button-secondary mt-6"
-              onClick={() => setHierarchyFilterId("")}
-            />
-          )}
         </div>
       </div>
     </div>
