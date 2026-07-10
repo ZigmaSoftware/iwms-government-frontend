@@ -875,6 +875,8 @@ const enResource = {
           "daily_trip_household_collection": "Household Collection Points",
           "daily_trip_tracking": "Daily Trip Tracking",
           "bin_collection_event": "Bin Collection Event",
+          "vehicle_breakdown": "Vehicle Breakdown",
+          "scheduler_config": "Auto-Schedule Settings",
           "daily_trip_log": "Daily Trip Logs",
           "audit_items": "Audit Items",
           "common_audit": "Common Audit",

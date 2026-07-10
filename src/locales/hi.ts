@@ -835,6 +835,8 @@ const hiResource = {
           "daily_trip_household_collection": "घरेलू संग्रह बिंदु",
           "daily_trip_log": "दैनिक ट्रिप लॉग",
           "bin_collection_event": "बिन कलेक्शन इवेंट",
+          "vehicle_breakdown": "वाहन ब्रेकडाउन",
+          "scheduler_config": "ऑटो-शेड्यूल सेटिंग्स",
           "bin_load_log": "बिन लोड लॉग",
           "trip_instance": "ट्रिप इंस्टेंस",
           "trip_attendance": "ट्रिप उपस्थिति",

@@ -66,6 +66,8 @@ export const adminEndpoints = {
   dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",
   dailyTripHouseholdCollection: "schedule-masters/daily-trip-household-collections",
   binCollectionEvent: "schedule-masters/bin-collection-events",
+  vehicleBreakdown: "schedule-masters/vehicle-breakdowns",
+  schedulerConfig: "schedule-masters/daily-trip-assignments/scheduler-config/",
   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
 

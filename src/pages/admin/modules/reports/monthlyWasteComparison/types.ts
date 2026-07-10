@@ -1,9 +1,5 @@
 export type ReportRow = {
   unique_id?: string;
-  company_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_name?: string;
   month: string;
   location_node_id: string;
   location_node_name?: string;
