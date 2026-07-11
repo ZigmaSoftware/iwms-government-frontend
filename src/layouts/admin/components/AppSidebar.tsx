@@ -90,8 +90,6 @@ const {
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
-  encDailyTripCollectionPoint,
-  encDailyTripHouseholdCollection,
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,

@@ -1,7 +1,7 @@
-import type { Customer } from "./types";
+import type { Customer, GeoRow, Option } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -11,9 +11,20 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 
-import { customerCreationApi, wasteCollectionApi, dailyTripAssignmentApi, tripPlanApi, } from "@/helpers/admin";
+import {
+  customerCreationApi,
+  wasteCollectionApi,
+  dailyTripAssignmentApi,
+  stateApi,
+  districtApi,
+  areaTypeApi,
+  corporationApi,
+  municipalityApi,
+  townPanchayatApi,
+  panchayatUnionApi,
+  panchayatApi,
+} from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -28,21 +39,47 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
+const idOf = (o: any): string => String(o?.unique_id ?? o?.id ?? "");
+const normId = (v: any): string => (v && typeof v === "object" ? idOf(v) : String(v ?? ""));
+
+/* ── local-body levels, keyed by the WasteCollection FK they write to ── */
+type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+const LOCAL_BODY_META: Record<LocalBodyLevel, { label: string; nameKey: string }> = {
+  corporation_id: { label: "Corporation", nameKey: "corporation_name" },
+  municipality_id: { label: "Municipality", nameKey: "municipality_name" },
+  town_panchayat_id: { label: "Town Panchayat", nameKey: "town_panchayat_name" },
+  panchayat_union_id: { label: "Panchayat Union", nameKey: "union_name" },
+  panchayat_id: { label: "Panchayat", nameKey: "panchayat_name" },
+};
+
+const URBAN_LEVELS: LocalBodyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id"];
+const RURAL_LEVELS: LocalBodyLevel[] = ["panchayat_union_id", "panchayat_id"];
+
 export default function WasteCollectedForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
-  const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encWasteManagementMaster, encWasteCollectedData);
+  const { encScheduleMasters, encWasteCollectedData } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encWasteCollectedData);
 
   /* ── form fields ── */
   const [customerId, setCustomerId] = useState("");
   const [tripAssignmentId, setTripAssignmentId] = useState("");
-  // const [panchayatId, setPanchayatId] = useState("");
-  // const [zoneId, setZoneId] = useState("");
-  // const [wardId, setWardId] = useState("");
+
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [localBodyType, setLocalBodyType] = useState<LocalBodyLevel | "">("");
+  const [localBodyId, setLocalBodyId] = useState("");
+
   const [wetWaste, setWetWaste] = useState(0);
   const [dryWaste, setDryWaste] = useState(0);
   const [mixedWaste, setMixedWaste] = useState(0);
@@ -50,48 +87,47 @@ export default function WasteCollectedForm() {
 
   /* ── dropdown data ── */
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [tripAssignments, setTripAssignments] = useState<{ value: string; label: string }[]>([]);
-  // const [panchayats, setPanchayats] = useState<{ value: string; label: string }[]>([]);
-  // const [zones, setZones] = useState<{ value: string; label: string }[]>([]);
-  // const [wards, setWards] = useState<{ value: string; label: string }[]>([]);
+  const [tripAssignments, setTripAssignments] = useState<Option[]>([]);
+  const [states, setStates] = useState<GeoRow[]>([]);
+  const [districts, setDistricts] = useState<GeoRow[]>([]);
+  const [areaTypes, setAreaTypes] = useState<GeoRow[]>([]);
+  const [corporations, setCorporations] = useState<GeoRow[]>([]);
+  const [municipalities, setMunicipalities] = useState<GeoRow[]>([]);
+  const [townPanchayats, setTownPanchayats] = useState<GeoRow[]>([]);
+  const [panchayatUnions, setPanchayatUnions] = useState<GeoRow[]>([]);
+  const [panchayats, setPanchayats] = useState<GeoRow[]>([]);
+
   const [fetchingCustomers, setFetchingCustomers] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [pendingCustomerCandidates, setPendingCustomerCandidates] = useState<{
-    customerUniqueId: string;
-    customerId: string;
-    customerName: string;
-  } | null>(null);
-  const [pendingTripAssignmentId, setPendingTripAssignmentId] = useState("");
+  // Guards autofill so it only fires on user-initiated selections, not on record load.
+  const userChangedCustomerRef = useRef(false);
 
-  // Tracks whether the trip assignment was changed by the user (not by record loading)
-  const userChangedTripRef = useRef(false);
-
-  const resolveCustomerId = (c: Customer) => String(c.unique_id ?? c.id);
-  /* ── load trip assignments ── */
+  /* ── load dropdowns ── */
   useEffect(() => {
-    dailyTripAssignmentApi.readAll()
-      .then((res: any) => {
-        const list: any[] = Array.isArray(res) ? res : res?.results ?? [];
-        setTripAssignments(list.map((a) => ({ value: String(a.unique_id), label: String(a.unique_id) })));
-      })
-      .catch(() => {});
-  }, []);
+    const toList = (res: any): any[] => (Array.isArray(res) ? res : res?.results ?? []);
 
-  /* ── load customers ── */
-  useEffect(() => {
-    let cancelled = false;
     setFetchingCustomers(true);
     customerCreationApi.readAll()
-      .then((res: any) => {
-        if (cancelled) return;
-        const list = Array.isArray(res) ? res : res?.results ?? [];
-        setCustomers(list);
-      })
-      .catch(() => { if (!cancelled) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
-      .finally(() => { if (!cancelled) setFetchingCustomers(false); });
-    return () => { cancelled = true; };
+      .then((res: any) => setCustomers(toList(res)))
+      .catch(() => Swal.fire(t("common.error"), t("common.load_failed"), "error"))
+      .finally(() => setFetchingCustomers(false));
+
+    dailyTripAssignmentApi.readAll()
+      .then((res: any) =>
+        setTripAssignments(toList(res).map((a) => ({ value: String(a.unique_id), label: String(a.unique_id) }))),
+      )
+      .catch(() => {});
+
+    stateApi.readAll().then((r: any) => setStates(toList(r))).catch(() => {});
+    districtApi.readAll().then((r: any) => setDistricts(toList(r))).catch(() => {});
+    areaTypeApi.readAll().then((r: any) => setAreaTypes(toList(r))).catch(() => {});
+    corporationApi.readAll().then((r: any) => setCorporations(toList(r))).catch(() => {});
+    municipalityApi.readAll().then((r: any) => setMunicipalities(toList(r))).catch(() => {});
+    townPanchayatApi.readAll().then((r: any) => setTownPanchayats(toList(r))).catch(() => {});
+    panchayatUnionApi.readAll().then((r: any) => setPanchayatUnions(toList(r))).catch(() => {});
+    panchayatApi.readAll().then((r: any) => setPanchayats(toList(r))).catch(() => {});
   }, [t]);
 
   /* ── edit mode: load record ── */
@@ -105,13 +141,20 @@ export default function WasteCollectedForm() {
         setWetWaste(Number(res.wet_waste) || 0);
         setDryWaste(Number(res.dry_waste) || 0);
         setMixedWaste(Number(res.mixed_waste) || 0);
-        setPendingCustomerCandidates({
-          customerUniqueId: String(res.customer_unique_id ?? res.customer?.unique_id ?? ""),
-          customerId: String(res.customer ?? res.customer_id ?? ""),
-          customerName: String(res.customer_name ?? res.customer?.customer_name ?? ""),
-        });
-        const tripId = String(res.trip_assignment_id ?? res.trip_assignment?.unique_id ?? "");
-        if (tripId && tripId !== "null") setPendingTripAssignmentId(tripId);
+        setCustomerId(String(res.customer_id ?? res.customer ?? ""));
+        const tripId = String(res.trip_assignment_id ?? "");
+        if (tripId && tripId !== "null") setTripAssignmentId(tripId);
+
+        setStateId(normId(res.state_id));
+        setDistrictId(normId(res.district_id));
+        setAreaTypeId(normId(res.area_type_id));
+        // Resolve which local-body level is populated
+        const level = (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as LocalBodyLevel[])
+          .find((lvl) => normId(res[lvl]));
+        if (level) {
+          setLocalBodyType(level);
+          setLocalBodyId(normId(res[level]));
+        }
         setLoadingRecord(false);
       })
       .catch((err: any) => {
@@ -122,52 +165,115 @@ export default function WasteCollectedForm() {
     return () => { cancelled = true; };
   }, [id, isEdit, t]);
 
-  /* ── flush trip assignment: re-apply after list loads ── */
-  useEffect(() => {
-    if (!pendingTripAssignmentId || tripAssignments.length === 0) return;
-    if (tripAssignments.some((a) => a.value === pendingTripAssignmentId)) {
-      setTripAssignmentId(pendingTripAssignmentId);
-      setPendingTripAssignmentId("");
+  /* ── area type kind (urban/rural) drives which local-body levels apply ── */
+  const areaTypeKind = useMemo<"urban" | "rural" | "">(() => {
+    const at = areaTypes.find((a) => idOf(a) === areaTypeId);
+    const name = String(at?.area_type_name ?? at?.name ?? "").toLowerCase();
+    if (name.includes("urban")) return "urban";
+    if (name.includes("rural")) return "rural";
+    return "";
+  }, [areaTypes, areaTypeId]);
+
+  const localBodyLevels = useMemo<LocalBodyLevel[]>(() => {
+    if (areaTypeKind === "urban") return URBAN_LEVELS;
+    if (areaTypeKind === "rural") return RURAL_LEVELS;
+    return [...URBAN_LEVELS, ...RURAL_LEVELS];
+  }, [areaTypeKind]);
+
+  /* ── filtered dropdown options ── */
+  const filteredDistricts = useMemo(
+    () => districts.filter((d) => !stateId || normId(d.state_id) === stateId),
+    [districts, stateId],
+  );
+  const filteredAreaTypes = useMemo(
+    () => areaTypes.filter((a) => !districtId || normId(a.district_id) === districtId),
+    [areaTypes, districtId],
+  );
+
+  const localBodyRowsByLevel = useMemo<Record<LocalBodyLevel, GeoRow[]>>(
+    () => ({
+      corporation_id: corporations,
+      municipality_id: municipalities,
+      town_panchayat_id: townPanchayats,
+      panchayat_union_id: panchayatUnions,
+      panchayat_id: panchayats,
+    }),
+    [corporations, municipalities, townPanchayats, panchayatUnions, panchayats],
+  );
+
+  const localBodyOptions = useMemo<Option[]>(() => {
+    if (!localBodyType) return [];
+    const rows = localBodyRowsByLevel[localBodyType] ?? [];
+    const nameKey = LOCAL_BODY_META[localBodyType].nameKey;
+    return rows
+      .filter((row) => {
+        if (areaTypeId && normId(row.area_type_id) === areaTypeId) return true;
+        if (districtId) return normId(row.district_id) === districtId;
+        return true;
+      })
+      .map((row) => ({ value: idOf(row), label: String(row[nameKey] ?? row.name ?? idOf(row)) }));
+  }, [localBodyType, localBodyRowsByLevel, areaTypeId, districtId]);
+
+  /* ── households filtered by the chosen geography (selected one always kept) ── */
+  const filteredCustomers = useMemo(() => {
+    const matches = customers.filter((c) => {
+      if (districtId && normId(c.district_id) !== districtId) return false;
+      if (areaTypeId && normId(c.area_type_id) !== areaTypeId) return false;
+      if (localBodyType && localBodyId && normId(c[localBodyType]) !== localBodyId) return false;
+      return true;
+    });
+    const selected = customers.find((c) => resolveCustomerId(c) === customerId);
+    if (selected && !matches.some((c) => resolveCustomerId(c) === customerId)) {
+      return [selected, ...matches];
     }
-  }, [pendingTripAssignmentId, tripAssignments]);
-
-  /* ── flush customer: re-apply after customers list loads ── */
-  useEffect(() => {
-    if (!pendingCustomerCandidates || customers.length === 0) return;
-    const { customerUniqueId, customerId: rawId, customerName } = pendingCustomerCandidates;
-    let match = customers.find((c) => customerUniqueId && resolveCustomerId(c) === customerUniqueId);
-    if (!match) match = customers.find((c) => rawId && resolveCustomerId(c) === rawId);
-    if (!match && customerName)
-      match = customers.find((c) => c.customer_name.toLowerCase() === customerName.toLowerCase());
-    if (match) setCustomerId(resolveCustomerId(match));
-    setPendingCustomerCandidates(null);
-  }, [customers, pendingCustomerCandidates]);
-
-  /* ── autofill customer from trip assignment (only on user-initiated change) ── */
-  useEffect(() => {
-    if (!tripAssignmentId || tripAssignmentId === "__none__") return;
-    if (!userChangedTripRef.current) return;
-    userChangedTripRef.current = false;
-
-    dailyTripAssignmentApi.read(tripAssignmentId)
-      .then((tripAssignRes: any) => {
-        // trip_plan is the read-only SerializerMethodField (trip_plan_id is write-only)
-        const tripPlanId = tripAssignRes.trip_plan?.unique_id;
-        if (!tripPlanId) return Promise.reject("No trip plan");
-        return tripPlanApi.read(tripPlanId);
-      })
-      .then((tripPlanRes: any) => {
-        const collectionPoints: any[] = tripPlanRes.plan_collection_points || [];
-        const firstStop = collectionPoints.find((cp: any) => cp.is_active && cp.customer?.unique_id);
-        if (firstStop?.customer?.unique_id) {
-          const match = customers.find((c) => resolveCustomerId(c) === firstStop.customer.unique_id);
-          if (match) setCustomerId(resolveCustomerId(match));
-        }
-      })
-      .catch(() => {});
-  }, [tripAssignmentId, customers]);
+    return matches;
+  }, [customers, districtId, areaTypeId, localBodyType, localBodyId, customerId]);
 
   const selectedCustomer = customers.find((c) => resolveCustomerId(c) === customerId);
+
+  /* ── autofill geography from the selected household (user-initiated only) ── */
+  useEffect(() => {
+    if (!userChangedCustomerRef.current) return;
+    userChangedCustomerRef.current = false;
+    if (!selectedCustomer) return;
+
+    setStateId(normId(selectedCustomer.state_id));
+    setDistrictId(normId(selectedCustomer.district_id));
+    setAreaTypeId(normId(selectedCustomer.area_type_id));
+
+    const level = (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as LocalBodyLevel[])
+      .find((lvl) => normId((selectedCustomer as any)[lvl]));
+    setLocalBodyType(level ?? "");
+    setLocalBodyId(level ? normId((selectedCustomer as any)[level]) : "");
+  }, [customerId, selectedCustomer]);
+
+  /* ── handlers: changing an upper level resets the levels below it ── */
+  const onStateChange = (v: string) => {
+    setStateId(v);
+    setDistrictId("");
+    setAreaTypeId("");
+    setLocalBodyType("");
+    setLocalBodyId("");
+  };
+  const onDistrictChange = (v: string) => {
+    setDistrictId(v);
+    setAreaTypeId("");
+    setLocalBodyType("");
+    setLocalBodyId("");
+  };
+  const onAreaTypeChange = (v: string) => {
+    setAreaTypeId(v);
+    setLocalBodyType("");
+    setLocalBodyId("");
+  };
+  const onLocalBodyTypeChange = (v: string) => {
+    setLocalBodyType((v as LocalBodyLevel) || "");
+    setLocalBodyId("");
+  };
+  const onCustomerChange = (v: string) => {
+    userChangedCustomerRef.current = true;
+    setCustomerId(v);
+  };
 
   /* ── submit ── */
   const handleSubmit = async (e: React.FormEvent) => {
@@ -183,8 +289,15 @@ export default function WasteCollectedForm() {
       wet_waste: wetWaste,
       dry_waste: dryWaste,
       mixed_waste: mixedWaste,
-      total_quantity: totalQuantity,
       trip_assignment_id: tripAssignmentId || null,
+      state_id: stateId || null,
+      district_id: districtId || null,
+      area_type_id: areaTypeId || null,
+      corporation_id: localBodyType === "corporation_id" ? localBodyId || null : null,
+      municipality_id: localBodyType === "municipality_id" ? localBodyId || null : null,
+      town_panchayat_id: localBodyType === "town_panchayat_id" ? localBodyId || null : null,
+      panchayat_union_id: localBodyType === "panchayat_union_id" ? localBodyId || null : null,
+      panchayat_id: localBodyType === "panchayat_id" ? localBodyId || null : null,
     };
 
     setIsSubmitting(true);
@@ -210,9 +323,84 @@ export default function WasteCollectedForm() {
         title={isEdit ? t("admin.waste_collected_data.title_edit") : t("admin.waste_collected_data.title_add")}
       >
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* ── Geography cascade ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* State */}
+            <div>
+              <Label>{t("common.state")}</Label>
+              <Select
+                value={stateId}
+                onChange={onStateChange}
+                options={states.map((s) => ({ value: idOf(s), label: String(s.name ?? s.state_name ?? idOf(s)) }))}
+                placeholder={t("common.state")}
+              />
+            </div>
 
-            {/* Customer */}
+            {/* District */}
+            <div>
+              <Label>{t("common.district")}</Label>
+              <Select
+                value={districtId}
+                onChange={onDistrictChange}
+                options={filteredDistricts.map((d) => ({ value: idOf(d), label: String(d.district_name ?? d.name ?? idOf(d)) }))}
+                placeholder={t("common.district")}
+                disabled={!stateId}
+              />
+            </div>
+
+            {/* Area Type (ULB / RLB) */}
+            <div>
+              <Label>{t("common.area_type")}</Label>
+              <Select
+                value={areaTypeId}
+                onChange={onAreaTypeChange}
+                options={filteredAreaTypes.map((a) => ({ value: idOf(a), label: String(a.area_type_name ?? a.name ?? idOf(a)) }))}
+                placeholder={t("common.area_type")}
+                disabled={!districtId}
+              />
+            </div>
+
+            {/* Local Body Type */}
+            <div>
+              <Label>{t("admin.waste_collected_data.local_body_type")}</Label>
+              <Select
+                value={localBodyType}
+                onChange={onLocalBodyTypeChange}
+                options={localBodyLevels.map((lvl) => ({ value: lvl, label: LOCAL_BODY_META[lvl].label }))}
+                placeholder={t("admin.waste_collected_data.local_body_type")}
+                disabled={!areaTypeId}
+              />
+            </div>
+
+            {/* Local Body */}
+            <div>
+              <Label>{t("admin.waste_collected_data.local_body")}</Label>
+              <Select
+                value={localBodyId}
+                onChange={setLocalBodyId}
+                options={localBodyOptions}
+                placeholder={t("admin.waste_collected_data.local_body")}
+                disabled={!localBodyType}
+              />
+            </div>
+
+            {/* Trip Assignment (optional) */}
+            <div>
+              <Label>{t("admin.waste_collected_data.trip_assignment")}</Label>
+              <Select
+                value={tripAssignmentId}
+                onChange={(v) => setTripAssignmentId(v === "__none__" ? "" : v)}
+                options={[{ value: "__none__", label: t("admin.waste_collected_data.no_trip_assignment") }, ...tripAssignments]}
+                placeholder={t("admin.waste_collected_data.trip_assignment")}
+              />
+            </div>
+          </div>
+
+          <hr className="border-gray-200" />
+
+          {/* ── Household + waste ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Customer / Household */}
             <div>
               <Label>
                 {t("admin.waste_collected_data.customer")}
@@ -220,26 +408,13 @@ export default function WasteCollectedForm() {
               </Label>
               <Select
                 value={customerId}
-                onChange={setCustomerId}
-                options={customers.map((c) => ({
-                  value: resolveCustomerId(c),
-                  label: c.customer_name,
-                }))}
-                placeholder={fetchingCustomers ? "Loading..." : "Select customer"}
+                onChange={onCustomerChange}
+                options={filteredCustomers.map((c) => ({ value: resolveCustomerId(c), label: c.customer_name }))}
+                placeholder={fetchingCustomers ? t("common.loading") : t("admin.waste_collected_data.customer")}
                 disabled={fetchingCustomers}
               />
             </div>
 
-            {/* Trip Assignment (optional) */}
-            <div>
-              <Label>Trip Assignment</Label>
-              <Select
-                value={tripAssignmentId}
-                onChange={(v) => { userChangedTripRef.current = true; setTripAssignmentId(v === "__none__" ? "" : v); }}
-                options={[{ value: "__none__", label: "None (no assignment)" }, ...tripAssignments]}
-                placeholder="Select Trip Assignment (optional)"
-              />
-            </div>
             {/* Address (read-only) */}
             <div>
               <Label>{t("admin.waste_collected_data.customer_address")}</Label>
@@ -254,48 +429,6 @@ export default function WasteCollectedForm() {
                     : ""
                 }
               />
-            </div>
-
-            {/* Zone */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_zone")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.zone_name || ""} />
-            </div>
-
-            {/* Ward */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_ward")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.ward_name || ""} />
-            </div>
-
-            {/* Panchayat (PLB) */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_panchayat")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.panchayat_name || ""} />
-            </div>
-
-            {/* City */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_city")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.city_name || ""} />
-            </div>
-
-            {/* District */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_district")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.district_name || ""} />
-            </div>
-
-            {/* State */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_state")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.state_name || ""} />
-            </div>
-
-            {/* Country */}
-            <div>
-              <Label>{t("admin.waste_collected_data.customer_country")}</Label>
-              <Input disabled className="bg-gray-100" value={selectedCustomer?.country_name || ""} />
             </div>
 
             {/* Dry Waste */}
@@ -336,7 +469,6 @@ export default function WasteCollectedForm() {
               <Label>{t("admin.waste_collected_data.total_quantity")}</Label>
               <Input disabled className="bg-gray-100" value={totalQuantity} />
             </div>
-
           </div>
 
           <div className="flex justify-end gap-3">
@@ -359,4 +491,9 @@ export default function WasteCollectedForm() {
       </ComponentCard>
     </div>
   );
+}
+
+/* Resolve a customer's stable id (unique_id preferred, else pk). */
+function resolveCustomerId(c: Customer): string {
+  return String(c.unique_id ?? c.id);
 }
