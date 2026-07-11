@@ -466,7 +466,18 @@ export default function AdminHome() {
           },
         );
         if (data?.kpis) {
-          setWasteKpis(data.kpis);
+          const k = data.kpis;
+          setWasteKpis({
+            total_agreed_weight: k.total_agreed_weight ?? 0,
+            total_actual_weight: k.total_actual_weight ?? 0,
+            variance_kg: k.variance_kg ?? 0,
+            collection_efficiency_percent: k.collection_efficiency_percent ?? 0,
+            average_weight_per_trip: k.average_weight_per_trip ?? 0,
+            coverage_efficiency_percent: k.coverage_efficiency_percent ?? 0,
+            total_trips: k.total_trips ?? 0,
+            collection_points_covered: k.collection_points_covered ?? 0,
+            report_status: k.report_status ?? "",
+          });
         }
       } catch {
         // silently ignore — dashboard should not break if report API fails
@@ -1062,15 +1073,6 @@ export default function AdminHome() {
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="space-y-2 lg:col-span-2">
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs text-slate-600">
-                        <span className="font-medium">Agreed Weight</span>
-                        <span className="font-bold">{wasteKpis.total_agreed_weight.toLocaleString()} kg</span>
-                      </div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-green-500" style={{ width: "100%" }} />
-                      </div>
-                    </div>
                     <div>
                       <div className="mb-1 flex justify-between text-xs text-slate-600">
                         <span className="font-medium">Actual Weight</span>
