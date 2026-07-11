@@ -23,8 +23,19 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { ArrowRight, Eye, EyeOff, Lock, User } from "lucide-react";
-import ZigmaLogo from "../images/logo.png";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  User,
+  LogIn,
+  UserRound,
+  Leaf,
+} from "lucide-react";
+// Background image. To use your own illustration, save it into src/images/
+// (e.g. as loginBg.png) and change the path below to "../images/loginBg.png".
+import LoginBg from "../images/bg1.png";
+import Logo from "../images/logo-zigma.png";
 
 type LoginResponse = LoginEnvelope;
 
@@ -146,207 +157,127 @@ export default function Auth() {
   };
 
   return (
-    <>
-      <style>{`
-        @keyframes iwms-blob {
-          0%,100% { transform: translate(0,0) scale(1); }
-          33%      { transform: translate(28px,-24px) scale(1.06); }
-          66%      { transform: translate(-18px,18px) scale(0.96); }
-        }
-        .blob-a { animation: iwms-blob 8s ease-in-out infinite; }
-        .blob-b { animation: iwms-blob 10s ease-in-out infinite reverse; animation-delay:-3s; }
-        .blob-c { animation: iwms-blob 12s ease-in-out infinite; animation-delay:-6s; }
-        .blob-d { animation: iwms-blob 9s ease-in-out infinite; animation-delay:-2s; }
-      `}</style>
+    <div
+      className="relative flex min-h-screen items-center justify-center bg-cover bg-center bg-no-repeat px-4 py-10 font-sans md:justify-end md:px-16"
+      style={{ backgroundImage: `url(${LoginBg})` }}
+    >
+      {/* ── Logo (top-left) ─────────────────────────────────────── */}
+      <img
+        src={Logo}
+        alt="IWMS"
+        className="absolute left-6 top-6 z-10 h-12 w-auto object-contain md:left-10 md:top-8 md:h-24"
+      />
 
-      {/* ── Page wrapper with animated blobs ────────────────────────── */}
-      <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-50 p-4 font-sans">
+      {/* ── Login card ──────────────────────────────────────────── */}
+      <div className="w-full max-w-md rounded-[2rem] border border-white/60 bg-white/95 p-8 shadow-2xl shadow-slate-400/30 backdrop-blur-sm sm:p-10">
 
-        {/* Background blobs */}
-        <div className="blob-a pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-green-300/55 blur-3xl" />
-        <div className="blob-b pointer-events-none absolute -bottom-40 -right-40 h-112 w-md rounded-full bg-orange-200/55 blur-3xl" />
-        <div className="blob-c pointer-events-none absolute top-1/3 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-green-200/45 blur-3xl" />
-        <div className="blob-d pointer-events-none absolute top-3/4 left-1/4 h-40 w-40 rounded-full bg-emerald-200/40 blur-2xl" />
-
-        {/* ── Card ──────────────────────────────────────────────────── */}
-        <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/80 shadow-2xl shadow-slate-300/50 grid md:grid-cols-2">
-
-          {/* ── LEFT: Illustration panel ──────────────────────────── */}
-          <div className="relative hidden md:flex flex-col items-center justify-between overflow-hidden bg-green-50 p-8 border-r border-green-100">
-            {/* animated green blobs */}
-            <div className="blob-a pointer-events-none absolute -top-10 -right-10 h-56 w-56 rounded-full bg-green-300/45 blur-2xl" />
-            <div className="blob-b pointer-events-none absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-emerald-200/50 blur-2xl" />
-            <div className="blob-c pointer-events-none absolute top-1/2 left-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-200/60 blur-xl" />
-            <div className="blob-d pointer-events-none absolute bottom-1/4 right-0 h-28 w-28 rounded-full bg-orange-200/40 blur-xl" />
-
-            {/* company label */}
-            <p className="relative z-10 w-full text-center text-[10px] font-bold uppercase tracking-[0.25em] text-green-700/60">
-              Integrated Waste Management System
-            </p>
-
-            {/* logo — centered with green ring */}
-            <div className="relative z-10 flex flex-1 items-center justify-center w-full py-4">
-              <div className="relative flex items-center justify-center">
-                {/* pulsing outer glow */}
-                <div className="blob-a absolute h-60 w-60 rounded-full bg-green-200/55 blur-3xl" />
-                <div className="blob-c absolute h-40 w-40 rounded-full bg-emerald-300/30 blur-2xl" />
-                {/* ring border */}
-                <div className="relative z-10 rounded-full border-2 border-green-200 bg-white p-3 shadow-xl shadow-green-100/60">
-                  <div className="rounded-full bg-green-50 p-4">
-                    <img
-                      src={ZigmaLogo}
-                      className="h-28 w-28 object-contain"
-                      alt="Zigma IWMS"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* feature pills */}
-            <div className="relative z-10 flex flex-wrap justify-center gap-1.5 mb-4">
-              {["Route Optimization", "Fleet Tracking", "Real-time Data"].map((f) => (
-                <span key={f} className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-semibold text-green-700">
-                  <span className="h-1 w-1 rounded-full bg-green-500" />
-                  {f}
-                </span>
-              ))}
-            </div>
-
-            {/* brand text */}
-            <div className="relative z-10 text-center mb-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-green-600">ZIGMA</p>
-              <p className="text-[10px] text-green-500/70 italic mt-0.5">Alchemists of the MSW</p>
-            </div>
-
-            {/* carousel dots */}
-            <div className="relative z-10 flex items-center gap-2">
-              <div className="h-2 w-6 rounded-full bg-orange-400" />
-              <div className="h-2 w-2 rounded-full bg-green-200" />
-              <div className="h-2 w-2 rounded-full bg-green-200" />
-            </div>
+        {/* avatar ring */}
+        <div className="mb-6 flex justify-center">
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-green-100 bg-green-50">
+            <UserRound className="h-11 w-11 text-green-600" />
+            <Leaf className="absolute bottom-3 right-4 h-4 w-4 text-green-500" />
           </div>
-
-          {/* ── RIGHT: Form panel ─────────────────────────────────── */}
-          <div className="flex flex-col justify-center bg-white p-10">
-
-            {/* mobile logo */}
-            <div className="flex md:hidden items-center gap-3 mb-6">
-              <img src={ZigmaLogo} className="h-9 w-9 object-contain" alt="Zigma" />
-              <div>
-                <p className="text-sm font-black tracking-wide text-gray-800">ZIGMA IWMS</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-green-500">Field Operations</p>
-              </div>
-            </div>
-
-            {/* lock icon */}
-            <div className="mb-5">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-green-200 bg-green-50">
-                <Lock className="h-5 w-5 text-green-600" />
-              </div>
-            </div>
-
-            {/* heading */}
-            <div className="mb-7">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                {t("login.title")}
-              </h1>
-              <p className="mt-1 text-sm text-gray-500 leading-relaxed">
-                {t("login.subtitle")}
-              </p>
-            </div>
-
-            {/* form */}
-            <form onSubmit={handleSignIn} className="space-y-4">
-
-              {/* username */}
-              <div className="space-y-1.5">
-                <label htmlFor="username" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  {t("login.username")}
-                </label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="username"
-                    type="text"
-                    placeholder={t("login.username_placeholder")}
-                    value={username}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* password */}
-              <div className="space-y-1.5">
-                <label htmlFor="password" className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  {t("login.password")}
-                </label>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={t("login.password_placeholder")}
-                    value={password}
-                    onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* forgot */}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="text-[11px] font-semibold text-green-600 hover:underline"
-                  onClick={() => navigate("/auth/forgot-password")}
-                >
-                  {t("login.forgot_password")}
-                </button>
-              </div>
-
-              {/* submit — orange gradient matching reference */}
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex w-full h-12 items-center justify-center gap-2 rounded-xl bg-linear-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 active:scale-[0.98] disabled:opacity-60 text-white text-sm font-semibold shadow-lg shadow-orange-200/70 transition-all mt-1"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                    </svg>
-                    {t("login.authenticating")}
-                  </>
-                ) : (
-                  <>
-                    {t("login.sign_in")}
-                    <ArrowRight size={15} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* footer */}
-            <p className="mt-8 text-center text-[11px] text-gray-400">
-              Secure login ·{" "}
-              <span className="font-semibold text-gray-500">Zigma IWMS</span>
-            </p>
-          </div>
-
         </div>
+
+        {/* heading */}
+        <div className="mb-7 text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight text-slate-800">
+            Welcome <span className="text-green-600">Back!</span>
+          </h2>
+          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-slate-500">
+            Login to access the Integrated Waste Management System
+          </p>
+        </div>
+
+        {/* form */}
+        <form onSubmit={handleSignIn} className="space-y-5">
+
+          {/* username */}
+          <div className="space-y-1.5">
+            <label htmlFor="username" className="block text-sm font-semibold text-slate-700">
+              Username or Email
+            </label>
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="username"
+                type="text"
+                placeholder="Enter your username or email"
+                value={username}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
+                required
+              />
+            </div>
+          </div>
+
+          {/* password */}
+          <div className="space-y-1.5">
+            <label htmlFor="password" className="block text-sm font-semibold text-slate-700">
+              Password
+            </label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+                className="h-12 rounded-xl border-slate-200 bg-white pl-10 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-green-400 focus-visible:ring-green-300/50 transition-all"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {/* forgot */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="text-sm font-semibold text-green-600 hover:underline"
+              onClick={() => navigate("/auth/forgot-password")}
+            >
+              {t("login.forgot_password")}
+            </button>
+          </div>
+
+          {/* submit */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 text-sm font-semibold text-white shadow-lg shadow-green-200 transition-all hover:bg-green-800 active:scale-[0.98] disabled:opacity-60"
+          >
+            {loading ? (
+              <>
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                </svg>
+                {t("login.authenticating")}
+              </>
+            ) : (
+              <>
+                <LogIn size={18} />
+                Login
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* card footer */}
+        <p className="mt-7 flex items-center justify-center gap-1.5 text-sm text-slate-500">
+          <Leaf className="h-4 w-4 text-green-500" />
+          Together for a Sustainable Future
+        </p>
       </div>
-    </>
+    </div>
   );
 }

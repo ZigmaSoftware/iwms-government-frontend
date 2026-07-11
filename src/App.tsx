@@ -8,7 +8,9 @@ import VerifyOTP from "@/pages/auth/VerifyOTP";
 import ResetPassword from "@/pages/auth/ResetPassword";
 import LocalBodyAuth from "@/pages/LocalBodyAuth";
 import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
-import PublicGrievance from "@/pages/PublicGrievance";
+import DistrictAuth from "@/pages/DistrictAuth";
+import DistrictDashboard from "@/pages/district/DistrictDashboard";
+import StateDashboard from "@/pages/state/StateDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
@@ -122,7 +124,11 @@ export default function App() {
       <Route path="/localbody" element={<LocalBodyAuth />} />
       <Route path="/localbody/dashboard" element={<LocalBodyDashboard />} />
       <Route path="/localbody/data" element={<Navigate to="/localbody/dashboard" replace />} />
-      <Route path="/publicgrivence" element={<PublicGrievance />} />
+      <Route path="/auth/district" element={<Navigate to="/district" replace />} />
+      <Route path="/district" element={<DistrictAuth />} />
+      <Route path="/district/dashboard" element={<DistrictDashboard />} />
+      <Route path="/state" element={<StateDashboard />} />
+      <Route path="/state/dashboard" element={<Navigate to="/state" replace />} />
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />

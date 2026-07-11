@@ -4,9 +4,14 @@ import axios from "axios";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import {
-  Activity, ArrowLeft, BarChart3, Calendar, ClipboardList,
-  Download, FileBarChart2, LogOut, MapPin, Printer, Scale, TrendingUp,
+  Activity, AlertTriangle, ArrowLeft, BarChart3, Calendar, ClipboardList,
+  Download, FileBarChart2, LogOut, MapPin, Package, Printer, QrCode, Recycle,
+  Scale, TrendingUp, Users,
 } from "lucide-react";
+import {
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer,
+  Tooltip as RTooltip, XAxis, YAxis,
+} from "recharts";
 import ZigmaLogo from "../../images/logo.png";
 
 /* ─── axios instance ─────────────────────────────────────────────────── */
@@ -79,6 +84,11 @@ function clearLocalBodySession() {
 }
 
 type View = "home" | "daily" | "monthly";
+
+interface ChartTooltipProps {
+  active?: boolean;
+  payload?: Array<{ value: number; name?: string; payload?: { name?: string } }>;
+}
 
 const fmt = (v?: number | null, dec = 3) =>
   v == null ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: dec });
@@ -179,6 +189,56 @@ export default function LocalBodyDashboard() {
     trips:    filteredMonthlyRows.reduce((s, r) => s + r.total_trips, 0),
     points:   filteredMonthlyRows.reduce((s, r) => s + r.collection_points_covered, 0),
   }), [filteredMonthlyRows]);
+
+  /* ── Collected / Processed / Field Employees ──
+     No backend endpoint yet for ward-level collection, wet/dry/recyclable splits,
+     or crew attendance for this panchayat. Preview panels below are derived from
+     this panchayat's own KPI totals so the design can be reviewed now — swap the
+     useMemo bodies for live API data once those endpoints ship. */
+  const basisKg = dailyKpis.total_actual_kg || dailyKpis.total_agreed_kg || 0;
+
+  const wardCollections = useMemo(() => {
+    const SPLIT = [0.22, 0.19, 0.17, 0.15, 0.14, 0.13];
+    const tonnes = basisKg / 1000;
+    return SPLIT.map((frac, i) => ({ ward: `Ward ${i + 1}`, tonnes: tonnes * frac }));
+  }, [basisKg]);
+
+  const wardCollectionsTotal = useMemo(
+    () => wardCollections.reduce((s, r) => s + r.tonnes, 0),
+    [wardCollections],
+  );
+
+  const processedBreakdown = useMemo(() => {
+    const tonnes = basisKg / 1000;
+    return [
+      { name: "Wet Waste", value: tonnes * 0.55, color: "#43A047" },
+      { name: "Dry Waste", value: tonnes * 0.30, color: "#1E88E5" },
+      { name: "Recyclables", value: tonnes * 0.15, color: "#FB8C00" },
+    ];
+  }, [basisKg]);
+
+  const processedTotal = useMemo(
+    () => processedBreakdown.reduce((s, d) => s + d.value, 0),
+    [processedBreakdown],
+  );
+
+  const crewRoster = useMemo(() => {
+    const roles = ["Sanitary Worker", "Driver", "Supervisor", "Sweeper"];
+    const rows = Array.from({ length: 8 }, (_, i) => ({
+      id: `CR-${String(i + 1).padStart(3, "0")}`,
+      ward: `Ward ${(i % 6) + 1}`,
+      role: roles[i % roles.length],
+      status: i === 3 || i === 6 ? "Absent" as const : "On Duty" as const,
+      checkIn: ["06:45 AM", "07:00 AM", "06:50 AM", "—", "07:10 AM", "06:55 AM", "—", "07:05 AM"][i],
+    }));
+    return rows;
+  }, []);
+
+  const crewSummary = useMemo(() => ({
+    total: crewRoster.length,
+    onDuty: crewRoster.filter((c) => c.status === "On Duty").length,
+    absent: crewRoster.filter((c) => c.status === "Absent").length,
+  }), [crewRoster]);
 
   /* ── actions ── */
   const handlePrint = () => window.print();
@@ -293,6 +353,44 @@ export default function LocalBodyDashboard() {
     );
   };
 
+  const PreviewBadge = () => (
+    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2.5 py-0.5 shrink-0">
+      <span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Preview data
+    </span>
+  );
+
+  const AttendanceBadge = ({ status }: { status: "On Duty" | "Absent" }) => (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+      status === "On Duty"
+        ? "bg-green-50 border border-green-200 text-green-700"
+        : "bg-red-50 border border-red-200 text-red-700"
+    }`}>
+      {status}
+    </span>
+  );
+
+  const WardTooltip = ({ active, payload }: ChartTooltipProps) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-white border border-gray-200 shadow-lg px-3 py-2 rounded-md text-xs">
+        <p className="font-semibold text-gray-800">{payload[0].payload?.name}</p>
+        <p className="text-green-600 font-bold">{fmt(payload[0].value, 2)} Tonnes</p>
+      </div>
+    );
+  };
+
+  const ProcessedTooltip = ({ active, payload }: ChartTooltipProps) => {
+    if (!active || !payload?.length) return null;
+    const item = payload[0];
+    const pct = processedTotal ? ((item.value / processedTotal) * 100).toFixed(1) : "0.0";
+    return (
+      <div className="bg-white border border-gray-200 shadow-lg px-3 py-2 rounded-md text-xs">
+        <p className="font-semibold text-gray-800">{item.name}</p>
+        <p className="text-gray-500">{fmt(item.value, 2)} Tonnes &middot; {pct}%</p>
+      </div>
+    );
+  };
+
   /* ── table header columns ── */
   const TH = ({ children, right }: { children: React.ReactNode; right?: boolean }) => (
     <th className={`px-3 py-3 text-xs font-semibold text-white bg-green-600 border-r border-white/20 last:border-0 ${right ? "text-right" : "text-left"}`}>
@@ -351,6 +449,135 @@ export default function LocalBodyDashboard() {
                 <StatCard label="Points Covered"          value={fmt(dailyKpis.collection_points_covered, 0)}           accent="border-t-pink-500"   icon={<MapPin        className="h-4 w-4" />} />
                 <StatCard label="Total Variance (Kg)"     value={fmt(dailyKpis.variance_kg)}                            accent="border-t-red-400"    icon={<Scale         className="h-4 w-4" />} />
                 <StatCard label="Monthly Records"         value={fmt(rows.length, 0)}                                   accent="border-t-indigo-500" icon={<FileBarChart2 className="h-4 w-4" />} />
+              </div>
+            </div>
+          </div>
+
+          {/* ── Waste Collected (ward-wise) ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                  <Package className="h-4 w-4 text-emerald-500" /> Waste Collected
+                </h2>
+                <p className="text-sm text-gray-400 mt-0.5">Tonnes of waste lifted, ward-wise</p>
+              </div>
+              <PreviewBadge />
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                <StatCard label="Collected (Tonnes)" value={fmt(wardCollectionsTotal, 2)} accent="border-t-emerald-500" icon={<Package className="h-4 w-4" />} />
+                <StatCard label="Wards Reporting" value={fmt(wardCollections.length, 0)} accent="border-t-teal-500" icon={<MapPin className="h-4 w-4" />} />
+                <StatCard label="Avg. / Ward (Tonnes)" value={fmt(wardCollections.length ? wardCollectionsTotal / wardCollections.length : 0, 2)} accent="border-t-green-500" icon={<BarChart3 className="h-4 w-4" />} />
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={wardCollections.map((r) => ({ name: r.ward, tonnes: Number(r.tonnes.toFixed(2)) }))}
+                  layout="vertical"
+                  margin={{ top: 0, right: 16, left: 8, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: "#475569" }} tickLine={false} axisLine={false} width={70} />
+                  <RTooltip content={<WardTooltip />} cursor={{ fill: "#ecfdf5" }} />
+                  <Bar dataKey="tonnes" fill="#16a34a" radius={[0, 4, 4, 0]} maxBarSize={16} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* ── Waste Processed (wet / dry / recyclables) ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                  <Recycle className="h-4 w-4 text-blue-500" /> Waste Processed
+                </h2>
+                <p className="text-sm text-gray-400 mt-0.5">Wet, dry and recyclables routed to processing</p>
+              </div>
+              <PreviewBadge />
+            </div>
+            <div className="p-6 flex flex-col sm:flex-row items-center gap-4">
+              <div className="relative w-full sm:w-56 h-56 shrink-0">
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={processedBreakdown} dataKey="value" nameKey="name" innerRadius={62} outerRadius={94} paddingAngle={3} strokeWidth={0}>
+                      {processedBreakdown.map((d) => <Cell key={d.name} fill={d.color} />)}
+                    </Pie>
+                    <RTooltip content={<ProcessedTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-lg font-bold text-gray-800">{fmt(processedTotal, 2)}</span>
+                  <span className="text-[10px] text-gray-500">Total Tonnes</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0 w-full space-y-2">
+                {processedBreakdown.map((d) => (
+                  <div key={d.name} className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-gray-100" style={{ background: `${d.color}0f` }}>
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                    <span className="text-gray-700 font-semibold flex-1">{d.name}</span>
+                    <span className="text-gray-500">{fmt(d.value, 2)} T</span>
+                    <span className="text-gray-400 w-12 text-right">{processedTotal ? ((d.value / processedTotal) * 100).toFixed(1) : "0.0"}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Field Employees ── */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                  <Users className="h-4 w-4 text-purple-500" /> Field Employees
+                </h2>
+                <p className="text-sm text-gray-400 mt-0.5">Crew on-duty live, QR-attendance, absentees flagged</p>
+              </div>
+              <PreviewBadge />
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                <StatCard label="Total Crew" value={fmt(crewSummary.total, 0)} accent="border-t-purple-500" icon={<Users className="h-4 w-4" />} />
+                <StatCard
+                  label="On Duty Now"
+                  value={fmt(crewSummary.onDuty, 0)}
+                  accent="border-t-emerald-500"
+                  icon={
+                    <span className="relative flex items-center justify-center">
+                      <Activity className="h-4 w-4" />
+                      <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                    </span>
+                  }
+                />
+                <StatCard label="Absent (Flagged)" value={fmt(crewSummary.absent, 0)} accent="border-t-red-400" icon={<AlertTriangle className="h-4 w-4" />} />
+              </div>
+
+              <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <TH>Crew ID</TH>
+                      <TH>Ward</TH>
+                      <TH>Role</TH>
+                      <TH>QR Check-in</TH>
+                      <TH right>Status</TH>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {crewRoster.map((c, i) => (
+                      <tr key={c.id} className="border-t border-gray-50" style={{ background: i % 2 === 0 ? "#fff" : "#fafafa" }}>
+                        <td className="px-3 py-2.5 font-semibold text-gray-700">{c.id}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{c.ward}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{c.role}</td>
+                        <td className="px-3 py-2.5 text-gray-500 flex items-center gap-1.5">
+                          <QrCode className="h-3.5 w-3.5 text-gray-400" /> {c.checkIn}
+                        </td>
+                        <td className="px-3 py-2.5 text-right"><AttendanceBadge status={c.status} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
