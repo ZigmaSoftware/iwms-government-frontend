@@ -26,9 +26,6 @@ export const panchayatLeaderApi = adminApi.panchayatLeaders;
 export const districtLeaderApi = adminApi.districtLeaders;
 export const areaTypeApi = adminApi.areatypes;
 export const hierarchyApi = adminApi.hierarchies;
-export const hierarchyLevelApi = adminApi.hierarchyLevels;
-export const hierarchyNodeApi = adminApi.hierarchyNodes;
-export const hierarchyAssignmentApi = adminApi.hierarchyAssignments;
 export const corporationApi = adminApi.corporations;
 export const municipalityApi = adminApi.municipalities;
 export const townPanchayatApi = adminApi.townPanchayats;
@@ -72,6 +69,7 @@ export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 ========================= */
 export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
+export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
@@ -113,7 +111,6 @@ export const complaintFeedbackApi = adminApi.complaintFeedback;
 export const vehicleTypeApi = adminApi.vehicleTypes;
 export const vehicleCreationApi = adminApi.vehicleCreations;
 export const tripPlanApi = adminApi.tripPlans;
-export const tripPlanCollectionPointApi = adminApi.tripPlanCollectionPoints;
 export const tripAttendanceApi = adminApi.tripAttendances;
 export const fuelApi = adminApi.fuels;
 export const dailyTripAssignmentApi = adminApi.dailyTripAssignment;
@@ -121,6 +118,7 @@ export const dailyTripLogApi = adminApi.dailyTripLog;
 export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const dailyTripHouseholdCollectionApi = adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
+export const vehicleBreakdownApi = adminApi.vehicleBreakdown;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 
 /* =========================

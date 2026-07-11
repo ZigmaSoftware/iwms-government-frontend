@@ -5,9 +5,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import PasswordInput from "@/components/form/input/PasswordInput";
-import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 
 import {
+  areaTypeApi,
   corporationApi,
   countryApi,
   customerCreationApi,
@@ -125,6 +125,7 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   country_id: ["country_id", "country"],
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
+  area_type_id: ["area_type_id", "area_type"],
   location_node_id: ["location_node_id", "location_node"],
   corporation_id: ["corporation_id", "corporation"],
   municipality_id: ["municipality_id", "municipality"],
@@ -157,10 +158,6 @@ const hierarchyLevels: Array<{ value: HierarchyLevel; label: string; optionLabel
 ];
 
 type AreaType = "urban" | "rural";
-const areaTypeLabels: Record<AreaType, string> = {
-  urban: "Urban Local Body",
-  rural: "Rural Local Body",
-};
 const areaTypeHierarchyMap: Record<AreaType, HierarchyLevel[]> = {
   urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
   rural: ["panchayat_union_id", "panchayat_id"],
@@ -168,6 +165,7 @@ const areaTypeHierarchyMap: Record<AreaType, HierarchyLevel[]> = {
 
 type CustomerDropdowns = {
   districts: any[];
+  areaTypes: any[];
   states: any[];
   countries: any[];
   properties: any[];
@@ -622,6 +620,7 @@ function CustomerEditor({
     country_id: initialPayload.country_id,
     state_id: initialPayload.state_id,
     district_id: initialPayload.district_id,
+    area_type_id: initialPayload.area_type_id,
     location_node_id: initialPayload.location_node_id,
     corporation_id: initialPayload.corporation_id,
     municipality_id: initialPayload.municipality_id,
@@ -692,22 +691,15 @@ function CustomerEditor({
     [dropdowns],
   );
 
-  const availableAreaTypes = useMemo((): AreaType[] => {
-    if (!formData.district_id) return [];
-    const allTypes: AreaType[] = ["urban", "rural"];
-    const filtered = allTypes.filter((areaType) =>
-      areaTypeHierarchyMap[areaType].some((level) =>
-        hierarchyDropdownMap[level].some(
-          (item: any) =>
-            normalizeEntityId(item.district_id ?? item.district) === formData.district_id,
-        ),
+  const filteredAreaTypes = useMemo(
+    () =>
+      dropdowns.areaTypes.filter(
+        (areaType: any) =>
+          !formData.district_id ||
+          normalizeEntityId(areaType.district_id ?? areaType.district) === formData.district_id,
       ),
-    );
-    if (selectedAreaType && !filtered.includes(selectedAreaType)) {
-      return [...filtered, selectedAreaType];
-    }
-    return filtered.length > 0 ? filtered : allTypes;
-  }, [formData.district_id, hierarchyDropdownMap, selectedAreaType]);
+    [dropdowns.areaTypes, formData.district_id],
+  );
 
   const availableHierarchyLevels = useMemo(() => {
     if (!formData.district_id || !selectedAreaType) return [];
@@ -734,6 +726,22 @@ function CustomerEditor({
 
   const selectedHierarchyId =
     (selectedHierarchyType && formData[selectedHierarchyType]) || "";
+
+  const resolvedAreaTypeId = useMemo(() => {
+    const selectedById = filteredAreaTypes.find(
+      (areaType: any) => resolveId(areaType) === formData.area_type_id,
+    );
+    if (selectedById) return resolveId(selectedById);
+
+    const areaTypeValue = String(formData.area_type_id || selectedAreaType || "").toLowerCase();
+    if (!areaTypeValue) return "";
+
+    const matchingAreaType = filteredAreaTypes.find((areaType: any) => {
+      const areaName = String(areaType.name ?? areaType.area_type_name ?? "").toLowerCase();
+      return areaName === areaTypeValue || areaName.includes(areaTypeValue) || areaTypeValue.includes(areaName);
+    });
+    return matchingAreaType ? resolveId(matchingAreaType) : "";
+  }, [filteredAreaTypes, formData.area_type_id, selectedAreaType]);
 
   const destinationOptions = useMemo((): Option[] => {
     if (!selectedHierarchyType) return [];
@@ -776,6 +784,7 @@ function CustomerEditor({
     setFormData((prev) => ({
       ...prev,
       location_node_id: "",
+      area_type_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -783,30 +792,6 @@ function CustomerEditor({
       panchayat_id: "",
       [level]: value,
     }));
-  };
-
-  const setDynamicHierarchy = (nodeId: string, legacy: Record<string, string | undefined>) => {
-    setFormData((prev) => ({
-      ...prev,
-      location_node_id: nodeId,
-      country_id: legacy.country_id ?? prev.country_id,
-      state_id: legacy.state_id ?? prev.state_id,
-      district_id: legacy.district_id ?? prev.district_id,
-      corporation_id: legacy.corporation_id ?? "",
-      municipality_id: legacy.municipality_id ?? "",
-      town_panchayat_id: legacy.town_panchayat_id ?? "",
-      panchayat_union_id: legacy.panchayat_union_id ?? "",
-      panchayat_id: legacy.panchayat_id ?? "",
-    }));
-    const selectedLevel = hierarchyLevels.find((item) => legacy[item.value]);
-    setSelectedHierarchyType(selectedLevel?.value ?? "");
-    setSelectedAreaType(
-      selectedLevel
-        ? areaTypeHierarchyMap.urban.includes(selectedLevel.value)
-          ? "urban"
-          : "rural"
-        : "",
-    );
   };
 
   const resetHierarchy = () => {
@@ -866,7 +851,8 @@ function CustomerEditor({
       "sqft",
       "id_proof_type",
       "id_no",
-      "location_node_id",
+      "state_id",
+      "district_id",
       "property_id",
       "sub_property_id",
       "waste_type_ids",
@@ -889,10 +875,19 @@ function CustomerEditor({
       }
     }
 
-    if (!formData.location_node_id) {
+    if (!resolvedAreaTypeId) {
       Swal.fire(
         t("common.warning") || "Warning",
-        "Location (hierarchy node) is required",
+        "Area Type is required",
+        "warning",
+      );
+      return false;
+    }
+
+    if (!selectedHierarchyType || !selectedHierarchyId) {
+      Swal.fire(
+        t("common.warning") || "Warning",
+        "Local body is required",
         "warning",
       );
       return false;
@@ -957,6 +952,7 @@ function CustomerEditor({
     if (!validateForm()) return;
     const rawPayload = {
       ...formData,
+      area_type_id: resolvedAreaTypeId,
       latitude: showField("latitude") ? String(parseFloat(formData.latitude)) : formData.latitude,
       longitude: showField("longitude")
         ? String(parseFloat(formData.longitude))
@@ -964,7 +960,18 @@ function CustomerEditor({
       sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
       ...(isEdit && !formData.password ? { password: undefined } : {}),
     };
-    await onSubmit(filterPayload(rawPayload));
+    await onSubmit(
+      filterPayload(rawPayload, [
+        "state_id",
+        "district_id",
+        "area_type_id",
+        "corporation_id",
+        "municipality_id",
+        "town_panchayat_id",
+        "panchayat_union_id",
+        "panchayat_id",
+      ]),
+    );
   };
 
   /* ===============================
@@ -1482,18 +1489,118 @@ function CustomerEditor({
           <FormSection
             title={t("admin.customer_creation.location_details") || "Location Details"}
           >
-            {/* Geography is now a single dynamic hierarchy node. Pick any node
-                (Ward, Panchayat, Corporation, …) from the live tree; its full
-                ancestry is shown and stored as location_node. No hardcoded
-                country/state/district dropdowns. */}
-            <div className="md:col-span-2">
-              <HierarchyNodeSelect
-                value={formData.location_node_id}
-                label="Location (Hierarchy)"
-                placeholder="Search and select this customer's location in the hierarchy"
-                onChange={(nodeId) => update("location_node_id", nodeId)}
-              />
-            </div>
+            <ShadcnSelect
+              label="State"
+              value={formData.state_id}
+              onChange={(v) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  state_id: v,
+                  district_id: "",
+                  area_type_id: "",
+                  location_node_id: "",
+                  corporation_id: "",
+                  municipality_id: "",
+                  town_panchayat_id: "",
+                  panchayat_union_id: "",
+                  panchayat_id: "",
+                }));
+                setSelectedAreaType("");
+                setSelectedHierarchyType("");
+              }}
+              options={filteredStates.map((s: any) => ({
+                value: resolveId(s),
+                label: s.name || s.state_name || resolveId(s),
+              }))}
+              placeholder="Select state"
+            />
+            <ShadcnSelect
+              label="District"
+              value={formData.district_id}
+              onChange={(v) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  district_id: v,
+                  area_type_id: "",
+                  location_node_id: "",
+                  corporation_id: "",
+                  municipality_id: "",
+                  town_panchayat_id: "",
+                  panchayat_union_id: "",
+                  panchayat_id: "",
+                }));
+                setSelectedAreaType("");
+                setSelectedHierarchyType("");
+              }}
+              options={filteredDistricts.map((d: any) => ({
+                value: resolveId(d),
+                label: d.name || d.district_name || resolveId(d),
+              }))}
+              placeholder={formData.state_id ? "Select district" : "Select a state first"}
+              disabled={!formData.state_id}
+            />
+            <ShadcnSelect
+              label="Area Type"
+              value={formData.area_type_id}
+              onChange={(v) => {
+                update("area_type_id", v);
+                const selected = filteredAreaTypes.find(
+                  (areaType: any) => resolveId(areaType) === v,
+                );
+                const areaName = String(
+                  selected?.name ?? selected?.area_type_name ?? "",
+                ).toLowerCase();
+                setSelectedAreaType(
+                  areaName.includes("urban")
+                    ? "urban"
+                    : areaName.includes("rural")
+                      ? "rural"
+                      : "",
+                );
+                setSelectedHierarchyType("");
+                setFormData((prev) => ({
+                  ...prev,
+                  area_type_id: v,
+                  location_node_id: "",
+                  corporation_id: "",
+                  municipality_id: "",
+                  town_panchayat_id: "",
+                  panchayat_union_id: "",
+                  panchayat_id: "",
+                }));
+              }}
+              options={filteredAreaTypes.map((areaType: any) => ({
+                value: resolveId(areaType),
+                label: areaType.name || areaType.area_type_name || resolveId(areaType),
+              }))}
+              placeholder={formData.district_id ? "Select area type" : "Select a district first"}
+              disabled={!formData.district_id}
+            />
+            <ShadcnSelect
+              label="Local Body"
+              value={selectedHierarchyType}
+              onChange={(v) => setHierarchyValue(v as HierarchyLevel, "")}
+              options={availableHierarchyLevels.map((level) => ({
+                value: level.value,
+                label: level.label,
+              }))}
+              placeholder={selectedAreaType ? "Select local body type" : "Select an area type first"}
+              disabled={!selectedAreaType}
+            />
+            {selectedHierarchyType && (
+              <div>
+                <ShadcnSelect
+                  label={
+                    hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.label ||
+                    "Local Body"
+                  }
+                  value={selectedHierarchyId}
+                  onChange={(v) => setHierarchyValue(selectedHierarchyType as HierarchyLevel, v)}
+                  options={destinationOptions}
+                  placeholder="Select"
+                />
+              </div>
+            )}
           </FormSection>
 
           {/* STATUS */}
@@ -1596,6 +1703,7 @@ export default function CustomerCreationForm() {
 
   /* raw dropdown state */
   const [rawDistricts, setRawDistricts] = useState<any[]>([]);
+  const [rawAreaTypes, setRawAreaTypes] = useState<any[]>([]);
   const [rawStates, setRawStates] = useState<any[]>([]);
   const [rawCountries, setRawCountries] = useState<any[]>([]);
   const [rawProperties, setRawProperties] = useState<any[]>([]);
@@ -1615,6 +1723,7 @@ export default function CustomerCreationForm() {
 
     Promise.all([
       districtApi.readAll(),
+      areaTypeApi.readAll(),
       stateApi.readAll(),
       countryApi.readAll(),
       propertiesApi.readAll(),
@@ -1629,6 +1738,7 @@ export default function CustomerCreationForm() {
       .then(
         ([
           districts,
+          areaTypes,
           states,
           countries,
           properties,
@@ -1642,6 +1752,7 @@ export default function CustomerCreationForm() {
         ]) => {
           if (cancelled) return;
           setRawDistricts(toArr(districts));
+          setRawAreaTypes(toArr(areaTypes));
           setRawStates(toArr(states));
           setRawCountries(toArr(countries));
           setRawProperties(toArr(properties));
@@ -1743,6 +1854,7 @@ export default function CustomerCreationForm() {
   /* normalised dropdown collections */
   const dropdowns: CustomerDropdowns = {
     districts: normalizeActive(rawDistricts),
+    areaTypes: normalizeActive(rawAreaTypes),
     states: normalizeActive(rawStates),
     countries: normalizeActive(rawCountries),
     properties: normalizeActive(rawProperties),
@@ -1764,6 +1876,7 @@ export default function CustomerCreationForm() {
     const countryId = resolveOptionValue(rawCountries, d.country_id, "name", d.country_name);
     const stateId = resolveOptionValue(rawStates, d.state_id, "name", d.state_name);
     const districtId = resolveOptionValue(rawDistricts, d.district_id, "name", d.district_name);
+    const areaTypeId = resolveOptionValue(rawAreaTypes, d.area_type_id, "name", d.area_type_name);
     const corporationId = resolveOptionValue(
       rawCorporations, d.corporation_id, "corporation_name", d.corporation_name,
     );
@@ -1807,6 +1920,16 @@ export default function CustomerCreationForm() {
       panchayat_union_id: String(d.panchayat_union_name ?? ""),
       panchayat_id: String(d.panchayat_name ?? ""),
     };
+    const areaTypeName = String(d.area_type_name ?? "").toLowerCase();
+    const selectedAreaTypeFromRecord: AreaType | "" = rawHierarchyMatch
+      ? rawHierarchyMatch.isUrban
+        ? "urban"
+        : "rural"
+      : areaTypeName.includes("urban")
+        ? "urban"
+        : areaTypeName.includes("rural")
+          ? "rural"
+          : "";
 
     initialPayload = {
       customer_name: String(d.customer_name ?? ""),
@@ -1828,6 +1951,7 @@ export default function CustomerCreationForm() {
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
+      area_type_id: areaTypeId,
       location_node_id: String(d.location_node_id ?? d.location_node?.unique_id ?? ""),
       corporation_id: corporationId,
       municipality_id: municipalityId,
@@ -1843,11 +1967,7 @@ export default function CustomerCreationForm() {
       villa_no: String(d.villa_no ?? ""),
       industry_name: String(d.industry_name ?? ""),
       industry_type: String(d.industry_type ?? ""),
-      selectedAreaType: rawHierarchyMatch
-        ? rawHierarchyMatch.isUrban
-          ? "urban"
-          : "rural"
-        : "",
+      selectedAreaType: selectedAreaTypeFromRecord,
       selectedHierarchyType: rawHierarchyMatch ? rawHierarchyMatch.level : "",
       hierarchyItemLabel: rawHierarchyMatch
         ? labelByLevel[rawHierarchyMatch.level] || ""
@@ -1876,6 +1996,7 @@ export default function CustomerCreationForm() {
       country_id: "",
       state_id: "",
       district_id: "",
+      area_type_id: "",
       location_node_id: "",
       corporation_id: "",
       municipality_id: "",

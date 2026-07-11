@@ -39,12 +39,6 @@ export type Staff = {
   salary_type?: string;
   contact_mobile?: number;
   department?: string;
-  company_id?: string | null;
-  company_unique_id?: string | null;
-  company_name?: string | null;
-  project_id?: string | null;
-  project_unique_id?: string | null;
-  project_name?: string | null;
   [key: string]: unknown;
 };
 

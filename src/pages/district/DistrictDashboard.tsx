@@ -9,9 +9,7 @@ import {
 } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
 
-/* ─── axios instance ─────────────────────────────────────────────────── */
-const IS_PROD = import.meta.env.VITE_PROD === "true";
-const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
+import { API_ROOT } from "../../config/configApi";
 
 const dbApi = axios.create({ baseURL: API_ROOT });
 dbApi.interceptors.request.use((config) => {

@@ -159,8 +159,6 @@ export default function CollectionMonitoringListPage() {
           "_collection_point",
           "_vehicle",
           "_route",
-          "company_name",
-          "project_name",
         ]}
         rowsPerPageOptions={[5, 10, 25, 50]}
         header={
@@ -189,8 +187,6 @@ export default function CollectionMonitoringListPage() {
         <Column field="_vehicle" header="Vehicle" sortable filter showFilterMatchModes={false} />
         <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: BinCollectionEventRecord) => text(row.collected_weight_kg)} />
         <Column field="created_at" header={t("common.date")} sortable body={(row: BinCollectionEventRecord) => text(row.created_at).slice(0, 10)} />
-        <Column field="company_name" header={t("admin.nav.company")} sortable filter showFilterMatchModes={false} />
-        <Column field="project_name" header={t("admin.nav.project")} sortable filter showFilterMatchModes={false} />
         <Column field="is_active" header={t("common.status")} body={statusTemplate} style={{ width: "130px" }} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: "120px" }} />
       </DataTable>

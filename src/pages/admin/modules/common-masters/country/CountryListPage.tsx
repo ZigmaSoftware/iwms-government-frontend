@@ -279,7 +279,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
+import { formatCoordinates } from "@/pages/admin/modules/masters/shared/formatCoordinates";
 
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -318,7 +318,7 @@ export default function CountryList() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
-    "masters",
+    "common-masters",
     "countries",
     COUNTRY_COLUMN_FIELDS,
   );
@@ -335,10 +335,10 @@ export default function CountryList() {
 
   const navigate = useNavigate();
 
-  const { encMasters, encCountries } = getEncryptedRoute();
+  const { encCommonMasters, encCountries } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encMasters,
+    encCommonMasters,
     encCountries,
   );
 

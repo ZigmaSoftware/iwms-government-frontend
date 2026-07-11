@@ -15,12 +15,6 @@ export type CollectionRecord = {
   wastetype_name?: string;
   collection_date?: string;
   trip_id?: string;
-  company_id?: string;
-  company_unique_id?: string;
-  company_name?: string;
-  project_id?: string;
-  project_unique_id?: string;
-  project_name?: string;
   point_collection_id?: string | null;
   bin_name?: string;
   collection_point_name?: string;
@@ -35,8 +29,6 @@ export type SummaryRow = {
   total_weight: number;
   records: CollectionRecord[];
   zone_name?: string;
-  company_names: string[];
-  project_names: string[];
   collection_dates: string[];
 };
 

@@ -3,6 +3,7 @@ import { Pie } from "react-chartjs-2";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import type { ChartData } from "chart.js";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useProjectSelector } from "@/contexts/ProjectSelectorContext";
 import { fetchWasteReport } from "@/utils/wasteApi";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -1036,6 +1037,7 @@ const getMonthDateRange = (monthKey: string) => {
 // ------------------------- MAIN COMPONENT -------------------------
 export default function WasteCollection() {
   const { t, i18n } = useTranslation();
+  const { weighmentApiUrl } = useProjectSelector();
   // Core data states
   const [dailyData, setDailyData] = useState<DailyRow[]>(FALLBACK_DAILY_DATA);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStat[]>([]);
@@ -1194,6 +1196,7 @@ export default function WasteCollection() {
   const fetchWaste = async (fromDate: string, toDate: string) => {
     try {
       const result = await fetchWasteReport<ApiWasteRow>(
+        weighmentApiUrl,
         "date_wise_data",
         fromDate,
         toDate
@@ -1253,6 +1256,7 @@ export default function WasteCollection() {
       const endDate = getLocalDateKey();
       try {
         const result = await fetchWasteReport<ApiWasteRow>(
+          weighmentApiUrl,
           "date_wise_data",
           ALL_MONTHS_START,
           endDate
@@ -1682,6 +1686,7 @@ export default function WasteCollection() {
       try {
         const { fromDate, toDate } = vehicleDialogRange;
         const result = await fetchWasteReport(
+          weighmentApiUrl,
           "day_wise_data",
           fromDate,
           toDate
@@ -1733,6 +1738,7 @@ export default function WasteCollection() {
       setMonthlyVehicleError("");
       try {
         const result = await fetchWasteReport(
+          weighmentApiUrl,
           "day_wise_data",
           fromDate,
           toDate
@@ -1786,6 +1792,7 @@ export default function WasteCollection() {
       setMonthlyDailyError("");
       try {
         const result = await fetchWasteReport<ApiWasteRow>(
+          weighmentApiUrl,
           "date_wise_data",
           fromDate,
           toDate
@@ -1827,6 +1834,7 @@ export default function WasteCollection() {
     const prefetchMonthlyVehicles = async () => {
       try {
         const result = await fetchWasteReport(
+          weighmentApiUrl,
           "day_wise_data",
           range.start,
           range.end

@@ -1,18 +1,25 @@
-import type { ReportResponse, ReportRow } from "./types";
+import type { ReportResponse, ReportRow, LocationComparisonRow, WasteTypeBreakdownRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { adminApi } from "@/helpers/admin/registry";
 import {
-  Activity,
+  areaTypeApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
+  stateApi,
+  townPanchayatApi,
+} from "@/helpers/admin";
+import {
   BarChart3,
   Calendar,
   Download,
   MapPin,
-  Plus,
+  PieChart as PieChartIcon,
+  Recycle,
   Scale,
-  TrendingDown,
-  TrendingUp,
   Truck,
 } from "lucide-react";
 import Swal from "@/lib/notify";
@@ -24,38 +31,95 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-/* ── Types ──────────────────────────────────────────────────────── */
-
+/* ── Palette (fixed categorical order — never cycled/regenerated) ──── */
+const SERIES = [
+  "#2a78d6", // blue
+  "#1baf7a", // aqua
+  "#eda100", // yellow
+  "#008300", // green
+  "#4a3aa7", // violet
+  "#e34948", // red
+  "#e87ba4", // magenta
+  "#eb6834", // orange
+];
+const OTHER_SLICE_COLOR = "#9ca3af";
 
 const initialKpis: ReportResponse["kpis"] = {
-  total_agreed_weight: 0,
   total_actual_weight: 0,
-  variance_kg: 0,
-  collection_efficiency_percent: 0,
   average_weight_per_trip: 0,
-  coverage_efficiency_percent: 0,
   total_trips: 0,
   collection_points_covered: 0,
-  report_status: "On Target",
+  waste_type_count: 0,
+  local_body_count: 0,
 };
 
 const currentMonth = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 };
+
+/* ── Local body hierarchy (State -> District -> Area Type -> Local Body Type -> Local Body) ── */
+type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+const localBodyLevels: Array<{ value: LocalBodyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat" },
+];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
+const resolveGeoId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveGeoName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      resolveGeoId(record),
+  );
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) return value.filter((x) => x && typeof x === "object");
+  if (value && typeof value === "object") {
+    const r = (value as { results?: unknown }).results;
+    if (Array.isArray(r)) return r.filter((x) => x && typeof x === "object");
+  }
+  return [];
+};
+const toGeoOptions = (records: any[]) =>
+  records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 const fmtKg = (v?: number | string | null, dec = 2) => {
@@ -67,80 +131,36 @@ const fmtKg = (v?: number | string | null, dec = 2) => {
 const fmtAxis = (v: number) =>
   Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
-const effColor = (e: number) =>
-  e >= 90
-    ? {
-        text: "text-green-600",
-        bg: "bg-green-500",
-        ring: "border-green-200 bg-green-50",
-      }
-    : e >= 70
-      ? {
-          text: "text-amber-600",
-          bg: "bg-amber-400",
-          ring: "border-amber-200 bg-amber-50",
-        }
-      : {
-          text: "text-red-600",
-          bg: "bg-red-500",
-          ring: "border-red-200 bg-red-50",
-        };
-
-const statusBadgeCls = (s: string) =>
-  s === "Surplus"
-    ? "bg-green-100 text-green-800 border-green-200"
-    : s === "Deficit"
-      ? "bg-red-100 text-red-800 border-red-200"
-      : "bg-blue-100 text-blue-800 border-blue-200";
-
-/* ── Mini Stat Cell ─────────────────────────────────────────────── */
-const StatCell = ({
-  label,
-  value,
-  color,
+/* ── Local-body weight row (simple bar, no target) ──────────────── */
+const LocalBodyWeightRow = ({
+  plb,
+  maxWeight,
 }: {
-  label: string;
-  value: string;
-  color: string;
-}) => (
-  <div className={`rounded-xl border p-4 flex flex-col gap-1 ${color}`}>
-    <span className="text-xs font-medium text-gray-500">{label}</span>
-    <span className="text-2xl font-bold text-gray-800 leading-none">
-      {value}
-    </span>
-  </div>
-);
-
-/* ── PLB Efficiency Row ─────────────────────────────────────────── */
-const PlbEffRow = ({ plb }: { plb: any }) => {
-  const eff = Math.min(Number(plb.collection_efficiency_percent ?? 0), 100);
-  const c = effColor(eff);
+  plb: LocationComparisonRow;
+  maxWeight: number;
+}) => {
+  const pct = maxWeight > 0 ? Math.min((plb.total_actual_weight / maxWeight) * 100, 100) : 0;
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-      <div className="w-24 shrink-0">
-        <p className="text-xs font-semibold text-gray-800 truncate">
-          {plb.location_node_name ?? plb.location_node_id}
+      <div className="w-28 shrink-0">
+        <p className="text-xs font-semibold text-gray-800 truncate" title={plb.local_body_name}>
+          {plb.local_body_name}
         </p>
         <p className="text-[10px] text-gray-400 mt-0.5">
-          {fmtKg(plb.total_actual_weight)} / {fmtKg(plb.total_agreed_weight)} kg
+          {plb.local_body_type} · {plb.total_trips} trip{plb.total_trips !== 1 ? "s" : ""}
         </p>
       </div>
       <div className="flex-1">
         <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all duration-700 ${c.bg}`}
-            style={{ width: `${eff}%` }}
+            className="h-full rounded-full bg-blue-500 transition-all duration-700"
+            style={{ width: `${pct}%` }}
           />
         </div>
       </div>
-      <div className="w-14 text-right shrink-0">
-        <span className={`text-xs font-bold ${c.text}`}>{eff.toFixed(1)}%</span>
+      <div className="w-20 text-right shrink-0">
+        <span className="text-xs font-bold text-gray-700">{fmtKg(plb.total_actual_weight)} kg</span>
       </div>
-      <span
-        className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${statusBadgeCls(plb.report_status)}`}
-      >
-        {plb.report_status}
-      </span>
     </div>
   );
 };
@@ -178,42 +198,163 @@ const PLBTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+const WasteTypeTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  const row = p.payload as WasteTypeBreakdownRow & { color: string };
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[170px]">
+      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: row.color }}
+        />
+        {row.waste_type}
+      </p>
+      <div className="flex justify-between gap-4">
+        <span className="text-gray-500">Weight</span>
+        <span className="font-bold">{fmtKg(row.total_actual_weight)} kg</span>
+      </div>
+      <div className="flex justify-between gap-4 mt-1">
+        <span className="text-gray-500">Share</span>
+        <span className="font-bold">{fmtKg(row.share_percent, 1)}%</span>
+      </div>
+      <div className="flex justify-between gap-4 mt-1">
+        <span className="text-gray-500">Trips</span>
+        <span className="font-bold">{row.total_trips}</span>
+      </div>
+    </div>
+  );
+};
+
+const WasteTypeLegend = ({ payload }: any) => (
+  <ul className="flex flex-wrap justify-center gap-3 mt-3">
+    {(payload ?? []).map((entry: any) => (
+      <li key={entry.value} className="flex items-center gap-1.5 text-xs text-gray-600">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: entry.color }}
+        />
+        {entry.value}
+      </li>
+    ))}
+  </ul>
+);
+
 /* ══════════════════════════════════════════════════════════════════
     MAIN PAGE
 ══════════════════════════════════════════════════════════════════ */
 export default function MonthlyWasteComparisonListPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
-  const [sortMode, setSortMode] = useState("absolute");
+  const [sortMode, setSortMode] = useState("weight");
   const [source, setSource] = useState("bin");
+
+  /* ── local body filter cascade ── */
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
+  const [localBodyLevel, setLocalBodyLevel] = useState<LocalBodyLevel | "">("");
+  const [localBodyId, setLocalBodyId] = useState("");
+
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [localBodyRecords, setLocalBodyRecords] = useState<Record<LocalBodyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
+
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<
     ReportResponse["monthly_trends"]
   >([]);
-  const [plbComparison, setPlbComparison] = useState<
-    ReportResponse["location_comparison"]
-  >([]);
+  const [plbComparison, setPlbComparison] = useState<LocationComparisonRow[]>([]);
+  const [wasteTypeBreakdown, setWasteTypeBreakdown] = useState<WasteTypeBreakdownRow[]>([]);
   const [kpis, setKpis] = useState<ReportResponse["kpis"]>(initialKpis);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
 
-  const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
-  const { newPath: monthlyComparisonNewPath } = createCrudRoutePaths(
-    encScheduleMasters,
-    encMonthlyWasteComparison,
-  );
+  /* fetch state/district/area type/local body dropdowns */
+  useEffect(() => {
+    Promise.all([
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+    ]).then(
+      ([
+        stateRes,
+        districtRes,
+        areaTypeRes,
+        corporationRes,
+        municipalityRes,
+        townPanchayatRes,
+        panchayatUnionRes,
+        panchayatRes,
+      ]) => {
+        setStates(toRecordList(stateRes));
+        setDistricts(toRecordList(districtRes));
+        setAreaTypes(toRecordList(areaTypeRes));
+        setLocalBodyRecords({
+          corporation_id: toRecordList(corporationRes),
+          municipality_id: toRecordList(municipalityRes),
+          town_panchayat_id: toRecordList(townPanchayatRes),
+          panchayat_union_id: toRecordList(panchayatUnionRes),
+          panchayat_id: toRecordList(panchayatRes),
+        });
+      },
+    );
+  }, []);
 
-  /* ── fetch ── */
+  /* area type -> urban/rural category */
+  useEffect(() => {
+    if (!areaTypeId || !areaTypes.length) {
+      if (!areaTypeId) setAreaTypeCategory("");
+      return;
+    }
+    const selected = areaTypes.find((item) => resolveGeoId(item) === areaTypeId);
+    if (selected) {
+      setAreaTypeCategory(areaTypeCategoryFromName(String(selected.name ?? "")));
+    }
+  }, [areaTypeId, areaTypes]);
+
+  const filteredDistricts = districts.filter(
+    (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
+  );
+  const filteredAreaTypes = areaTypes.filter(
+    (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
+  );
+  const availableLocalBodyLevels = areaTypeCategory
+    ? localBodyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+    : [];
+  const localBodyOptions = localBodyLevel
+    ? toGeoOptions(
+        (localBodyRecords[localBodyLevel] ?? []).filter(
+          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+        ),
+      )
+    : [];
+
+  /* ── fetch report ── */
   const fetchReport = async () => {
     setLoading(true);
     setError("");
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
+      if (localBodyLevel && localBodyId) params[localBodyLevel] = localBodyId;
 
       const { data } = await api.get<ReportResponse>(
         "/reports/monthly-waste-comparison/",
@@ -228,13 +369,17 @@ export default function MonthlyWasteComparisonListPage() {
           ? data.location_comparison
           : [],
       );
+      setWasteTypeBreakdown(
+        Array.isArray(data?.waste_type_breakdown) ? data.waste_type_breakdown : [],
+      );
       setKpis(data?.kpis ?? initialKpis);
     } catch {
       setRows([]);
       setMonthlyTrends([]);
       setPlbComparison([]);
+      setWasteTypeBreakdown([]);
       setKpis(initialKpis);
-      setError("Unable to load monthly waste comparison report.");
+      setError("Unable to load monthly waste collection report.");
     } finally {
       setLoading(false);
     }
@@ -242,49 +387,59 @@ export default function MonthlyWasteComparisonListPage() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedMonth, sortMode, source]);
-
-  /* ── delete ── */
-  const handleDelete = async (uniqueId: string, label: string) => {
-    const res = await Swal.fire({
-      title: t("common.are_you_sure"),
-      text: `Delete record for ${label}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
-    });
-    if (!res.isConfirmed) return;
-    try {
-      await adminApi.monthlyWasteComparison.delete(uniqueId);
-      await fetchReport();
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
-    } catch {
-      Swal.fire(t("common.error"), "Failed to delete record.", "error");
-    }
-  };
+  }, [appliedMonth, sortMode, source, localBodyLevel, localBodyId]);
 
   /* ── derived ── */
-  const eff = Number(kpis.collection_efficiency_percent ?? 0);
-  const effC = effColor(eff);
   const plbChartData = useMemo(
     () =>
-      (plbComparison as any[]).slice(0, 8).map((p) => ({
-        name: String(p.location_node_name ?? p.location_node_id),
-        Agreed: Number(p.total_agreed_weight ?? 0),
-        Actual: Number(p.total_actual_weight ?? 0),
-        eff: Number(p.collection_efficiency_percent ?? 0),
+      plbComparison.slice(0, 8).map((p) => ({
+        name: p.local_body_name,
+        Weight: Number(p.total_actual_weight ?? 0),
       })),
     [plbComparison],
   );
+
+  const maxPlbWeight = useMemo(
+    () => plbComparison.reduce((max, p) => Math.max(max, p.total_actual_weight), 0),
+    [plbComparison],
+  );
+
+  const MAX_PIE_SLICES = 7;
+  const wasteTypePieData = useMemo(() => {
+    const sorted = [...wasteTypeBreakdown].sort(
+      (a, b) => b.total_actual_weight - a.total_actual_weight,
+    );
+    const head = sorted.slice(0, MAX_PIE_SLICES).map((row, i) => ({
+      ...row,
+      color: SERIES[i % SERIES.length],
+    }));
+    const tail = sorted.slice(MAX_PIE_SLICES);
+    if (tail.length > 0) {
+      const tailWeight = tail.reduce((s, r) => s + r.total_actual_weight, 0);
+      const tailTrips = tail.reduce((s, r) => s + r.total_trips, 0);
+      const tailPoints = tail.reduce((s, r) => s + r.collection_points_covered, 0);
+      const tailShare = tail.reduce((s, r) => s + r.share_percent, 0);
+      head.push({
+        waste_type_id: "__other__",
+        waste_type: `Other (${tail.length})`,
+        total_actual_weight: tailWeight,
+        total_trips: tailTrips,
+        collection_points_covered: tailPoints,
+        share_percent: tailShare,
+        color: OTHER_SLICE_COLOR,
+      });
+    }
+    return head;
+  }, [wasteTypeBreakdown]);
+
+  const selectedLocalBodyLabel = localBodyOptions.find((o) => o.value === localBodyId)?.label;
 
   const handleDownload = async () => {
     setExporting(true);
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedMonth) params.month = appliedMonth;
+      if (localBodyLevel && localBodyId) params[localBodyLevel] = localBodyId;
 
       const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
@@ -292,17 +447,12 @@ export default function MonthlyWasteComparisonListPage() {
       exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
-          Location: r.location_node_name ?? r.location_node_id,
+          "Local Body Type": r.local_body_type,
+          "Local Body": r.local_body_name,
           "Waste Type": r.waste_type,
-          "Agreed (kg)": r.total_agreed_weight,
-          "Actual (kg)": r.total_actual_weight,
-          "Variance (kg)": r.variance_kg,
-          "Variance %": r.variance_percent,
-          Status: r.report_status,
+          "Weight Collected (kg)": r.total_actual_weight,
           Trips: r.total_trips,
           Points: r.collection_points_covered,
-          "Coll. Eff. %": r.collection_efficiency_percent,
-          "Coverage %": r.coverage_efficiency_percent,
           "Avg/Trip (kg)": r.average_weight_per_trip,
         })),
         getAdminScreenExcelFilename("all"),
@@ -311,12 +461,21 @@ export default function MonthlyWasteComparisonListPage() {
     } catch {
       Swal.fire(
         t("common.error"),
-        "Failed to download monthly waste comparison data.",
+        "Failed to download monthly waste collection data.",
         "error",
       );
     } finally {
       setExporting(false);
     }
+  };
+
+  const clearLocalBodyFilter = () => {
+    setStateId("");
+    setDistrictId("");
+    setAreaTypeId("");
+    setAreaTypeCategory("");
+    setLocalBodyLevel("");
+    setLocalBodyId("");
   };
 
   /* ══════════════════════════════════════════════════════════════
@@ -328,10 +487,10 @@ export default function MonthlyWasteComparisonListPage() {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-gray-800">
-            Monthly Waste Collection Comparison
+            Monthly Waste Collection Report
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Monthly aggregate — agreed vs actual by location and waste type
+            Total collected weight, trips, and waste-type composition by local body
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -347,9 +506,8 @@ export default function MonthlyWasteComparisonListPage() {
             onChange={(e) => setSortMode(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
-            <option value="absolute">Highest variance</option>
-            <option value="deficit">Highest deficit</option>
-            <option value="surplus">Highest surplus</option>
+            <option value="weight">Highest weight</option>
+            <option value="trips">Most trips</option>
           </select>
           <select
             value={source}
@@ -383,15 +541,112 @@ export default function MonthlyWasteComparisonListPage() {
             <Download className="h-4 w-4" />{" "}
             {exporting ? "Downloading..." : "Download All"}
           </button>
-          <button
-            onClick={() =>
-              navigate(monthlyComparisonNewPath)
-            }
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Add Record
-          </button>
         </div>
+      </div>
+
+      {/* ── Local body filter cascade ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-gray-400" /> Filter by Local Body
+          </h2>
+          {(stateId || districtId || areaTypeId || localBodyId) && (
+            <button
+              onClick={clearLocalBodyFilter}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <select
+            value={stateId}
+            onChange={(e) => {
+              setStateId(e.target.value);
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyLevel("");
+              setLocalBodyId("");
+            }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="">Select State</option>
+            {toGeoOptions(states).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={districtId}
+            onChange={(e) => {
+              setDistrictId(e.target.value);
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyLevel("");
+              setLocalBodyId("");
+            }}
+            disabled={!stateId}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">{stateId ? "Select District" : "Select a State first"}</option>
+            {toGeoOptions(filteredDistricts).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={areaTypeId}
+            onChange={(e) => {
+              const v = e.target.value;
+              const selected = filteredAreaTypes.find((a) => resolveGeoId(a) === v);
+              setAreaTypeId(v);
+              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+              setLocalBodyLevel("");
+              setLocalBodyId("");
+            }}
+            disabled={!districtId}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">{districtId ? "Select Area Type" : "Select a District first"}</option>
+            {toGeoOptions(filteredAreaTypes).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={localBodyLevel}
+            onChange={(e) => {
+              setLocalBodyLevel(e.target.value as LocalBodyLevel);
+              setLocalBodyId("");
+            }}
+            disabled={!areaTypeCategory}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">{areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}</option>
+            {availableLocalBodyLevels.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={localBodyId}
+            onChange={(e) => setLocalBodyId(e.target.value)}
+            disabled={!localBodyLevel}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">
+              {localBodyLevel
+                ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}`
+                : "Select a Local Body Type first"}
+            </option>
+            {localBodyOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        {localBodyId && (
+          <p className="mt-3 text-xs text-gray-500">
+            Showing data for <span className="font-semibold text-gray-700">{selectedLocalBodyLabel}</span>
+          </p>
+        )}
       </div>
 
       {error && (
@@ -400,40 +655,14 @@ export default function MonthlyWasteComparisonListPage() {
         </div>
       )}
 
-      {/* ── 8 KPI cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+      {/* ── 5 KPI cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {[
           {
-            label: "Collection Efficiency",
-            value: `${fmtKg(kpis.collection_efficiency_percent)}%`,
+            label: "Total Weight Collected",
+            value: `${fmtKg(kpis.total_actual_weight)} kg`,
             accent: "border-t-blue-500",
-            icon: <Activity className="h-4 w-4" />,
-          },
-          {
-            label: "Avg Weight / Trip",
-            value: `${fmtKg(kpis.average_weight_per_trip)} kg`,
-            accent: "border-t-green-500",
             icon: <Scale className="h-4 w-4" />,
-          },
-          {
-            label: "Coverage Efficiency",
-            value: `${fmtKg(kpis.coverage_efficiency_percent)}%`,
-            accent: "border-t-purple-500",
-            icon: <BarChart3 className="h-4 w-4" />,
-          },
-          {
-            label: "Total Variance",
-            value: `${fmtKg(kpis.variance_kg)} kg`,
-            accent:
-              Number(kpis.variance_kg) >= 0
-                ? "border-t-emerald-500"
-                : "border-t-red-500",
-            icon:
-              Number(kpis.variance_kg) >= 0 ? (
-                <TrendingUp className="h-4 w-4" />
-              ) : (
-                <TrendingDown className="h-4 w-4" />
-              ),
           },
           {
             label: "Total Trips",
@@ -448,16 +677,16 @@ export default function MonthlyWasteComparisonListPage() {
             icon: <MapPin className="h-4 w-4" />,
           },
           {
-            label: "Agreed Weight",
-            value: `${fmtKg(kpis.total_agreed_weight)} kg`,
-            accent: "border-t-indigo-500",
-            icon: <BarChart3 className="h-4 w-4" />,
+            label: "Waste Types",
+            value: fmtKg(kpis.waste_type_count, 0),
+            accent: "border-t-violet-500",
+            icon: <Recycle className="h-4 w-4" />,
           },
           {
-            label: "Actual Weight",
-            value: `${fmtKg(kpis.total_actual_weight)} kg`,
-            accent: "border-t-cyan-500",
-            icon: <TrendingUp className="h-4 w-4" />,
+            label: "Local Bodies",
+            value: fmtKg(kpis.local_body_count, 0),
+            accent: "border-t-indigo-500",
+            icon: <BarChart3 className="h-4 w-4" />,
           },
         ].map((k) => (
           <div
@@ -483,7 +712,7 @@ export default function MonthlyWasteComparisonListPage() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">Monthly Trend</h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Agreed vs Actual collection weight per month
+            Total weight collected per month
           </p>
           {monthlyTrends.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
@@ -496,13 +725,9 @@ export default function MonthlyWasteComparisonListPage() {
                 margin={{ top: 6, right: 20, left: 0, bottom: 4 }}
               >
                 <defs>
-                  <linearGradient id="gradAgreed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.18} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.02} />
-                  </linearGradient>
                   <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.02} />
+                    <stop offset="5%" stopColor="#2a78d6" stopOpacity={0.22} />
+                    <stop offset="95%" stopColor="#2a78d6" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid
@@ -530,30 +755,14 @@ export default function MonthlyWasteComparisonListPage() {
                 />
                 <Area
                   type="monotone"
-                  dataKey="total_agreed_weight"
-                  name="Agreed"
-                  stroke="#2563eb"
-                  strokeWidth={2}
-                  strokeDasharray="5 3"
-                  fill="url(#gradAgreed)"
-                  dot={{
-                    r: 4,
-                    fill: "#2563eb",
-                    stroke: "#fff",
-                    strokeWidth: 2,
-                  }}
-                  activeDot={{ r: 6 }}
-                />
-                <Area
-                  type="monotone"
                   dataKey="total_actual_weight"
-                  name="Actual"
-                  stroke="#16a34a"
+                  name="Weight Collected"
+                  stroke="#2a78d6"
                   strokeWidth={2.5}
                   fill="url(#gradActual)"
                   dot={{
                     r: 4,
-                    fill: "#16a34a",
+                    fill: "#2a78d6",
                     stroke: "#fff",
                     strokeWidth: 2,
                   }}
@@ -564,38 +773,74 @@ export default function MonthlyWasteComparisonListPage() {
           )}
         </div>
 
-        {/* PLB Efficiency — progress bars (no up/down bars) */}
+        {/* Waste composition — Pie chart */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <PieChartIcon className="h-4 w-4 text-gray-400" /> Waste Composition
+          </h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-2">
+            Share of total collected weight by waste type
+          </p>
+          {wasteTypePieData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+              No waste-type data yet.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Tooltip content={<WasteTypeTooltip />} />
+                <Pie
+                  data={wasteTypePieData}
+                  dataKey="total_actual_weight"
+                  nameKey="waste_type"
+                  innerRadius={52}
+                  outerRadius={82}
+                  paddingAngle={2}
+                  stroke="#fcfcfb"
+                  strokeWidth={2}
+                  label={({ share_percent }: any) =>
+                    share_percent >= 5 ? `${share_percent.toFixed(0)}%` : ""
+                  }
+                  labelLine={false}
+                >
+                  {wasteTypePieData.map((entry) => (
+                    <Cell key={entry.waste_type_id} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Legend content={<WasteTypeLegend />} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Local Body Weight — progress bars */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            Location Collection Efficiency
+            Weight Collected by Local Body
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Actual ÷ Agreed — per location
+            Corporation / municipality / town panchayat / panchayat union / panchayat
           </p>
           {plbComparison.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
-              No location data yet.
+              No local body data yet.
             </div>
           ) : (
             <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
-              {(plbComparison as any[]).slice(0, 10).map((p, i) => (
-                <PlbEffRow key={i} plb={p} />
+              {plbComparison.slice(0, 10).map((p, i) => (
+                <LocalBodyWeightRow key={i} plb={p} maxWeight={maxPlbWeight} />
               ))}
             </div>
           )}
         </div>
 
-        {/* Location Agreed vs Actual — grouped bar (full width) */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 lg:col-span-2">
+        {/* Local Body Weight — grouped bar */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
           <h2 className="text-sm font-semibold text-gray-800">
-            Location Collection — Agreed vs Actual
+            Local Body Comparison
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Side-by-side monthly totals per location&nbsp;·&nbsp;
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-300 mr-1 align-middle" />
-            Agreed&nbsp;&nbsp;
-            <span className="inline-block w-2.5 h-2.5 rounded-sm bg-green-600 mr-1 align-middle" />
-            Actual
+            Total weight collected per local body
           </p>
           {plbChartData.length === 0 ? (
             <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
@@ -607,7 +852,6 @@ export default function MonthlyWasteComparisonListPage() {
                 data={plbChartData}
                 margin={{ top: 6, right: 16, left: 0, bottom: 56 }}
                 barCategoryGap="30%"
-                barGap={4}
               >
                 <CartesianGrid
                   strokeDasharray="3 3"
@@ -630,32 +874,14 @@ export default function MonthlyWasteComparisonListPage() {
                   tickFormatter={fmtAxis}
                 />
                 <Tooltip content={<PLBTooltip />} />
-                <Legend
-                  iconType="square"
-                  iconSize={10}
-                  wrapperStyle={{ fontSize: 11, paddingTop: 14 }}
-                />
                 <Bar
-                  dataKey="Agreed"
-                  fill="#93c5fd"
-                  maxBarSize={36}
+                  dataKey="Weight"
+                  fill="#2a78d6"
+                  maxBarSize={40}
                   radius={[3, 3, 0, 0]}
                 >
                   {plbChartData.map((_, i) => (
-                    <Cell key={i} fill="#93c5fd" />
-                  ))}
-                </Bar>
-                <Bar
-                  dataKey="Actual"
-                  fill="#16a34a"
-                  maxBarSize={36}
-                  radius={[3, 3, 0, 0]}
-                >
-                  {plbChartData.map((e, i) => (
-                    <Cell
-                      key={i}
-                      fill={e.Actual >= e.Agreed ? "#16a34a" : "#f97316"}
-                    />
+                    <Cell key={i} fill="#2a78d6" />
                   ))}
                 </Bar>
               </BarChart>
@@ -665,7 +891,61 @@ export default function MonthlyWasteComparisonListPage() {
       </div>
 
       {/* ══════════════════════════════════════════════════════
-          SINGLE MONTHLY SUMMARY RECORD
+          WASTE TYPE BREAKDOWN TABLE
+      ══════════════════════════════════════════════════════ */}
+      {wasteTypeBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Recycle className="h-4 w-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-800">
+              Waste Type Breakdown
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
+                  <th className="px-4 py-3 text-left font-semibold">Waste Type</th>
+                  <th className="px-4 py-3 text-right font-semibold">Weight Collected (kg)</th>
+                  <th className="px-4 py-3 text-right font-semibold">Share</th>
+                  <th className="px-4 py-3 text-right font-semibold">Trips</th>
+                  <th className="px-4 py-3 text-right font-semibold">Points Covered</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {[...wasteTypeBreakdown]
+                  .sort((a, b) => b.total_actual_weight - a.total_actual_weight)
+                  .map((w, i) => (
+                    <tr key={w.waste_type_id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full mr-2 align-middle"
+                          style={{ backgroundColor: SERIES[i % SERIES.length] }}
+                        />
+                        {w.waste_type}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
+                        {fmtKg(w.total_actual_weight)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                        {fmtKg(w.share_percent, 1)}%
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {w.total_trips}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {w.collection_points_covered}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SUMMARY + DETAIL
       ══════════════════════════════════════════════════════ */}
       {!loading && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -694,181 +974,90 @@ export default function MonthlyWasteComparisonListPage() {
                 </p>
               </div>
             </div>
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${statusBadgeCls(kpis.report_status)}`}
-            >
-              {kpis.report_status === "Deficit" && (
-                <TrendingDown className="h-3 w-3" />
-              )}
-              {kpis.report_status === "Surplus" && (
-                <TrendingUp className="h-3 w-3" />
-              )}
-              {kpis.report_status}
-            </span>
           </div>
 
           {/* Main stats grid */}
           <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <StatCell
-              label="Total Agreed Weight"
-              value={`${fmtKg(kpis.total_agreed_weight)} kg`}
-              color="border-blue-100 bg-blue-50"
-            />
-            <StatCell
-              label="Total Actual Weight"
-              value={`${fmtKg(kpis.total_actual_weight)} kg`}
-              color="border-green-100 bg-green-50"
-            />
-            <StatCell
-              label="Total Variance"
-              value={`${fmtKg(kpis.variance_kg)} kg`}
-              color={
-                Number(kpis.variance_kg) >= 0
-                  ? "border-emerald-100 bg-emerald-50"
-                  : "border-red-100 bg-red-50"
-              }
-            />
-            <StatCell
-              label="Collection Efficiency"
-              value={`${fmtKg(kpis.collection_efficiency_percent)}%`}
-              color={`${effC.ring} border`}
-            />
-          </div>
-
-          {/* Efficiency progress bar */}
-          <div className="px-6 pb-5">
-            <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-              <span className="font-medium">Actual vs Agreed Target</span>
-              <span className={`font-bold ${effC.text}`}>{fmtKg(eff)}%</span>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Total Weight Collected</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.total_actual_weight)} kg
+              </span>
             </div>
-            <div className="h-4 rounded-full bg-gray-100 overflow-hidden relative">
-              <div
-                className={`h-full rounded-full transition-all duration-1000 ${effC.bg}`}
-                style={{ width: `${Math.min(eff, 100)}%` }}
-              />
-              {eff >= 10 && (
-                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
-                  {fmtKg(kpis.total_actual_weight)} /{" "}
-                  {fmtKg(kpis.total_agreed_weight)} kg
-                </span>
-              )}
+            <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Total Trips</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.total_trips, 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-pink-100 bg-pink-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Points Covered</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.collection_points_covered, 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Avg Weight / Trip</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.average_weight_per_trip)} kg
+              </span>
             </div>
           </div>
 
-          {/* Secondary stats footer */}
-          <div className="border-t border-gray-100 px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50/60">
-            {[
-              {
-                label: "Total Trips",
-                value: fmtKg(kpis.total_trips, 0),
-                icon: <Truck className="h-4 w-4 text-teal-500" />,
-              },
-              {
-                label: "Points Covered",
-                value: fmtKg(kpis.collection_points_covered, 0),
-                icon: <MapPin className="h-4 w-4 text-pink-500" />,
-              },
-              {
-                label: "Coverage Efficiency",
-                value: `${fmtKg(kpis.coverage_efficiency_percent)}%`,
-                icon: <Activity className="h-4 w-4 text-purple-500" />,
-              },
-              {
-                label: "Avg Weight / Trip",
-                value: `${fmtKg(kpis.average_weight_per_trip)} kg`,
-                icon: <Scale className="h-4 w-4 text-indigo-500" />,
-              },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-2.5">
-                <div className="h-8 w-8 rounded-lg bg-white border border-gray-200 flex items-center justify-center shrink-0 shadow-sm">
-                  {s.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] text-gray-400 font-medium">
-                    {s.label}
-                  </p>
-                  <p className="text-sm font-bold text-gray-800 leading-tight">
-                    {s.value}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Location breakdown cards */}
+          {/* Local body breakdown cards */}
           {plbComparison.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Location Breakdown — {plbComparison.length} Locations
+                Local Body Breakdown — {plbComparison.length} Location
+                {plbComparison.length !== 1 ? "s" : ""}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {(plbComparison as any[]).slice(0, 8).map((p, i) => {
-                  const pEff = Number(p.collection_efficiency_percent ?? 0);
-                  const pc = effColor(Math.min(pEff, 100));
-                  return (
-                    <div
-                      key={i}
-                      className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <p className="text-xs font-bold text-gray-800">
-                            {p.location_node_name ?? p.location_node_id}
-                          </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {p.waste_type ?? "All types"}
-                          </p>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${statusBadgeCls(p.report_status)}`}
-                        >
-                          {p.report_status}
-                        </span>
-                      </div>
-                      <div className="mb-2">
-                        <div className="flex justify-between text-[10px] text-gray-400 mb-1">
-                          <span>Efficiency</span>
-                          <span className={`font-bold ${pc.text}`}>
-                            {pEff.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${pc.bg}`}
-                            style={{ width: `${Math.min(pEff, 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div className="text-center bg-blue-50 rounded-lg py-1.5">
-                          <p className="text-[10px] text-blue-500 font-medium">
-                            Agreed
-                          </p>
-                          <p className="text-xs font-bold text-blue-700">
-                            {fmtKg(p.total_agreed_weight)} kg
-                          </p>
-                        </div>
-                        <div className="text-center bg-green-50 rounded-lg py-1.5">
-                          <p className="text-[10px] text-green-500 font-medium">
-                            Actual
-                          </p>
-                          <p className="text-xs font-bold text-green-700">
-                            {fmtKg(p.total_actual_weight)} kg
-                          </p>
-                        </div>
-                      </div>
+                {plbComparison.slice(0, 8).map((p, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="mb-2">
+                      <p className="text-xs font-bold text-gray-800">
+                        {p.local_body_name}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {p.local_body_type}
+                      </p>
                     </div>
-                  );
-                })}
+                    <div className="text-center bg-blue-50 rounded-lg py-2 mb-2">
+                      <p className="text-[10px] text-blue-500 font-medium">
+                        Weight Collected
+                      </p>
+                      <p className="text-sm font-bold text-blue-700">
+                        {fmtKg(p.total_actual_weight)} kg
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-gray-400">
+                        Trips:{" "}
+                        <strong className="text-gray-600">
+                          {p.total_trips}
+                        </strong>
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        Points:{" "}
+                        <strong className="text-gray-600">
+                          {p.collection_points_covered}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Waste-type breakdown table */}
+          {/* Waste-type breakdown table (per row) */}
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by Location &amp; Waste Type — {rows.length} row
+                Breakdown by Local Body &amp; Waste Type — {rows.length} row
                 {rows.length !== 1 ? "s" : ""}
               </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
@@ -879,25 +1068,16 @@ export default function MonthlyWasteComparisonListPage() {
                         Month
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        Location
+                        Local Body Type
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Local Body
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">
                         Waste Type
                       </th>
                       <th className="px-4 py-3 text-right font-semibold">
-                        Agreed (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Actual (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Variance (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Efficiency
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold">
-                        Status
+                        Weight Collected (kg)
                       </th>
                       <th className="px-4 py-3 text-right font-semibold">
                         Trips
@@ -908,58 +1088,34 @@ export default function MonthlyWasteComparisonListPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {rows.map((r) => {
-                      const rowEff = Number(
-                        r.collection_efficiency_percent ?? 0,
-                      );
-                      const ec = effColor(Math.min(rowEff, 100));
-                      return (
-                        <tr
-                          key={r.unique_id}
-                          className="hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                            {r.month}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
-                            {r.location_node_name ?? r.location_node_id}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                            {r.waste_type}
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
-                            {fmtKg(r.total_agreed_weight)}
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
-                            {fmtKg(r.total_actual_weight)}
-                          </td>
-                          <td
-                            className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${r.variance_kg >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                          >
-                            {r.variance_kg >= 0 ? "+" : ""}
-                            {fmtKg(r.variance_kg)}
-                          </td>
-                          <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <span className={`font-bold ${ec.text}`}>
-                              {rowEff.toFixed(1)}%
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center whitespace-nowrap">
-                            <span
-                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusBadgeCls(r.report_status)}`}
-                            >
-                              {r.report_status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {r.total_trips}
-                          </td>
-                          <td className="px-4 py-3 text-right text-gray-600">
-                            {r.collection_points_covered}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {rows.map((r) => (
+                      <tr
+                        key={r.unique_id}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {r.month}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {r.local_body_type}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                          {r.local_body_name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {r.waste_type}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
+                          {fmtKg(r.total_actual_weight)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {r.total_trips}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {r.collection_points_covered}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

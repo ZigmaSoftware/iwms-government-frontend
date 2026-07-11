@@ -12,7 +12,7 @@ import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { stateApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
+import { formatCoordinates } from "@/pages/admin/modules/masters/shared/formatCoordinates";
 
 type StateListRecord = {
   unique_id: string;
@@ -39,8 +39,8 @@ const columns = [
 
 export default function StateListPage() {
   const navigate = useNavigate();
-  const { encMasters, encStates } = getEncryptedRoute();
-  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encStates);
+  const { encCommonMasters, encStates } = getEncryptedRoute();
+  const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encCommonMasters, encStates);
 
   const [rows, setRows] = useState<StateListRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);

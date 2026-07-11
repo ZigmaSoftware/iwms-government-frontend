@@ -24,7 +24,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
-  encAttendance,
   encMasters,
   encAudits,
   encCollectionPoints,
@@ -32,6 +31,7 @@ const {
   encProperties,
   encSubProperties,
   encStaffCreation,
+  encStaffAccessConfiguration,
   encAdmins,
   encUserScreen,
   encUserType,
@@ -63,7 +63,6 @@ const {
   encVehicleTracking,
   encVehicleType,
   encWasteCollectedData,
-  encWasteManagementMaster,
   encWorkforceManagement,
   encStaffUserType,
   encMainScreenType,
@@ -75,15 +74,22 @@ const {
   encAlternativeStaffTemplate,
   encCommonAudit,
   encTripPlans,
-  encTripPlanCollectionPoints,
-  encHierarchyLevels,
-  encHierarchyTree,
-  encHierarchyAssign,
+  encVehicleBreakdown,
+  encSchedulerConfig,
+  encCommonMasters,
+  encContinents,
+  encCountries,
+  encStates,
+  encDistricts,
+  encAreaTypes,
+  encCorporations,
+  encMunicipalities,
+  encTownPanchayats,
+  encPanchayatUnions,
+  encPanchayats,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
-  encDailyTripCollectionPoint,
-  encDailyTripHouseholdCollection,
   encDailyTripTracking,
   encBinCollectionEvent,
   encLoginAudits,
@@ -111,6 +117,7 @@ type SidebarSectionKey =
   | "main"
   | "attendance"
   | "superadminMaster"
+  | "commonMaster"
   | "master"
   | "wasteType"
   | "assets"
@@ -154,22 +161,75 @@ const masterItems: NavItem[] = [
     screen: "masters",
     subItems: [
       {
-        nameKey: "admin.nav.hierarchy_levels",
-        path: `/${encMasters}/${encHierarchyLevels}`,
+        nameKey: "admin.nav.district",
+        path: `/${encMasters}/${encDistricts}`,
         module: "masters",
-        screen: "hierarchy-levels",
+        screen: "districts",
       },
       {
-        nameKey: "admin.nav.hierarchy_tree",
-        path: `/${encMasters}/${encHierarchyTree}`,
+        nameKey: "admin.nav.area_type",
+        path: `/${encMasters}/${encAreaTypes}`,
         module: "masters",
-        screen: "hierarchy-nodes",
+        screen: "area-types",
       },
       {
-        nameKey: "admin.nav.hierarchy_assign",
-        path: `/${encMasters}/${encHierarchyAssign}`,
+        nameKey: "admin.nav.corporation",
+        path: `/${encMasters}/${encCorporations}`,
         module: "masters",
-        screen: "hierarchy-assignments",
+        screen: "corporations",
+      },
+      {
+        nameKey: "admin.nav.municipality",
+        path: `/${encMasters}/${encMunicipalities}`,
+        module: "masters",
+        screen: "municipalities",
+      },
+      {
+        nameKey: "admin.nav.town_panchayat",
+        path: `/${encMasters}/${encTownPanchayats}`,
+        module: "masters",
+        screen: "town-panchayats",
+      },
+      {
+        nameKey: "admin.nav.panchayat_union",
+        path: `/${encMasters}/${encPanchayatUnions}`,
+        module: "masters",
+        screen: "panchayat-unions",
+      },
+      {
+        nameKey: "admin.nav.panchayat",
+        path: `/${encMasters}/${encPanchayats}`,
+        module: "masters",
+        screen: "panchayats",
+      },
+    ],
+  },
+];
+
+const commonMasterItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.common_masters",
+    icon: <Layers3 size={18} />,
+    module: "common-masters",
+    screen: "common-masters",
+    subItems: [
+      {
+        nameKey: "admin.nav.continent",
+        path: `/${encCommonMasters}/${encContinents}`,
+        module: "common-masters",
+        screen: "continents",
+      },
+      {
+        nameKey: "admin.nav.country",
+        path: `/${encCommonMasters}/${encCountries}`,
+        module: "common-masters",
+        screen: "countries",
+      },
+      {
+        nameKey: "admin.nav.state",
+        path: `/${encCommonMasters}/${encStates}`,
+        module: "common-masters",
+        screen: "states",
       },
     ],
   },
@@ -298,6 +358,12 @@ const userCreationMasters: NavItem[] = [
         module: "user-creations",
         screen: "staffcreation",
       },
+      {
+        nameKey: "admin.nav.staff_access_configuration",
+        path: `/${encStaffMasters}/${encStaffAccessConfiguration}`,
+        module: "user-creations",
+        screen: "staff-access-configuration",
+      },
     ],
   },
 ];
@@ -321,12 +387,6 @@ const customerMasters: NavItem[] = [
         path: `/${encCustomerMaster}/${encApartmentList}`,
         module: "customers",
         screen: "customercreations",
-      },
-      {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encWasteManagementMaster}/${encWasteCollectedData}`,
-        module: "customers",
-        screen: "wastecollections",
       },
       {
         nameKey: "admin.nav.feedback",
@@ -471,10 +531,10 @@ const scheduleSetupItems: NavItem[] = [
         screen: "trip-plans",
       },
       {
-        nameKey: "admin.nav.trip_plan_collection_points",
-        path: `/${encScheduleMasters}/${encTripPlanCollectionPoints}`,
+        nameKey: "admin.nav.scheduler_config",
+        path: `/${encScheduleMasters}/${encSchedulerConfig}`,
         module: "schedule-masters",
-        screen: "trip-plan-collection-points",
+        screen: "daily-trip-assignments",
       },
     ],
   },
@@ -495,18 +555,6 @@ const scheduleOperationsItems: NavItem[] = [
         screen: "daily-trip-assignments",
       },
       {
-        nameKey: "admin.nav.daily_trip_collection_point",
-        path: `/${encScheduleMasters}/${encDailyTripCollectionPoint}`,
-        module: "schedule-masters",
-        screen: "daily-trip-collection-points",
-      },
-      {
-        nameKey: "admin.nav.daily_trip_household_collection",
-        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
-        module: "schedule-masters",
-        screen: "daily-trip-household-collections",
-      },
-      {
         nameKey: "admin.nav.daily_trip_tracking",
         path: `/${encScheduleMasters}/${encDailyTripTracking}`,
         module: "schedule-masters",
@@ -519,10 +567,22 @@ const scheduleOperationsItems: NavItem[] = [
         screen: "bin-collection-events",
       },
       {
+        nameKey: "admin.nav.vehicle_breakdown",
+        path: `/${encScheduleMasters}/${encVehicleBreakdown}`,
+        module: "schedule-masters",
+        screen: "vehicle-breakdowns",
+      },
+      {
         nameKey: "admin.nav.daily_trip_log",
         path: `/${encScheduleMasters}/${encDailyTripLog}`,
         module: "schedule-masters",
         screen: "daily-trip-logs",
+      },
+      {
+        nameKey: "admin.nav.waste_collected_data",
+        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
+        module: "schedule-masters",
+        screen: "wastecollections",
       },
     ],
   },
@@ -735,6 +795,7 @@ const AppSidebar: React.FC = () => {
     () => {
       const allSections = [
         { key: "main" as const, items: navItems },
+        { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },
         { key: "assets" as const, items: assetItems },
