@@ -1,6 +1,5 @@
 import type { ReportResponse, ReportRow, LocationComparisonRow, WasteTypeBreakdownRow } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { adminApi } from "@/helpers/admin/registry";
 import {
@@ -19,7 +18,6 @@ import {
   Download,
   MapPin,
   PieChart as PieChartIcon,
-  Plus,
   Recycle,
   Scale,
   Truck,
@@ -40,8 +38,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import {
   exportRecordsToExcel,
@@ -250,7 +246,6 @@ const WasteTypeLegend = ({ payload }: any) => (
 ══════════════════════════════════════════════════════════════════ */
 export default function MonthlyWasteComparisonListPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   const [monthValue, setMonthValue] = useState(currentMonth());
   const [appliedMonth, setAppliedMonth] = useState(currentMonth());
@@ -286,12 +281,6 @@ export default function MonthlyWasteComparisonListPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-
-  const { encScheduleMasters, encMonthlyWasteComparison } = getEncryptedRoute();
-  const { newPath: monthlyComparisonNewPath } = createCrudRoutePaths(
-    encScheduleMasters,
-    encMonthlyWasteComparison,
-  );
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
@@ -399,28 +388,6 @@ export default function MonthlyWasteComparisonListPage() {
   useEffect(() => {
     void fetchReport();
   }, [appliedMonth, sortMode, source, localBodyLevel, localBodyId]);
-
-  /* ── delete ── */
-  const handleDelete = async (uniqueId: string, label: string) => {
-    const res = await Swal.fire({
-      title: t("common.are_you_sure"),
-      text: `Delete record for ${label}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
-    });
-    if (!res.isConfirmed) return;
-    try {
-      await adminApi.monthlyWasteComparison.delete(uniqueId);
-      await fetchReport();
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
-    } catch {
-      Swal.fire(t("common.error"), "Failed to delete record.", "error");
-    }
-  };
 
   /* ── derived ── */
   const plbChartData = useMemo(
@@ -573,14 +540,6 @@ export default function MonthlyWasteComparisonListPage() {
           >
             <Download className="h-4 w-4" />{" "}
             {exporting ? "Downloading..." : "Download All"}
-          </button>
-          <button
-            onClick={() =>
-              navigate(monthlyComparisonNewPath)
-            }
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Add Record
           </button>
         </div>
       </div>
@@ -1126,9 +1085,6 @@ export default function MonthlyWasteComparisonListPage() {
                       <th className="px-4 py-3 text-right font-semibold">
                         Points
                       </th>
-                      <th className="px-4 py-3 text-center font-semibold">
-                        Actions
-                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -1157,17 +1113,6 @@ export default function MonthlyWasteComparisonListPage() {
                         </td>
                         <td className="px-4 py-3 text-right text-gray-600">
                           {r.collection_points_covered}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {r.unique_id && (
-                            <button
-                              onClick={() => handleDelete(r.unique_id as string, r.local_body_name)}
-                              className="text-red-400 hover:text-red-600"
-                              title="Delete"
-                            >
-                              Delete
-                            </button>
-                          )}
                         </td>
                       </tr>
                     ))}
