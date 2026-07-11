@@ -463,18 +463,7 @@ export default function AdminHome() {
           },
         );
         if (data?.kpis) {
-          const k = data.kpis;
-          setWasteKpis({
-            total_agreed_weight: k.total_agreed_weight ?? 0,
-            total_actual_weight: k.total_actual_weight ?? 0,
-            variance_kg: k.variance_kg ?? 0,
-            collection_efficiency_percent: k.collection_efficiency_percent ?? 0,
-            average_weight_per_trip: k.average_weight_per_trip ?? 0,
-            coverage_efficiency_percent: k.coverage_efficiency_percent ?? 0,
-            total_trips: k.total_trips ?? 0,
-            collection_points_covered: k.collection_points_covered ?? 0,
-            report_status: k.report_status ?? "",
-          });
+          setWasteKpis(data.kpis);
         }
       } catch {
         // silently ignore — dashboard should not break if report API fails
