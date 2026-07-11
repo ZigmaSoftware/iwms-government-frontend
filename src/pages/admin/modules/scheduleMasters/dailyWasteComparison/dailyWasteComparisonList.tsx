@@ -5,26 +5,20 @@ import type {
   WasteTypeBreakdownRow,
 } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  BarChart3,
   Calendar,
+  ChevronRight,
   Download,
+  Leaf,
   MapPin,
-  Pencil,
-  PieChart as PieChartIcon,
-  Plus,
   Recycle,
   Scale,
-  Trash2,
   Truck,
 } from "lucide-react";
 import Swal from "@/lib/notify";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Legend,
@@ -35,8 +29,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getEncryptedRoute } from "@/utils/routeCache";
-import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useTranslation } from "react-i18next";
 import {
   areaTypeApi,
@@ -55,18 +47,59 @@ import {
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 
-/* ── Palette (fixed categorical order — never cycled/regenerated) ──── */
-const SERIES = [
-  "#2a78d6", // blue
-  "#1baf7a", // aqua
-  "#eda100", // yellow
-  "#008300", // green
-  "#4a3aa7", // violet
-  "#e34948", // red
-  "#e87ba4", // magenta
-  "#eb6834", // orange
-];
-const OTHER_SLICE_COLOR = "#9ca3af";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+/* ══════════════════════════════════════════════════════════════════
+   TOKENS — civic sanitation ledger palette, layered onto shadcn primitives
+══════════════════════════════════════════════════════════════════ */
+const C = {
+  bg: "#F4F5EE",
+  surface: "#FFFFFF",
+  surfaceSunk: "#EEF0E6",
+  ink: "#152420",
+  inkSoft: "#5D6B60",
+  inkFaint: "#93A096",
+  line: "#E2E5D9",
+  primary: "#1F5B44",
+  primaryDeep: "#123A2B",
+  leaf: "#3FA66A",
+  teal: "#2C6E8E",
+  ochre: "#D98E2B",
+  brick: "#B84A3E",
+  violet: "#7C6FAE",
+} as const;
+
+const WASTE_PALETTE: string[] = [C.leaf, C.teal, C.ochre, C.violet, C.brick, C.primary, "#3E8E7E"];
+const OTHER_SLICE_COLOR = "#9CA3AF";
+
+const FONTS = `
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+.dwcr{font-family:'Manrope',system-ui,sans-serif;color:${C.ink};background:${C.bg};}
+.dwcr .font-display{font-family:'Fraunces',serif;}
+.dwcr .font-mono{font-family:'IBM Plex Mono',monospace;}
+.dwcr ::-webkit-scrollbar{height:6px;width:6px;}
+.dwcr ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
+.dwcr .dwcr-select > button{background:${C.surfaceSunk};border-color:${C.line};color:${C.ink};font-size:0.75rem;height:2.25rem;}
+.dwcr .dwcr-select-dark > button{background:rgba(255,255,255,0.14);border-color:transparent;color:#fff;height:2.5rem;}
+.dwcr .dwcr-select-dark > button svg{color:#fff;opacity:0.7;}
+`;
 
 const initialKpis: DailyReportResponse["kpis"] = {
   total_actual_weight_kg: 0,
@@ -130,7 +163,7 @@ const toGeoOptions = (records: any[]) =>
   records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
-const fmtKg = (v?: number | string | null, dec = 2) => {
+const fmtKg = (v?: number | string | null, dec = 0) => {
   const n = Number(v);
   return Number.isNaN(n)
     ? "—"
@@ -139,69 +172,62 @@ const fmtKg = (v?: number | string | null, dec = 2) => {
 const fmtAxis = (v: number) =>
   Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
-/* ── Local-body weight row (simple bar, no target) ──────────────── */
-const LocalBodyWeightRow = ({
-  plb,
-  maxWeight,
-}: {
-  plb: LocationComparisonRow;
-  maxWeight: number;
-}) => {
-  const pct = maxWeight > 0 ? Math.min((plb.actual_weight_kg / maxWeight) * 100, 100) : 0;
+/* ══════════════════════════════════════════════════════════════════
+   SIGNATURE ELEMENT — weighbridge dial
+══════════════════════════════════════════════════════════════════ */
+interface Point {
+  x: number;
+  y: number;
+}
+
+function polar(cx: number, cy: number, r: number, deg: number): Point {
+  const rad = ((deg - 180) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
+  const s = polar(cx, cy, r, startDeg);
+  const e = polar(cx, cy, r, endDeg);
+  const large = endDeg - startDeg > 180 ? 1 : 0;
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
+}
+
+function WeighDial({ value, max, unit = "kg" }: { value: number; max: number; unit?: string }) {
+  const pct = Math.max(0, Math.min(1, max ? value / max : 0));
+  const sweep = pct * 180;
+  const needle = polar(110, 110, 78, sweep);
+  const ticks: number[] = [0, 25, 50, 75, 100];
   return (
-    <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-      <div className="w-28 shrink-0">
-        <p className="text-xs font-semibold text-gray-800 truncate" title={plb.local_body_name}>
-          {plb.local_body_name}
-        </p>
-        <p className="text-[10px] text-gray-400 mt-0.5">
-          {plb.local_body_type} · {plb.total_trips} trip{plb.total_trips !== 1 ? "s" : ""}
-        </p>
-      </div>
-      <div className="flex-1">
-        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-green-500 transition-all duration-700"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-      <div className="w-20 text-right shrink-0">
-        <span className="text-xs font-bold text-gray-700">{fmtKg(plb.actual_weight_kg)} kg</span>
-      </div>
-    </div>
+    <svg viewBox="0 0 220 128" className="w-full max-w-[260px]">
+      <path d={arcPath(110, 110, 92, 0, 180)} fill="none" stroke={C.line} strokeWidth={14} strokeLinecap="round" />
+      <path d={arcPath(110, 110, 92, 0, Math.max(sweep, 2))} fill="none" stroke={C.leaf} strokeWidth={14} strokeLinecap="round" />
+      {ticks.map((t) => {
+        const p1 = polar(110, 110, 100, t * 1.8);
+        const p2 = polar(110, 110, 108, t * 1.8);
+        return <line key={t} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={C.inkFaint} strokeWidth={1.5} />;
+      })}
+      <line x1={110} y1={110} x2={needle.x} y2={needle.y} stroke={C.primaryDeep} strokeWidth={3} strokeLinecap="round" />
+      <circle cx={110} cy={110} r={7} fill={C.primaryDeep} />
+      <text x={110} y={98} textAnchor="middle" className="font-mono" fontSize={22} fontWeight={600} fill={C.ink}>
+        {value.toLocaleString("en-IN")}
+      </text>
+      <text x={110} y={114} textAnchor="middle" className="font-mono" fontSize={10} fill={C.inkSoft} letterSpacing={1.5}>
+        {unit.toUpperCase()} TODAY
+      </text>
+    </svg>
   );
-};
+}
 
 /* ── Tooltip components ──────────────────────────────────────────── */
-const DateTooltip = ({ active, payload, label }: any) => {
+const ChipTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[150px]">
-      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1">
-        <Calendar className="h-3 w-3" /> {label}
-      </p>
+    <div className="rounded-lg px-3 py-2.5 text-xs shadow-lg" style={{ background: C.primaryDeep, color: "#F4F5EE", minWidth: 140 }}>
+      <p className="font-semibold mb-1 opacity-80">{label}</p>
       {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex justify-between gap-4 mt-1">
-          <span style={{ color: p.stroke ?? p.fill }}>{p.name}</span>
-          <span className="font-bold">
-            {p.dataKey === "total_trips" ? p.value : `${fmtKg(p.value)} kg`}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-const PLBTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[160px]">
-      <p className="font-semibold text-gray-700 mb-2">{label}</p>
-      {payload.map((p: any) => (
-        <div key={p.dataKey} className="flex justify-between gap-4 mt-1">
-          <span style={{ color: p.fill }}>{p.name}</span>
-          <span className="font-bold">{fmtKg(p.value)} kg</span>
+        <div key={p.dataKey} className="flex justify-between gap-4 font-mono">
+          <span>{p.name}</span>
+          <span className="font-semibold">{`${fmtKg(p.value)} kg`}</span>
         </div>
       ))}
     </div>
@@ -213,25 +239,22 @@ const WasteTypeTooltip = ({ active, payload }: any) => {
   const p = payload[0];
   const row = p.payload as WasteTypeBreakdownRow & { color: string };
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[170px]">
-      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
-        <span
-          className="inline-block h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: row.color }}
-        />
+    <div className="rounded-lg px-3 py-2.5 text-xs shadow-lg" style={{ background: C.primaryDeep, color: "#F4F5EE", minWidth: 160 }}>
+      <p className="font-semibold mb-1.5 flex items-center gap-1.5 opacity-90">
+        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
         {row.waste_type}
       </p>
-      <div className="flex justify-between gap-4">
-        <span className="text-gray-500">Weight</span>
-        <span className="font-bold">{fmtKg(row.actual_weight_kg)} kg</span>
+      <div className="flex justify-between gap-4 font-mono">
+        <span className="opacity-70">Weight</span>
+        <span className="font-semibold">{fmtKg(row.actual_weight_kg)} kg</span>
       </div>
-      <div className="flex justify-between gap-4 mt-1">
-        <span className="text-gray-500">Share</span>
-        <span className="font-bold">{fmtKg(row.share_percent, 1)}%</span>
+      <div className="flex justify-between gap-4 font-mono mt-0.5">
+        <span className="opacity-70">Share</span>
+        <span className="font-semibold">{row.share_percent.toFixed(1)}%</span>
       </div>
-      <div className="flex justify-between gap-4 mt-1">
-        <span className="text-gray-500">Trips</span>
-        <span className="font-bold">{row.total_trips}</span>
+      <div className="flex justify-between gap-4 font-mono mt-0.5">
+        <span className="opacity-70">Trips</span>
+        <span className="font-semibold">{row.total_trips}</span>
       </div>
     </div>
   );
@@ -240,23 +263,57 @@ const WasteTypeTooltip = ({ active, payload }: any) => {
 const WasteTypeLegend = ({ payload }: any) => (
   <ul className="flex flex-wrap justify-center gap-3 mt-3">
     {(payload ?? []).map((entry: any) => (
-      <li key={entry.value} className="flex items-center gap-1.5 text-xs text-gray-600">
-        <span
-          className="inline-block h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: entry.color }}
-        />
+      <li key={entry.value} className="flex items-center gap-1.5 text-xs" style={{ color: C.inkSoft }}>
+        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: entry.color }} />
         {entry.value}
       </li>
     ))}
   </ul>
 );
 
+/* ── local, small select wrapper for the "value=all/none" placeholder pattern ── */
+const NONE = "__none__";
+
+function FilterSelect({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  options,
+  dark = false,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  options: Array<{ value: string; label: string }>;
+  dark?: boolean;
+}) {
+  return (
+    <Select
+      value={value || undefined}
+      onValueChange={(v) => onChange(v === NONE ? "" : v)}
+      disabled={disabled}
+    >
+      <SelectTrigger className={dark ? "dwcr-select-dark rounded-xl border-0" : "dwcr-select rounded-lg"}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════════════
     MAIN COMPONENT
 ══════════════════════════════════════════════════════════════════ */
 export default function DailyWasteComparisonList() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
 
   const [dateValue, setDateValue] = useState("");
   const [appliedDate, setAppliedDate] = useState("");
@@ -294,10 +351,6 @@ export default function DailyWasteComparisonList() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
-
-  const { encScheduleMasters, encDailyWasteComparison } = getEncryptedRoute();
-  const { newPath: dailyComparisonNewPath, editPath: dailyComparisonEditPath } =
-    createCrudRoutePaths(encScheduleMasters, encDailyWasteComparison);
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
@@ -406,41 +459,15 @@ export default function DailyWasteComparisonList() {
     void fetchReport();
   }, [appliedDate, sortMode, source, localBodyLevel, localBodyId]);
 
-  /* ── delete ── */
-  const handleDelete = async (row: DailyReportRow) => {
-    const result = await Swal.fire({
-      title: t("common.are_you_sure"),
-      text: `Delete record for ${row.local_body_name} — ${row.collection_date}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      cancelButtonColor: "#6b7280",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: t("common.cancel"),
-    });
-    if (!result.isConfirmed) return;
-    try {
-      await dailyWasteComparisonApi.delete(row.unique_id);
-      await fetchReport();
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
-    } catch {
-      Swal.fire(t("common.error"), "Failed to delete record.", "error");
-    }
-  };
-
   /* ── derived ── */
-  const plbChartData = useMemo(
-    () =>
-      plbCompare.slice(0, 8).map((p) => ({
-        name: p.local_body_name,
-        Weight: Number(p.actual_weight_kg ?? 0),
-      })),
-    [plbCompare],
-  );
-
   const maxPlbWeight = useMemo(
     () => plbCompare.reduce((max, p) => Math.max(max, p.actual_weight_kg), 0),
     [plbCompare],
+  );
+
+  const dayMax = useMemo(
+    () => dateTrends.reduce((max, d) => Math.max(max, Number(d.actual_weight_kg ?? 0)), 0) || 1,
+    [dateTrends],
   );
 
   /* waste-type pie data — top slots take fixed categorical colors in order,
@@ -452,7 +479,7 @@ export default function DailyWasteComparisonList() {
     );
     const head = sorted.slice(0, MAX_PIE_SLICES).map((row, i) => ({
       ...row,
-      color: SERIES[i % SERIES.length],
+      color: WASTE_PALETTE[i % WASTE_PALETTE.length],
     }));
     const tail = sorted.slice(MAX_PIE_SLICES);
     if (tail.length > 0) {
@@ -523,309 +550,300 @@ export default function DailyWasteComparisonList() {
       RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="p-5 space-y-5 bg-gray-50 min-h-screen font-sans">
-      {/* ── Header card ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">
-            Daily Waste Collection Report
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Total collected weight, trips, and waste-type composition by local body
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={dateValue}
-            max={todayValue()}
-            onChange={(e) => setDateValue(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
+    <div className="dwcr min-h-screen">
+      <style>{FONTS}</style>
+
+      {/* ── breadcrumb rail ── */}
+      <div className="px-6 md:px-10 pt-6 flex items-center gap-1.5 text-xs" style={{ color: C.inkFaint }}>
+        <span>Schedule Masters</span>
+        <ChevronRight className="h-3 w-3" />
+        <span style={{ color: C.primary }} className="font-semibold">
+          Daily Waste Comparison
+        </span>
+      </div>
+
+      {/* ══════════════ HERO ══════════════ */}
+      <div className="px-6 md:px-10 pt-5">
+        <div
+          className="rounded-3xl overflow-hidden relative"
+          style={{ background: `linear-gradient(120deg, ${C.primaryDeep} 0%, ${C.primary} 62%, #2C6E52 100%)` }}
+        >
+          <div
+            className="absolute inset-0 opacity-[0.07]"
+            style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "22px 22px" }}
           />
-          <select
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="weight">Highest weight</option>
-            <option value="trips">Most trips</option>
-          </select>
-          <select
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household Collection</option>
-            <option value="all">All Sources</option>
-          </select>
-          <button
-            onClick={() => setAppliedDate(dateValue)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            Go
-          </button>
-          <button
-            onClick={() => {
-              setDateValue("");
-              setAppliedDate("");
-            }}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            All Dates
-          </button>
-          <button
-            onClick={handleDownload}
-            disabled={!rows.length || exporting}
-            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-          >
-            <Download className="h-4 w-4" />{" "}
-            {exporting ? "Downloading..." : "Download All"}
-          </button>
+          <div className="relative grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 px-7 md:px-10 py-8">
+            <div className="flex flex-col justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.12)" }}>
+                    <Leaf className="h-4 w-4" style={{ color: "#B8E6C6" }} />
+                  </div>
+                  <span className="font-mono text-[11px] tracking-[0.2em]" style={{ color: "#B8E6C6" }}>
+                    CIVIC SANITATION · COLLECTION LEDGER
+                  </span>
+                </div>
+                <h1 className="font-display text-3xl md:text-4xl font-semibold text-white leading-tight">Daily Waste Collection Report</h1>
+                <p className="mt-2 text-sm max-w-md" style={{ color: "rgba(244,245,238,0.72)" }}>
+                  Every load, weighed and logged — total weight, trips, and composition across every local body on record.
+                </p>
+              </div>
+
+              {/* ── toolbar ── */}
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  type="date"
+                  value={dateValue}
+                  max={todayValue()}
+                  onChange={(e) => setDateValue(e.target.value)}
+                  className="w-auto rounded-xl border-0 h-10 text-sm"
+                  style={{ background: "rgba(255,255,255,0.14)", color: "white", colorScheme: "dark" }}
+                />
+                <div className="w-40">
+                  <FilterSelect
+                    value={sortMode}
+                    onChange={setSortMode}
+                    placeholder="Sort"
+                    dark
+                    options={[
+                      { value: "weight", label: "Highest weight" },
+                      { value: "trips", label: "Most trips" },
+                    ]}
+                  />
+                </div>
+                <div className="w-44">
+                  <FilterSelect
+                    value={source}
+                    onChange={setSource}
+                    placeholder="Source"
+                    dark
+                    options={[
+                      { value: "bin", label: "Bin Collection" },
+                      { value: "household", label: "Household Collection" },
+                      { value: "all", label: "All Sources" },
+                    ]}
+                  />
+                </div>
+                <Button
+                  onClick={() => setAppliedDate(dateValue)}
+                  className="rounded-xl font-semibold transition-transform hover:scale-[1.03]"
+                  style={{ background: C.leaf, color: C.primaryDeep }}
+                >
+                  Go
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDateValue("");
+                    setAppliedDate("");
+                  }}
+                  className="rounded-xl font-semibold bg-transparent hover:bg-white/10"
+                  style={{ borderColor: "rgba(255,255,255,0.3)", color: "white" }}
+                >
+                  All dates
+                </Button>
+                <Button
+                  onClick={handleDownload}
+                  disabled={!rows.length || exporting}
+                  className="flex items-center gap-1.5 rounded-xl font-semibold ml-auto transition-transform hover:scale-[1.03]"
+                  style={{ background: "rgba(255,255,255,0.14)", color: "white" }}
+                >
+                  <Download className="h-3.5 w-3.5" /> {exporting ? "Downloading…" : "Download all"}
+                </Button>
+              </div>
+            </div>
+
+            {/* ── signature weighbridge dial ── */}
+            <div
+              className="rounded-2xl flex flex-col items-center justify-center py-4"
+              style={{ background: "rgba(244,245,238,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <WeighDial value={kpis.total_actual_weight_kg} max={dayMax} unit="kg" />
+              <p className="text-[11px] mt-1 font-mono tracking-wide" style={{ color: "rgba(244,245,238,0.6)" }}>
+                {appliedDate || "All dates"} · load against day's peak
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ── Local body filter cascade ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-            <MapPin className="h-4 w-4 text-gray-400" /> Filter by Local Body
-          </h2>
-          {(stateId || districtId || areaTypeId || localBodyId) && (
-            <button
-              onClick={clearLocalBodyFilter}
-              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-            >
-              Clear filter
-            </button>
+      {/* ══════════════ LOCAL BODY FILTER ══════════════ */}
+      <div className="px-6 md:px-10 mt-5">
+        <Card className="rounded-2xl px-5 py-4 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: C.inkSoft }}>
+              <MapPin className="h-3.5 w-3.5" /> Filter by local body
+            </h2>
+            {(stateId || districtId || areaTypeId || localBodyId) && (
+              <Button variant="link" onClick={clearLocalBodyFilter} className="h-auto p-0 text-xs font-semibold" style={{ color: C.teal }}>
+                Clear filter
+              </Button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+            <FilterSelect
+              value={stateId}
+              onChange={(v) => {
+                setStateId(v);
+                setDistrictId("");
+                setAreaTypeId("");
+                setAreaTypeCategory("");
+                setLocalBodyLevel("");
+                setLocalBodyId("");
+              }}
+              placeholder="Select state"
+              options={toGeoOptions(states)}
+            />
+            <FilterSelect
+              value={districtId}
+              onChange={(v) => {
+                setDistrictId(v);
+                setAreaTypeId("");
+                setAreaTypeCategory("");
+                setLocalBodyLevel("");
+                setLocalBodyId("");
+              }}
+              placeholder={stateId ? "Select district" : "Select a state first"}
+              disabled={!stateId}
+              options={toGeoOptions(filteredDistricts)}
+            />
+            <FilterSelect
+              value={areaTypeId}
+              onChange={(v) => {
+                const selected = filteredAreaTypes.find((a) => resolveGeoId(a) === v);
+                setAreaTypeId(v);
+                setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+                setLocalBodyLevel("");
+                setLocalBodyId("");
+              }}
+              placeholder={districtId ? "Select area type" : "Select a district first"}
+              disabled={!districtId}
+              options={toGeoOptions(filteredAreaTypes)}
+            />
+            <FilterSelect
+              value={localBodyLevel}
+              onChange={(v) => {
+                setLocalBodyLevel(v as LocalBodyLevel);
+                setLocalBodyId("");
+              }}
+              placeholder={areaTypeCategory ? "Select local body type" : "Select an area type first"}
+              disabled={!areaTypeCategory}
+              options={availableLocalBodyLevels}
+            />
+            <FilterSelect
+              value={localBodyId}
+              onChange={setLocalBodyId}
+              placeholder={
+                localBodyLevel
+                  ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}`
+                  : "Select a local body type first"
+              }
+              disabled={!localBodyLevel}
+              options={localBodyOptions}
+            />
+          </div>
+
+          {localBodyId && (
+            <p className="mt-3 text-xs" style={{ color: C.inkFaint }}>
+              Showing data for{" "}
+              <span className="font-semibold" style={{ color: C.ink }}>
+                {selectedLocalBodyLabel}
+              </span>
+            </p>
           )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <select
-            value={stateId}
-            onChange={(e) => {
-              setStateId(e.target.value);
-              setDistrictId("");
-              setAreaTypeId("");
-              setAreaTypeCategory("");
-              setLocalBodyLevel("");
-              setLocalBodyId("");
-            }}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400"
-          >
-            <option value="">Select State</option>
-            {toGeoOptions(states).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <select
-            value={districtId}
-            onChange={(e) => {
-              setDistrictId(e.target.value);
-              setAreaTypeId("");
-              setAreaTypeCategory("");
-              setLocalBodyLevel("");
-              setLocalBodyId("");
-            }}
-            disabled={!stateId}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50"
-          >
-            <option value="">{stateId ? "Select District" : "Select a State first"}</option>
-            {toGeoOptions(filteredDistricts).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <select
-            value={areaTypeId}
-            onChange={(e) => {
-              const v = e.target.value;
-              const selected = filteredAreaTypes.find((a) => resolveGeoId(a) === v);
-              setAreaTypeId(v);
-              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
-              setLocalBodyLevel("");
-              setLocalBodyId("");
-            }}
-            disabled={!districtId}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50"
-          >
-            <option value="">{districtId ? "Select Area Type" : "Select a District first"}</option>
-            {toGeoOptions(filteredAreaTypes).map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <select
-            value={localBodyLevel}
-            onChange={(e) => {
-              setLocalBodyLevel(e.target.value as LocalBodyLevel);
-              setLocalBodyId("");
-            }}
-            disabled={!areaTypeCategory}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50"
-          >
-            <option value="">{areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}</option>
-            {availableLocalBodyLevels.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <select
-            value={localBodyId}
-            onChange={(e) => setLocalBodyId(e.target.value)}
-            disabled={!localBodyLevel}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:opacity-50"
-          >
-            <option value="">
-              {localBodyLevel
-                ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}`
-                : "Select a Local Body Type first"}
-            </option>
-            {localBodyOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        {localBodyId && (
-          <p className="mt-3 text-xs text-gray-500">
-            Showing data for <span className="font-semibold text-gray-700">{selectedLocalBodyLabel}</span>
-          </p>
-        )}
+        </Card>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          {error}
+        <div className="px-6 md:px-10 mt-5">
+          <div className="rounded-xl px-4 py-3 text-sm" style={{ background: `${C.brick}14`, border: `1px solid ${C.brick}44`, color: C.brick }}>
+            {error}
+          </div>
         </div>
       )}
 
-      {/* ── 5 KPI cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+      {/* ══════════════ KPI STRIP ══════════════ */}
+      <div className="px-6 md:px-10 mt-5 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {[
-          {
-            label: "Total Weight Collected",
-            value: `${fmtKg(kpis.total_actual_weight_kg)} kg`,
-            accent: "border-t-green-500",
-            icon: <Scale className="h-4 w-4" />,
-          },
-          {
-            label: "Total Trips",
-            value: fmtKg(kpis.total_trips, 0),
-            accent: "border-t-teal-500",
-            icon: <Truck className="h-4 w-4" />,
-          },
-          {
-            label: "Points Covered",
-            value: fmtKg(kpis.collection_points_covered, 0),
-            accent: "border-t-pink-500",
-            icon: <MapPin className="h-4 w-4" />,
-          },
-          {
-            label: "Waste Types",
-            value: fmtKg(kpis.waste_type_count, 0),
-            accent: "border-t-violet-500",
-            icon: <Recycle className="h-4 w-4" />,
-          },
-          {
-            label: "Local Bodies",
-            value: fmtKg(kpis.local_body_count, 0),
-            accent: "border-t-indigo-500",
-            icon: <BarChart3 className="h-4 w-4" />,
-          },
+          { label: "Total weight collected", value: `${fmtKg(kpis.total_actual_weight_kg)} kg`, icon: Scale, accent: C.leaf },
+          { label: "Total trips", value: fmtKg(kpis.total_trips), icon: Truck, accent: C.teal },
+          { label: "Points covered", value: fmtKg(kpis.collection_points_covered), icon: MapPin, accent: C.ochre },
+          { label: "Waste types", value: fmtKg(kpis.waste_type_count), icon: Recycle, accent: C.violet },
+          { label: "Local bodies", value: fmtKg(kpis.local_body_count), icon: Leaf, accent: C.primary },
         ].map((k) => (
-          <div
-            key={k.label}
-            className={`bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-4 ${k.accent} flex flex-col gap-2 p-4`}
-          >
-            <div className="flex items-start justify-between">
-              <p className="text-xs font-medium text-gray-500 leading-tight">
+          <Card key={k.label} className="rounded-2xl p-4 flex flex-col gap-3 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.inkFaint }}>
                 {k.label}
-              </p>
-              <span className="text-gray-400">{k.icon}</span>
+              </span>
+              <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: `${k.accent}1A` }}>
+                <k.icon className="h-3.5 w-3.5" style={{ color: k.accent }} />
+              </div>
             </div>
-            <p className="text-xl font-bold text-gray-800 leading-none">
+            <p className="font-mono text-2xl font-semibold" style={{ color: C.ink }}>
               {loading ? "—" : k.value}
             </p>
-          </div>
+          </Card>
         ))}
       </div>
 
-      {/* ── Charts ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Date-wise trend — Area chart */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Date-wise Collection Trend
-          </h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-4">
+      {/* ══════════════ CHARTS ══════════════ */}
+      <div className="px-6 md:px-10 mt-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* trend */}
+        <Card className="rounded-2xl p-5 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <h2 className="font-display text-base font-semibold">Date-wise collection trend</h2>
+          <p className="text-xs mt-0.5 mb-4" style={{ color: C.inkFaint }}>
             Total weight collected per date
           </p>
           {dateTrends.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+            <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
               No trend data yet.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart
-                data={dateTrends}
-                margin={{ top: 6, right: 20, left: 0, bottom: 4 }}
-              >
+              <AreaChart data={dateTrends} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
                 <defs>
-                  <linearGradient id="gradActualD" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#1baf7a" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#1baf7a" stopOpacity={0.02} />
+                  <linearGradient id="gradTrend" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={C.leaf} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={C.leaf} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#f3f4f6"
-                  vertical={false}
-                />
+                <CartesianGrid strokeDasharray="3 3" stroke={C.line} vertical={false} />
                 <XAxis
                   dataKey="collection_date"
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  tick={{ fontSize: 10, fill: C.inkFaint }}
                   axisLine={false}
                   tickLine={false}
+                  tickFormatter={(d: string) => d.slice(5)}
                 />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={fmtAxis}
-                />
-                <Tooltip content={<DateTooltip />} />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
-                />
+                <YAxis tick={{ fontSize: 10, fill: C.inkFaint }} axisLine={false} tickLine={false} tickFormatter={fmtAxis} />
+                <Tooltip content={<ChipTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="actual_weight_kg"
-                  name="Weight Collected"
-                  stroke="#1baf7a"
+                  name="Weight collected"
+                  stroke={C.leaf}
                   strokeWidth={2.5}
-                  fill="url(#gradActualD)"
-                  dot={{
-                    r: 4,
-                    fill: "#1baf7a",
-                    stroke: "#fff",
-                    strokeWidth: 2,
-                  }}
-                  activeDot={{ r: 6 }}
+                  fill="url(#gradTrend)"
+                  dot={{ r: 3.5, fill: C.leaf, stroke: C.surface, strokeWidth: 1.5 }}
+                  activeDot={{ r: 5.5 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Card>
 
-        {/* Waste composition — Pie chart */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-            <PieChartIcon className="h-4 w-4 text-gray-400" /> Waste Composition
+        {/* composition */}
+        <Card className="rounded-2xl p-5 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <h2 className="font-display text-base font-semibold flex items-center gap-1.5">
+            <Recycle className="h-4 w-4" style={{ color: C.inkFaint }} /> Waste composition
           </h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-2">
-            Share of total collected weight by waste type
+          <p className="text-xs mt-0.5 mb-2" style={{ color: C.inkFaint }}>
+            Share of total weight by waste type
           </p>
           {wasteTypePieData.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+            <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
               No waste-type data yet.
             </div>
           ) : (
@@ -839,11 +857,12 @@ export default function DailyWasteComparisonList() {
                   innerRadius={52}
                   outerRadius={82}
                   paddingAngle={2}
-                  stroke="#fcfcfb"
+                  stroke={C.surface}
                   strokeWidth={2}
-                  label={({ share_percent }: any) =>
-                    share_percent >= 5 ? `${share_percent.toFixed(0)}%` : ""
-                  }
+                  label={(props: unknown) => {
+                    const p = props as { share_percent: number };
+                    return p.share_percent >= 5 ? `${p.share_percent.toFixed(0)}%` : "";
+                  }}
                   labelLine={false}
                 >
                   {wasteTypePieData.map((entry) => (
@@ -854,353 +873,239 @@ export default function DailyWasteComparisonList() {
               </PieChart>
             </ResponsiveContainer>
           )}
-        </div>
+        </Card>
 
-        {/* Local Body Weight — bars */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Weight Collected by Local Body
-          </h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Corporation / municipality / town panchayat / panchayat union / panchayat
+        {/* local body ranked bars */}
+        <Card className="rounded-2xl p-5 lg:col-span-2 shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+          <h2 className="font-display text-base font-semibold">Weight collected by local body</h2>
+          <p className="text-xs mt-0.5 mb-4" style={{ color: C.inkFaint }}>
+            Corporation · municipality · town panchayat · panchayat union · panchayat
           </p>
           {plbCompare.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+            <div className="h-52 flex items-center justify-center text-sm" style={{ color: C.inkFaint }}>
               No local body data yet.
             </div>
           ) : (
-            <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
-              {plbCompare.slice(0, 10).map((p, i) => (
-                <LocalBodyWeightRow key={i} plb={p} maxWeight={maxPlbWeight} />
-              ))}
+            <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+              {plbCompare.map((p) => {
+                const pct = maxPlbWeight > 0 ? Math.min((p.actual_weight_kg / maxPlbWeight) * 100, 100) : 0;
+                return (
+                  <div key={p.local_body_id} className="flex items-center gap-3 py-2.5" style={{ borderBottom: `1px solid ${C.line}` }}>
+                    <div className="w-40 shrink-0">
+                      <p className="text-xs font-semibold truncate" title={p.local_body_name}>
+                        {p.local_body_name}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: C.inkFaint }}>
+                        {p.local_body_type} · {p.total_trips} trip{p.total_trips !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: C.surfaceSunk }}>
+                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: C.leaf }} />
+                    </div>
+                    <div className="w-24 text-right shrink-0 font-mono text-xs font-semibold">{fmtKg(p.actual_weight_kg)} kg</div>
+                  </div>
+                );
+              })}
             </div>
           )}
-        </div>
-
-        {/* Local Body Weight — grouped bar */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Local Body Comparison
-          </h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-4">
-            Total weight collected per local body
-          </p>
-          {plbChartData.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
-              No data.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart
-                data={plbChartData}
-                margin={{ top: 6, right: 16, left: 0, bottom: 56 }}
-                barCategoryGap="30%"
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="#f3f4f6"
-                  vertical={false}
-                />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 10, fill: "#9ca3af" }}
-                  angle={-35}
-                  textAnchor="end"
-                  axisLine={false}
-                  tickLine={false}
-                  interval={0}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={fmtAxis}
-                />
-                <Tooltip content={<PLBTooltip />} />
-                <Bar
-                  dataKey="Weight"
-                  fill="#1baf7a"
-                  maxBarSize={40}
-                  radius={[3, 3, 0, 0]}
-                >
-                  {plbChartData.map((_, i) => (
-                    <Cell key={i} fill="#1baf7a" />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        </Card>
       </div>
 
-      {/* ══════════════════════════════════════════════════════
-          WASTE TYPE BREAKDOWN TABLE
-      ══════════════════════════════════════════════════════ */}
+      {/* ══════════════ WASTE TYPE TABLE ══════════════ */}
       {wasteTypeBreakdown.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-            <Recycle className="h-4 w-4 text-gray-400" />
-            <h2 className="text-sm font-semibold text-gray-800">
-              Waste Type Breakdown
-            </h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
-                  <th className="px-4 py-3 text-left font-semibold">Waste Type</th>
-                  <th className="px-4 py-3 text-right font-semibold">Weight Collected (kg)</th>
-                  <th className="px-4 py-3 text-right font-semibold">Share</th>
-                  <th className="px-4 py-3 text-right font-semibold">Trips</th>
-                  <th className="px-4 py-3 text-right font-semibold">Points Covered</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+        <div className="px-6 md:px-10 mt-5">
+          <Card className="rounded-2xl overflow-hidden shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
+            <div className="px-6 py-4 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}` }}>
+              <Recycle className="h-4 w-4" style={{ color: C.inkFaint }} />
+              <h2 className="font-display text-base font-semibold">Waste type breakdown</h2>
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow style={{ background: C.surfaceSunk, borderColor: C.line }} className="hover:bg-transparent">
+                  <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Waste type
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Weight (kg)
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Share
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Trips
+                  </TableHead>
+                  <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>
+                    Points covered
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {[...wasteTypeBreakdown]
                   .sort((a, b) => b.actual_weight_kg - a.actual_weight_kg)
                   .map((w, i) => (
-                    <tr key={w.waste_type_id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                    <TableRow key={w.waste_type_id} style={{ borderColor: C.line }}>
+                      <TableCell className="font-semibold whitespace-nowrap text-xs">
                         <span
                           className="inline-block h-2.5 w-2.5 rounded-full mr-2 align-middle"
-                          style={{ backgroundColor: SERIES[i % SERIES.length] }}
+                          style={{ background: WASTE_PALETTE[i % WASTE_PALETTE.length] }}
                         />
                         {w.waste_type}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-medium text-xs" style={{ color: C.primary }}>
                         {fmtKg(w.actual_weight_kg)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
-                        {fmtKg(w.share_percent, 1)}%
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600">
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
+                        {w.share_percent.toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
                         {w.total_trips}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-600">
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
                         {w.collection_points_covered}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </Card>
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════
-          SUMMARY + DETAIL
-      ══════════════════════════════════════════════════════ */}
-      {!loading && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Card header */}
+      {/* ══════════════ SUMMARY ══════════════ */}
+      <div className="px-6 md:px-10 mt-5 pb-10">
+        <Card className="rounded-2xl overflow-hidden shadow-sm" style={{ background: C.surface, borderColor: C.line }}>
           <div
-            className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-gray-100"
-            style={{
-              background: "linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)",
-            }}
+            className="flex flex-wrap items-center justify-between gap-3 px-6 py-5"
+            style={{ background: `linear-gradient(120deg, ${C.primaryDeep}, ${C.primary})` }}
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-green-600 flex items-center justify-center shadow-sm">
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,255,255,0.14)" }}>
                 <Calendar className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-base font-bold text-gray-800">
-                  Daily Collection Summary
-                </p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Totals for&nbsp;
-                  <span className="font-semibold text-green-700">
-                    {appliedDate || "All Dates"}
-                  </span>
-                  &nbsp;·&nbsp;{rows.length} record
-                  {rows.length !== 1 ? "s" : ""} combined
+                <p className="font-display font-semibold text-white">Daily collection summary</p>
+                <p className="text-xs mt-0.5" style={{ color: "rgba(244,245,238,0.7)" }}>
+                  Totals for{" "}
+                  <span className="font-semibold" style={{ color: "#B8E6C6" }}>
+                    {appliedDate || "All dates"}
+                  </span>{" "}
+                  · {rows.length} record{rows.length !== 1 ? "s" : ""} combined
                 </p>
               </div>
             </div>
           </div>
 
-          {/* 4 main stat cells */}
           <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="rounded-xl border border-green-100 bg-green-50 p-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-500">Total Weight Collected</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
-                {fmtKg(kpis.total_actual_weight_kg)} kg
-              </span>
-            </div>
-            <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-500">Total Trips</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
-                {fmtKg(kpis.total_trips, 0)}
-              </span>
-            </div>
-            <div className="rounded-xl border border-pink-100 bg-pink-50 p-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-500">Points Covered</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
-                {fmtKg(kpis.collection_points_covered, 0)}
-              </span>
-            </div>
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 flex flex-col gap-1">
-              <span className="text-xs font-medium text-gray-500">Avg Weight / Trip</span>
-              <span className="text-2xl font-bold text-gray-800 leading-none">
-                {fmtKg(kpis.average_weight_per_trip)} kg
-              </span>
-            </div>
+            {[
+              { label: "Total weight collected", value: `${fmtKg(kpis.total_actual_weight_kg)} kg`, tint: `${C.leaf}14`, border: `${C.leaf}33` },
+              { label: "Total trips", value: fmtKg(kpis.total_trips), tint: `${C.teal}14`, border: `${C.teal}33` },
+              { label: "Points covered", value: fmtKg(kpis.collection_points_covered), tint: `${C.ochre}14`, border: `${C.ochre}33` },
+              { label: "Avg weight / trip", value: `${fmtKg(kpis.average_weight_per_trip)} kg`, tint: `${C.violet}14`, border: `${C.violet}33` },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl p-4 flex flex-col gap-1" style={{ background: s.tint, border: `1px solid ${s.border}` }}>
+                <span className="text-xs font-medium" style={{ color: C.inkSoft }}>
+                  {s.label}
+                </span>
+                <span className="font-mono text-xl font-semibold">{s.value}</span>
+              </div>
+            ))}
           </div>
 
-          {/* Local body breakdown cards */}
+          {/* local body cards */}
           {plbCompare.length > 0 && (
-            <div className="border-t border-gray-100 px-6 py-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Local Body Breakdown — {plbCompare.length} Location
-                {plbCompare.length !== 1 ? "s" : ""}
+            <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
+                Local body breakdown — {plbCompare.length} location{plbCompare.length !== 1 ? "s" : ""}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                {plbCompare.slice(0, 8).map((p, i) => (
-                  <div
-                    key={i}
-                    className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow"
-                  >
-                    <div className="mb-2">
-                      <p className="text-xs font-bold text-gray-800">
-                        {p.local_body_name}
+                {plbCompare.slice(0, 8).map((p) => (
+                  <Card key={p.local_body_id} className="rounded-xl p-3.5 hover:shadow-md transition-shadow" style={{ borderColor: C.line }}>
+                    <p className="text-xs font-bold">{p.local_body_name}</p>
+                    <p className="text-[10px] mt-0.5" style={{ color: C.inkFaint }}>
+                      {p.local_body_type}
+                    </p>
+                    <div className="text-center rounded-lg py-2 my-2" style={{ background: `${C.leaf}14` }}>
+                      <p className="text-[10px] font-medium" style={{ color: C.leaf }}>
+                        Weight collected
                       </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        {p.local_body_type}
-                      </p>
-                    </div>
-                    <div className="text-center bg-green-50 rounded-lg py-2 mb-2">
-                      <p className="text-[10px] text-green-500 font-medium">
-                        Weight Collected
-                      </p>
-                      <p className="text-sm font-bold text-green-700">
+                      <p className="text-sm font-mono font-bold" style={{ color: C.primary }}>
                         {fmtKg(p.actual_weight_kg)} kg
                       </p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-gray-400">
-                        Trips:{" "}
-                        <strong className="text-gray-600">
-                          {p.total_trips}
-                        </strong>
+                    <div className="flex justify-between text-[10px]" style={{ color: C.inkFaint }}>
+                      <span>
+                        Trips: <strong style={{ color: C.inkSoft }}>{p.total_trips}</strong>
                       </span>
-                      <span className="text-[10px] text-gray-400">
-                        Points:{" "}
-                        <strong className="text-gray-600">
-                          {p.collection_points_covered}
-                        </strong>
+                      <span>
+                        Points: <strong style={{ color: C.inkSoft }}>{p.collection_points_covered}</strong>
                       </span>
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Detailed breakdown table */}
+          {/* detail table */}
           {rows.length > 0 && (
-            <div className="border-t border-gray-100 px-6 py-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by Local Body &amp; Waste Type — {rows.length} row
-                {rows.length !== 1 ? "s" : ""}
+            <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
+              <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
+                Breakdown by local body &amp; waste type — {rows.length} row{rows.length !== 1 ? "s" : ""}
               </p>
-              <div className="overflow-x-auto rounded-xl border border-gray-200">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Date
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Local Body Type
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Local Body
-                      </th>
-                      <th className="px-4 py-3 text-left font-semibold">
-                        Waste Type
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Weight Collected (kg)
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Trips
-                      </th>
-                      <th className="px-4 py-3 text-right font-semibold">
-                        Points
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 bg-white">
+              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
+                <Table>
+                  <TableHeader>
+                    <TableRow style={{ background: C.surfaceSunk, borderColor: C.line }} className="hover:bg-transparent">
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Date</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Type</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Local body</TableHead>
+                      <TableHead className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Waste type</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Weight (kg)</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Trips</TableHead>
+                      <TableHead className="text-right text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.inkFaint }}>Points</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {rows.map((r) => (
-                      <tr
-                        key={r.unique_id}
-                        className="hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                      <TableRow key={r.unique_id} style={{ borderColor: C.line }}>
+                        <TableCell className="whitespace-nowrap font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.collection_date}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs" style={{ color: C.inkFaint }}>
                           {r.local_body_type}
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
-                          {r.local_body_name}
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="font-semibold whitespace-nowrap text-xs">{r.local_body_name}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs" style={{ color: C.inkSoft }}>
                           {r.waste_type}
-                        </td>
-                        <td className="px-4 py-3 text-right font-medium text-green-700 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="text-right font-mono font-medium text-xs" style={{ color: C.primary }}>
                           {fmtKg(r.actual_weight_kg)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-600">
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.total_trips}
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-600">
+                        </TableCell>
+                        <TableCell className="text-right font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.collection_points_covered}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() =>
-                                navigate(
-                                  dailyComparisonEditPath(r.unique_id),
-                                  {
-                                    state: {
-                                      record: r,
-                                    },
-                                  },
-                                )
-                              }
-                              className="text-blue-500 hover:text-blue-700"
-                              title="Edit"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(r)}
-                              className="text-red-400 hover:text-red-600"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           )}
-        </div>
-      )}
+        </Card>
+      </div>
 
       {loading && (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex items-center justify-center gap-3 text-gray-400">
-          <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-green-500 rounded-full" />
-          Loading daily data…
+        <div className="px-6 md:px-10 pb-10">
+          <Card className="rounded-2xl p-12 flex items-center justify-center gap-3 text-sm shadow-sm" style={{ background: C.surface, borderColor: C.line, color: C.inkFaint }}>
+            <span
+              className="animate-spin h-5 w-5 rounded-full"
+              style={{ border: `2px solid ${C.line}`, borderTopColor: C.leaf }}
+            />
+            Loading daily data…
+          </Card>
         </div>
       )}
     </div>
