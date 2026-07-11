@@ -10,6 +10,7 @@ import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
 import { RolesProvider } from "@/contexts/RolesContext";
+import { ProjectSelectorProvider } from "@/contexts/ProjectSelectorContext";
 type Props = {
   children: ReactNode;
 };
@@ -20,16 +21,18 @@ export function AppProviders({ children }: Props) {
       <ThemeProvider>
         <ModuleProvider>
           <UserProvider>
-            <PermissionProvider>
-              <TooltipProvider>
-                <BrowserRouter>
-                  {children}
-                  <NotificationDialog />
-                  <Toaster />
-                  <Sonner />
-                </BrowserRouter>
-              </TooltipProvider>
-            </PermissionProvider>
+            <ProjectSelectorProvider>
+              <PermissionProvider>
+                <TooltipProvider>
+                  <BrowserRouter>
+                    {children}
+                    <NotificationDialog />
+                    <Toaster />
+                    <Sonner />
+                  </BrowserRouter>
+                </TooltipProvider>
+              </PermissionProvider>
+            </ProjectSelectorProvider>
           </UserProvider>
         </ModuleProvider>
       </ThemeProvider>

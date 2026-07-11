@@ -19,7 +19,6 @@ import { MAP_TABS, type MapTabKey } from "./map/mapUtils";
 import { binApi, customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
 import { filterActiveCustomers, normalizeCustomerArray } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
-import { ProjectSelectorBar } from "@/components/common/ProjectSelectorBar";
 
 export function HomeDashboard() {
   const { t } = useTranslation();
@@ -197,7 +196,6 @@ export function HomeDashboard() {
 
   return (
     <div className="flex min-w-0 flex-col lg:min-h-[calc(100vh-7rem)]">
-      <ProjectSelectorBar />
       <DataCard className="overflow-visible lg:flex-1 lg:overflow-hidden">
 
         <div className="flex min-w-0 flex-col gap-3 lg:grid lg:h-full lg:grid-cols-12 lg:overflow-hidden">

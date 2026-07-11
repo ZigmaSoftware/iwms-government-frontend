@@ -1172,24 +1172,6 @@ export default function AdminHome() {
         </div>
 
 
-        {/* ── Bottom Summary Stats ────────────────────────────────────────── */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-
-          <BottomStat
-            label="Screen Permissions"
-            value={data.screenPermissions.length}
-            icon={ShieldCheck}
-            color="bg-green-700"
-            loading={loading}
-          />
-          <BottomStat
-            label="Column Permissions"
-            value={data.columnPermissions.length}
-            icon={Key}
-            color="bg-orange-600"
-            loading={loading}
-          />
-        </div>
       </main>
     </div>
   );
