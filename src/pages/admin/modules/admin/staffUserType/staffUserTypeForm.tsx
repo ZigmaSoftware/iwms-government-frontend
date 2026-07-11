@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -19,6 +19,8 @@ import {
 import {
   contractorRoleTypesApi,
   contractorUserTypeApi,
+  governmentLevelTypesApi,
+  governmentRoleTypesApi,
   governmentUserTypeApi,
   roleTypesApi,
   staffUserTypeApi,
@@ -29,16 +31,6 @@ import {
 
 type UserTypeOption = { unique_id: string; name: string; is_active: boolean };
 type RoleOption = { value: string; label: string };
-
-type GovtRecord = {
-  unique_id: string;
-  name: string;         // raw key e.g. "govt_state_admin"
-  name_display: string; // human label e.g. "State Admin"
-  level: string;         // raw key e.g. "state"
-  level_display: string; // human label e.g. "State"
-  usertype_id: any;
-  is_active: boolean;
-};
 
 type Category = "staff" | "contractor" | "government";
 
@@ -136,7 +128,7 @@ type EditorProps = {
   userTypes: UserTypeOption[];
   staffRoles: RoleOption[];
   contractorRoles: RoleOption[];
-  govtRecords: GovtRecord[];
+  govtLevels: RoleOption[];
   onCancel: () => void;
   onSubmit: (payload: Record<string, unknown>, category: Category) => Promise<void>;
 };
@@ -148,7 +140,7 @@ function StaffUserTypeEditor({
   userTypes,
   staffRoles,
   contractorRoles,
-  govtRecords,
+  govtLevels,
   onCancel,
   onSubmit,
 }: EditorProps) {
@@ -164,29 +156,27 @@ function StaffUserTypeEditor({
   const isContractor = selectedUserTypeName === "contractor";
   const isGovernment = selectedUserTypeName === "government";
 
-  // Unique level options derived from the seeded govt records
-  const levelOptions: RoleOption[] = useMemo(() => {
-    const seen = new Set<string>();
-    const out: RoleOption[] = [];
-    for (const r of govtRecords) {
-      if (!seen.has(r.level)) {
-        seen.add(r.level);
-        out.push({ value: r.level, label: r.level_display ?? prettifyLabel(r.level) });
-      }
-    }
-    return out;
-  }, [govtRecords]);
+  // All valid level options from the backend's static choices
+  const levelOptions: RoleOption[] = govtLevels;
 
-  // Roles filtered by the selected level
-  const govtRoleOptions: RoleOption[] = useMemo(() => {
-    if (!selectedLevel) return [];
-    return govtRecords
-      .filter((r) => r.level === selectedLevel)
-      .map((r) => ({
-        value: r.name,
-        label: r.name_display ?? prettifyLabel(r.name),
-      }));
-  }, [selectedLevel, govtRecords]);
+  // Roles for the selected level, fetched from the backend's static choices
+  const [govtRoleOptions, setGovtRoleOptions] = useState<RoleOption[]>([]);
+
+  useEffect(() => {
+    if (!isGovernment || !selectedLevel) {
+      setGovtRoleOptions([]);
+      return;
+    }
+    let cancelled = false;
+    governmentRoleTypesApi
+      .readAll({ params: { level: selectedLevel } })
+      .then((res: any) => {
+        if (!cancelled) setGovtRoleOptions(normalizeRoleTypes(res));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGovernment, selectedLevel]);
 
   const roleOptions = isGovernment
     ? govtRoleOptions
@@ -370,7 +360,7 @@ export default function StaffUserTypeForm() {
   const [userTypes, setUserTypes]           = useState<UserTypeOption[]>([]);
   const [staffRoles, setStaffRoles]         = useState<RoleOption[]>([]);
   const [contractorRoles, setContractorRoles] = useState<RoleOption[]>([]);
-  const [govtRecords, setGovtRecords]       = useState<GovtRecord[]>([]);
+  const [govtLevels, setGovtLevels]         = useState<RoleOption[]>([]);
   const [dataLoaded, setDataLoaded]         = useState(false);
 
   // ── edit record ──
@@ -385,8 +375,8 @@ export default function StaffUserTypeForm() {
       userTypeApi.readAll(),
       roleTypesApi.readAll(),
       contractorRoleTypesApi.readAll(),
-      governmentUserTypeApi.readAll(),
-    ]).then(([utRes, staffRes, contractorRes, govtRes]) => {
+      governmentLevelTypesApi.readAll(),
+    ]).then(([utRes, staffRes, contractorRes, govtLevelsRes]) => {
       if (utRes.status === "fulfilled") {
         const list = toRecordList(utRes.value) as UserTypeOption[];
         setUserTypes(list.filter((u) => u.unique_id));
@@ -395,8 +385,8 @@ export default function StaffUserTypeForm() {
         setStaffRoles(normalizeRoleTypes(staffRes.value));
       if (contractorRes.status === "fulfilled")
         setContractorRoles(normalizeRoleTypes(contractorRes.value));
-      if (govtRes.status === "fulfilled")
-        setGovtRecords(toRecordList(govtRes.value) as GovtRecord[]);
+      if (govtLevelsRes.status === "fulfilled")
+        setGovtLevels(normalizeRoleTypes(govtLevelsRes.value));
       setDataLoaded(true);
     });
   }, []);
@@ -504,7 +494,7 @@ export default function StaffUserTypeForm() {
         userTypes={userTypes}
         staffRoles={staffRoles}
         contractorRoles={contractorRoles}
-        govtRecords={govtRecords}
+        govtLevels={govtLevels}
         onCancel={() => navigate(LIST_PATH)}
         onSubmit={handleSubmit}
       />

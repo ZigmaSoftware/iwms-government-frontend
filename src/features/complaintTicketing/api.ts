@@ -14,11 +14,14 @@ import type {
   ComplaintTeam,
   ComplaintSlaRule,
   ComplaintTicket,
+  GeoOption,
   Grievance,
-  HierarchyNode,
-  PublicGrievanceLocationNode,
+  LocalBodyOption,
+  LocalBodyType,
+  PublicGrievanceLocationOption,
   PublicGrievanceMeta,
   PublicGrievanceResponse,
+  PublicGrievanceStatusResult,
 } from "./types";
 
 export const complaintTicketApi = adminApi.complaintTickets as typeof adminApi.complaintTickets;
@@ -33,8 +36,6 @@ export const complaintTeamApi = adminApi.complaintTeams as typeof adminApi.compl
 export const complaintSlaRuleApi = adminApi.complaintSlaRules as typeof adminApi.complaintSlaRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback as typeof adminApi.complaintFeedback;
 export const complaintNotificationApi = adminApi.complaintNotifications as typeof adminApi.complaintNotifications;
-export const hierarchyNodeApi = adminApi.hierarchyNodes as typeof adminApi.hierarchyNodes;
-export const hierarchyLevelApi = adminApi.hierarchyLevels as typeof adminApi.hierarchyLevels;
 
 export const complaintTicketingApi = {
   tickets: complaintTicketApi,
@@ -83,25 +84,68 @@ export const ticketActions = {
     complaintTicketApi.action(`${id}/attachments`, payload, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
-  assignableStaff: (id: string, params?: { location_node?: string; department?: string }) =>
+  assignableStaff: (id: string, params?: { district?: string; city?: string; department?: string }) =>
     complaintTicketApi.action<AssignableStaffResponse>(`${id}/assignable-staff`, undefined, { params }),
 };
 
 /* -----------------------------------------
-   District / City lookups for the assign dropdown
-   (built on the generic Hierarchy Tree masters API)
+   State / District / City (local body) lookups built on the flat geo
+   masters - the same State -> District cascade the other admin forms use.
 ----------------------------------------- */
-export const geoHierarchyApi = {
-  districts: async () => {
-    const levels = await hierarchyLevelApi.readAll({ params: { search: "District" } });
-    const districtLevel = levels.find((lvl: any) => lvl.name === "District");
-    if (!districtLevel) return [] as HierarchyNode[];
-    return hierarchyNodeApi.readAll({ params: { level: districtLevel.unique_id } }) as Promise<HierarchyNode[]>;
+const asRows = <T = any>(value: unknown): T[] =>
+  Array.isArray(value) ? (value as T[]) : ((value as any)?.results ?? (value as any)?.data ?? []);
+
+const entityId = (value: unknown): string => {
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return String(record.unique_id ?? record.id ?? "");
+  }
+  return value == null ? "" : String(value);
+};
+
+const LOCAL_BODY_SOURCES: { api: typeof adminApi.corporations; type: LocalBodyType; nameKeys: string[] }[] = [
+  { api: adminApi.corporations, type: "corporation", nameKeys: ["corporation_name"] },
+  { api: adminApi.municipalities, type: "municipality", nameKeys: ["municipality_name"] },
+  { api: adminApi.townPanchayats, type: "town_panchayat", nameKeys: ["town_panchayat_name"] },
+  { api: adminApi.panchayatUnions, type: "panchayat_union", nameKeys: ["union_name", "panchayat_union_name"] },
+  { api: adminApi.panchayats, type: "panchayat", nameKeys: ["panchayat_name"] },
+];
+
+export const geoApi = {
+  states: async (): Promise<GeoOption[]> => {
+    const rows = await adminApi.states.readAll();
+    return asRows(rows).map((row: any) => ({
+      unique_id: String(row.unique_id),
+      name: row.name ?? row.state_name ?? String(row.unique_id),
+    }));
   },
-  citiesInDistrict: async (districtNodeId: string) => {
-    const descendants = await hierarchyNodeApi.action<HierarchyNode[]>(`${districtNodeId}/descendants`);
-    const cityLevels = new Set(["Corporation", "Municipality", "Town Panchayat", "Panchayat Union", "Panchayat"]);
-    return (descendants ?? []).filter((node: any) => cityLevels.has(node.level_name));
+  districts: async (stateId?: string): Promise<GeoOption[]> => {
+    const rows = await adminApi.districts.readAll();
+    return asRows(rows)
+      .map((row: any) => ({
+        unique_id: String(row.unique_id),
+        name: row.name ?? row.district_name ?? String(row.unique_id),
+        state_id: entityId(row.state_id ?? row.state),
+      }))
+      .filter((row) => !stateId || row.state_id === stateId);
+  },
+  localBodies: async (districtId: string): Promise<LocalBodyOption[]> => {
+    const lists = await Promise.all(
+      LOCAL_BODY_SOURCES.map((source) => source.api.readAll().catch(() => [])),
+    );
+    const options: LocalBodyOption[] = [];
+    LOCAL_BODY_SOURCES.forEach((source, index) => {
+      asRows(lists[index]).forEach((row: any) => {
+        if (entityId(row.district_id ?? row.district) !== districtId) return;
+        const name = source.nameKeys.map((key) => row[key]).find(Boolean) ?? row.name;
+        options.push({
+          unique_id: String(row.unique_id),
+          name: name ?? String(row.unique_id),
+          type: source.type,
+        });
+      });
+    });
+    return options.sort((a, b) => a.name.localeCompare(b.name));
   },
 };
 
@@ -131,13 +175,20 @@ export const publicGrievanceApi = {
     });
     return data;
   },
-  districts: async (signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationNode[]>("/publicgrivence/districts/", { signal });
+  states: async (signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrivence/states/", { signal });
     return data;
   },
-  cities: async (districtNodeId: string, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationNode[]>("/publicgrivence/cities/", {
-      params: { district: districtNodeId },
+  districts: async (stateId?: string, signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrivence/districts/", {
+      params: stateId ? { state: stateId } : undefined,
+      signal,
+    });
+    return data;
+  },
+  cities: async (districtId: string, signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrivence/cities/", {
+      params: { district: districtId },
       signal,
     });
     return data;
@@ -145,6 +196,13 @@ export const publicGrievanceApi = {
   create: async (payload: FormData) => {
     const { data } = await api.post<PublicGrievanceResponse>("/publicgrivence/", payload, {
       headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data;
+  },
+  status: async (params: { ticket_no?: string; mobile?: string }, signal?: AbortSignal) => {
+    const { data } = await api.get<PublicGrievanceStatusResult[]>("/publicgrivence/status/", {
+      params,
+      signal,
     });
     return data;
   },

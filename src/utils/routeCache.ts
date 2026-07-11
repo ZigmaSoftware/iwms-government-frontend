@@ -39,6 +39,7 @@ export type EncryptedRoutes = {
   encProperties: string;
   encReport: string;
   encStaffCreation: string;
+  encStaffAccessConfiguration: string;
   encStaffUserType: string;
   encStates: string;
   encSubProperties: string;
@@ -67,13 +68,14 @@ export type EncryptedRoutes = {
   encMainScreen: string;
   encUserScreen: string;
   encTripPlans: string;
-  encTripPlanCollectionPoints: string;
   encDailyTripAssignment: string;
   encDailyTripCollectionPoint: string;
   encDailyTripHouseholdCollection: string;
   encDailyTripTracking: string;
   encDailyTripLog: string;
   encBinCollectionEvent: string;
+  encVehicleBreakdown: string;
+  encSchedulerConfig: string;
   encDailyWasteComparison: string;
   encBinLoadLog: string;
   encCustomerTag: string;
@@ -100,18 +102,17 @@ export type EncryptedRoutes = {
   encLoginAudits: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
+  encCommonMasters: string;
 
 
   encPanchayats: string;
   encAreaTypes: string;
   encHierarchies: string;
-  encHierarchyLevels: string;
-  encHierarchyTree: string;
-  encHierarchyNode: string;
-  encHierarchyAssign: string;
   encPanchayatLeaders: string;
   encLeaderLogin: string;
   encPlbLeaderCreation: string;
+  encDistrictLeaders: string;
+  encDistrictLeaderCreation: string;
   encCorporations: string;
   encMunicipalities: string;
   encTownPanchayats: string;
@@ -145,6 +146,7 @@ const plainRoutes: EncryptedRoutes = {
   encApartmentList: "apartment-list",
   encCustomerMaster: "customer-master",
   encSuperAdminMaster: "superadmin-masters",
+  encCommonMasters: "common-masters",
   encCompanyCreation: "company-creation",
   encCommonAudit: "common-audit",
   encLoginAudits: "login-audits",
@@ -162,6 +164,7 @@ const plainRoutes: EncryptedRoutes = {
   encProperties: "properties",
   encReport: "reports",
   encStaffCreation: "staff-creation",
+  encStaffAccessConfiguration: "staff-access-configuration",
   encStaffUserType: "staff-user-type",
   encStates: "states",
   encSubProperties: "sub-properties",
@@ -190,13 +193,14 @@ const plainRoutes: EncryptedRoutes = {
   encUserScreen: "userscreens",
   encUserScreenPermission: "userscreenpermissions",
   encTripPlans: "trip-plans",
-  encTripPlanCollectionPoints: "trip-plan-collection-points",
   encDailyTripAssignment: "daily-trip-assignment",
   encDailyTripCollectionPoint: "daily-trip-collection-point",
   encDailyTripHouseholdCollection: "daily-trip-household-collection",
   encDailyTripTracking: "daily-trip-tracking",
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
+  encVehicleBreakdown: "vehicle-breakdowns",
+  encSchedulerConfig: "scheduler-config",
   encDailyWasteComparison: "daily-waste-comparisons",
   encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
@@ -211,13 +215,11 @@ const plainRoutes: EncryptedRoutes = {
   encPanchayats: "panchayats",
   encAreaTypes: "area-types",
   encHierarchies: "hierarchies",
-  encHierarchyLevels: "hierarchy-levels",
-  encHierarchyTree: "hierarchy-tree",
-  encHierarchyNode: "hierarchy-node",
-  encHierarchyAssign: "hierarchy-assign",
   encPanchayatLeaders: "panchayat-leaders",
   encLeaderLogin: "leader-login",
   encPlbLeaderCreation: "plb-leader-creation",
+  encDistrictLeaders: "district-leaders",
+  encDistrictLeaderCreation: "district-leader-creation",
   encCorporations: "corporations",
   encMunicipalities: "municipalities",
   encTownPanchayats: "town-panchayats",

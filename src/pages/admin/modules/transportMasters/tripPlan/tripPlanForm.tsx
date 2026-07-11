@@ -1,21 +1,31 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { MultiSelect } from "primereact/multiselect";
 
 import ComponentCard from "@/components/common/ComponentCard";
-import HierarchyNodeSelect, { type HierarchyLegacyValues } from "@/components/common/HierarchyNodeSelect";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import {
+  areaTypeApi,
+  collectionPointApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
   propertiesApi,
   staffCreationApi,
   staffTemplateApi,
+  stateApi,
   subPropertiesApi,
+  townPanchayatApi,
   tripPlanApi,
   vehicleCreationApi,
   wasteTypeApi,
 } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -25,6 +35,30 @@ type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
+type StopRow = {
+  key: string;
+  collection_point_id: string;
+  bin_id: string;
+  is_active: boolean;
+};
+
+type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string };
+type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
+
+const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
+
+const makeStopKey = (() => {
+  let counter = 0;
+  return () => `stop-${counter++}`;
+})();
+
+const emptyStop = (): StopRow => ({
+  key: makeStopKey(),
+  collection_point_id: "",
+  bin_id: "",
+  is_active: true,
+});
+
 const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
   { value: "corporation_id", label: "Corporation" },
   { value: "municipality_id", label: "Municipality" },
@@ -32,6 +66,32 @@ const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
   { value: "panchayat_union_id", label: "Panchayat Union" },
   { value: "panchayat_id", label: "Panchayat" },
 ];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", HierarchyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
+const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      resolveId(record),
+  );
+const toGeoOptions = (records: any[]): Option[] =>
+  records.filter((r) => resolveId(r)).map((r) => ({ value: resolveId(r), label: resolveName(r) }));
 
 const collectionTypes = [
   { value: "bin_collection", label: "Secondary Collection Point" },
@@ -57,25 +117,6 @@ const toOptions = (items: any[], labelKey: string): Option[] =>
     }))
     .filter((item) => item.value);
 
-// Convert 24h "HH:MM" to { hour12: "HH", minute: "MM", period: "AM"|"PM" }
-function to12h(time24: string): { hour12: string; minute: string; period: "AM" | "PM" } {
-  if (!time24) return { hour12: "12", minute: "00", period: "AM" };
-  const [hStr, mStr] = time24.split(":");
-  let h = parseInt(hStr, 10);
-  const period: "AM" | "PM" = h >= 12 ? "PM" : "AM";
-  if (h === 0) h = 12;
-  else if (h > 12) h -= 12;
-  return { hour12: String(h).padStart(2, "0"), minute: (mStr ?? "00").slice(0, 2), period };
-}
-
-// Convert 12h + period to 24h "HH:MM"
-function to24h(hour12: string, minute: string, period: "AM" | "PM"): string {
-  let h = parseInt(hour12, 10);
-  if (period === "AM" && h === 12) h = 0;
-  else if (period === "PM" && h !== 12) h += 12;
-  return `${String(h).padStart(2, "0")}:${minute.padStart(2, "0")}`;
-}
-
 export default function TripPlanForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -84,11 +125,12 @@ export default function TripPlanForm() {
   const { listPath } = createCrudRoutePaths(encScheduleMasters, encTripPlans);
 
   const [displayCode, setDisplayCode] = useState("");
-  const [locationNodeId, setLocationNodeId] = useState("");
+  const [stateId, setStateId] = useState("");
   const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
   const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("corporation_id");
   const [hierarchyId, setHierarchyId] = useState("");
-  const [legacyMatch, setLegacyMatch] = useState<{ field: keyof HierarchyLegacyValues; value: string } | null>(null);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
@@ -99,10 +141,7 @@ export default function TripPlanForm() {
   const [wasteTypeId, setWasteTypeId] = useState("");
   // Multiple waste types
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
-  // Time stored as 24h internally
-  const [timeHour, setTimeHour] = useState("07");
-  const [timeMinute, setTimeMinute] = useState("00");
-  const [timePeriod, setTimePeriod] = useState<"AM" | "PM">("AM");
+  const [scheduledTime, setScheduledTime] = useState("07:00");
   const [tripTriggerWeightKg, setTripTriggerWeightKg] = useState("");
   const [maxVehicleCapacityKg, setMaxVehicleCapacityKg] = useState("");
   const [isAutoAssign, setIsAutoAssign] = useState(false);
@@ -118,6 +157,23 @@ export default function TripPlanForm() {
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Collection point stops — merged in from the former Trip Plan Collection Point form.
+  const [stops, setStops] = useState<StopRow[]>([emptyStop()]);
+  const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
+  const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
+  const [bins, setBins] = useState<BinOption[]>([]);
+
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [hierarchyRecords, setHierarchyRecords] = useState<Record<HierarchyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
+
   useEffect(() => {
     Promise.all([
       staffTemplateApi.readAll(),
@@ -126,7 +182,21 @@ export default function TripPlanForm() {
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       wasteTypeApi.readAll(),
-    ]).then(([staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes]) => {
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+      collectionPointApi.readAll(),
+      adminApi.bins.readAll(),
+    ]).then(([
+      staffRes, vehicleRes, supervisorRes, propertyRes, subPropertyRes, wasteTypeRes,
+      stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
+      collectionPointRes, binRes,
+    ]) => {
       setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
       setSupervisors(
@@ -138,16 +208,88 @@ export default function TripPlanForm() {
       setProperties(toOptions(normalizeList(propertyRes), "property_name"));
       setSubProperties(toOptions(normalizeList(subPropertyRes), "sub_property_name"));
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
+      setStates(normalizeList(stateRes));
+      setDistricts(normalizeList(districtRes));
+      setAreaTypes(normalizeList(areaTypeRes));
+      setHierarchyRecords({
+        corporation_id: normalizeList(corporationRes),
+        municipality_id: normalizeList(municipalityRes),
+        town_panchayat_id: normalizeList(townPanchayatRes),
+        panchayat_union_id: normalizeList(panchayatUnionRes),
+        panchayat_id: normalizeList(panchayatRes),
+      });
+      setCollectionPoints(
+        normalizeList(collectionPointRes).map((item: any) => {
+          const field = hierarchyIdFields.find((key) => item?.[key] ?? item?.[key.replace("_id", "")]?.unique_id);
+          return {
+            value: String(item?.unique_id ?? ""),
+            label: String(item?.cp_name ?? item?.unique_id ?? ""),
+            hierarchyField: field,
+            hierarchyId: field ? String(item?.[field] ?? item?.[field.replace("_id", "")]?.unique_id ?? "") : "",
+          };
+        }).filter((o: Option) => o.value),
+      );
+      setBins(
+        normalizeList(binRes).map((item: any) => ({
+          value: String(item?.unique_id ?? ""),
+          label: String(item?.bin_name ?? item?.unique_id ?? ""),
+          collectionPointId: String(item?.collection_point_id ?? item?.collection_point ?? ""),
+          wasteTypeId: String(item?.wastetype_id ?? item?.waste_type_id ?? item?.waste_type ?? ""),
+        })).filter((o: Option) => o.value),
+      );
     });
   }, []);
 
-  useEffect(() => {
+  const filteredDistricts = districts.filter(
+    (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
+  );
+  const filteredAreaTypes = areaTypes.filter(
+    (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
+  );
+
+  const ensureOption = <T extends Option>(items: T[], value: string, label?: string): T[] => {
+    if (!value || items.some((item) => item.value === value)) return items;
+    return [{ value, label: label || value } as T, ...items];
+  };
+
+  const availableHierarchyLevels = areaTypeCategory
+    ? hierarchyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+    : hierarchyLevel
+      ? [{ value: hierarchyLevel, label: hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label ?? "Local Body" }]
+      : [];
+
+  const hierarchyOptions = ensureOption(
+    toGeoOptions(
+      (hierarchyRecords[hierarchyLevel] ?? []).filter(
+        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+      ),
+    ),
+    hierarchyId,
+  );
+
+useEffect(() => {
+  if (!areaTypeId || !areaTypes.length) {
+    if (!areaTypeId) setAreaTypeCategory("");
+    return;
+  }
+
+  const selectedAreaType = areaTypes.find((item) => resolveId(item) === areaTypeId);
+  if (selectedAreaType) {
+    setAreaTypeCategory(areaTypeCategoryFromName(String(selectedAreaType.name ?? "")));
+  }
+}, [areaTypeId, areaTypes]);
+
+useEffect(() => {
     if (!id) return;
     tripPlanApi.read(id).then((record: ApiRecord) => {
       setDisplayCode(String(record.display_code ?? ""));
 
-      // district comes as nested object (district_id is write_only in serializer)
+      // Geo fields come as nested read-only objects (write via *_id fields)
+      setStateId(String(record.state?.unique_id ?? record.state_id ?? ""));
       setDistrictId(String(record.district?.unique_id ?? record.district_id ?? ""));
+      const areaTypeName = String(record.area_type?.name ?? "");
+      setAreaTypeId(String(record.area_type?.unique_id ?? record.area_type_id ?? ""));
+      setAreaTypeCategory(areaTypeCategoryFromName(areaTypeName));
 
       // Hierarchy — read from nested read-only objects
       const hierarchyMap: Record<HierarchyLevel, string | undefined> = {
@@ -160,9 +302,7 @@ export default function TripPlanForm() {
       const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
       if (detectedLevel) {
         setHierarchyLevel(detectedLevel.value);
-        const matchedId = hierarchyMap[detectedLevel.value] ?? "";
-        setHierarchyId(matchedId);
-        setLegacyMatch({ field: detectedLevel.value, value: matchedId });
+        setHierarchyId(hierarchyMap[detectedLevel.value] ?? "");
       }
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
@@ -182,14 +322,8 @@ export default function TripPlanForm() {
         setSelectedWasteTypes([String(record.waste_type.unique_id)]);
       }
 
-      // Parse time to 12h AM/PM
       const timeStr = String(record.scheduled_time ?? "");
-      if (timeStr) {
-        const parsed = to12h(timeStr.slice(0, 5));
-        setTimeHour(parsed.hour12);
-        setTimeMinute(parsed.minute);
-        setTimePeriod(parsed.period);
-      }
+      if (timeStr) setScheduledTime(timeStr.slice(0, 5));
 
       setTripTriggerWeightKg(String(record.trip_trigger_weight_kg ?? ""));
       setMaxVehicleCapacityKg(String(record.max_vehicle_capacity_kg ?? ""));
@@ -197,14 +331,21 @@ export default function TripPlanForm() {
       setRepeatDays(Array.isArray(record.repeat_days) ? record.repeat_days : []);
       setStatus(String(record.status ?? "ACTIVE"));
       setApprovalStatus(String(record.approval_status ?? "PENDING"));
+
+      if (Array.isArray(record.plan_collection_points)) {
+        const loadedStops = record.plan_collection_points
+          .filter((stop: ApiRecord) => stop.collection_type === "bin_collection")
+          .sort((a: ApiRecord, b: ApiRecord) => Number(a.sequence ?? 0) - Number(b.sequence ?? 0))
+          .map((stop: ApiRecord) => ({
+            key: makeStopKey(),
+            collection_point_id: String(stop.collection_point_id ?? ""),
+            bin_id: String(stop.bin_id ?? ""),
+            is_active: stop.is_active !== false,
+          }));
+        setStops(loadedStops.length ? loadedStops : [emptyStop()]);
+      }
     });
   }, [id]);
-
-  const toggleWasteType = (uid: string) => {
-    setSelectedWasteTypes((prev) =>
-      prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-    );
-  };
 
   const toggleRepeatDay = (day: number) => {
     setRepeatDays((prev) =>
@@ -212,20 +353,87 @@ export default function TripPlanForm() {
     );
   };
 
+  const addStop = () => {
+    setStops((prev) => [...prev, emptyStop()]);
+  };
+
+  const removeStop = (key: string) => {
+    setStops((prev) => (prev.length > 1 ? prev.filter((stop) => stop.key !== key) : prev));
+  };
+
+  const updateStop = (key: string, patch: Partial<StopRow>) => {
+    setStops((prev) => prev.map((stop) => (stop.key === key ? { ...stop, ...patch } : stop)));
+  };
+
+  const moveStop = (from: number, to: number) => {
+    if (from === to) return;
+    setStops((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  // Collection points are scoped to the Trip Plan's own local body (hierarchyLevel/hierarchyId),
+  // excluding points already used by other stops.
+  const collectionPointsForLocalBody = (currentValue: string) => {
+    const filtered = (hierarchyId
+      ? collectionPoints.filter((cp) => cp.hierarchyField === hierarchyLevel && cp.hierarchyId === hierarchyId)
+      : collectionPoints
+    ).filter(
+      (cp) => cp.value === currentValue || !stops.some((stop) => stop.collection_point_id === cp.value),
+    );
+    const current = collectionPoints.find((cp) => cp.value === currentValue);
+    return ensureOption(filtered, currentValue, current?.label);
+  };
+
+  // Bins are scoped to the selected stop's Collection Point, and to the Trip Plan's selected Waste Types.
+  const binsForStop = (collectionPointId: string, currentValue: string) => {
+    const filtered = bins.filter((bin) => {
+      if (collectionPointId && bin.collectionPointId && bin.collectionPointId !== collectionPointId) return false;
+      if (selectedWasteTypes.length > 0 && bin.wasteTypeId && !selectedWasteTypes.includes(bin.wasteTypeId)) return false;
+      return true;
+    });
+    const current = bins.find((bin) => bin.value === currentValue);
+    return ensureOption(filtered, currentValue, current?.label);
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!districtId || !hierarchyId || !staffTemplateId || !vehicleId) {
-      Swal.fire("Missing details", "District, Hierarchy, Staff Template and Vehicle are required.", "warning");
+    if (!stateId || !districtId || !hierarchyId || !staffTemplateId || !vehicleId) {
+      Swal.fire("Missing details", "State, District, Local Body, Staff Template and Vehicle are required.", "warning");
       return;
     }
     if (selectedWasteTypes.length === 0) {
       Swal.fire("Missing details", "Select at least one Waste Type.", "warning");
       return;
     }
-    const scheduledTime = to24h(timeHour, timeMinute, timePeriod);
+    const triggerWeight = Number(tripTriggerWeightKg);
+    const maxCapacity = Number(maxVehicleCapacityKg);
+    if (
+      tripTriggerWeightKg &&
+      maxVehicleCapacityKg &&
+      (!Number.isFinite(triggerWeight) || !Number.isFinite(maxCapacity) || triggerWeight >= maxCapacity)
+    ) {
+      Swal.fire("Warning", "Trigger weight must be less than vehicle capacity.", "warning");
+      return;
+    }
+    if (collectionType === "bin_collection") {
+      if (!stops.length) {
+        Swal.fire("Missing details", "Add at least one collection point stop.", "warning");
+        return;
+      }
+      if (stops.some((stop) => !stop.collection_point_id || !stop.bin_id)) {
+        Swal.fire("Missing details", "Every stop needs a Collection Point and a Bin.", "warning");
+        return;
+      }
+    }
     setSaving(true);
     const payload: Record<string, any> = {
+      state_id: stateId,
       district_id: districtId,
+      area_type_id: areaTypeId || null,
       corporation_id: null,
       municipality_id: null,
       town_panchayat_id: null,
@@ -249,6 +457,15 @@ export default function TripPlanForm() {
       repeat_days: isAutoAssign ? repeatDays : [],
       status,
       approval_status: approvalStatus,
+      collection_points: collectionType === "bin_collection"
+        ? stops.map((stop, index) => ({
+            collection_type: collectionType,
+            collection_point_id: stop.collection_point_id,
+            bin_id: stop.bin_id,
+            sequence: index + 1,
+            is_active: stop.is_active,
+          }))
+        : [],
     };
     try {
       if (isEdit && id) await tripPlanApi.update(id, payload);
@@ -258,9 +475,6 @@ export default function TripPlanForm() {
       setSaving(false);
     }
   };
-
-  const hours = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-  const minutes = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
 
   return (
     <ComponentCard title={isEdit ? "Edit Trip Plan" : "Create Trip Plan"}>
@@ -273,20 +487,74 @@ export default function TripPlanForm() {
           </div>
         )}
 
-        <div className="md:col-span-2">
-          <HierarchyNodeSelect
-            value={locationNodeId}
-            legacyMatch={legacyMatch}
-            allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
-            label="Operational Hierarchy"
-            placeholder="Select corporation / municipality / town panchayat / panchayat union / panchayat"
-            onChange={(nodeId, legacy) => {
-              setLocationNodeId(nodeId);
-              setDistrictId(legacy.district_id ?? "");
-              const selected = hierarchyLevels.find((item) => legacy[item.value]);
-              setHierarchyLevel(selected?.value ?? "corporation_id");
-              setHierarchyId(selected ? legacy[selected.value] ?? "" : "");
+        <div>
+          <Label>State *</Label>
+          <Select
+            value={stateId}
+            onChange={(v) => {
+              setStateId(String(v));
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setHierarchyId("");
             }}
+            options={toGeoOptions(states)}
+            placeholder="Select State"
+          />
+        </div>
+
+        <div>
+          <Label>District *</Label>
+          <Select
+            value={districtId}
+            onChange={(v) => {
+              setDistrictId(String(v));
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setHierarchyId("");
+            }}
+            options={toGeoOptions(filteredDistricts)}
+            placeholder={stateId ? "Select District" : "Select a State first"}
+          />
+        </div>
+
+        <div>
+          <Label>Area Type</Label>
+          <Select
+            value={areaTypeId}
+            onChange={(v) => {
+              const selected = filteredAreaTypes.find((a) => resolveId(a) === v);
+              setAreaTypeId(String(v));
+              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+              setHierarchyId("");
+            }}
+            options={toGeoOptions(filteredAreaTypes)}
+            placeholder={districtId ? "Select Area Type" : "Select a District first"}
+          />
+        </div>
+
+        <div>
+          <Label>Local Body Type *</Label>
+          <Select
+            value={hierarchyLevel}
+            onChange={(v) => {
+              setHierarchyLevel(v as HierarchyLevel);
+              setHierarchyId("");
+            }}
+            options={availableHierarchyLevels}
+            placeholder={areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}
+          />
+        </div>
+
+        <div>
+          <Label>
+            {hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body"} *
+          </Label>
+          <Select
+            value={hierarchyId}
+            onChange={(v) => setHierarchyId(String(v))}
+            options={hierarchyOptions}
+            placeholder="Select"
           />
         </div>
 
@@ -306,11 +574,6 @@ export default function TripPlanForm() {
         </div>
 
         <div>
-          <Label>Collection Type *</Label>
-          <Select value={collectionType} onChange={(v) => setCollectionType(String(v))} options={collectionTypes} placeholder="Select Collection Type" />
-        </div>
-
-        <div>
           <Label>Property</Label>
           <Select value={propertyId} onChange={(v) => setPropertyId(String(v))} options={properties} placeholder="Select Property" />
         </div>
@@ -321,71 +584,52 @@ export default function TripPlanForm() {
         </div>
 
         {/* Multiple Waste Types */}
-        <div className="md:col-span-2">
-          <Label>Waste Types * (select one or more)</Label>
-          <div className="mt-1 flex flex-wrap gap-2">
-            {wasteTypes.map((wt) => (
-              <label
-                key={wt.value}
-                className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors ${
-                  selectedWasteTypes.includes(wt.value)
-                    ? "border-green-500 bg-green-50 text-green-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-green-300"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  className="hidden"
-                  checked={selectedWasteTypes.includes(wt.value)}
-                  onChange={() => toggleWasteType(wt.value)}
-                />
-                {wt.label}
-              </label>
-            ))}
-          </div>
+        <div>
+          <Label>Waste Type *</Label>
+          <MultiSelect
+            value={selectedWasteTypes}
+            onChange={(event) => {
+              const raw = Array.isArray(event.value) ? event.value : [];
+              // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setSelectedWasteTypes(values);
+              setStops((current) => current.map((stop) => ({ ...stop, bin_id: "" })));
+            }}
+            options={wasteTypes}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={3}
+            placeholder="Select waste types"
+            className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+            pt={{
+              labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+              label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+              trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+              dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+              panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+            }}
+            filter
+          />
           {selectedWasteTypes.length === 0 && (
             <p className="mt-1 text-xs text-red-500">Select at least one waste type</p>
           )}
         </div>
 
-        {/* Scheduled Time — 12h IST format */}
         <div>
-          <Label>Scheduled Time (IST) *</Label>
-          <div className="flex gap-2">
-            <select
-              className="h-10 flex-1 rounded-md border border-gray-300 px-2 text-sm focus:border-green-400 focus:outline-none"
-              value={timeHour}
-              onChange={(e) => setTimeHour(e.target.value)}
-            >
-              {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-            </select>
-            <span className="flex items-center text-gray-500">:</span>
-            <select
-              className="h-10 w-20 rounded-md border border-gray-300 px-2 text-sm focus:border-green-400 focus:outline-none"
-              value={timeMinute}
-              onChange={(e) => setTimeMinute(e.target.value)}
-            >
-              {minutes.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-            <select
-              className="h-10 w-20 rounded-md border border-gray-300 px-2 text-sm focus:border-green-400 focus:outline-none"
-              value={timePeriod}
-              onChange={(e) => setTimePeriod(e.target.value as "AM" | "PM")}
-            >
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
-            </select>
-          </div>
+          <Label>Start Time *</Label>
+          <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
         </div>
 
         <div>
-          <Label>Trip Trigger Weight (kg)</Label>
-          <Input type="number" value={tripTriggerWeightKg} onChange={(e) => setTripTriggerWeightKg(e.target.value)} placeholder="e.g. 200" />
+          <Label>Trigger Weight (kg)</Label>
+          <Input type="number" min={0} value={tripTriggerWeightKg} onChange={(e) => setTripTriggerWeightKg(e.target.value)} placeholder="e.g. 200" />
         </div>
 
         <div>
           <Label>Max Vehicle Capacity (kg)</Label>
-          <Input type="number" value={maxVehicleCapacityKg} onChange={(e) => setMaxVehicleCapacityKg(e.target.value)} placeholder="e.g. 5000" />
+          <Input type="number" min={0} value={maxVehicleCapacityKg} onChange={(e) => setMaxVehicleCapacityKg(e.target.value)} placeholder="e.g. 5000" />
         </div>
 
         <div>
@@ -401,6 +645,101 @@ export default function TripPlanForm() {
             options={[{ value: "PENDING", label: "Pending" }, { value: "APPROVED", label: "Approved" }, { value: "REJECTED", label: "Rejected" }]}
             placeholder="Select Approval"
           />
+        </div>
+
+        {/* Collection Point Stops — merged in from the former Trip Plan Collection Point form */}
+        <div className="md:col-span-2 space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-800">Collection Points</h2>
+              <p className="text-sm text-gray-500">Add all stops for this trip plan before saving.</p>
+            </div>
+            {collectionType === "bin_collection" && (
+              <button
+                type="button"
+                onClick={addStop}
+                className="rounded-lg bg-green-custom px-4 py-2 text-sm font-semibold text-white"
+              >
+                Add Stop
+              </button>
+            )}
+          </div>
+
+          {collectionType === "bin_collection" ? (
+            <div className="space-y-3">
+              {stops.map((stop, index) => (
+                <div
+                  key={stop.key}
+                  draggable
+                  onDragStart={() => setDraggedStopIndex(index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => {
+                    if (draggedStopIndex !== null) moveStop(draggedStopIndex, index);
+                    setDraggedStopIndex(null);
+                  }}
+                  onDragEnd={() => setDraggedStopIndex(null)}
+                  className="grid cursor-move grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[72px_minmax(160px,1fr)_minmax(180px,1fr)_minmax(180px,1fr)_120px_92px]"
+                >
+                  <div>
+                    <Label>Seq</Label>
+                    <Input type="number" min={1} value={index + 1} disabled className="bg-gray-50" />
+                  </div>
+                  <div>
+                    <Label>Type</Label>
+                    <Select
+                      value={collectionType}
+                      onChange={(v) => setCollectionType(String(v))}
+                      options={collectionTypes}
+                    />
+                  </div>
+                  <div>
+                    <Label>Collection Point</Label>
+                    <Select
+                      value={stop.collection_point_id}
+                      onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
+                      options={collectionPointsForLocalBody(stop.collection_point_id)}
+                      placeholder={hierarchyId ? "Select an option" : "Select a Local Body first"}
+                    />
+                  </div>
+                  <div>
+                    <Label>Bin</Label>
+                    <Select
+                      value={stop.bin_id}
+                      onChange={(v) => updateStop(stop.key, { bin_id: String(v) })}
+                      options={binsForStop(stop.collection_point_id, stop.bin_id)}
+                      placeholder={stop.collection_point_id ? "Select an option" : "Select a Collection Point first"}
+                    />
+                  </div>
+                  <div>
+                    <Label>Active</Label>
+                    <div className="flex h-10 items-center">
+                      <Switch checked={stop.is_active} onCheckedChange={(checked) => updateStop(stop.key, { is_active: checked })} />
+                    </div>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => removeStop(stop.key)}
+                      disabled={stops.length === 1}
+                      className="h-10 w-full rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[minmax(160px,240px)_1fr]">
+              <div>
+                <Label>Type</Label>
+                <Select value={collectionType} onChange={(v) => setCollectionType(String(v))} options={collectionTypes} />
+              </div>
+              <div className="flex items-center rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-700">
+                Household and bulk waste stops are generated automatically for customers under this Trip Plan's local body — no manual stop list is needed here.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Auto-assign toggle */}
@@ -442,9 +781,21 @@ export default function TripPlanForm() {
           </div>
         )}
 
-        <div className="flex gap-2 md:col-span-2">
-          <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-          <Button type="button" variant="outline" onClick={() => navigate(listPath)}>Cancel</Button>
+        <div className="flex justify-end gap-3 md:col-span-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-lg bg-green-custom px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? "Saving..." : isEdit ? "Update" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(listPath)}
+            className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-semibold text-gray-600"
+          >
+            Cancel
+          </button>
         </div>
       </form>
     </ComponentCard>

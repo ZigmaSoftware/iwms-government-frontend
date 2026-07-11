@@ -198,16 +198,47 @@ function TripLogModal({
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
             )}
 
-            {/* Location */}
-            {row.panchayat?.panchayat_name ? (
-              <div className="flex gap-2 text-sm">
-                <span className="text-gray-500 w-36 shrink-0">Location</span>
-                <span className="font-medium text-gray-800">
-                  {row.panchayat.panchayat_name}
-                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">(PLB)</span>
+          </div>
+        </div>
+
+        <Divider className="!my-0" />
+
+        {/* Location — from the geo masters (district / ULB-RLB / local body) */}
+        <div>
+          <SectionLabel>Location</SectionLabel>
+          <div className="flex flex-col gap-1.5">
+            {row.location?.state && <InfoRow label="State" value={row.location.state} />}
+            <InfoRow label="District" value={row.location?.district ?? "-"} />
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Classification</span>
+              {row.location?.classification ? (
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    row.location.classification.toLowerCase().includes("urban")
+                      ? "bg-sky-100 text-sky-800"
+                      : "bg-lime-100 text-lime-800"
+                  }`}
+                >
+                  {row.location.classification}
+                  <span className="ml-1 font-normal opacity-70">
+                    ({row.location.classification.toLowerCase().includes("urban") ? "ULB" : "RLB"})
+                  </span>
                 </span>
-              </div>
-            ) : null}
+              ) : (
+                <span className="font-medium text-gray-800">-</span>
+              )}
+            </div>
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Local Body</span>
+              <span className="font-medium text-gray-800">
+                {row.location?.local_body_name ?? row.panchayat?.panchayat_name ?? "-"}
+                {(row.location?.local_body_level ?? (row.panchayat?.panchayat_name ? "Panchayat" : null)) && (
+                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">
+                    ({row.location?.local_body_level ?? "Panchayat"})
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -450,7 +481,7 @@ export default function DailyTripLogList() {
     _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
     _base_template: rec.staff_template?.base?.display_code ?? "",
     _alt_template: rec.staff_template?.alt?.display_code ?? "",
-    _location: rec.panchayat?.panchayat_name ?? "",
+    _location: rec.location?.local_body_name ?? rec.location_name ?? rec.panchayat?.panchayat_name ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
     _computed_weight: computeCollectedWeight(rec.collection_points),
@@ -688,15 +719,21 @@ export default function DailyTripLogList() {
           showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row: DailyTripLogRecord) => {
-            if (row.panchayat?.panchayat_name) {
-              return (
-                <span className="text-sm text-gray-800">
-                  {row.panchayat.panchayat_name}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">(PLB)</span>
-                </span>
-              );
-            }
-            return <span className="text-sm text-gray-400">—</span>;
+            const name = row.location?.local_body_name ?? row.location_name ?? row.panchayat?.panchayat_name;
+            const level = row.location?.local_body_level ?? row.location_level ?? (row.panchayat?.panchayat_name ? "Panchayat" : null);
+            const cls = row.location?.classification ?? "";
+            if (!name) return <span className="text-sm text-gray-400">—</span>;
+            return (
+              <div className="text-sm text-gray-800">
+                {name}
+                {level && <span className="ml-1 text-xs text-indigo-500 font-medium">({level})</span>}
+                {cls && (
+                  <div className="text-[10px] font-semibold text-gray-500">
+                    {cls.toLowerCase().includes("urban") ? "ULB" : "RLB"} · {row.location?.district ?? ""}
+                  </div>
+                )}
+              </div>
+            );
           }}
         />
         <Column

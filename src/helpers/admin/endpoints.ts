@@ -30,11 +30,9 @@ export const adminEndpoints = {
   designations: "masters/designations",
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
+  districtLeaders: "masters/district-leaders",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
-  hierarchyLevels: "masters/hierarchy-levels",
-  hierarchyNodes: "masters/hierarchy-nodes",
-  hierarchyAssignments: "masters/hierarchy-assignments",
   corporations: "masters/corporations",
   municipalities: "masters/municipalities",
   townPanchayats: "masters/town-panchayats",
@@ -59,12 +57,13 @@ export const adminEndpoints = {
   staffTemplateCreation: "schedule-masters/staff-templates",
   alternativeStaffTemplate: "schedule-masters/alternative-staff-templates",
   tripPlans: "schedule-masters/trip-plans",
-  tripPlanCollectionPoints: "schedule-masters/trip-plan-collection-points",
   dailyTripAssignment: "schedule-masters/daily-trip-assignments",
   dailyTripLog: "schedule-masters/daily-trip-logs",
   dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",
   dailyTripHouseholdCollection: "schedule-masters/daily-trip-household-collections",
   binCollectionEvent: "schedule-masters/bin-collection-events",
+  vehicleBreakdown: "schedule-masters/vehicle-breakdowns",
+  schedulerConfig: "schedule-masters/daily-trip-assignments/scheduler-config/",
   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
 
@@ -96,13 +95,14 @@ export const adminEndpoints = {
   ========================= */
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
+  staffAccessConfiguration: "user-creations/staff-access-configuration",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  wasteCollections: "customer-masters/wastecollections",
+  wasteCollections: "schedule-masters/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================

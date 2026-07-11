@@ -49,7 +49,7 @@ export default function MonthlyWasteComparison() {
   const [sortMode, setSortMode] = useState("absolute");
   const [rows, setRows] = useState<ReportRow[]>([]);
   const [monthlyTrends, setMonthlyTrends] = useState<ReportResponse["monthly_trends"]>([]);
-  const [panchayatComparison, setPanchayatComparison] = useState<ReportResponse["panchayat_comparison"]>([]);
+  const [panchayatComparison, setPanchayatComparison] = useState<ReportResponse["location_comparison"]>([]);
   const [kpis, setKpis] = useState<ReportResponse["kpis"]>(initialKpis);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -70,7 +70,7 @@ export default function MonthlyWasteComparison() {
       });
       setRows(Array.isArray(data?.results) ? data.results : []);
       setMonthlyTrends(Array.isArray(data?.monthly_trends) ? data.monthly_trends : []);
-      setPanchayatComparison(Array.isArray(data?.panchayat_comparison) ? data.panchayat_comparison : []);
+      setPanchayatComparison(Array.isArray(data?.location_comparison) ? data.location_comparison : []);
       setKpis(data?.kpis ?? initialKpis);
     } catch {
       setRows([]);
@@ -122,8 +122,8 @@ export default function MonthlyWasteComparison() {
     () =>
       rows.map((row) => ({
         month: row.month,
-        panchayat_id: row.panchayat_id,
-        panchayat_name: row.panchayat_name,
+        panchayat_id: row.location_node_id,
+        panchayat_name: row.location_node_name,
         waste_type: row.waste_type,
         total_agreed_weight: row.total_agreed_weight,
         total_actual_weight: row.total_actual_weight,
@@ -257,8 +257,8 @@ export default function MonthlyWasteComparison() {
         emptyMessage="No monthly comparison data found."
         globalFilterFields={[
           "month",
-          "panchayat_id",
-          "panchayat_name",
+          "location_node_id",
+          "location_node_name",
           "waste_type",
           "report_status",
         ]}
@@ -266,8 +266,8 @@ export default function MonthlyWasteComparison() {
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
         <Column field="month" header="Month" sortable />
-        <Column field="panchayat_id" header="Panchayat ID" sortable />
-        <Column field="panchayat_name" header="PLB" sortable />
+        <Column field="location_node_id" header="Panchayat ID" sortable />
+        <Column field="location_node_name" header="PLB" sortable />
         <Column field="waste_type" header="Waste Type" sortable />
         <Column field="total_agreed_weight" header="Agreed Weight" body={(row) => formatNumber(row.total_agreed_weight)} sortable />
         <Column field="total_actual_weight" header="Actual Weight" body={(row) => formatNumber(row.total_actual_weight)} sortable />

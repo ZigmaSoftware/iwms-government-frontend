@@ -6,7 +6,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
-import HierarchyNodeSelect from "@/components/common/HierarchyNodeSelect";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
@@ -143,11 +142,77 @@ import {
   countryApi,
   stateApi,
   districtApi,
+  areaTypeApi,
+  corporationApi,
+  municipalityApi,
+  townPanchayatApi,
+  panchayatUnionApi,
+  panchayatApi,
   staffUserTypeApi,
   contractorUserTypeApi,
   departmentApi,
   designationApi,
 } from "@/helpers/admin/index";
+
+type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+type AreaTypeCategory = "urban" | "rural";
+
+type GeoOptionRecord = {
+  unique_id?: string;
+  id?: string;
+  name?: string;
+  corporation_name?: string;
+  municipality_name?: string;
+  town_panchayat_name?: string;
+  union_name?: string;
+  panchayat_name?: string;
+  area_type_name?: string;
+  state_id?: string | { unique_id?: string };
+  district_id?: string | { unique_id?: string };
+};
+
+const LOCAL_BODY_LEVELS: Array<{ value: LocalBodyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat" },
+];
+
+const AREA_TYPE_LEVELS: Record<AreaTypeCategory, LocalBodyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): AreaTypeCategory | null => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return null;
+};
+
+const geoOptionId = (record: GeoOptionRecord): string =>
+  normalizeId(record.unique_id ?? record.id ?? "");
+
+const geoOptionName = (record: GeoOptionRecord): string | undefined =>
+  record.name ??
+  record.corporation_name ??
+  record.municipality_name ??
+  record.town_panchayat_name ??
+  record.union_name ??
+  record.panchayat_name ??
+  record.area_type_name;
+
+const toGeoOptions = (records: GeoOptionRecord[]) =>
+  records
+    .filter((record) => geoOptionName(record))
+    .map((record) => ({ value: geoOptionId(record), label: geoOptionName(record) as string }));
 
 
 const getGradeOptions = (t: (key: string) => string) => [
@@ -269,14 +334,11 @@ const initialFormData = {
   staffusertype_id: "",
   contractorusertype_id: "",
   governmentusertype_id: "",
-  location_node_id: "",
   state_id: "",
   district_id: "",
-  municipality_id: "",
-  corporation_id: "",
-  town_panchayat_id: "",
-  panchayat_union_id: "",
-  panchayat_id: "",
+  area_type_id: "",
+  local_body_level: "" as LocalBodyLevel | "",
+  local_body_id: "",
   username: "", // ← username field
   password: "",
   login_enabled: "0",
@@ -327,13 +389,6 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
   contractorusertype_id: ["contractorusertype_id", "contractor_user_type", "contractorusertype"],
   governmentusertype_id: ["governmentusertype_id", "government_user_type", "governmentusertype"],
-  state_id: ["state_id", "state"],
-  district_id: ["district_id", "district"],
-  corporation_id: ["corporation_id", "corporation"],
-  municipality_id: ["municipality_id", "municipality"],
-  town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
-  panchayat_union_id: ["panchayat_union_id", "panchayat_union"],
-  panchayat_id: ["panchayat_id", "panchayat"],
   username: ["username"],
   password: ["password"],
   login_enabled: ["login_enabled"],
@@ -364,7 +419,14 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   permanent_pincode: ["permanent_pincode", "permanent_address.pincode"],
   contact_mobile: ["contact_mobile", "mobile"],
   contact_email: ["contact_email", "email"],
-  location_node_id: ["location_node_id", "location_node"],
+  state_id: ["state_id"],
+  district_id: ["district_id"],
+  area_type_id: ["area_type_id"],
+  corporation_id: ["corporation_id"],
+  municipality_id: ["municipality_id"],
+  town_panchayat_id: ["town_panchayat_id"],
+  panchayat_union_id: ["panchayat_union_id"],
+  panchayat_id: ["panchayat_id"],
   driving_licence_no: ["driving_licence_no", "driving_license_no"],
   driving_licence_expiry_date: ["driving_licence_expiry_date"],
   driving_licence_file: ["driving_licence_file", "driving_license_file"],
@@ -399,6 +461,18 @@ export default function StaffCreationForm() {
   const [userTypeCategory, setUserTypeCategory] = useState<
     "staff" | "contractor" | "government"
   >("staff");
+
+  // Government scope cascade: State → District → Area Type → Local Body
+  const [scopeStateOptions, setScopeStateOptions] = useState<{ value: string; label: string }[]>([]);
+  const [scopeDistrictRecords, setScopeDistrictRecords] = useState<GeoOptionRecord[]>([]);
+  const [scopeAreaTypeRecords, setScopeAreaTypeRecords] = useState<GeoOptionRecord[]>([]);
+  const [scopeLocalBodyRecords, setScopeLocalBodyRecords] = useState<Record<LocalBodyLevel, GeoOptionRecord[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
   const [licenceFile, setLicenceFile] = useState<File | null>(null);
   const [licencePreview, setLicencePreview] = useState("");
   const licenceInputRef = useRef<HTMLInputElement>(null);
@@ -558,6 +632,46 @@ export default function StaffCreationForm() {
     [cityOptions, formData.permanent_district],
   );
 
+  // Government scope cascade: State → District → Area Type → Local Body
+  const scopeDistrictOptions = useMemo(() => {
+    if (!formData.state_id) return [];
+    return toGeoOptions(
+      scopeDistrictRecords.filter(
+        (district) => normalizeEntityId(district.state_id) === formData.state_id,
+      ),
+    );
+  }, [scopeDistrictRecords, formData.state_id]);
+
+  const scopeAreaTypeOptions = useMemo(() => {
+    if (!formData.district_id) return [];
+    return toGeoOptions(
+      scopeAreaTypeRecords.filter(
+        (areaType) => normalizeEntityId(areaType.district_id) === formData.district_id,
+      ),
+    );
+  }, [scopeAreaTypeRecords, formData.district_id]);
+
+  const selectedScopeAreaTypeCategory = useMemo((): AreaTypeCategory | null => {
+    const record = scopeAreaTypeRecords.find(
+      (areaType) => geoOptionId(areaType) === formData.area_type_id,
+    );
+    return record ? areaTypeCategoryFromName(String(geoOptionName(record) ?? "")) : null;
+  }, [scopeAreaTypeRecords, formData.area_type_id]);
+
+  const availableScopeLocalBodyLevels = useMemo(() => {
+    if (!selectedScopeAreaTypeCategory) return [];
+    const levels = AREA_TYPE_LEVELS[selectedScopeAreaTypeCategory];
+    return LOCAL_BODY_LEVELS.filter((level) => levels.includes(level.value));
+  }, [selectedScopeAreaTypeCategory]);
+
+  const scopeLocalBodyOptions = useMemo(() => {
+    if (!formData.local_body_level || !formData.district_id) return [];
+    const records = scopeLocalBodyRecords[formData.local_body_level as LocalBodyLevel] ?? [];
+    return toGeoOptions(
+      records.filter((record) => normalizeEntityId(record.district_id) === formData.district_id),
+    );
+  }, [scopeLocalBodyRecords, formData.district_id, formData.local_body_level]);
+
 
   const handleLicenceUpload = (file: File | null) => {
     if (!file) return;
@@ -707,6 +821,42 @@ export default function StaffCreationForm() {
   }, []);
 
   useEffect(() => {
+    const loadScopeGeoOptions = async () => {
+      try {
+        const [states, districts, areaTypes, corporations, municipalities, townPanchayats, panchayatUnions, panchayats] =
+          await Promise.all([
+            stateApi.readAll(),
+            districtApi.readAll(),
+            areaTypeApi.readAll(),
+            corporationApi.readAll(),
+            municipalityApi.readAll(),
+            townPanchayatApi.readAll(),
+            panchayatUnionApi.readAll(),
+            panchayatApi.readAll(),
+          ]);
+
+        const asArray = (res: any): GeoOptionRecord[] =>
+          Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
+
+        setScopeStateOptions(toGeoOptions(asArray(states)));
+        setScopeDistrictRecords(asArray(districts));
+        setScopeAreaTypeRecords(asArray(areaTypes));
+        setScopeLocalBodyRecords({
+          corporation_id: asArray(corporations),
+          municipality_id: asArray(municipalities),
+          town_panchayat_id: asArray(townPanchayats),
+          panchayat_union_id: asArray(panchayatUnions),
+          panchayat_id: asArray(panchayats),
+        });
+      } catch (error) {
+        console.error("Failed to load government scope options", error);
+      }
+    };
+
+    void loadScopeGeoOptions();
+  }, []);
+
+  useEffect(() => {
     if (!formData.department_id) {
       setDesignationOptions([]);
       return;
@@ -799,14 +949,14 @@ export default function StaffCreationForm() {
           staffusertype_id: normalizeEntityId(staff.staffusertype_id),
           contractorusertype_id: normalizeEntityId(staff.contractorusertype_id),
           governmentusertype_id: normalizeEntityId(staff.governmentusertype_id),
-          location_node_id: normalizeEntityId(staff.location_node_id ?? staff.location_node),
-          state_id: normalizeEntityId(staff.state_id ?? staff.state),
-          district_id: normalizeEntityId(staff.district_id ?? staff.district),
-          corporation_id: normalizeEntityId(staff.corporation_id ?? staff.corporation),
-          municipality_id: normalizeEntityId(staff.municipality_id ?? staff.municipality),
-          town_panchayat_id: normalizeEntityId(staff.town_panchayat_id ?? staff.town_panchayat),
-          panchayat_union_id: normalizeEntityId(staff.panchayat_union_id ?? staff.panchayat_union),
-          panchayat_id: normalizeEntityId(staff.panchayat_id ?? staff.panchayat),
+          state_id: normalizeEntityId(staff.state_id),
+          district_id: normalizeEntityId(staff.district_id),
+          area_type_id: normalizeEntityId(staff.area_type_id),
+          local_body_level: (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as const)
+            .find((level) => normalizeEntityId((staff as any)[level])) ?? "",
+          local_body_id: (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as const)
+            .map((level) => normalizeEntityId((staff as any)[level]))
+            .find(Boolean) ?? "",
           driving_licence_no: staff.driving_licence_no ?? "",
           driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
 
@@ -1114,25 +1264,37 @@ export default function StaffCreationForm() {
         const staffHead = staffHeadOptions.find((item) => item.value === value);
         next.staff_head = staffHead?.name ?? "";
       }
+      if (field === "state_id") {
+        next.district_id = "";
+        next.area_type_id = "";
+        next.local_body_level = "";
+        next.local_body_id = "";
+      }
+      if (field === "district_id") {
+        next.area_type_id = "";
+        next.local_body_level = "";
+        next.local_body_id = "";
+      }
+      if (field === "area_type_id") {
+        next.local_body_level = "";
+        next.local_body_id = "";
+      }
+      if (field === "local_body_level") {
+        next.local_body_id = "";
+      }
 
       return next;
     });
   };
 
-  const handleLocationNodeChange = (
-    nodeId: string,
-    legacy: Record<string, string | undefined>,
-  ) => {
+  const resetGovernmentScope = () => {
     setFormData((prev) => ({
       ...prev,
-      location_node_id: nodeId,
-      state_id: legacy.state_id ?? prev.state_id,
-      district_id: legacy.district_id ?? prev.district_id,
-      corporation_id: legacy.corporation_id ?? "",
-      municipality_id: legacy.municipality_id ?? "",
-      town_panchayat_id: legacy.town_panchayat_id ?? "",
-      panchayat_union_id: legacy.panchayat_union_id ?? "",
-      panchayat_id: legacy.panchayat_id ?? "",
+      state_id: "",
+      district_id: "",
+      area_type_id: "",
+      local_body_level: "",
+      local_body_id: "",
     }));
   };
 
@@ -1259,17 +1421,29 @@ export default function StaffCreationForm() {
           userTypeCategory === "government"
             ? formData.governmentusertype_id || null
             : null,
-        location_node_id:
-          userTypeCategory === "government"
-            ? formData.location_node_id || null
+        state_id: userTypeCategory === "government" ? formData.state_id || null : null,
+        district_id: userTypeCategory === "government" ? formData.district_id || null : null,
+        area_type_id: userTypeCategory === "government" ? formData.area_type_id || null : null,
+        corporation_id:
+          userTypeCategory === "government" && formData.local_body_level === "corporation_id"
+            ? formData.local_body_id || null
             : null,
-        state_id: formData.state_id || null,
-        district_id: formData.district_id || null,
-        corporation_id: formData.corporation_id || null,
-        municipality_id: formData.municipality_id || null,
-        town_panchayat_id: formData.town_panchayat_id || null,
-        panchayat_union_id: formData.panchayat_union_id || null,
-        panchayat_id: formData.panchayat_id || null,
+        municipality_id:
+          userTypeCategory === "government" && formData.local_body_level === "municipality_id"
+            ? formData.local_body_id || null
+            : null,
+        town_panchayat_id:
+          userTypeCategory === "government" && formData.local_body_level === "town_panchayat_id"
+            ? formData.local_body_id || null
+            : null,
+        panchayat_union_id:
+          userTypeCategory === "government" && formData.local_body_level === "panchayat_union_id"
+            ? formData.local_body_id || null
+            : null,
+        panchayat_id:
+          userTypeCategory === "government" && formData.local_body_level === "panchayat_id"
+            ? formData.local_body_id || null
+            : null,
         username: formData.username || null, // ← username in payload
         login_enabled: formData.login_enabled === "1",
 
@@ -1412,6 +1586,7 @@ export default function StaffCreationForm() {
                 handleSelectChange("governmentusertype_id", "");
                 handleSelectChange("staff_head_id", "");
                 setGovernmentLevel("");
+                resetGovernmentScope();
               }}
               options={[
                 { value: "staff", label: "Staff" },
@@ -1461,6 +1636,7 @@ export default function StaffCreationForm() {
                   onChange={(value) => {
                     setGovernmentLevel(value);
                     handleSelectChange("governmentusertype_id", "");
+                    resetGovernmentScope();
                   }}
                   options={governmentLevelOptions}
                   placeholder="Select Government Level"
@@ -1482,15 +1658,63 @@ export default function StaffCreationForm() {
                   }
                 />
               </div>
-              <div className="md:col-span-2">
-                <HierarchyNodeSelect
-                  value={formData.location_node_id}
-                  allowedSourceTypes={["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"]}
-                  label="Administrative Hierarchy"
-                  placeholder="Search and select staff hierarchy scope"
-                  onChange={handleLocationNodeChange}
+              <div>
+                <Label htmlFor="state_id">State</Label>
+                <Select
+                  id="state_id"
+                  value={formData.state_id}
+                  onChange={(value) => handleSelectChange("state_id", value)}
+                  options={scopeStateOptions}
+                  placeholder="Select state"
                 />
               </div>
+              <div>
+                <Label htmlFor="district_id">District</Label>
+                <Select
+                  id="district_id"
+                  value={formData.district_id}
+                  onChange={(value) => handleSelectChange("district_id", value)}
+                  options={scopeDistrictOptions}
+                  placeholder={formData.state_id ? "Select district" : "Select a state first"}
+                  disabled={!formData.state_id}
+                />
+              </div>
+              <div>
+                <Label htmlFor="area_type_id">Area Type</Label>
+                <Select
+                  id="area_type_id"
+                  value={formData.area_type_id}
+                  onChange={(value) => handleSelectChange("area_type_id", value)}
+                  options={scopeAreaTypeOptions}
+                  placeholder={formData.district_id ? "Select area type" : "Select a district first"}
+                  disabled={!formData.district_id}
+                />
+              </div>
+              <div>
+                <Label htmlFor="local_body_level">Local Body</Label>
+                <Select
+                  id="local_body_level"
+                  value={formData.local_body_level}
+                  onChange={(value) => handleSelectChange("local_body_level", value)}
+                  options={availableScopeLocalBodyLevels.map((level) => ({ value: level.value, label: level.label }))}
+                  placeholder={formData.area_type_id ? "Select local body type" : "Select an area type first"}
+                  disabled={!formData.area_type_id}
+                />
+              </div>
+              {formData.local_body_level && (
+                <div>
+                  <Label htmlFor="local_body_id">
+                    {LOCAL_BODY_LEVELS.find((level) => level.value === formData.local_body_level)?.label}
+                  </Label>
+                  <Select
+                    id="local_body_id"
+                    value={formData.local_body_id}
+                    onChange={(value) => handleSelectChange("local_body_id", value)}
+                    options={scopeLocalBodyOptions}
+                    placeholder="Select"
+                  />
+                </div>
+              )}
             </>
           )}
         </>

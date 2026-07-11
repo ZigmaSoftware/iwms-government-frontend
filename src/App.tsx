@@ -33,6 +33,7 @@ import {
   normalizeRole,
   isAdmin,
 } from "@/types/roles";
+import PublicGrievance from "./pages/PublicGrievance";
 
 const ADMIN_ACCESS_ROLES: UserRole[] = [DEFAULT_ROLE, ...ADMIN_ROLES];
 
@@ -130,6 +131,7 @@ export default function App() {
       <Route path="/state" element={<StateDashboard />} />
       <Route path="/state/dashboard" element={<Navigate to="/state" replace />} />
       <Route path="/" element={<HomeRedirect />} />
+       <Route path="/publicgrivence/*" element={<PublicGrievance />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
       <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />

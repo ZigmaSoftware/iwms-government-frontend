@@ -13,10 +13,7 @@ import {
   Tooltip as RTooltip, XAxis, YAxis,
 } from "recharts";
 import ZigmaLogo from "../../images/logo.png";
-
-/* ─── axios instance ─────────────────────────────────────────────────── */
-const IS_PROD = import.meta.env.VITE_PROD === "true";
-const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
+import { API_ROOT } from "../../config/configApi";
 
 const lbApi = axios.create({ baseURL: API_ROOT });
 lbApi.interceptors.request.use((config) => {

@@ -120,15 +120,12 @@ type BreakdownItem = {
 };
 
 type WasteKpis = {
-  total_agreed_weight: number;
   total_actual_weight: number;
-  variance_kg: number;
-  collection_efficiency_percent: number;
   average_weight_per_trip: number;
-  coverage_efficiency_percent: number;
   total_trips: number;
   collection_points_covered: number;
-  report_status: string;
+  waste_type_count?: number;
+  local_body_count?: number;
 };
 
 type MainScreenRow = {
@@ -971,12 +968,12 @@ export default function AdminHome() {
         {/* ── Monthly Waste Collection KPIs ─────────────────────────────── */}
         <Panel
           title="Monthly Waste Collection"
-          subtitle={`KPIs for ${new Date().toLocaleString("default", { month: "long", year: "numeric" })} — efficiency, variance, trips and coverage`}
+          subtitle={`KPIs for ${new Date().toLocaleString("default", { month: "long", year: "numeric" })} — weight collected, trips and coverage`}
           icon={Activity}
         >
           {wasteKpisLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {[...Array(9)].map((_, i) => (
+              {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
                   className="h-24 animate-pulse rounded-xl bg-slate-100"
@@ -987,121 +984,45 @@ export default function AdminHome() {
             <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                 <WasteKpiTile
-                  label="Collection Efficiency"
-                  value={`${wasteKpis.collection_efficiency_percent.toFixed(1)}%`}
-                  sub="actual vs agreed weight"
-                  color="text-emerald-600"
-                  border="border-emerald-400"
-                  bg="bg-emerald-50"
-                />
-                <WasteKpiTile
-                  label="Coverage Efficiency"
-                  value={`${wasteKpis.coverage_efficiency_percent.toFixed(1)}%`}
-                  sub="points covered vs trips"
-                  color="text-orange-600"
-                  border="border-orange-400"
-                  bg="bg-orange-50"
-                />
-                <WasteKpiTile
-                  label="Avg Weight / Trip"
-                  value={`${wasteKpis.average_weight_per_trip.toFixed(2)} kg`}
-                  sub="actual weight per trip"
+                  label="Total Weight Collected"
+                  value={`${wasteKpis.total_actual_weight.toLocaleString()} kg`}
+                  sub="total waste collected"
                   color="text-green-700"
                   border="border-green-500"
                   bg="bg-green-50"
                 />
                 <WasteKpiTile
-                  label="Total Variance"
-                  value={`${wasteKpis.variance_kg >= 0 ? "+" : ""}${wasteKpis.variance_kg.toFixed(2)} kg`}
-                  sub="actual minus agreed"
-                  color={
-                    wasteKpis.variance_kg >= 0
-                      ? "text-emerald-600"
-                      : "text-rose-600"
-                  }
-                  border={
-                    wasteKpis.variance_kg >= 0
-                      ? "border-emerald-400"
-                      : "border-rose-400"
-                  }
-                  bg={
-                    wasteKpis.variance_kg >= 0 ? "bg-emerald-50" : "bg-rose-50"
-                  }
+                  label="Total Trips"
+                  value={wasteKpis.total_trips.toLocaleString()}
+                  sub="collection trips made"
+                  color="text-orange-600"
+                  border="border-orange-400"
+                  bg="bg-orange-50"
                 />
                 <WasteKpiTile
-                  label="Report Status"
-                  value={wasteKpis.report_status || "—"}
-                  sub="overall performance"
-                  color={
-                    wasteKpis.report_status === "Surplus"
-                      ? "text-emerald-600"
-                      : wasteKpis.report_status === "Deficit"
-                        ? "text-rose-600"
-                        : "text-blue-600"
-                  }
-                  border={
-                    wasteKpis.report_status === "Surplus"
-                      ? "border-emerald-400"
-                      : wasteKpis.report_status === "Deficit"
-                        ? "border-rose-400"
-                        : "border-blue-400"
-                  }
-                  bg={
-                    wasteKpis.report_status === "Surplus"
-                      ? "bg-emerald-50"
-                      : wasteKpis.report_status === "Deficit"
-                        ? "bg-rose-50"
-                        : "bg-blue-50"
-                  }
+                  label="Points Covered"
+                  value={wasteKpis.collection_points_covered.toLocaleString()}
+                  sub="collection points"
+                  color="text-emerald-600"
+                  border="border-emerald-400"
+                  bg="bg-emerald-50"
                 />
-              </div>
-              {/* Weight comparison + operations in one row */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                  Weight & Operations
-                </p>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <div className="space-y-2 lg:col-span-2">
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs text-slate-600">
-                        <span className="font-medium">Agreed Weight</span>
-                        <span className="font-bold">{wasteKpis.total_agreed_weight.toLocaleString()} kg</span>
-                      </div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-green-500" style={{ width: "100%" }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="mb-1 flex justify-between text-xs text-slate-600">
-                        <span className="font-medium">Actual Weight</span>
-                        <span className="font-bold">{wasteKpis.total_actual_weight.toLocaleString()} kg</span>
-                      </div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-                        <div
-                          className={`h-full rounded-full ${wasteKpis.total_actual_weight >= wasteKpis.total_agreed_weight ? "bg-orange-500" : "bg-rose-500"}`}
-                          style={{
-                            width: `${Math.min(
-                              wasteKpis.total_agreed_weight > 0
-                                ? (wasteKpis.total_actual_weight / wasteKpis.total_agreed_weight) * 100
-                                : 0,
-                              100,
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-orange-100 bg-orange-50 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Total Trips</p>
-                    <p className="mt-1 text-xl font-bold tabular-nums text-orange-600">{wasteKpis.total_trips.toLocaleString()}</p>
-                    <p className="mt-0.5 text-[10px] text-gray-400">collection trips made</p>
-                  </div>
-                  <div className="rounded-lg border border-green-100 bg-green-50 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Points Covered</p>
-                    <p className="mt-1 text-xl font-bold tabular-nums text-green-600">{wasteKpis.collection_points_covered.toLocaleString()}</p>
-                    <p className="mt-0.5 text-[10px] text-gray-400">collection points</p>
-                  </div>
-                </div>
+                <WasteKpiTile
+                  label="Avg Weight / Trip"
+                  value={`${wasteKpis.average_weight_per_trip.toFixed(2)} kg`}
+                  sub="collected weight per trip"
+                  color="text-blue-600"
+                  border="border-blue-400"
+                  bg="bg-blue-50"
+                />
+                <WasteKpiTile
+                  label="Waste Types"
+                  value={String(wasteKpis.waste_type_count ?? 0)}
+                  sub="distinct waste types collected"
+                  color="text-violet-600"
+                  border="border-violet-400"
+                  bg="bg-violet-50"
+                />
               </div>
             </div>
           ) : (

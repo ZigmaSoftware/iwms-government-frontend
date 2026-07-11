@@ -12,8 +12,6 @@ import Swal from "@/lib/notify";
 type AttendanceRecord = Record<string, unknown>;
 
 type AttendanceResponse = {
-  company_name: string;
-  project_name: string;
   count: number;
   records: AttendanceRecord[];
 };
@@ -40,8 +38,6 @@ export default function ExternalAttendanceList() {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
-  const [companyName, setCompanyName] = useState("");
-  const [projectName, setProjectName] = useState("");
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -49,24 +45,15 @@ export default function ExternalAttendanceList() {
   });
 
   const fetchAttendance = useCallback(async () => {
-    if (!companyUniqueId || !projectId) {
-      setRows([]);
-      return;
-    }
-
     setLoading(true);
     try {
       const { data } = await api.get<AttendanceResponse>("/attendance/external-records/", {
         params: {
-          company_id: companyUniqueId,
-          project_id: projectId,
           from_date: fromDate,
           to_date: toDate,
         },
       });
       setRows(Array.isArray(data.records) ? data.records : []);
-      setCompanyName(data.company_name ?? "");
-      setProjectName(data.project_name ?? "");
     } catch (error: unknown) {
       setRows([]);
       Swal.fire(
@@ -77,55 +64,20 @@ export default function ExternalAttendanceList() {
     } finally {
       setLoading(false);
     }
-  }, [companyUniqueId, fromDate, projectId, toDate]);
+  }, [fromDate, toDate]);
 
   useEffect(() => {
-    if (companyUniqueId && projectId) fetchAttendance();
-  }, [companyUniqueId, fetchAttendance, projectId]);
+    fetchAttendance();
+  }, [fetchAttendance]);
 
   const header = (
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">Attendance</h1>
-            <p className="text-sm text-gray-500">
-              {[companyName, projectName].filter(Boolean).join(" / ") || "Project"} recognized attendance records
-            </p>
+            <p className="text-sm text-gray-500">Recognized attendance records</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
-            {isSuperAdmin ? (
-              <label className="text-sm text-gray-700">
-                <span className="mb-1 block">Company</span>
-                <select
-                  value={companyUniqueId || ""}
-                  onChange={(event) => onCompanyChange(event.target.value)}
-                  className="h-10 rounded-md border bg-white px-3"
-                >
-                  <option value="">Select company</option>
-                  {companies.map((company) => (
-                    <option key={company.value} value={company.value}>
-                      {company.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">Project</span>
-              <select
-                value={projectId || ""}
-                onChange={(event) => setProjectId(event.target.value)}
-                disabled={!companyUniqueId || projects.length === 0}
-                className="h-10 rounded-md border bg-white px-3"
-              >
-                <option value="">Select project</option>
-                {projects.map((project) => (
-                  <option key={project.value} value={project.value}>
-                    {project.label}
-                  </option>
-                ))}
-              </select>
-            </label>
             <label className="text-sm text-gray-700">
               <span className="mb-1 block">From date</span>
               <input
@@ -144,7 +96,7 @@ export default function ExternalAttendanceList() {
                 className="h-10 rounded-md border px-3"
               />
             </label>
-            <Button onClick={fetchAttendance} disabled={loading || !companyUniqueId || !projectId}>
+            <Button onClick={fetchAttendance} disabled={loading}>
               {loading ? "Loading..." : "Load attendance"}
             </Button>
           </div>
@@ -180,7 +132,7 @@ export default function ExternalAttendanceList() {
         header={header}
         stripedRows
         showGridlines
-        emptyMessage={companyUniqueId && projectId ? "No attendance records found." : "Select a company and project."}
+        emptyMessage="No attendance records found."
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_: AttendanceRecord, options: { rowIndex: number }) => options.rowIndex + 1} />
