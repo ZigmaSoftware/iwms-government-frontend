@@ -10,7 +10,8 @@ import {
   staffTemplateApi,
 } from "@/helpers/admin";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
-import { normalizeList } from "@/utils/forms";
+import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
+import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -267,8 +268,8 @@ export default function DailyTripTracking() {
   const [assignments, setAssignments] = useState<Array<{ value: string; label: string; tripDate?: string }>>([]);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [altStaffTemplateId, setAltStaffTemplateId] = useState("");
-  const [staffTemplates, setStaffTemplates] = useState<Array<{ value: string; label: string }>>([]);
-  const [altStaffTemplates, setAltStaffTemplates] = useState<Array<{ value: string; label: string }>>([]);
+  const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<Record<string, unknown>[]>([]);
+  const [altStaffTemplatesRaw, setAltStaffTemplatesRaw] = useState<Record<string, unknown>[]>([]);
   const [data, setData] = useState<TrackingResponse | null>(null);
   const [overview, setOverview] = useState<OverviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -287,11 +288,6 @@ export default function DailyTripTracking() {
 
   // ── Load dropdowns ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const toOptions = (result: unknown, label = "display_code") =>
-      (normalizeList(result) as Record<string, unknown>[]).map((item) => ({
-        value: String(item.unique_id ?? ""),
-        label: String(item[label] ?? item.unique_id ?? ""),
-      }));
     void Promise.all([
       dailyTripAssignmentApi.readAll(),
       staffTemplateApi.readAll(),
@@ -304,10 +300,37 @@ export default function DailyTripTracking() {
           tripDate: item.trip_date ? String(item.trip_date) : undefined,
         })),
       );
-      setStaffTemplates(toOptions(staffResult));
-      setAltStaffTemplates(toOptions(altResult));
+      setStaffTemplatesRaw(normalizeList(staffResult) as Record<string, unknown>[]);
+      setAltStaffTemplatesRaw(normalizeList(altResult) as Record<string, unknown>[]);
     });
   }, []);
+
+  // Staff / alt templates scoped to the selected Panchayat (this page's local
+  // body filter). Selected values are always kept present.
+  const staffTemplates = useMemo(
+    () =>
+      staffTemplatesRaw
+        .filter(
+          (tpl) =>
+            staffTemplateInHierarchy(tpl, "panchayat_id", locations.panchayatId) ||
+            String((tpl as any)?.unique_id ?? "") === staffTemplateId,
+        )
+        .map((tpl) => ({ value: String((tpl as any).unique_id ?? ""), label: staffTemplateLabel(tpl) }))
+        .filter((o) => o.value),
+    [staffTemplatesRaw, locations.panchayatId, staffTemplateId],
+  );
+  const altStaffTemplates = useMemo(
+    () =>
+      altStaffTemplatesRaw
+        .filter(
+          (tpl) =>
+            staffTemplateInHierarchy(tpl, "panchayat_id", locations.panchayatId) ||
+            String((tpl as any)?.unique_id ?? "") === altStaffTemplateId,
+        )
+        .map((tpl) => ({ value: String((tpl as any).unique_id ?? ""), label: altStaffTemplateLabel(tpl) }))
+        .filter((o) => o.value),
+    [altStaffTemplatesRaw, locations.panchayatId, altStaffTemplateId],
+  );
 
   // ── Load tracking data ─────────────────────────────────────────────────────
   const load = useCallback(async (silent = false) => {
