@@ -4,8 +4,8 @@ import axios from "axios";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Building2, ChevronDown,
-  ChevronRight, Clock, Download, Droplets, Filter, Home, Landmark, Leaf, LogOut,
+  AlertTriangle, ArrowDownRight, ArrowUpRight, BarChart3, Building2, ChevronDown,
+  ChevronRight, Clock, Download, Droplets, Filter, Home, Landmark, LayoutGrid, Leaf, ListTree, LogOut,
   MapPin, Recycle, RefreshCw, Search, Shield, Trash2, Triangle, Truck, Users, X,
 } from "lucide-react";
 import {
@@ -13,6 +13,7 @@ import {
   PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import ZigmaLogo from "../../images/logo.png";
+import ErodeDistrictMap from "./ErodeDistrictMap";
 
 /* ─── axios instance ─────────────────────────────────────────────────── */
 const IS_PROD = import.meta.env.VITE_PROD === "true";
@@ -125,6 +126,14 @@ type CategorySummaryRow = {
    modules exist. ── */
 type ModuleTab = "waste" | "grievances" | "fleet" | "segregation";
 
+/* top-level page tabs — partition the dashboard so each view stays compact */
+type PageTab = "overview" | "modules" | "localBodies";
+const PAGE_TABS: Array<{ key: PageTab; label: string; icon: React.ReactNode }> = [
+  { key: "overview",    label: "Overview",     icon: <LayoutGrid className="h-4 w-4" /> },
+  { key: "modules",     label: "Modules",      icon: <BarChart3 className="h-4 w-4" /> },
+  { key: "localBodies", label: "Local Bodies", icon: <ListTree className="h-4 w-4" /> },
+];
+
 const MODULE_TABS: Array<{ key: ModuleTab; label: string; icon: React.ReactNode; accent: string }> = [
   { key: "waste", label: "Waste Collection", icon: <Trash2 className="h-4 w-4" />, accent: "#0d9488" },
   { key: "grievances", label: "Grievances", icon: <AlertTriangle className="h-4 w-4" />, accent: "#ea580c" },
@@ -235,6 +244,7 @@ export default function DistrictDashboard() {
   const [search, setSearch] = useState("");
   const [highlighted, setHighlighted] = useState<LocalBodyCategory | null>(null);
   const [moduleTab, setModuleTab] = useState<ModuleTab>("waste");
+  const [pageTab, setPageTab] = useState<PageTab>("overview");
   const [drillCategory, setDrillCategory] = useState<LocalBodyCategory | null>(null); // place-name drill-down
 
   const applyPreset = (p: Period) => {
@@ -923,6 +933,51 @@ export default function DistrictDashboard() {
             </div>
           </div>
 
+          {/* ── Primary page tabs ── */}
+          <div className="inline-flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/80 shadow-sm overflow-x-auto">
+            {PAGE_TABS.map((t) => {
+              const on = pageTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setPageTab(t.key)}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+                    on ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                  }`}
+                >
+                  {t.icon} {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+        {pageTab === "overview" && (
+          <>
+          {/* ── District map ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <ErodeDistrictMap className="lg:col-span-1" />
+            <div className="lg:col-span-2 flex flex-col justify-center rounded-2xl bg-white border border-slate-200/80 shadow-sm p-6">
+              <p className="text-[11px] font-semibold tracking-[0.28em] text-slate-400 uppercase">District Overview</p>
+              <h3 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{districtLabel || "Erode"}</h3>
+              <p className="mt-2 text-sm text-slate-500 max-w-xl">
+                Local-body distribution, waste collection, grievances, fleet and segregation performance across{" "}
+                <strong className="text-slate-700">{fmt(overallTotals.count)}</strong> local bodies in the district.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {categorySummary.map((c) => (
+                  <span
+                    key={c.category}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600"
+                  >
+                    {CATEGORY_META[c.category].icon}
+                    {c.category}
+                    <strong className="text-slate-900 tabular-nums">{fmt(c.count)}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* ── Overall District Summary ── */}
           <SectionHeading title="Overall District Summary" hint="Local body distribution across the district" />
 
@@ -968,8 +1023,11 @@ export default function DistrictDashboard() {
               <DonutCard title="Village Summary" subtitle="Rural local bodies" data={villageWiseRural} total={overallTotals.villages} totalLabel="Total Villages" />
             </div>
           )}
+          </>
+        )}
 
-          {/* ── Module tabs ── */}
+        {pageTab === "modules" && (
+          /* ── Module tabs ── */
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/80 shadow-sm overflow-x-auto">
@@ -994,7 +1052,10 @@ export default function DistrictDashboard() {
 
             {renderModuleContent()}
           </div>
+        )}
 
+        {pageTab === "localBodies" && (
+          <>
           {/* ── Details table ── */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
@@ -1094,6 +1155,8 @@ export default function DistrictDashboard() {
           <p className="text-[11px] text-slate-400 leading-relaxed">
             Category and ward/village figures are modeled from real local-body counts as a design preview — they will switch to live backend fields once local-body classification and ward/village counts are available per body.
           </p>
+          </>
+        )}
         </main>
       </div>
 
