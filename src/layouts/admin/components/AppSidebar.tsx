@@ -97,6 +97,7 @@ const {
   encLeaderLogin,
   encPlbLeaderCreation,
   encDistrictLeaderCreation,
+  encStateLeaderCreation,
 } = getEncryptedRoute();
 
 type NavItem = {
@@ -700,6 +701,12 @@ const leaderLoginItems: NavItem[] = [
         path: `/${encLeaderLogin}/${encDistrictLeaderCreation}`,
         module: "leader-login",
         screen: "district-leader-creation",
+      },
+      {
+        nameKey: "admin.nav.state_leader_creation",
+        path: `/${encLeaderLogin}/${encStateLeaderCreation}`,
+        module: "leader-login",
+        screen: "state-leader-creation",
       },
     ],
   },

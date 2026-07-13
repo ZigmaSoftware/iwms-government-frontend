@@ -31,6 +31,8 @@ import PanchayatLeaderListPage from "@/pages/admin/modules/masters/panchayatLead
 import PanchayatLeaderForm from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderForm";
 import DistrictLeaderListPage from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderListPage";
 import DistrictLeaderForm from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderForm";
+import StateLeaderListPage from "@/pages/admin/modules/masters/stateLeader/StateLeaderListPage";
+import StateLeaderForm from "@/pages/admin/modules/masters/stateLeader/StateLeaderForm";
 import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
@@ -188,6 +190,7 @@ const ROUTES: RouteMap = {
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
+    "state-leaders": { list: StateLeaderListPage, form: StateLeaderForm },
     "area-types": { list: AreaTypeListPage, form: AreaTypeForm },
     hierarchies: { list: HierarchyListPage, form: HierarchyForm },
     corporations: { list: CorporationListPage, form: CorporationForm },
@@ -272,6 +275,7 @@ const ROUTES: RouteMap = {
   "leader-login": {
     "plb-leader-creation": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "district-leader-creation": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
+    "state-leader-creation": { list: StateLeaderListPage, form: StateLeaderForm },
   },
 };
 

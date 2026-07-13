@@ -10,6 +10,8 @@ import LocalBodyAuth from "@/pages/LocalBodyAuth";
 import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
 import DistrictAuth from "@/pages/DistrictAuth";
 import DistrictDashboard from "@/pages/district/DistrictDashboard";
+import StateAuth from "@/pages/StateAuth";
+import StateLeaderDashboard from "@/pages/state/StateLeaderDashboard";
 import StateDashboard from "@/pages/state/StateDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
@@ -128,8 +130,9 @@ export default function App() {
       <Route path="/auth/district" element={<Navigate to="/district" replace />} />
       <Route path="/district" element={<DistrictAuth />} />
       <Route path="/district/dashboard" element={<DistrictDashboard />} />
-      <Route path="/state" element={<StateDashboard />} />
-      <Route path="/state/dashboard" element={<Navigate to="/state" replace />} />
+      <Route path="/state" element={<StateAuth />} />
+      <Route path="/state/dashboard" element={<StateLeaderDashboard />} />
+      <Route path="/state/preview" element={<StateDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
        <Route path="/publicgrivence/*" element={<PublicGrievance />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />

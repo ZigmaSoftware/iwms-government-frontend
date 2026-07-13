@@ -878,7 +878,8 @@ const hiResource = {
           "monthly_waste_comparison": "मासिक कचरा तुलना",
           "leader_login": "नेता लॉगिन",
           "plb_leader_creation": "PLB नेता निर्माण",
-          "district_leader_creation": "ज़िला नेता निर्माण"
+          "district_leader_creation": "ज़िला नेता निर्माण",
+          "state_leader_creation": "राज्य नेता निर्माण"
         },
         "project": {
           "company_id": "कंपनी आईडी",
