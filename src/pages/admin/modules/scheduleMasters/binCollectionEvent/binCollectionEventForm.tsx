@@ -25,6 +25,7 @@ import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+import { mergeWithScopeOptionExtra } from "../../masters/shared/dataScopeOptions";
 
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
@@ -75,6 +76,14 @@ const ensureOption = (items: Option[], value: string, label?: string): Option[] 
 };
 
 const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
+
+const SCOPE_LEVEL_BY_HIERARCHY: Record<HierarchyLevel, "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat"> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
 
 const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
   { value: "corporation_id", label: "Corporation" },
@@ -294,25 +303,38 @@ export default function BinCollectionEventForm() {
   );
 
   const stateOptions = useMemo(
-    () => states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+    () =>
+      mergeWithScopeOptionExtra(
+        states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+        "state",
+        {},
+      ),
     [states],
   );
 
   const districtOptions = useMemo(
     () =>
-      districts
-        .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
-        .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
-        .filter((item) => item.value),
+      mergeWithScopeOptionExtra(
+        districts
+          .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
+          .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
+          .filter((item) => item.value),
+        "district",
+        {},
+      ),
     [districts, stateId],
   );
 
   const areaTypeOptions = useMemo(
     () =>
-      areaTypes
-        .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
-        .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
-        .filter((item) => item.value),
+      mergeWithScopeOptionExtra(
+        areaTypes
+          .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
+          .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
+          .filter((item) => item.value),
+        "area_type",
+        {},
+      ),
     [areaTypes, districtId],
   );
 
@@ -333,8 +355,13 @@ export default function BinCollectionEventForm() {
         label: textOf(item.name, item.corporation_name, item.municipality_name, item.town_panchayat_name, item.union_name, item.panchayat_name, item.unique_id),
       }))
       .filter((item) => item.value);
-    const selectedLabel = options.find((item) => item.value === panchayatId)?.label;
-    return ensureOption(options, panchayatId, selectedLabel);
+    const scoped = mergeWithScopeOptionExtra(
+      options,
+      SCOPE_LEVEL_BY_HIERARCHY[localBodyLevel],
+      {},
+    );
+    const selectedLabel = scoped.find((item) => item.value === panchayatId)?.label;
+    return ensureOption(scoped, panchayatId, selectedLabel);
   }, [hierarchyRecords, localBodyLevel, districtId, panchayatId]);
 
   const visibleCollectionPoints = useMemo(() => {

@@ -1,15 +1,20 @@
 import { ChevronDown, LayoutGrid } from "lucide-react";
 
-import type { FieldPermissionState, ModulePermission, UserActionOption } from "./types";
+import type { ModulePermission, UserActionOption } from "./types";
+import type { AllowedActionsMap } from "@/helpers/admin/staffAccessConfigApi";
 
 type PermissionTreeProps = {
   modules: ModulePermission[];
   actions: UserActionOption[];
   onChange: (modules: ModulePermission[]) => void;
+  /**
+   * userScreenId -> action -> true, the set of screens/actions Super Admin
+   * enabled for the selected Local Body. When provided, a staff admin can
+   * only narrow this set — actions not present here are not rendered.
+   */
+  allowedActions?: AllowedActionsMap;
   readOnly?: boolean;
 };
-
-const FIELD_STATES: FieldPermissionState[] = ["VISIBLE", "HIDDEN"];
 
 const cloneModules = (modules: ModulePermission[]) =>
   modules.map((module) => ({
@@ -17,7 +22,6 @@ const cloneModules = (modules: ModulePermission[]) =>
     screens: module.screens.map((screen) => ({
       ...screen,
       actions: { ...screen.actions },
-      fields: screen.fields.map((field) => ({ ...field })),
     })),
   }));
 
@@ -56,6 +60,7 @@ export default function PermissionTree({
   modules,
   actions,
   onChange,
+  allowedActions,
   readOnly = false,
 }: PermissionTreeProps) {
   const updateModule = (moduleIndex: number, enabled: boolean) => {
@@ -78,21 +83,10 @@ export default function PermissionTree({
     onChange(next);
   };
 
-  const updateField = (
-    moduleIndex: number,
-    screenIndex: number,
-    fieldIndex: number,
-    state: FieldPermissionState,
-  ) => {
-    const next = cloneModules(modules);
-    next[moduleIndex].screens[screenIndex].fields[fieldIndex].fieldPermissionState = state;
-    onChange(next);
-  };
-
   if (!modules.length) {
     return (
       <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
-        Select a role and load permissions to configure screen access.
+        Select a Local Body to load the screens enabled for it.
       </div>
     );
   }
@@ -100,7 +94,7 @@ export default function PermissionTree({
   return (
     <div className="space-y-5">
       <div className="border-l-2 border-blue-500 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
-        Permissions below are set at the role level. Changes apply to all staff with the same role.
+        Only screens and actions enabled by Super Admin for this Local Body are shown. You cannot grant access beyond what Super Admin has allowed.
       </div>
 
       <div className="space-y-2">
@@ -129,9 +123,13 @@ export default function PermissionTree({
             <div className={module.enabled ? "divide-y divide-gray-100 dark:divide-gray-800" : "divide-y divide-gray-100 opacity-60 dark:divide-gray-800"}>
               {module.screens.map((screen, screenIndex) => {
                 const disabled = readOnly || !module.enabled;
-                const hasFields = screen.fields.length > 0;
+                const allowedForScreen = allowedActions?.[screen.userScreenId];
+                const visibleActions = allowedForScreen
+                  ? actions.filter((action) => Boolean(allowedForScreen[action.value]))
+                  : actions;
                 const allChecked =
-                  actions.length > 0 && actions.every((action) => Boolean(screen.actions[action.value]));
+                  visibleActions.length > 0 &&
+                  visibleActions.every((action) => Boolean(screen.actions[action.value]));
                 return (
                   <div key={screen.userScreenId}>
                     <div className="grid gap-3 px-4 py-3 lg:grid-cols-[minmax(190px,1fr)_minmax(360px,2fr)]">
@@ -142,9 +140,6 @@ export default function PermissionTree({
                       <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
                         {screen.userScreenName ?? screen.userScreenId}
                       </span>
-                      {hasFields && (
-                        <span className="text-xs text-gray-400">{screen.fields.length} fields</span>
-                      )}
                     </label>
 
                     <div
@@ -159,7 +154,7 @@ export default function PermissionTree({
                           disabled={disabled}
                           onChange={(event) =>
                             updateScreen(moduleIndex, screenIndex, (nextScreen) => {
-                              actions.forEach((action) => {
+                              visibleActions.forEach((action) => {
                                 nextScreen.actions[action.value] = event.target.checked;
                               });
                             })
@@ -167,7 +162,7 @@ export default function PermissionTree({
                         />
                         All
                       </label>
-                      {actions.map((action) => (
+                      {visibleActions.map((action) => (
                         <label
                           key={action.value}
                           className="flex items-center gap-1.5 text-xs capitalize text-gray-600 dark:text-gray-300"
@@ -188,48 +183,6 @@ export default function PermissionTree({
                       ))}
                     </div>
                     </div>
-
-                  {hasFields && (
-                    <div className="space-y-2 bg-slate-50/70 px-6 pb-4 pt-1 dark:bg-gray-900/40">
-                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                        <span>Column level data</span>
-                        <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium normal-case tracking-normal text-gray-500 dark:bg-gray-950">
-                          {screen.fields.length} fields
-                        </span>
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {screen.fields.map((field, fieldIndex) => (
-                          <div
-                            key={field.columnId}
-                            className="flex items-center justify-between gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-950"
-                          >
-                            <span className="min-w-0 truncate text-sm text-gray-700 dark:text-gray-200">
-                              {field.displayName || field.fieldName}
-                            </span>
-                            <select
-                              className="h-8 shrink-0 rounded-md border border-gray-300 bg-white px-2 text-xs text-gray-700 disabled:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:disabled:bg-gray-900"
-                              value={field.fieldPermissionState}
-                              disabled={disabled}
-                              onChange={(event) =>
-                                updateField(
-                                  moduleIndex,
-                                  screenIndex,
-                                  fieldIndex,
-                                  event.target.value as FieldPermissionState,
-                                )
-                              }
-                            >
-                              {FIELD_STATES.map((state) => (
-                                <option key={state} value={state}>
-                                  {state.replace("_", " ")}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                   </div>
                 );
               })}

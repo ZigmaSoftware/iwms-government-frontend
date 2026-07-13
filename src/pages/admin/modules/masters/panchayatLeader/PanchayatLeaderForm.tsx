@@ -22,6 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { panchayatApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { mergeWithScopeOption } from "../shared/dataScopeOptions";
 
 type RecordRow = Record<string, any>;
 
@@ -355,20 +356,25 @@ export default function PanchayatLeaderForm() {
   // Load panchayat options
   useEffect(() => {
     setLoadingPanchayats(true);
+
+    // The Panchayat screen may not be permission-granted to this user at all
+    // (View gates the Panchayats menu/list, not this dropdown) — their Data
+    // Scope from login always supplies their own panchayat regardless.
+    setPanchayatOptions((prev) => mergeWithScopeOption(prev, "panchayat"));
+
     panchayatApi
       .readAll()
       .then((res: any) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setPanchayatOptions(
-          list
-            .filter((p: any) => p?.is_active !== false && p?.is_deleted !== true)
-            .map((p: any) => ({
-              value: String(p.unique_id ?? ""),
-              label: p.panchayat_name ?? p.unique_id,
-            }))
-        );
+        const fetched = list
+          .filter((p: any) => p?.is_active !== false && p?.is_deleted !== true)
+          .map((p: any) => ({
+            value: String(p.unique_id ?? ""),
+            label: p.panchayat_name ?? p.unique_id,
+          }));
+        setPanchayatOptions(mergeWithScopeOption(fetched, "panchayat"));
       })
-      .catch(() => setPanchayatOptions([]))
+      .catch(() => setPanchayatOptions((prev) => mergeWithScopeOption(prev, "panchayat")))
       .finally(() => setLoadingPanchayats(false));
   }, []);
 

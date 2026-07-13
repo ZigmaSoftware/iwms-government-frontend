@@ -24,6 +24,7 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
+import { mergeWithScopeOptionExtra, scopeOption } from "../shared/dataScopeOptions";
 
 type Option = {
   value: string;
@@ -310,35 +311,45 @@ export default function AreaTypeForm() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // The State/District screens may not be permission-granted to this user
+    // at all (View gates their own menu/list, not these dropdowns) — their
+    // Data Scope from login always supplies their own state/district.
+    const scopedStateId = scopeOption("state")?.value;
+
     Promise.all([stateApi.readAll(), districtApi.readAll()])
       .then(([stateRes, districtRes]) => {
         if (cancelled) return;
-        setStates(
-          toRecordList(stateRes)
-            .map((row) => ({
-              value: normalizeNullable(row.unique_id ?? row.id),
-              label: textOf(row, "state_name", "name"),
-              stateId: normalizeNullable(row.state_id ?? row.state),
-            }))
-            .filter((item) => item.value && item.label)
-        );
+        const fetchedStates = toRecordList(stateRes)
+          .map((row) => ({
+            value: normalizeNullable(row.unique_id ?? row.id),
+            label: textOf(row, "state_name", "name"),
+          }))
+          .filter((item) => item.value && item.label);
+        const fetchedDistricts = toRecordList(districtRes)
+          .map((row) => ({
+            value: normalizeNullable(row.unique_id ?? row.id),
+            label: textOf(row, "district_name", "name"),
+            stateId: normalizeNullable(row.state_id ?? row.state),
+          }))
+          .filter((item) => item.value && item.label);
+
+        setStates(mergeWithScopeOptionExtra(fetchedStates, "state", {}));
         setDistricts(
-          toRecordList(districtRes)
-            .map((row) => ({
-              value: normalizeNullable(row.unique_id ?? row.id),
-              label: textOf(row, "district_name", "name"),
-              stateId: normalizeNullable(row.state_id ?? row.state),
-            }))
-            .filter((item) => item.value && item.label)
+          mergeWithScopeOptionExtra(
+            fetchedDistricts,
+            "district",
+            scopedStateId ? { stateId: scopedStateId } : {}
+          )
         );
       })
-      .catch(() =>
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: "Failed to load dropdown data",
-        })
-      );
+      .catch(() => {
+        if (cancelled) return;
+        setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+        setDistricts((prev) =>
+          mergeWithScopeOptionExtra(prev, "district", scopedStateId ? { stateId: scopedStateId } : {})
+        );
+      });
     return () => { cancelled = true; };
   }, []);
 

@@ -19,6 +19,7 @@ export const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
 export const USER_STORAGE_KEY = "user";
 export const PROFILE_STORAGE_KEY = "profile";
 export const PROJECTS_STORAGE_KEY = "projects_config";
+export const DATA_SCOPE_STORAGE_KEY = "data_scope";
 
 type JwtPayload = {
   exp?: number;
@@ -55,6 +56,21 @@ export type AuthProfile = {
   [key: string]: unknown;
 };
 
+export type DataScopeRef = { unique_id?: string; name?: string } | null;
+
+export type DataScope = {
+  state?: DataScopeRef;
+  district?: DataScopeRef;
+  area_type?: DataScopeRef;
+  corporation?: DataScopeRef;
+  municipality?: DataScopeRef;
+  town_panchayat?: DataScopeRef;
+  panchayat_union?: DataScopeRef;
+  panchayat?: DataScopeRef;
+  depot?: DataScopeRef;
+  location_nodes?: Array<{ unique_id: string; name: string }>;
+};
+
 export type LoginPayload = {
   access?: string;
   refresh?: string;
@@ -71,6 +87,7 @@ export type LoginPayload = {
   column_permissions?: unknown;
   profile?: AuthProfile;
   projects?: ProjectConfig[];
+  data_scope?: DataScope | null;
 };
 
 export type LoginEnvelope = LoginPayload | {
@@ -117,6 +134,9 @@ export const getStoredProfile = (): AuthProfile | null =>
 
 export const getStoredProjects = (): ProjectConfig[] =>
   safeJsonParse<ProjectConfig[]>(localStorage.getItem(PROJECTS_STORAGE_KEY), []);
+
+export const getStoredDataScope = (): DataScope | null =>
+  safeJsonParse<DataScope | null>(localStorage.getItem(DATA_SCOPE_STORAGE_KEY), null);
 
 export const getStoredProjectConfig = (projectId: string): ProjectConfig | null =>
   getStoredProjects().find((p) => p.unique_id === projectId) ?? null;
@@ -180,6 +200,15 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   } else {
     localStorage.removeItem(PROJECTS_STORAGE_KEY);
   }
+
+  // The backend nests data_scope under profile (see login_viewset.py's
+  // Response body: profile_payload -> "profile" key), not top-level.
+  const dataScope = payload.data_scope ?? (profile?.data_scope as DataScope | undefined) ?? null;
+  if (dataScope) {
+    safeSetStorageItem(DATA_SCOPE_STORAGE_KEY, JSON.stringify(dataScope));
+  } else {
+    localStorage.removeItem(DATA_SCOPE_STORAGE_KEY);
+  }
 };
 
 export const clearAuthSession = (): void => {
@@ -201,6 +230,7 @@ export const clearAuthSession = (): void => {
   localStorage.removeItem("current_project_id");
   localStorage.removeItem("selected_project_id");
   localStorage.removeItem(PROJECTS_STORAGE_KEY);
+  localStorage.removeItem(DATA_SCOPE_STORAGE_KEY);
   clearStoredPermissions();
   clearAdminViewPreference();
 };

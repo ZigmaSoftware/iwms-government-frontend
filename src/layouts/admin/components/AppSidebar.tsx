@@ -738,7 +738,7 @@ const AppSidebar: React.FC = () => {
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
-      const allowed = hasPermission(module, screen, "show");
+      const allowed = hasPermission(module, screen, "view");
       return allowed;
     },
     [hasPermission]

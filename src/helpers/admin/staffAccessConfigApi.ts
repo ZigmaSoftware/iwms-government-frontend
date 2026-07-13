@@ -1,29 +1,10 @@
 import { api } from "@/api";
 import type {
   DashboardWidget,
-  FieldPermission,
-  FieldPermissionState,
   ModulePermission,
   StaffAccessConfigPayload,
   StaffAccessConfigPreviewResponse,
 } from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/types";
-
-type RawPermissionRow = {
-  mainscreen_id?: string;
-  mainScreenId?: string;
-  mainscreen_name?: string;
-  mainScreenName?: string;
-  userscreen_id?: string;
-  userScreenId?: string;
-  userscreen_name?: string;
-  userScreenName?: string;
-  userscreenaction_id?: string;
-  userScreenActionId?: string;
-  action_id?: string;
-  userscreenaction_name?: string;
-  action_name?: string;
-  actionName?: string;
-};
 
 type RawModule = {
   mainScreenId?: string;
@@ -46,15 +27,6 @@ type RawModule = {
   }>;
 };
 
-type RawMainScreen = {
-  unique_id?: string;
-  id?: string;
-  mainscreen_name?: string;
-  mainScreenName?: string;
-  order_no?: number | string;
-  is_deleted?: boolean;
-};
-
 type RawUserScreen = {
   unique_id?: string;
   id?: string;
@@ -66,7 +38,7 @@ type RawUserScreen = {
   is_deleted?: boolean;
 };
 
-type RawUserScreenAction = {
+export type RawUserScreenAction = {
   unique_id?: string;
   id?: string;
   action_name?: string;
@@ -108,7 +80,7 @@ type BackendPreviewResponse = {
   errors?: Record<string, string>;
 };
 
-const DEFAULT_ACTION_NAMES = ["view", "add", "edit", "delete", "approve", "export"];
+const DEFAULT_ACTION_NAMES = ["view", "add", "edit", "delete"];
 
 const emptyActions = () =>
   DEFAULT_ACTION_NAMES.reduce(
@@ -127,23 +99,28 @@ const toId = (value: unknown): string => {
   return String(value).trim();
 };
 
-const toOrder = (value: unknown): number => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
-};
-
 const getActionLabel = (action: RawUserScreenAction) =>
   String(action.action_name ?? action.actionName ?? action.name ?? action.unique_id ?? action.id ?? "");
 
-const createActionLookup = (actions: RawUserScreenAction[]) => {
+export const createActionLookup = (actions: RawUserScreenAction[]) => {
   const byName = new Map<string, string>();
   const validIds = new Set<string>();
+  // Reverse map: action unique_id -> canonical literal name (e.g. "edit").
+  // Needed because upstream responses (e.g. all-screens-by-staff) return
+  // action unique_ids, not literal names — without this, an id-based action
+  // would never resolve down to the "edit"/"show" key that ModulePermission
+  // screens/allowedActions are keyed by.
+  const nameById = new Map<string, string>();
 
   actions.forEach((action) => {
     const id = toId(action.unique_id ?? action.id);
     if (!id) return;
     validIds.add(id);
-    byName.set(normalizeActionName(getActionLabel(action)), id);
+    const literalName = normalizeActionName(getActionLabel(action));
+    byName.set(literalName, id);
+    if (DEFAULT_ACTION_NAMES.includes(literalName)) {
+      nameById.set(id, literalName);
+    }
   });
 
   DEFAULT_ACTION_NAMES.forEach((action) => {
@@ -151,7 +128,7 @@ const createActionLookup = (actions: RawUserScreenAction[]) => {
     validIds.add(action);
   });
 
-  return { byName, validIds };
+  return { byName, validIds, nameById };
 };
 
 const normalizeActionKey = (
@@ -160,6 +137,8 @@ const normalizeActionKey = (
 ): string => {
   const id = toId(value);
   if (!id) return "";
+  const canonicalName = actionLookup.nameById.get(id);
+  if (canonicalName) return canonicalName;
   if (actionLookup.validIds.has(id)) return id;
   return actionLookup.byName.get(normalizeActionName(id)) ?? id;
 };
@@ -174,219 +153,13 @@ const getPayload = <T>(data: unknown): T[] => {
   return [];
 };
 
-const upsertModule = (
-  map: Map<string, ModulePermission>,
-  mainScreenId: string,
-  mainScreenName: string,
-) => {
-  const existing = map.get(mainScreenId);
-  if (existing) return existing;
-  const module: ModulePermission = {
-    mainScreenId,
-    mainScreenName,
-    enabled: true,
-    screens: [],
-  };
-  map.set(mainScreenId, module);
-  return module;
-};
-
-const upsertScreen = (
-  module: ModulePermission,
-  userScreenId: string,
-  userScreenName: string,
-) => {
-  const existing = module.screens.find((screen) => screen.userScreenId === userScreenId);
-  if (existing) return existing;
-  const screen = {
-    userScreenId,
-    userScreenName,
-    enabled: true,
-    actions: emptyActions(),
-    fieldPermissionState: "VISIBLE" as FieldPermissionState,
-    fields: [] as FieldPermission[],
-  };
-  module.screens.push(screen);
-  return screen;
-};
-
-type RawUserScreenColumn = {
-  id?: string;
-  unique_id?: string;
-  fieldName?: string;
-  field_name?: string;
-  displayName?: string;
-  display_name?: string;
-};
-
-type RawColumnPermission = {
-  userscreencolumn_id?: string;
-  column_name?: string;
-  is_active?: boolean;
-  field_permission_state?: FieldPermissionState;
-};
-
-const fetchScreenFields = async (userScreenId: string): Promise<RawUserScreenColumn[]> => {
-  try {
-    const { data } = await api.get(`/permissions/userscreen/${userScreenId}/columns/`);
-    return getPayload<RawUserScreenColumn>(data);
-  } catch {
-    return [];
-  }
-};
-
-const fetchColumnPermissions = async (
-  userScreenId: string,
-  governmentUserTypeId?: string,
-): Promise<RawColumnPermission[]> => {
-  if (!governmentUserTypeId) return [];
-  try {
-    const { data } = await api.get("/screen-managements/column-permissions/", {
-      params: { userscreen_id: userScreenId, governmentusertype_id: governmentUserTypeId },
-    });
-    const record = data as { column_permissions?: RawColumnPermission[] };
-    return Array.isArray(record?.column_permissions) ? record.column_permissions : [];
-  } catch {
-    return [];
-  }
-};
-
-const attachScreenFields = async (
-  modules: ModulePermission[],
-  governmentUserTypeId?: string,
-): Promise<ModulePermission[]> => {
-  const screens = modules.flatMap((module) => module.screens);
-  await Promise.all(
-    screens.map(async (screen) => {
-      const [columns, permissions] = await Promise.all([
-        fetchScreenFields(screen.userScreenId),
-        fetchColumnPermissions(screen.userScreenId, governmentUserTypeId),
-      ]);
-      const stateByColumnId = new Map(
-        permissions.map((permission) => [
-          permission.userscreencolumn_id,
-          permission.field_permission_state ??
-            (permission.is_active === false ? "HIDDEN" : "VISIBLE"),
-        ]),
-      );
-      screen.fields = columns
-        .map((column) => {
-          const columnId = String(column.id ?? column.unique_id ?? "");
-          if (!columnId) return null;
-          return {
-            columnId,
-            fieldName: String(column.fieldName ?? column.field_name ?? ""),
-            displayName: String(column.displayName ?? column.display_name ?? columnId),
-            fieldPermissionState:
-              (stateByColumnId.get(columnId) as FieldPermissionState) ?? "VISIBLE",
-          };
-        })
-        .filter((field): field is FieldPermission => field !== null);
-    }),
-  );
-  return modules;
-};
-
-const mapPermissionRows = (
-  rows: RawPermissionRow[],
-  actionLookup: ReturnType<typeof createActionLookup>,
-): ModulePermission[] => {
-  const modules = new Map<string, ModulePermission>();
-
-  rows.forEach((row) => {
-    const mainScreenId = String(row.mainScreenId ?? row.mainscreen_id ?? "");
-    const userScreenId = String(row.userScreenId ?? row.userscreen_id ?? "");
-    if (!mainScreenId || !userScreenId) return;
-
-    const module = upsertModule(
-      modules,
-      mainScreenId,
-      String(row.mainScreenName ?? row.mainscreen_name ?? "Untitled module"),
-    );
-    const screen = upsertScreen(
-      module,
-      userScreenId,
-      String(row.userScreenName ?? row.userscreen_name ?? "Untitled screen"),
-    );
-    const action = normalizeActionKey(
-      row.userScreenActionId ??
-        row.userscreenaction_id ??
-        row.action_id ??
-        row.actionName ??
-        row.userscreenaction_name ??
-        row.action_name,
-      actionLookup,
-    );
-    if (action) screen.actions[action] = true;
-  });
-
-  return Array.from(modules.values());
-};
-
-const buildPermissionModules = (
-  mainScreens: RawMainScreen[],
-  userScreens: RawUserScreen[],
-  permissionRows: Array<RawPermissionRow | RawModule>,
-  userScreenActions: RawUserScreenAction[],
-): ModulePermission[] => {
-  const modules = new Map<string, ModulePermission>();
-  const actionLookup = createActionLookup(userScreenActions);
-
-  mainScreens
-    .filter((mainScreen) => !mainScreen.is_deleted)
-    .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no))
-    .forEach((mainScreen) => {
-      const mainScreenId = toId(mainScreen.unique_id ?? mainScreen.id);
-      if (!mainScreenId) return;
-      upsertModule(
-        modules,
-        mainScreenId,
-        String(mainScreen.mainscreen_name ?? mainScreen.mainScreenName ?? mainScreenId),
-      );
-    });
-
-  userScreens
-    .filter((screen) => !screen.is_deleted)
-    .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no))
-    .forEach((screen) => {
-      const mainScreenId = toId(screen.mainscreen_id ?? screen.mainscreen?.unique_id);
-      const userScreenId = toId(screen.unique_id ?? screen.id);
-      if (!mainScreenId || !userScreenId) return;
-      const module = upsertModule(modules, mainScreenId, "Untitled module");
-      upsertScreen(
-        module,
-        userScreenId,
-        String(screen.userscreen_name ?? screen.userScreenName ?? userScreenId),
-      );
-    });
-
-  const savedModules = permissionRows.some((row) => "userScreens" in row)
-    ? mapPermissionModules(permissionRows as RawModule[], actionLookup)
-    : mapPermissionRows(permissionRows as RawPermissionRow[], actionLookup);
-
-  savedModules.forEach((savedModule) => {
-    const module = upsertModule(
-      modules,
-      savedModule.mainScreenId,
-      savedModule.mainScreenName,
-    );
-    module.enabled = true;
-
-    savedModule.screens.forEach((savedScreen) => {
-      const screen = upsertScreen(
-        module,
-        savedScreen.userScreenId,
-        savedScreen.userScreenName ?? savedScreen.userScreenId,
-      );
-      screen.enabled = true;
-      screen.actions = { ...screen.actions, ...savedScreen.actions };
-    });
-  });
-
-  return Array.from(modules.values()).filter((module) => module.screens.length > 0);
-};
-
-const mapPermissionModules = (
+/**
+ * Parses a saved staff record's `permissions` (RawModule[], as returned by
+ * fetchStaffAccess) into ModulePermission[] — used on edit to seed the
+ * staff's previous selections before intersecting with the current
+ * Super-Admin-enabled ceiling via `applyAllowedActionsCeiling`.
+ */
+export const mapPermissionModules = (
   rows: RawModule[],
   actionLookup: ReturnType<typeof createActionLookup>,
 ): ModulePermission[] => {
@@ -416,8 +189,6 @@ const mapPermissionModules = (
           userScreenName: String(screen.userScreenName ?? screen.userscreen_name ?? "Untitled screen"),
           enabled: true,
           actions,
-          fieldPermissionState: "VISIBLE" as FieldPermissionState,
-          fields: [] as FieldPermission[],
         };
       }),
     }))
@@ -453,14 +224,8 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
             actionIds: Object.entries(screen.actions)
               .filter(([, enabled]) => enabled)
               .map(([action]) => action),
-            columns: screen.fields.map((field) => ({
-              columnId: field.columnId,
-              fieldName: field.fieldName,
-              canView: field.fieldPermissionState !== "HIDDEN",
-              fieldPermissionState: field.fieldPermissionState,
-            })),
           }))
-          .filter((screen) => screen.actionIds.length > 0 || screen.columns.length > 0),
+          .filter((screen) => screen.actionIds.length > 0),
       }))
       .filter((module) => module.userScreens.length > 0),
     dashboardPermissions: payload.dashboardPermissions,
@@ -565,50 +330,235 @@ export async function previewStaffAccess(
   return normalizePreviewResponse(data, payload);
 }
 
-export async function fetchPermissionTree(governmentUserTypeId?: string): Promise<ModulePermission[]> {
-  const [permissionRes, mainScreenRes, userScreenRes, userScreenActionRes] = await Promise.all([
-    api.get("/screen-managements/userscreenpermissions/", {
+export type LocalBodyScope = {
+  localBodyType: string;
+  localBodyId: string;
+  stateId?: string | null;
+  districtId?: string | null;
+  areaTypeId?: string | null;
+};
+
+type RawLocalBodyScreen = {
+  userscreen_id?: string;
+  actions?: string[];
+};
+
+type RawLocalBodyMainscreen = {
+  mainscreen_id?: string;
+  mainscreen_name?: string;
+  screens?: RawLocalBodyScreen[];
+};
+
+type RawAllScreensByLocalBodyResponse = {
+  mainscreens?: RawLocalBodyMainscreen[];
+};
+
+export type AllowedActionsMap = Record<string, Record<string, boolean>>;
+
+export type EnabledScreensResult = {
+  /** Screens/actions Super Admin enabled — the ceiling a staff admin can't exceed. */
+  modules: ModulePermission[];
+  /** userScreenId -> action -> true, mirrors `modules` for O(1) cap-checks in the UI. */
+  allowedActions: AllowedActionsMap;
+};
+
+/**
+ * Loads ONLY the screens/actions the Super Admin has enabled for this Local
+ * Body — screens with no enabled permission rows are simply absent from the
+ * response, so hidden screens never appear here (no client-side filtering
+ * needed against a fuller catalog). The returned `modules` doubles as the
+ * default selection AND the upper bound; a staff admin may only narrow it.
+ */
+export async function fetchEnabledScreensForLocalBody(
+  scope: LocalBodyScope,
+  userScreenActions: RawUserScreenAction[],
+): Promise<EnabledScreensResult> {
+  if (!scope.localBodyType || !scope.localBodyId) return { modules: [], allowedActions: {} };
+
+  const actionLookup = createActionLookup(userScreenActions);
+  const [enabledRes, userScreenRes] = await Promise.all([
+    api.get("/screen-managements/userscreenpermissions/all-screens-by-staff/", {
       params: {
-        ...(governmentUserTypeId ? { governmentusertype_id: governmentUserTypeId } : {}),
-        limit: 6000,
-        offset: 0,
+        local_body_type: scope.localBodyType,
+        local_body_id: scope.localBodyId,
+        state_id: scope.stateId || undefined,
+        district_id: scope.districtId || undefined,
+        area_type_id: scope.areaTypeId || undefined,
       },
     }),
-    api.get("/screen-managements/mainscreens/", {
-      params: { limit: 6000, offset: 0 },
-    }),
-    api.get("/screen-managements/userscreens/", {
-      params: { limit: 6000, offset: 0 },
-    }),
-    api.get("/screen-managements/userscreen-action/", {
-      params: { limit: 6000, offset: 0 },
-    }),
+    api.get("/screen-managements/userscreens/", { params: { limit: 6000, offset: 0 } }),
   ]);
-  const rows = governmentUserTypeId
-    ? getPayload<RawPermissionRow | RawModule>(permissionRes.data)
-    : [];
-  const modules = buildPermissionModules(
-    getPayload<RawMainScreen>(mainScreenRes.data),
-    getPayload<RawUserScreen>(userScreenRes.data),
-    rows,
-    getPayload<RawUserScreenAction>(userScreenActionRes.data),
+  const response = enabledRes.data as RawAllScreensByLocalBodyResponse;
+  const userScreenNameById = new Map(
+    getPayload<RawUserScreen>(userScreenRes.data).map((screen) => [
+      toId(screen.unique_id ?? screen.id),
+      String(screen.userscreen_name ?? screen.userScreenName ?? ""),
+    ]),
   );
-  return attachScreenFields(modules, governmentUserTypeId);
+
+  const allowedActions: AllowedActionsMap = {};
+
+  const modules = (response.mainscreens ?? [])
+    .map((mainscreen) => {
+      const mainScreenId = String(mainscreen.mainscreen_id ?? "");
+      if (!mainScreenId) return null;
+      const module: ModulePermission = {
+        mainScreenId,
+        mainScreenName: String(mainscreen.mainscreen_name ?? "Untitled module"),
+        enabled: true,
+        screens: (mainscreen.screens ?? [])
+          .map((screen) => {
+            const userScreenId = String(screen.userscreen_id ?? "");
+            if (!userScreenId) return null;
+            const actions = emptyActions();
+            (screen.actions ?? []).forEach((actionId) => {
+              const key = normalizeActionKey(actionId, actionLookup);
+              if (key) actions[key] = true;
+            });
+            allowedActions[userScreenId] = { ...actions };
+            return {
+              userScreenId,
+              userScreenName: userScreenNameById.get(userScreenId) || userScreenId,
+              enabled: true,
+              actions,
+            };
+          })
+          .filter((screen): screen is NonNullable<typeof screen> => screen !== null),
+      };
+      return module;
+    })
+    .filter((module): module is ModulePermission => module !== null && module.screens.length > 0);
+
+  return { modules, allowedActions };
 }
 
-export async function fetchUserScreenActions() {
+/**
+ * Overlays a staff member's previously-saved permissions onto the CURRENT
+ * Super-Admin-enabled ceiling (`enabledModules`, from
+ * `fetchEnabledScreensForLocalBody`) — the base is always the full current
+ * ceiling, not the staff's old saved set, so a module/screen Super Admin has
+ * enabled SINCE the staff was last saved still appears (just unchecked,
+ * since the staff was never explicitly granted it). An action ends up
+ * checked only if it was both previously saved AND is still currently
+ * allowed, so a screen/action Super Admin has since disabled is correctly
+ * dropped.
+ */
+export function applyAllowedActionsCeiling(
+  enabledModules: ModulePermission[],
+  savedModules: ModulePermission[],
+): ModulePermission[] {
+  const savedByScreenId = new Map<string, ModulePermission["screens"][number]>();
+  savedModules.forEach((module) => {
+    module.screens.forEach((screen) => {
+      savedByScreenId.set(screen.userScreenId, screen);
+    });
+  });
+
+  return enabledModules.map((module) => ({
+    ...module,
+    screens: module.screens.map((screen) => {
+      const saved = savedByScreenId.get(screen.userScreenId);
+      const actions = { ...emptyActions() };
+      Object.keys(actions).forEach((action) => {
+        actions[action] = Boolean(saved?.actions[action]) && Boolean(screen.actions[action]);
+      });
+      return { ...screen, actions };
+    }),
+  }));
+}
+
+type RawDashboardWidgetPermission = {
+  widget_name?: string;
+  widgetName?: string;
+  is_enabled?: boolean;
+  isEnabled?: boolean;
+  order_no?: number;
+  orderNo?: number;
+};
+
+/**
+ * Loads ONLY the dashboard widgets Super Admin has actually enabled for this
+ * Local Body. Returns an empty array if none are configured — callers must
+ * not fall back to a hardcoded default set, since that would silently grant
+ * widgets nobody enabled.
+ *
+ * Defaults to the Super Admin baseline (permission_owner_kind="super_admin")
+ * — the ceiling a staff admin can't exceed. Staff Access Configuration must
+ * use this default so a staff member's own widget rows (same table, tagged
+ * permission_owner_kind="staff") don't get mixed in as extra, un-toggleable
+ * entries.
+ */
+export async function fetchDashboardWidgetsForLocalBody(
+  scope: LocalBodyScope,
+  permissionOwnerKind: "super_admin" | "staff" = "super_admin",
+): Promise<DashboardWidget[]> {
+  if (!scope.localBodyType || !scope.localBodyId) return [];
+
+  const { data } = await api.get("/screen-managements/dashboard-widget-permissions/", {
+    params: {
+      local_body_type: scope.localBodyType,
+      local_body_id: scope.localBodyId,
+      permission_owner_kind: permissionOwnerKind,
+      limit: 6000,
+      offset: 0,
+    },
+  });
+
+  return getPayload<RawDashboardWidgetPermission>(data)
+    .map((widget) => ({
+      widgetName: String(widget.widget_name ?? widget.widgetName ?? ""),
+      isEnabled: Boolean(widget.is_enabled ?? widget.isEnabled ?? false),
+      orderNo: Number(widget.order_no ?? widget.orderNo ?? 0),
+    }))
+    .filter((widget) => widget.widgetName)
+    .sort((a, b) => a.orderNo - b.orderNo);
+}
+
+async function fetchRawUserScreenActionRecords(): Promise<RawUserScreenAction[]> {
   const { data } = await api.get("/screen-managements/userscreen-action/", {
     params: { limit: 6000, offset: 0 },
   });
-  const actions = getPayload<RawUserScreenAction>(data)
-    .filter((action) => !action.is_deleted)
+  return getPayload<RawUserScreenAction>(data).filter((action) => !action.is_deleted);
+}
+
+/**
+ * UI-facing action options for the permission tree's column headers/keys.
+ * `value` is the canonical literal action name (e.g. "view"), NOT the raw
+ * unique_id — `screen.actions`/`allowedActions` throughout this feature
+ * (mapPermissionModules, applyAllowedActionsCeiling, emptyActions) are all
+ * keyed by that canonical name, so PermissionTree's
+ * `allowedForScreen[action.value]`/`screen.actions[action.value]` lookups
+ * only resolve when this matches. For resolving a saved/ceiling action's raw
+ * unique_id back to this canonical name, use `fetchRawUserScreenActions()` +
+ * `createActionLookup` instead — that needs the real unique_id, which this
+ * function deliberately does not expose.
+ */
+export async function fetchUserScreenActions() {
+  const raw = await fetchRawUserScreenActionRecords();
+  const seen = new Set<string>();
+  const actions = raw
     .map((action) => ({
-      value: toId(action.unique_id ?? action.id),
+      value: normalizeActionName(getActionLabel(action)),
       label: getActionLabel(action),
     }))
-    .filter((action) => action.value && action.label);
+    .filter((action) => {
+      if (!action.value || !action.label || seen.has(action.value)) return false;
+      seen.add(action.value);
+      return true;
+    });
 
   return actions.length
     ? actions
     : DEFAULT_ACTION_NAMES.map((action) => ({ value: action, label: action }));
+}
+
+/**
+ * Raw `{unique_id, action_name}` action records — feed these into
+ * `createActionLookup`/`fetchEnabledScreensForLocalBody` to resolve a saved
+ * permission's or the Super-Admin ceiling's raw action unique_ids back to
+ * their canonical literal names. Use `fetchUserScreenActions()` instead for
+ * the permission tree's own UI options.
+ */
+export async function fetchRawUserScreenActions(): Promise<RawUserScreenAction[]> {
+  return fetchRawUserScreenActionRecords();
 }

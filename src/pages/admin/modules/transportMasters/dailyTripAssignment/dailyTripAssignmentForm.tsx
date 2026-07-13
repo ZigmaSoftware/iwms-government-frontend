@@ -27,6 +27,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
+import { mergeWithScopeOptionExtra } from "../../masters/shared/dataScopeOptions";
 
 type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
@@ -54,6 +55,14 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
 
 const categoryFromLevel = (level: HierarchyLevel): "urban" | "rural" =>
   AREA_TYPE_LEVELS.urban.includes(level) ? "urban" : "rural";
+
+const SCOPE_LEVEL_BY_HIERARCHY: Record<HierarchyLevel, "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat"> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
 
 const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
 const resolveName = (record: any): string =>
@@ -332,12 +341,19 @@ export default function DailyTripAssignmentForm() {
     : [{ value: hierarchyLevel, label: hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body" }];
 
   // Local Body options — keep the prefilled value present even when the
-  // district filter would hide it.
+  // district filter would hide it. Also fall back to the logged-in user's
+  // Data Scope for this level, since the level's own screen may not be
+  // permission-granted to this user (View gates their own menu/list, not
+  // this dropdown).
   const localBodyOptions = (() => {
-    const options = toGeoOptions(
-      (hierarchyRecords[hierarchyLevel] ?? []).filter(
-        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+    const options = mergeWithScopeOptionExtra(
+      toGeoOptions(
+        (hierarchyRecords[hierarchyLevel] ?? []).filter(
+          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+        ),
       ),
+      SCOPE_LEVEL_BY_HIERARCHY[hierarchyLevel],
+      {},
     );
     if (hierarchyId && !options.some((o) => o.value === hierarchyId)) {
       const current = (hierarchyRecords[hierarchyLevel] ?? []).find((item) => resolveId(item) === hierarchyId);
@@ -346,22 +362,19 @@ export default function DailyTripAssignmentForm() {
     return options;
   })();
 
-  // Staff templates scoped to the selected local body — keeps the already
-  // selected template present even if it falls outside the current filter.
-  const staffTemplates = useMemo<Option[]>(
-    () =>
-      staffTemplatesRaw
-        .filter(
-          (tpl) =>
-            staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
-            String(tpl?.unique_id ?? "") === staffTemplateId,
-        )
-        .map((tpl) => ({
-          value: String(tpl?.unique_id ?? tpl?.id ?? ""),
-          label: staffTemplateLabel(tpl),
-        }))
-        .filter((o) => o.value),
-    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId],
+  // State/District/Area Type screens may not be permission-granted to this
+  // user at all (View gates their own menu/list, not these dropdowns) —
+  // their Data Scope from login always supplies their own values regardless.
+  const stateOptions = mergeWithScopeOptionExtra(toGeoOptions(states), "state", {});
+  const districtOptions = mergeWithScopeOptionExtra(
+    toGeoOptions(districts.filter((d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId)),
+    "district",
+    {},
+  );
+  const areaTypeOptions = mergeWithScopeOptionExtra(
+    toGeoOptions(areaTypes.filter((a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId)),
+    "area_type",
+    {},
   );
 
   // ── Alternative staff templates for the selected staff template ────────────
@@ -546,7 +559,7 @@ export default function DailyTripAssignmentForm() {
               <Select
                 value={stateId}
                 onChange={(v) => { setStateId(String(v)); setDistrictId(""); setAreaTypeId(""); setAreaTypeCategory(""); setHierarchyId(""); }}
-                options={toGeoOptions(states)}
+                options={stateOptions}
                 placeholder="Select State"
               />
             </div>
@@ -555,7 +568,7 @@ export default function DailyTripAssignmentForm() {
               <Select
                 value={districtId}
                 onChange={(v) => { setDistrictId(String(v)); setAreaTypeId(""); setAreaTypeCategory(""); setHierarchyId(""); }}
-                options={toGeoOptions(districts.filter((d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId))}
+                options={districtOptions}
                 placeholder={stateId ? "Select District" : "Select a State first"}
               />
             </div>
@@ -570,7 +583,7 @@ export default function DailyTripAssignmentForm() {
                   setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
                   setHierarchyId("");
                 }}
-                options={toGeoOptions(areaTypes.filter((a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId))}
+                options={areaTypeOptions}
                 placeholder={districtId ? "Select Area Type" : "Select a District first"}
               />
             </div>
