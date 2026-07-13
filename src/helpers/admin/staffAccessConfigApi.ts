@@ -38,6 +38,106 @@ type RawUserScreen = {
   is_deleted?: boolean;
 };
 
+type RawMainScreen = {
+  unique_id?: string;
+  id?: string;
+  mainscreen_name?: string;
+  mainScreenName?: string;
+  order_no?: number | string;
+  is_deleted?: boolean;
+};
+
+const APP_SIDEBAR_PERMISSION_CATALOG: Array<{ module: string; screens: string[] }> = [
+  { module: "dashboard", screens: ["Dashboard"] },
+  { module: "common-masters", screens: ["continents", "countries", "states"] },
+  {
+    module: "masters",
+    screens: [
+      "districts",
+      "area-types",
+      "corporations",
+      "municipalities",
+      "town-panchayats",
+      "panchayat-unions",
+      "panchayats",
+    ],
+  },
+  { module: "waste-types", screens: ["properties", "subproperties"] },
+  { module: "assets", screens: ["bins", "wastetypes"] },
+  {
+    module: "screen-managements",
+    screens: [
+      "mainscreentype",
+      "mainscreens",
+      "userscreens",
+      "userscreen-action",
+      "userscreenpermissions",
+    ],
+  },
+  { module: "role-assigns", screens: ["user-type", "staff-user-type"] },
+  { module: "user-creations", screens: ["staffcreation", "staff-access-configuration"] },
+  { module: "customers", screens: ["customercreations", "feedbacks"] },
+  {
+    module: "complaint-ticket",
+    screens: [
+      "tickets",
+      "modules",
+      "categories",
+      "subcategories",
+      "priorities",
+      "statuses",
+      "sources",
+      "teams",
+      "sla-rules",
+      "feedback",
+    ],
+  },
+  { module: "transport-masters", screens: ["vehicle-type", "vehicle-creation", "fuels"] },
+  {
+    module: "schedule-masters",
+    screens: [
+      "staff-templates",
+      "alternative-staff-templates",
+      "collection-points",
+      "trip-plans",
+      "daily-trip-assignments",
+      "daily-trip-collection-points",
+      "daily-trip-household-collections",
+      "bin-collection-events",
+      "vehicle-breakdowns",
+      "daily-trip-logs",
+      "wastecollections",
+      "daily-waste-comparisons",
+      "MonthlyWasteComparison",
+    ],
+  },
+  { module: "audits", screens: ["common-audit", "login-audit"] },
+  {
+    module: "vehicle-tracking",
+    screens: ["VehicleTrack", "VehicleHistory"],
+  },
+  {
+    module: "reports",
+    screens: ["TripSummary", "MonthlyDistance", "WasteCollectedSummary"],
+  },
+  { module: "workforce", screens: ["WorkforceManagement"] },
+  { module: "leader-login", screens: ["plb-leader-creation", "district-leader-creation"] },
+];
+
+const catalogKey = (value: unknown) =>
+  String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+const catalogAliases = (value: string) => {
+  const normalized = catalogKey(value);
+  const aliases = new Set([normalized]);
+  aliases.add(catalogKey(value.replace(/s$/, "")));
+  aliases.add(catalogKey(value.replace(/-/g, "")));
+  aliases.add(catalogKey(value.replace(/-/g, "_")));
+  if (normalized === "wastetypes") aliases.add("wastetypes");
+  if (normalized === "mainscreentype") aliases.add("mainscreentype");
+  return aliases;
+};
+
 export type RawUserScreenAction = {
   unique_id?: string;
   id?: string;
@@ -199,6 +299,7 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
   return {
     basicInfo: {
       employee_name: payload.basicInfo.employeeName,
+      staff_config_name: payload.basicInfo.staffConfigName,
       contact_email: payload.basicInfo.officeEmail || null,
       department_id: payload.basicInfo.departmentId || null,
       designation_id: payload.basicInfo.designationId || null,
@@ -230,6 +331,7 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
       .filter((module) => module.userScreens.length > 0),
     dashboardPermissions: payload.dashboardPermissions,
     dataScope: {
+      locationNodes: payload.dataScope.locationNodes ?? [],
       stateId: payload.dataScope.stateId,
       districtId: payload.dataScope.districtId,
       areaTypeId: payload.dataScope.areaTypeId,
@@ -243,8 +345,6 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
         payload.dataScope.localBodyLevel === "panchayat_union_id" ? payload.dataScope.localBodyId : null,
       panchayatId:
         payload.dataScope.localBodyLevel === "panchayat_id" ? payload.dataScope.localBodyId : null,
-      depotId: payload.dataScope.depotId,
-      vehicleId: payload.dataScope.vehicleId,
     },
   };
 };
@@ -428,6 +528,124 @@ export async function fetchEnabledScreensForLocalBody(
       return module;
     })
     .filter((module): module is ModulePermission => module !== null && module.screens.length > 0);
+
+  return { modules, allowedActions };
+}
+
+/**
+ * Loads the complete screen/action catalog for non-local-body boundaries
+ * such as State or District. There is no local-body Super Admin ceiling for
+ * these scopes, so the UI starts every action unchecked and lets the admin
+ * explicitly grant permissions.
+ */
+export async function fetchScreenCatalogPermissions(
+  userScreenActions: RawUserScreenAction[],
+): Promise<EnabledScreensResult> {
+  const [mainScreenRes, userScreenRes] = await Promise.all([
+    api.get("/screen-managements/mainscreens/", { params: { limit: 6000, offset: 0 } }),
+    api.get("/screen-managements/userscreens/", { params: { limit: 6000, offset: 0 } }),
+  ]);
+
+  const actionLookup = createActionLookup(userScreenActions);
+  const actionKeys = userScreenActions
+    .map((action) => normalizeActionKey(action.unique_id ?? action.id ?? getActionLabel(action), actionLookup))
+    .filter(Boolean);
+  const uniqueActionKeys = actionKeys.length ? Array.from(new Set(actionKeys)) : DEFAULT_ACTION_NAMES;
+
+  const screensByMainScreenId = new Map<string, RawUserScreen[]>();
+  const allUserScreens = getPayload<RawUserScreen>(userScreenRes.data).filter((screen) => !screen.is_deleted);
+  allUserScreens.forEach((screen) => {
+    const mainScreenId = toId(screen.mainscreen_id ?? screen.mainscreen);
+    if (!mainScreenId) return;
+    const screens = screensByMainScreenId.get(mainScreenId) ?? [];
+    screens.push(screen);
+    screensByMainScreenId.set(mainScreenId, screens);
+  });
+
+  const mainScreens = getPayload<RawMainScreen>(mainScreenRes.data)
+    .filter((mainScreen) => !mainScreen.is_deleted);
+  const mainScreenByName = new Map<string, RawMainScreen>();
+  mainScreens.forEach((mainScreen) => {
+    const name = String(mainScreen.mainscreen_name ?? mainScreen.mainScreenName ?? "");
+    catalogAliases(name).forEach((alias) => mainScreenByName.set(alias, mainScreen));
+  });
+
+  const screenByMainAndName = new Map<string, RawUserScreen>();
+  allUserScreens.forEach((screen) => {
+    const mainScreenId = toId(screen.mainscreen_id ?? screen.mainscreen);
+    const screenName = String(screen.userscreen_name ?? screen.userScreenName ?? "");
+    catalogAliases(screenName).forEach((alias) => {
+      screenByMainAndName.set(`${mainScreenId}|${alias}`, screen);
+    });
+  });
+
+  const allowedActions: AllowedActionsMap = {};
+  const modules: ModulePermission[] = [];
+
+  APP_SIDEBAR_PERMISSION_CATALOG.forEach((catalogModule) => {
+    const mainScreen = [...catalogAliases(catalogModule.module)]
+      .map((alias) => mainScreenByName.get(alias))
+      .find(Boolean);
+    const mainScreenId = toId(mainScreen?.unique_id ?? mainScreen?.id);
+    if (!mainScreenId) return;
+
+    const screens = catalogModule.screens
+      .map((screenName) => {
+        const screen = [...catalogAliases(screenName)]
+          .map((alias) => screenByMainAndName.get(`${mainScreenId}|${alias}`))
+          .find(Boolean);
+        const userScreenId = toId(screen?.unique_id ?? screen?.id);
+        if (!userScreenId) return null;
+        const actions = Object.fromEntries(uniqueActionKeys.map((action) => [action, false]));
+        allowedActions[userScreenId] = Object.fromEntries(uniqueActionKeys.map((action) => [action, true]));
+        return {
+          userScreenId,
+          userScreenName: screenName,
+          enabled: true,
+          actions,
+        };
+      })
+      .filter((screen): screen is NonNullable<typeof screen> => screen !== null);
+
+    if (!screens.length) return;
+    modules.push({
+      mainScreenId,
+      mainScreenName: catalogModule.module,
+      enabled: true,
+      screens,
+    });
+  });
+
+  if (modules.length) return { modules, allowedActions };
+
+  mainScreens
+    .sort((a, b) => Number(a.order_no ?? 0) - Number(b.order_no ?? 0))
+    .forEach((mainScreen) => {
+      const mainScreenId = toId(mainScreen.unique_id ?? mainScreen.id);
+      if (!mainScreenId) return;
+      const screens = (screensByMainScreenId.get(mainScreenId) ?? [])
+        .sort((a, b) => Number(a.order_no ?? 0) - Number(b.order_no ?? 0))
+        .map((screen) => {
+          const userScreenId = toId(screen.unique_id ?? screen.id);
+          if (!userScreenId) return null;
+          const actions = Object.fromEntries(uniqueActionKeys.map((action) => [action, false]));
+          allowedActions[userScreenId] = Object.fromEntries(uniqueActionKeys.map((action) => [action, true]));
+          return {
+            userScreenId,
+            userScreenName: String(screen.userscreen_name ?? screen.userScreenName ?? userScreenId),
+            enabled: true,
+            actions,
+          };
+        })
+        .filter((screen): screen is NonNullable<typeof screen> => screen !== null);
+      if (!screens.length) return;
+      modules.push({
+        mainScreenId,
+        mainScreenName: String(mainScreen.mainscreen_name ?? mainScreen.mainScreenName ?? "Untitled module"),
+        enabled: true,
+        screens,
+      });
+    });
 
   return { modules, allowedActions };
 }

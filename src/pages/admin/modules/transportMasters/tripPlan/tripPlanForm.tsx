@@ -29,8 +29,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { normalizeList } from "@/utils/forms";
-import { mergeWithScopeOptionExtra } from "../../masters/shared/dataScopeOptions";
+import { normalizeList, staffTemplateLabel } from "@/utils/forms";
+import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 
 type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
@@ -47,14 +47,6 @@ type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarc
 type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
 
 const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
-
-const SCOPE_LEVEL_BY_HIERARCHY: Record<HierarchyLevel, "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat"> = {
-  corporation_id: "corporation",
-  municipality_id: "municipality",
-  town_panchayat_id: "town_panchayat",
-  panchayat_union_id: "panchayat_union",
-  panchayat_id: "panchayat",
-};
 
 const makeStopKey = (() => {
   let counter = 0;
@@ -260,13 +252,6 @@ export default function TripPlanForm() {
     (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
   );
 
-  // State/District/Area Type screens may not be permission-granted to this
-  // user at all (View gates their own menu/list, not these dropdowns) —
-  // their Data Scope from login always supplies their own values regardless.
-  const stateOptions = mergeWithScopeOptionExtra(toGeoOptions(states), "state", {});
-  const districtOptions = mergeWithScopeOptionExtra(toGeoOptions(filteredDistricts), "district", {});
-  const areaTypeOptions = mergeWithScopeOptionExtra(toGeoOptions(filteredAreaTypes), "area_type", {});
-
   const ensureOption = <T extends Option>(items: T[], value: string, label?: string): T[] => {
     if (!value || items.some((item) => item.value === value)) return items;
     return [{ value, label: label || value } as T, ...items];
@@ -279,14 +264,10 @@ export default function TripPlanForm() {
       : [];
 
   const hierarchyOptions = ensureOption(
-    mergeWithScopeOptionExtra(
-      toGeoOptions(
-        (hierarchyRecords[hierarchyLevel] ?? []).filter(
-          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
-        ),
+    toGeoOptions(
+      (hierarchyRecords[hierarchyLevel] ?? []).filter(
+        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
       ),
-      SCOPE_LEVEL_BY_HIERARCHY[hierarchyLevel],
-      {},
     ),
     hierarchyId,
   );
@@ -585,7 +566,7 @@ useEffect(() => {
               setAreaTypeCategory("");
               setHierarchyId("");
             }}
-            options={stateOptions}
+            options={toGeoOptions(states)}
             placeholder="Select State"
           />
         </div>
@@ -600,7 +581,7 @@ useEffect(() => {
               setAreaTypeCategory("");
               setHierarchyId("");
             }}
-            options={districtOptions}
+            options={toGeoOptions(filteredDistricts)}
             placeholder={stateId ? "Select District" : "Select a State first"}
           />
         </div>
@@ -615,7 +596,7 @@ useEffect(() => {
               setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
               setHierarchyId("");
             }}
-            options={areaTypeOptions}
+            options={toGeoOptions(filteredAreaTypes)}
             placeholder={districtId ? "Select Area Type" : "Select a District first"}
           />
         </div>

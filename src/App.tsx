@@ -141,8 +141,8 @@ export default function App() {
       <Route path="/admin" element={withAdmin(<AdminHome />)} />
       <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
       <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
+      <Route path="/:encMaster/:encModule/new/*" element={withAdmin(<AdminEncryptedRouter />)} />
+      <Route path="/:encMaster/:encModule/:id/edit/*" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

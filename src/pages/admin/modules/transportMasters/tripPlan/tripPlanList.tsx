@@ -16,6 +16,7 @@ import { PencilIcon } from "@/icons";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 
 
 const extractErrorMessage = (error: unknown): string | null => {
@@ -43,6 +44,7 @@ export default function TripPlanList() {
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     display_code: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -56,7 +58,7 @@ export default function TripPlanList() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    tripPlanApi.readAll()
+    tripPlanApi.readAll({ params: hierarchyParams })
       .then((data) => {
         if (mounted) setRecords(normalizeList(data) as TripPlanRecord[]);
       })
@@ -65,7 +67,7 @@ export default function TripPlanList() {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [t]);
+  }, [t, hierarchyParams]);
 
   const rows = useMemo(() => records.map((record) => ({
     ...record,
@@ -109,6 +111,8 @@ export default function TripPlanList() {
           <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath)} />
         </div>
       </div>
+      {/* Hierarchy filter — capped to the caller's own corporation subtree */}
+      <HierarchyFilterBar onChange={setHierarchyParams} />
       <div className="flex justify-end">
         <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
           <i className="pi pi-search text-gray-500" />
