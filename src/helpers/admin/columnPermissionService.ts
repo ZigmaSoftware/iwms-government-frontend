@@ -19,10 +19,11 @@ export interface ColumnPermissionsResponse {
 export interface CreateColumnPermissionPayload {
   userscreen_id: string;
   column_id: string;
-  staffusertype_id?: string;
-  contractorusertype_id?: string;
-  governmentusertype_id?: string;
-  usertype_id?: string;
+  local_body_type: string;
+  local_body_id: string;
+  state_id?: string;
+  district_id?: string;
+  area_type_id?: string;
   is_active?: boolean;
   order_no?: number;
 }
@@ -37,34 +38,24 @@ export interface UpdateColumnPermissionPayload {
 
 const _api = adminApi.columnPermissions;
 
-const isContractorRoleId = (value: string): boolean =>
-  value.trim().startsWith("CNTUSRTYPE-");
-
-const isGovernmentRoleId = (value: string): boolean =>
-  value.trim().startsWith("GOVTUSRTYPE-");
-
 // ---------------------------------------------------------------------------
 // Service functions
 // ---------------------------------------------------------------------------
 
 /**
- * Returns all column permissions for a specific screen + staff type.
+ * Returns all column permissions for a specific screen + Local Body.
  * Response is always grouped: { userscreen_id, column_permissions: [...] }
  */
 export async function getColumnPermissions(
   userscreenId: string,
-  staffuserTypeId: string
+  localBodyId: string,
+  options: { localBodyType: string }
 ): Promise<ColumnPermissionsResponse> {
-  const roleParam = isContractorRoleId(staffuserTypeId)
-    ? { contractorusertype_id: staffuserTypeId }
-    : isGovernmentRoleId(staffuserTypeId)
-    ? { governmentusertype_id: staffuserTypeId }
-    : { staffusertype_id: staffuserTypeId };
-
   const result = await _api.readAll({
     params: {
       userscreen_id: userscreenId,
-      ...roleParam,
+      local_body_type: options.localBodyType,
+      local_body_id: localBodyId,
     },
   });
   // Backend returns { userscreen_id, column_permissions } — cast from the

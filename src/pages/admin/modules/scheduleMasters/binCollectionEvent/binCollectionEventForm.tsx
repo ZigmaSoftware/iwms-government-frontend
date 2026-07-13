@@ -25,6 +25,7 @@ import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+import { mergeWithScopeOptionExtra } from "../../masters/shared/dataScopeOptions";
 
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
@@ -76,12 +77,26 @@ const ensureOption = (items: Option[], value: string, label?: string): Option[] 
 
 const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
 
+const SCOPE_LEVEL_BY_HIERARCHY: Record<HierarchyLevel, "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat"> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
+
 const hierarchyLevels: Array<{ value: HierarchyLevel; label: string }> = [
   { value: "corporation_id", label: "Corporation" },
   { value: "municipality_id", label: "Municipality" },
   { value: "town_panchayat_id", label: "Town Panchayat" },
   { value: "panchayat_union_id", label: "Panchayat Union" },
   { value: "panchayat_id", label: "Panchayat" },
+];
+
+const COLLECTION_STATUS_OPTIONS = [
+  { value: "Collected", label: "Collected" },
+  { value: "Not Collected", label: "Not Collected" },
+  { value: "Collect Later", label: "Collect Later" },
 ];
 
 const AREA_TYPE_LEVELS: Record<"urban" | "rural", HierarchyLevel[]> = {
@@ -159,6 +174,8 @@ export default function BinCollectionEventForm() {
   const [localBodyLevel, setLocalBodyLevel] = useState<HierarchyLevel>("corporation_id");
   const [collectionDate, setCollectionDate] = useState("");
   const [collectedWeightKg, setCollectedWeightKg] = useState("");
+  const [collectionStatus, setCollectionStatus] = useState("Collected");
+  const [statusReason, setStatusReason] = useState("");
   const [driverLatitude, setDriverLatitude] = useState("");
   const [driverLongitude, setDriverLongitude] = useState("");
   const [notes, setNotes] = useState("");
@@ -235,6 +252,8 @@ export default function BinCollectionEventForm() {
       setPanchayatId(selectedPanchayatId);
       setCollectionDate(String(record.collection_date ?? ""));
       setCollectedWeightKg(String(record.collected_weight_kg ?? ""));
+      setCollectionStatus(String(record.status ?? "Collected"));
+      setStatusReason(String(record.status_reason ?? ""));
       setDriverLatitude(String(record.driver_latitude ?? ""));
       setDriverLongitude(String(record.driver_longitude ?? ""));
       setNotes(String(record.notes ?? ""));
@@ -294,25 +313,38 @@ export default function BinCollectionEventForm() {
   );
 
   const stateOptions = useMemo(
-    () => states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+    () =>
+      mergeWithScopeOptionExtra(
+        states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+        "state",
+        {},
+      ),
     [states],
   );
 
   const districtOptions = useMemo(
     () =>
-      districts
-        .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
-        .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
-        .filter((item) => item.value),
+      mergeWithScopeOptionExtra(
+        districts
+          .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
+          .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
+          .filter((item) => item.value),
+        "district",
+        {},
+      ),
     [districts, stateId],
   );
 
   const areaTypeOptions = useMemo(
     () =>
-      areaTypes
-        .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
-        .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
-        .filter((item) => item.value),
+      mergeWithScopeOptionExtra(
+        areaTypes
+          .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
+          .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
+          .filter((item) => item.value),
+        "area_type",
+        {},
+      ),
     [areaTypes, districtId],
   );
 
@@ -333,8 +365,13 @@ export default function BinCollectionEventForm() {
         label: textOf(item.name, item.corporation_name, item.municipality_name, item.town_panchayat_name, item.union_name, item.panchayat_name, item.unique_id),
       }))
       .filter((item) => item.value);
-    const selectedLabel = options.find((item) => item.value === panchayatId)?.label;
-    return ensureOption(options, panchayatId, selectedLabel);
+    const scoped = mergeWithScopeOptionExtra(
+      options,
+      SCOPE_LEVEL_BY_HIERARCHY[localBodyLevel],
+      {},
+    );
+    const selectedLabel = scoped.find((item) => item.value === panchayatId)?.label;
+    return ensureOption(scoped, panchayatId, selectedLabel);
   }, [hierarchyRecords, localBodyLevel, districtId, panchayatId]);
 
   const visibleCollectionPoints = useMemo(() => {
@@ -395,6 +432,14 @@ export default function BinCollectionEventForm() {
       Swal.fire("Missing details", "Trip Assignment, Collection Point, Bin and Collection Date are required.", "warning");
       return;
     }
+    if (collectionStatus === "Collected" && !collectedWeightKg) {
+      Swal.fire("Missing weight", "Collected Weight Kg is required when status is Collected.", "warning");
+      return;
+    }
+    if (collectionStatus !== "Collected" && !statusReason.trim()) {
+      Swal.fire("Missing reason", "Reason is required for Not Collected and Collect Later.", "warning");
+      return;
+    }
     setSaving(true);
     const payload = {
       trip_assignment_id: tripAssignmentId,
@@ -402,7 +447,9 @@ export default function BinCollectionEventForm() {
       bin_id: binId,
       panchayat_id: panchayatId || null,
       collection_date: collectionDate,
-      collected_weight_kg: collectedWeightKg || null,
+      collected_weight_kg: collectionStatus === "Collected" ? collectedWeightKg || null : null,
+      status: collectionStatus,
+      status_reason: statusReason || null,
       driver_latitude: driverLatitude || null,
       driver_longitude: driverLongitude || null,
       notes,
@@ -505,8 +552,40 @@ export default function BinCollectionEventForm() {
           <Input type="date" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
         </div>
         <div>
-          <Label>Collected Weight Kg</Label>
-          <Input type="number" value={collectedWeightKg} onChange={(e) => setCollectedWeightKg(e.target.value)} />
+          <Label>Status *</Label>
+          <Select
+            value={collectionStatus}
+            onChange={(value) => {
+              const nextStatus = String(value);
+              setCollectionStatus(nextStatus);
+              if (nextStatus !== "Collected") setCollectedWeightKg("");
+            }}
+            options={COLLECTION_STATUS_OPTIONS}
+            placeholder="Select Status"
+          />
+        </div>
+        <div>
+          <Label>Collected Weight Kg{collectionStatus === "Collected" ? " *" : ""}</Label>
+          <Input
+            type="number"
+            value={collectedWeightKg}
+            onChange={(e) => setCollectedWeightKg(e.target.value)}
+            disabled={collectionStatus !== "Collected"}
+          />
+        </div>
+        <div>
+          <Label>Reason{collectionStatus !== "Collected" ? " *" : ""}</Label>
+          <Input
+            value={statusReason}
+            onChange={(e) => setStatusReason(e.target.value)}
+            placeholder={
+              collectionStatus === "Not Collected"
+                ? "I do not collect today..."
+                : collectionStatus === "Collect Later"
+                  ? "I will collect today later..."
+                  : "Optional note"
+            }
+          />
         </div>
         <div>
           <Label>Driver Latitude</Label>

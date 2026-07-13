@@ -14,6 +14,11 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { staffCreationApi, governmentUserTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
+import {
+  mergeWithScopeOptionExtra,
+  scopeOption,
+} from "../../masters/shared/dataScopeOptions";
+import type { ScopeLevel } from "../../masters/shared/dataScopeOptions";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
 const PASSWORD_EXPIRY_DAYS = 90;
@@ -821,6 +826,57 @@ export default function StaffCreationForm() {
   }, []);
 
   useEffect(() => {
+    // The State/District/Area Type/local-body screens may not be
+    // permission-granted to this user at all (View gates each level's own
+    // menu/list, not these dropdowns) — their Data Scope from login always
+    // supplies their own hierarchy values regardless.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
+    // Build a synthetic GeoOptionRecord for `level` so it merges correctly
+    // into the raw record collections consumed by `toGeoOptions` and the
+    // district/area-type/local-body filtering `useMemo`s below.
+    const scopeRecord = (
+      level: ScopeLevel,
+      extra: Partial<GeoOptionRecord> = {},
+    ): GeoOptionRecord | null => {
+      const scoped = scopeOption(level);
+      if (!scoped) return null;
+      return { unique_id: scoped.value, name: scoped.label, ...extra };
+    };
+
+    const mergeRecord = (
+      records: GeoOptionRecord[],
+      level: ScopeLevel,
+      extra: Partial<GeoOptionRecord> = {},
+    ): GeoOptionRecord[] => {
+      const record = scopeRecord(level, extra);
+      if (!record) return records;
+      if (records.some((item) => geoOptionId(item) === record.unique_id)) return records;
+      return [record, ...records];
+    };
+
+    const applyScopeFallback = () => {
+      setScopeStateOptions((prev) =>
+        mergeWithScopeOptionExtra(prev, "state", {}),
+      );
+      setScopeDistrictRecords((prev) =>
+        mergeRecord(prev, "district", scopedStateId ? { state_id: scopedStateId } : {}),
+      );
+      setScopeAreaTypeRecords((prev) =>
+        mergeRecord(prev, "area_type", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+      setScopeLocalBodyRecords((prev) => ({
+        corporation_id: mergeRecord(prev.corporation_id, "corporation", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        municipality_id: mergeRecord(prev.municipality_id, "municipality", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        town_panchayat_id: mergeRecord(prev.town_panchayat_id, "town_panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        panchayat_union_id: mergeRecord(prev.panchayat_union_id, "panchayat_union", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        panchayat_id: mergeRecord(prev.panchayat_id, "panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      }));
+    };
+
+    applyScopeFallback();
+
     const loadScopeGeoOptions = async () => {
       try {
         const [states, districts, areaTypes, corporations, municipalities, townPanchayats, panchayatUnions, panchayats] =
@@ -838,18 +894,23 @@ export default function StaffCreationForm() {
         const asArray = (res: any): GeoOptionRecord[] =>
           Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
 
-        setScopeStateOptions(toGeoOptions(asArray(states)));
-        setScopeDistrictRecords(asArray(districts));
-        setScopeAreaTypeRecords(asArray(areaTypes));
+        setScopeStateOptions(mergeWithScopeOptionExtra(toGeoOptions(asArray(states)), "state", {}));
+        setScopeDistrictRecords(
+          mergeRecord(asArray(districts), "district", scopedStateId ? { state_id: scopedStateId } : {}),
+        );
+        setScopeAreaTypeRecords(
+          mergeRecord(asArray(areaTypes), "area_type", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        );
         setScopeLocalBodyRecords({
-          corporation_id: asArray(corporations),
-          municipality_id: asArray(municipalities),
-          town_panchayat_id: asArray(townPanchayats),
-          panchayat_union_id: asArray(panchayatUnions),
-          panchayat_id: asArray(panchayats),
+          corporation_id: mergeRecord(asArray(corporations), "corporation", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          municipality_id: mergeRecord(asArray(municipalities), "municipality", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          town_panchayat_id: mergeRecord(asArray(townPanchayats), "town_panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          panchayat_union_id: mergeRecord(asArray(panchayatUnions), "panchayat_union", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          panchayat_id: mergeRecord(asArray(panchayats), "panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
         });
       } catch (error) {
         console.error("Failed to load government scope options", error);
+        applyScopeFallback();
       }
     };
 

@@ -22,6 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { districtApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { mergeWithScopeOption } from "../shared/dataScopeOptions";
 
 type RecordRow = Record<string, any>;
 
@@ -355,20 +356,25 @@ export default function DistrictLeaderForm() {
   // Load district options
   useEffect(() => {
     setLoadingDistricts(true);
+
+    // The District screen may not be permission-granted to this user at all
+    // (View gates the Districts menu/list, not this dropdown) — their Data
+    // Scope from login always supplies their own district regardless.
+    setDistrictOptions((prev) => mergeWithScopeOption(prev, "district"));
+
     districtApi
       .readAll()
       .then((res: any) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
-        setDistrictOptions(
-          list
-            .filter((d: any) => d?.is_active !== false && d?.is_deleted !== true)
-            .map((d: any) => ({
-              value: String(d.unique_id ?? ""),
-              label: d.district_name ?? d.name ?? d.unique_id,
-            }))
-        );
+        const fetched = list
+          .filter((d: any) => d?.is_active !== false && d?.is_deleted !== true)
+          .map((d: any) => ({
+            value: String(d.unique_id ?? ""),
+            label: d.district_name ?? d.name ?? d.unique_id,
+          }));
+        setDistrictOptions(mergeWithScopeOption(fetched, "district"));
       })
-      .catch(() => setDistrictOptions([]))
+      .catch(() => setDistrictOptions((prev) => mergeWithScopeOption(prev, "district")))
       .finally(() => setLoadingDistricts(false));
   }, []);
 

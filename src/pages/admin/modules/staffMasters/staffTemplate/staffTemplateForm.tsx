@@ -10,10 +10,23 @@ import { MultiSelect } from "primereact/multiselect";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
+import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
+
+const GEO_PAYLOAD_KEYS = [
+  "state_id",
+  "district_id",
+  "area_type_id",
+  "corporation_id",
+  "municipality_id",
+  "town_panchayat_id",
+  "panchayat_union_id",
+  "panchayat_id",
+];
 
 /* ================= INITIAL STATE ================= */
 
@@ -47,6 +60,8 @@ export default function StaffTemplateForm() {
     "staff-template",
     STAFF_TEMPLATE_FIELDS
   );
+
+  const geo = useGeoHierarchy();
 
   const [formData, setFormData] = useState<StaffTemplateFormData>(initialFormData);
 
@@ -240,6 +255,8 @@ export default function StaffTemplateForm() {
           approval_status: tpl.approval_status ?? "PENDING",
         }));
 
+        geo.hydrate(tpl);
+
         const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
         const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
         const approvedBy = toEntityId(tpl.approved_by ?? tpl.approver);
@@ -417,17 +434,30 @@ export default function StaffTemplateForm() {
       return;
     }
 
+    if (!geo.stateId || !geo.districtId || !geo.hierarchyId) {
+      Swal.fire(
+        t("common.error"),
+        "State, District and Local Body are required.",
+        "warning",
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const payload = filterPayload({
-        driver_id: formData.driver_id,
-        operator_id: formData.operator_id,
-        extra_operator_id: formData.extra_operator_id,
-        status: formData.status,
-        approval_status: formData.approval_status,
-        approved_by: formData.approved_by || null,
-      });
+      const payload = filterPayload(
+        {
+          driver_id: formData.driver_id,
+          operator_id: formData.operator_id,
+          extra_operator_id: formData.extra_operator_id,
+          status: formData.status,
+          approval_status: formData.approval_status,
+          approved_by: formData.approved_by || null,
+          ...geo.buildPayload(),
+        },
+        GEO_PAYLOAD_KEYS,
+      );
 
       if (isEdit && id) {
         await staffTemplateApi.update(id, payload);
@@ -475,6 +505,8 @@ export default function StaffTemplateForm() {
           ) : null}
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <GeoHierarchyFields geo={geo} required disabled={fetching} />
+
             {showField("driver_id") && (
               <div>
                 <Label>{t("admin.staff_template.primary_driver")}</Label>

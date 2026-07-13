@@ -1,5 +1,6 @@
 export type BasicInfoForm = {
   employeeName: string;
+  staffConfigName: string;
   mobileNumber: string;
   officeEmail: string;
   departmentId: string;
@@ -17,27 +18,11 @@ export type LoginConfigForm = {
   loginEnabled: boolean;
 };
 
-export type FieldPermissionState =
-  | "VISIBLE"
-  | "HIDDEN"
-  | "EDITABLE"
-  | "READ_ONLY"
-  | "MANDATORY";
-
-export type FieldPermission = {
-  columnId: string;
-  fieldName: string;
-  displayName: string;
-  fieldPermissionState: FieldPermissionState;
-};
-
 export type ScreenPermission = {
   userScreenId: string;
   userScreenName?: string;
   enabled: boolean;
   actions: Record<string, boolean>;
-  fieldPermissionState: FieldPermissionState;
-  fields: FieldPermission[];
 };
 
 export type UserActionOption = {
@@ -68,14 +53,13 @@ export type LocalBodyLevel =
 export type AreaTypeCategory = "urban" | "rural";
 
 export type DataScopeForm = {
+  locationNodes?: string[];
   stateId: string | null;
   districtId: string | null;
   areaTypeId: string | null;
   areaTypeCategory: AreaTypeCategory | null;
   localBodyLevel: LocalBodyLevel | null;
   localBodyId: string | null;
-  depotId: string | null;
-  vehicleId: string | null;
 };
 
 export type StaffAccessConfigPayload = {

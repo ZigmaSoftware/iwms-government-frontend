@@ -1,4 +1,4 @@
-import type { ApiUserScreen, MainScreen, Option, PermissionResponse, PermissionScreen, ScreenMatrixRow, StaffUserType, UserScreenAction, UserScreenColumnRecord } from "./types";
+import type { ApiUserScreen, DashboardWidget, LocalBodyType, MainScreen, Option, PermissionResponse, PermissionScreen, PermissionType, ScreenMatrixRow, UserScreenAction, UserScreenColumnRecord } from "./types";
 import { useEffect, useState, useMemo, Fragment, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -27,6 +27,8 @@ import {
 } from "@/helpers/admin/columnPermissionService";
 
 import { adminApi } from "@/helpers/admin/registry";
+import LocalBodySelector, { LOCAL_BODY_TYPES, type LocalBodyValue } from "./LocalBodySelector";
+import DashboardWidgetSection from "./DashboardWidgetSection";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -35,12 +37,15 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
 );
 
 /* -----------------------------------------------------------
-   TYPES
+   ROUTE ID ENCODING — composite localBodyType:localBodyId key
 ----------------------------------------------------------- */
+const encodeLocalBodyRouteId = (localBodyType: string, localBodyId: string): string =>
+  `${localBodyType}__${localBodyId}`;
 
-
-/** Shape returned by the by-staff-format endpoint */
-
+const decodeLocalBodyRouteId = (routeId: string): { localBodyType: string; localBodyId: string } => {
+  const [localBodyType, ...rest] = routeId.split("__");
+  return { localBodyType: localBodyType ?? "", localBodyId: rest.join("__") };
+};
 
 /** Green lock: primary key, foreign key, or any field whose name ends with _id */
 const isLockedColumn = (col: UserScreenColumnRecord): boolean =>
@@ -56,17 +61,6 @@ const isWarningColumn = (col: UserScreenColumnRecord): boolean =>
 const toId = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   return String(value).trim();
-};
-
-const toUserTypeId = (record: {
-  usertype_id?: unknown;
-  usertype?: { unique_id?: unknown };
-}): string => {
-  const direct = record.usertype_id;
-  if (direct && typeof direct === "object") {
-    return toId((direct as { unique_id?: unknown }).unique_id);
-  }
-  return toId(direct ?? record.usertype?.unique_id);
 };
 
 const toOrder = (value: unknown): number => {
@@ -88,15 +82,6 @@ const uniqueIds = (values: unknown[]): string[] => {
   return normalized;
 };
 
-const isContractorRoleId = (value: string): boolean =>
-  value.trim().startsWith("CNTUSRTYPE-");
-
-const isGovernmentRoleId = (value: string): boolean =>
-  value.trim().startsWith("GOVTUSRTYPE-");
-
-const isGovernmentUserTypeLabel = (value: string): boolean =>
-  value.trim().toLowerCase() === "government";
-
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") {
     return value[0];
@@ -116,31 +101,43 @@ const getErrorStatus = (err: unknown): number | null => {
   );
 };
 
+const PERMISSION_TYPE_OPTIONS: Array<{ value: PermissionType; label: string }> = [
+  { value: "screen", label: "Screen Permission" },
+  { value: "field", label: "Field Permission" },
+];
+
 export default function UserScreenPermissionForm() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const params = useParams();
 
-  const staffTypeId = params.id;
+  const routeId = params.id;
   const mainScreenIdFromQuery = searchParams.get("mainscreen_id") ?? "";
 
-  const isEdit = Boolean(staffTypeId);
+  const isEdit = Boolean(routeId);
+  const decodedRoute = useMemo(
+    () => (routeId ? decodeLocalBodyRouteId(String(routeId)) : { localBodyType: "", localBodyId: "" }),
+    [routeId],
+  );
 
-  const [staffUserTypeId, setStaffUserTypeId] = useState(() =>
-    isEdit && staffTypeId ? String(staffTypeId) : ""
+  const [localBody, setLocalBody] = useState<LocalBodyValue>({
+    stateId: "",
+    districtId: "",
+    areaTypeId: "",
+    localBodyType: (decodedRoute.localBodyType as LocalBodyType) || "",
+    localBodyId: decodedRoute.localBodyId || "",
+  });
+  const [permissionType, setPermissionType] = useState<PermissionType>(() =>
+    searchParams.get("permission_type") === "field" ? "field" : "screen"
   );
   const [mainScreenId, setMainScreenId] = useState(() =>
     isEdit ? String(mainScreenIdFromQuery) : ""
   );
   const [description, setDescription] = useState("");
-  const [userTypeId, setUserTypeId] = useState("");
-  const [selectedUserTypeCategoryId, setSelectedUserTypeCategoryId] = useState("");
-  const [governmentLevel, setGovernmentLevel] = useState("");
+  const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
+  const [loadingWidgets, setLoadingWidgets] = useState(false);
 
-  const [userTypeOptions, setUserTypeOptions] = useState<Option[]>([]);
-  const [allRoleOptions, setAllRoleOptions] = useState<Option[]>([]);
-  const [staffUserTypes, setStaffUserTypes] = useState<Option[]>([]);
   const [mainScreens, setMainScreens] = useState<Option[]>([]);
   const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
   const [actions, setActions] = useState<Option[]>([]);
@@ -167,10 +164,56 @@ export default function UserScreenPermissionForm() {
   /* Formatted permissions state */
   const [formattedPermissionData, setFormattedPermissionData] = useState<any>(null);
   const [formattedPermissionError, setFormattedPermissionError] = useState<any>(null);
-  const [formattedPermissionLoading, setFormattedPermissionLoading] = useState(false);
+
+  const hasLocalBody = Boolean(localBody.localBodyType && localBody.localBodyId);
 
   /* -----------------------------------------------------------
-     LOAD DROPDOWNS
+     EDIT MODE — resolve the selected Local Body's own state/
+     district/area_type so LocalBodySelector's cascading dropdowns
+     can pre-fill (it only has localBodyType/localBodyId from the
+     route; the parent hierarchy chain isn't encoded there).
+  ----------------------------------------------------------- */
+  useEffect(() => {
+    if (!isEdit || !decodedRoute.localBodyType || !decodedRoute.localBodyId) return;
+    let cancelled = false;
+
+    const resolveHierarchy = async () => {
+      const entityConfig = LOCAL_BODY_TYPES.find((t) => t.value === decodedRoute.localBodyType);
+      if (!entityConfig) return;
+      try {
+        const records = (await adminApi[entityConfig.entity].readAll()) as Array<Record<string, unknown>>;
+        if (cancelled || !Array.isArray(records)) return;
+        const record = records.find((r) => String(r.unique_id) === decodedRoute.localBodyId);
+        if (!record) return;
+
+        const normalize = (value: unknown): string => {
+          if (!value) return "";
+          if (typeof value === "object" && "unique_id" in (value as Record<string, unknown>)) {
+            return String((value as { unique_id?: string }).unique_id ?? "");
+          }
+          return String(value);
+        };
+
+        setLocalBody((prev) => ({
+          ...prev,
+          stateId: normalize(record.state_id),
+          districtId: normalize(record.district_id),
+          areaTypeId: normalize(record.area_type_id),
+        }));
+      } catch {
+        // Non-fatal — the local body ownership itself still works via
+        // localBodyType/localBodyId; only the dropdown pre-fill is lost.
+      }
+    };
+
+    void resolveHierarchy();
+    return () => {
+      cancelled = true;
+    };
+  }, [isEdit, decodedRoute.localBodyType, decodedRoute.localBodyId]);
+
+  /* -----------------------------------------------------------
+     LOAD DROPDOWNS (screens/actions catalog)
   ----------------------------------------------------------- */
 
   useEffect(() => {
@@ -178,11 +221,7 @@ export default function UserScreenPermissionForm() {
 
     const fetchAll = async () => {
       try {
-        const [userTypesRes, staffUserTypesRes, contractorUserTypesRes, governmentUserTypesRes, mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
-          adminApi.userTypes.readAll(),
-          adminApi.staffUserTypes.readAll(),
-          adminApi.contractorUserTypes.readAll(),
-          adminApi.governmentUserTypes.readAll(),
+        const [mainScreensRes, userScreensRes, userScreenActionsRes] = await Promise.allSettled([
           adminApi.mainScreens.readAll(),
           adminApi.userScreens.readAll(),
           adminApi.userScreenActions.readAll(),
@@ -190,17 +229,11 @@ export default function UserScreenPermissionForm() {
 
         if (cancelled) return;
 
-        const userTypesData = userTypesRes.status === "fulfilled" ? (userTypesRes.value as any[]) : [];
-        const staffUserTypesData = staffUserTypesRes.status === "fulfilled" ? (staffUserTypesRes.value as any[]) : [];
-        const contractorUserTypesData = contractorUserTypesRes.status === "fulfilled" ? (contractorUserTypesRes.value as any[]) : [];
-        const governmentUserTypesData = governmentUserTypesRes.status === "fulfilled" ? (governmentUserTypesRes.value as any[]) : [];
         const mainScreensData = mainScreensRes.status === "fulfilled" ? (mainScreensRes.value as any[]) : [];
         const userScreensData = userScreensRes.status === "fulfilled" ? (userScreensRes.value as any[]) : [];
         const userScreenActionsData = userScreenActionsRes.status === "fulfilled" ? (userScreenActionsRes.value as any[]) : [];
 
-        // Check for 403 errors
         const firstError =
-          (staffUserTypesRes.status === "rejected" ? staffUserTypesRes.reason : null) ??
           (mainScreensRes.status === "rejected" ? mainScreensRes.reason : null) ??
           (userScreensRes.status === "rejected" ? userScreensRes.reason : null) ??
           (userScreenActionsRes.status === "rejected" ? userScreenActionsRes.reason : null);
@@ -217,32 +250,6 @@ export default function UserScreenPermissionForm() {
           }
           Swal.fire(t("common.error"), t("common.load_failed"), "error");
         }
-
-        setUserTypeOptions(
-          userTypesData.map((x: any) => ({
-            value: toId(x.unique_id),
-            label: String(x.name ?? ""),
-          }))
-        );
-
-        const staffRoles = staffUserTypesData.map((x: StaffUserType) => ({
-          value: toId(x.unique_id),
-          label: String(x.name ?? ""),
-          userTypeId: toUserTypeId(x),
-        }));
-        const contractorRoles = contractorUserTypesData.map((x: any) => ({
-          value: toId(x.unique_id),
-          label: String(x.name ?? ""),
-          userTypeId: toUserTypeId(x),
-        }));
-        const governmentRoles = governmentUserTypesData.map((x: StaffUserType) => ({
-          value: toId(x.unique_id),
-          label: String(x.name_display ?? x.name ?? ""),
-          userTypeId: toUserTypeId(x),
-          governmentLevel: toId(x.level),
-          governmentLevelLabel: String(x.level_display ?? x.level ?? ""),
-        }));
-        setAllRoleOptions([...staffRoles, ...contractorRoles, ...governmentRoles]);
 
         setMainScreens(
           mainScreensData.map((x: MainScreen) => ({
@@ -268,114 +275,88 @@ export default function UserScreenPermissionForm() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedUserTypeCategory = useMemo(
-    () => userTypeOptions.find((opt) => opt.value === selectedUserTypeCategoryId),
-    [selectedUserTypeCategoryId, userTypeOptions]
-  );
-
-  const isGovernmentCategory = Boolean(
-    selectedUserTypeCategory &&
-      isGovernmentUserTypeLabel(selectedUserTypeCategory.label)
-  );
-
-  const governmentLevelOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return allRoleOptions
-      .filter((role) => role.userTypeId === selectedUserTypeCategoryId)
-      .filter((role) => isGovernmentRoleId(role.value))
-      .filter((role) => {
-        const level = role.governmentLevel ?? "";
-        if (!level || seen.has(level)) return false;
-        seen.add(level);
-        return true;
-      })
-      .map((role) => ({
-        value: role.governmentLevel ?? "",
-        label: role.governmentLevelLabel || role.governmentLevel || "",
-      }));
-  }, [allRoleOptions, selectedUserTypeCategoryId]);
-
   /* -----------------------------------------------------------
-     LOAD FORMATTED PERMISSIONS (replaces useUserScreenPermissionFormattedQuery)
+     LOAD FORMATTED PERMISSIONS
   ----------------------------------------------------------- */
   useEffect(() => {
-    if (!staffUserTypeId || !mainScreenId) return;
+    if (!hasLocalBody || !mainScreenId) return;
 
     let cancelled = false;
-    setFormattedPermissionLoading(true);
     setFormattedPermissionData(null);
     setFormattedPermissionError(null);
 
-    adminApi.userScreenPermissions.read(
-      `by-staff-format/?staffusertype_id=${encodeURIComponent(staffUserTypeId)}&mainscreen_id=${encodeURIComponent(mainScreenId)}`
-    )
+    const query = new URLSearchParams({
+      local_body_type: localBody.localBodyType,
+      local_body_id: localBody.localBodyId,
+      mainscreen_id: mainScreenId,
+      permission_type: permissionType,
+    });
+    if (localBody.stateId) query.set("state_id", localBody.stateId);
+    if (localBody.districtId) query.set("district_id", localBody.districtId);
+    if (localBody.areaTypeId) query.set("area_type_id", localBody.areaTypeId);
+
+    adminApi.userScreenPermissions.read(`by-staff-format/?${query.toString()}`)
       .then((res: any) => {
         if (cancelled) return;
         setFormattedPermissionData(res);
-        setFormattedPermissionLoading(false);
       })
       .catch((err: any) => {
         if (cancelled) return;
         setFormattedPermissionError(err);
-        setFormattedPermissionLoading(false);
       });
 
     return () => { cancelled = true; };
-  }, [staffUserTypeId, mainScreenId]);
-
-  useEffect(() => {
-    if (!isEdit || !staffUserTypeId) return;
-
-    const matchingRole = allRoleOptions.find(
-      (role) => role.value === staffUserTypeId
-    );
-    const formattedUserTypeId = toId(
-      (formattedPermissionData as any)?.usertype_id ??
-        (formattedPermissionData as any)?.userTypeId
-    );
-    const nextUserTypeId = matchingRole?.userTypeId || formattedUserTypeId;
-
-    if (!nextUserTypeId) return;
-
-    if (selectedUserTypeCategoryId !== nextUserTypeId) {
-      setSelectedUserTypeCategoryId(nextUserTypeId);
-      setUserTypeId(nextUserTypeId);
-    }
-    if (matchingRole?.governmentLevel) {
-      setGovernmentLevel(matchingRole.governmentLevel);
-    }
-  }, [
-    allRoleOptions,
-    formattedPermissionData,
-    isEdit,
-    selectedUserTypeCategoryId,
-    staffUserTypeId,
-  ]);
+  }, [hasLocalBody, localBody.localBodyType, localBody.localBodyId, localBody.stateId, localBody.districtId, localBody.areaTypeId, mainScreenId, permissionType]);
 
   /* -----------------------------------------------------------
-     EDIT MODE
+     LOAD DASHBOARD WIDGETS FOR THE SELECTED LOCAL BODY
+  ----------------------------------------------------------- */
+  useEffect(() => {
+    if (!hasLocalBody) {
+      setWidgets([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingWidgets(true);
+
+    adminApi.dashboardWidgetPermissions
+      .readAll({
+        params: {
+          local_body_type: localBody.localBodyType,
+          local_body_id: localBody.localBodyId,
+          permission_owner_kind: "super_admin",
+          limit: 6000,
+          offset: 0,
+        },
+      })
+      .then((res: any) => {
+        if (cancelled) return;
+        const rows = Array.isArray(res) ? res : [];
+        setWidgets(
+          rows.map((row: any) => ({
+            widgetName: String(row.widget_name ?? row.widgetName ?? ""),
+            isEnabled: Boolean(row.is_enabled ?? row.isEnabled ?? false),
+            orderNo: Number(row.order_no ?? row.orderNo ?? 0),
+          })).filter((widget: DashboardWidget) => widget.widgetName)
+        );
+      })
+      .catch(() => {
+        if (!cancelled) Swal.fire(t("common.error"), "Failed to load dashboard widgets.", "error");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingWidgets(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [hasLocalBody, localBody.localBodyType, localBody.localBodyId, t]);
+
+  /* -----------------------------------------------------------
+     LOAD PERMISSIONS INTO MATRIX
   ----------------------------------------------------------- */
 
   useEffect(() => {
-    if (!isEdit || !staffTypeId) return;
-
-    if (staffUserTypeId !== String(staffTypeId)) {
-      setStaffUserTypeId(String(staffTypeId));
-      setScreenMatrix([]);
-    }
-
-    if (mainScreenIdFromQuery && mainScreenId !== String(mainScreenIdFromQuery)) {
-      setMainScreenId(String(mainScreenIdFromQuery));
-      setScreenMatrix([]);
-    }
-  }, [isEdit, mainScreenId, mainScreenIdFromQuery, staffTypeId, staffUserTypeId]);
-
-  /* -----------------------------------------------------------
-     LOAD PERMISSIONS
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (!staffUserTypeId || !mainScreenId) return;
+    if (!hasLocalBody || !mainScreenId) return;
 
     if (formattedPermissionError) {
       const err = formattedPermissionError;
@@ -391,27 +372,26 @@ export default function UserScreenPermissionForm() {
     }
 
     try {
-        const formatted: PermissionResponse = (formattedPermissionData ??
-          ({
-            screens: [],
-            description: "",
-          } satisfies PermissionResponse)) as PermissionResponse;
+      const formatted: PermissionResponse = (formattedPermissionData ??
+        ({
+          screens: [],
+          description: "",
+        } satisfies PermissionResponse)) as PermissionResponse;
 
-        const actionsByScreen = new Map<string, PermissionScreen>();
-        formatted.screens.forEach((scr: PermissionScreen) => {
-          const screenId = toId(scr.userscreen_id);
-          if (!screenId) return;
+      const actionsByScreen = new Map<string, PermissionScreen>();
+      formatted.screens.forEach((scr: PermissionScreen) => {
+        const screenId = toId(scr.userscreen_id);
+        if (!screenId) return;
 
-          actionsByScreen.set(screenId, {
-            userscreen_id: screenId,
-            userscreen_name: String(scr.userscreen_name ?? "").trim(),
-            // FIX: API returns actionIds, not actions
-            actions: uniqueIds(scr.actionIds ?? scr.actions ?? []),
-            columnIds: uniqueIds(scr.columnIds ?? []),
-          });
+        actionsByScreen.set(screenId, {
+          userscreen_id: screenId,
+          userscreen_name: String(scr.userscreen_name ?? "").trim(),
+          actions: uniqueIds(scr.actionIds ?? scr.actions ?? []),
+          columnIds: uniqueIds(scr.columnIds ?? []),
         });
+      });
 
-        const selectedMainScreens = allUserScreens
+      const selectedMainScreens = allUserScreens
         .filter((screen) => !screen.is_deleted)
         .filter(
           (screen) =>
@@ -420,65 +400,62 @@ export default function UserScreenPermissionForm() {
         )
         .sort((a, b) => toOrder(a.order_no) - toOrder(b.order_no));
 
-        const matrix: ScreenMatrixRow[] = [];
+      const matrix: ScreenMatrixRow[] = [];
 
-        selectedMainScreens.forEach((screen) => {
-          const screenId = toId(screen.unique_id);
-          if (!screenId) return;
+      selectedMainScreens.forEach((screen) => {
+        const screenId = toId(screen.unique_id);
+        if (!screenId) return;
 
-          const existing = actionsByScreen.get(screenId);
-          matrix.push({
-            userscreen_id: screenId,
-            userscreen_name: String(
-              screen.userscreen_name ?? existing?.userscreen_name ?? screenId
-            ).trim(),
-            actions: uniqueIds(existing?.actions ?? []),
-            // columnIds are loaded from the dedicated column-permission API
-            // in the screenIdsKey effect below — start empty to avoid stale flash.
-            columnIds: [],
-          });
+        const existing = actionsByScreen.get(screenId);
+        matrix.push({
+          userscreen_id: screenId,
+          userscreen_name: String(
+            screen.userscreen_name ?? existing?.userscreen_name ?? screenId
+          ).trim(),
+          actions: uniqueIds(existing?.actions ?? []),
+          columnIds: uniqueIds(existing?.columnIds ?? []),
         });
+      });
 
-        actionsByScreen.forEach((existing, screenId) => {
-          if (matrix.some((row) => row.userscreen_id === screenId)) return;
+      actionsByScreen.forEach((existing, screenId) => {
+        if (matrix.some((row) => row.userscreen_id === screenId)) return;
 
-          matrix.push({
-            userscreen_id: screenId,
-            userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
-            actions: uniqueIds(existing.actions ?? []),
-            columnIds: [],
-          });
+        matrix.push({
+          userscreen_id: screenId,
+          userscreen_name: String(existing.userscreen_name ?? screenId).trim(),
+          actions: uniqueIds(existing.actions ?? []),
+          columnIds: uniqueIds(existing.columnIds ?? []),
         });
+      });
 
-        setDescription(formatted.description || "");
-        setScreenMatrix(matrix);
-      } catch (err) {
-        console.error("Permission Load Failed:", err);
+      setDescription(formatted.description || "");
+      setScreenMatrix(matrix);
+    } catch (err) {
+      console.error("Permission Load Failed:", err);
 
-        if (getErrorStatus(err) === 403) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.access_denied"),
-            text: t("common.no_permission"),
-            confirmButtonText: t("common.ok"),
-          }).then(() => navigate(ENC_LIST_PATH));
-          return;
-        }
-
-        Swal.fire(
-          t("common.error"),
-          t("admin.user_screen_permission.load_matrix_failed"),
-          "error"
-        );
+      if (getErrorStatus(err) === 403) {
+        Swal.fire({
+          icon: "error",
+          title: t("common.access_denied"),
+          text: t("common.no_permission"),
+          confirmButtonText: t("common.ok"),
+        }).then(() => navigate(ENC_LIST_PATH));
+        return;
       }
+
+      Swal.fire(
+        t("common.error"),
+        t("admin.user_screen_permission.load_matrix_failed"),
+        "error"
+      );
+    }
   }, [
     allUserScreens,
     formattedPermissionData,
     formattedPermissionError,
-    formattedPermissionLoading,
+    hasLocalBody,
     mainScreenId,
     navigate,
-    staffUserTypeId,
     t,
   ]);
 
@@ -486,17 +463,13 @@ export default function UserScreenPermissionForm() {
      FETCH COLUMNS FOR EACH SCREEN IN MATRIX
   ----------------------------------------------------------- */
 
-  /**
-   * Key that only changes when the set of screen IDs changes,
-   * not when actions/columnIds within rows change.
-   */
   const screenIdsKey = useMemo(
     () => screenMatrix.map((r) => r.userscreen_id).sort().join(","),
     [screenMatrix]
   );
 
   useEffect(() => {
-    if (!screenIdsKey) {
+    if (!screenIdsKey || permissionType !== "field") {
       setScreenColumns({});
       setColumnPermissionIds({});
       return;
@@ -510,8 +483,10 @@ export default function UserScreenPermissionForm() {
           api.get<UserScreenColumnRecord[]>(
             `/permissions/userscreen/${screenId}/columns/`
           ),
-          staffUserTypeId
-            ? getColumnPermissions(screenId, staffUserTypeId)
+          hasLocalBody
+            ? getColumnPermissions(screenId, localBody.localBodyId, {
+                localBodyType: localBody.localBodyType,
+              })
             : Promise.resolve<ColumnPermissionsResponse>({
                 userscreen_id: screenId,
                 column_permissions: [],
@@ -528,7 +503,6 @@ export default function UserScreenPermissionForm() {
             ? permResult.value
             : { userscreen_id: screenId, column_permissions: [] };
 
-        // Build permId map and collect active (checked) column IDs
         const permIds: Record<string, string> = {};
         const checkedIds: string[] = [];
         permData.column_permissions.forEach((cp) => {
@@ -550,7 +524,6 @@ export default function UserScreenPermissionForm() {
       setScreenColumns(colsMap);
       setColumnPermissionIds(permIdsMap);
 
-      // Replace columnIds in the matrix with data from the dedicated API
       setScreenMatrix((prev) =>
         prev.map((row) => {
           const entry = entries.find((e) => e.screenId === row.userscreen_id);
@@ -559,30 +532,7 @@ export default function UserScreenPermissionForm() {
         })
       );
     });
-  }, [screenIdsKey, staffUserTypeId]);
-
-  /* -----------------------------------------------------------
-     FILTER ROLES BY SELECTED USER TYPE CATEGORY
-  ----------------------------------------------------------- */
-
-  useEffect(() => {
-    if (selectedUserTypeCategoryId) {
-      const filtered = allRoleOptions.filter((r) => {
-        if (r.userTypeId !== selectedUserTypeCategoryId) return false;
-        if (!isGovernmentCategory) return !isGovernmentRoleId(r.value);
-        return isGovernmentRoleId(r.value) && r.governmentLevel === governmentLevel;
-      });
-      setStaffUserTypes(filtered);
-      setUserTypeId(selectedUserTypeCategoryId);
-      // Clear the role selection if it no longer belongs to the new usertype
-      setStaffUserTypeId((prev) =>
-        filtered.some((r) => r.value === prev) ? prev : ""
-      );
-    } else {
-      setStaffUserTypes(allRoleOptions);
-      setUserTypeId("");
-    }
-  }, [selectedUserTypeCategoryId, allRoleOptions, governmentLevel, isGovernmentCategory]);
+  }, [screenIdsKey, hasLocalBody, localBody.localBodyId, localBody.localBodyType, permissionType]);
 
   /* -----------------------------------------------------------
      TOGGLE ACTIONS
@@ -672,7 +622,7 @@ export default function UserScreenPermissionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!staffUserTypeId || !mainScreenId || !userTypeId) {
+    if (!hasLocalBody || !mainScreenId) {
       Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
       return;
     }
@@ -690,7 +640,6 @@ export default function UserScreenPermissionForm() {
       actions.map((item) => toId(item.value)).filter(Boolean)
     );
 
-    // Action-only payload — column permissions are handled by the dedicated API below.
     const normalizedScreens = screenMatrix
       .map((screen) => {
         const base: Record<string, unknown> = {
@@ -700,9 +649,7 @@ export default function UserScreenPermissionForm() {
               validActionIds.size === 0 || validActionIds.has(actionId)
           ),
         };
-        // Only include columnIds when the columns have been fetched for this screen.
-        // Sending undefined means "no change"; sending [] means "clear all column perms".
-        if (screenColumns[screen.userscreen_id] !== undefined) {
+        if (permissionType === "field" && screenColumns[screen.userscreen_id] !== undefined) {
           const lockedIds = screenColumns[screen.userscreen_id]
             .filter(isLockedColumn)
             .map((c) => c.unique_id);
@@ -712,67 +659,74 @@ export default function UserScreenPermissionForm() {
       })
       .filter((screen) => Boolean(screen.userscreen_id));
 
-    const isContractorRole = isContractorRoleId(staffUserTypeId);
-    const isGovernmentRole = isGovernmentRoleId(staffUserTypeId);
     const payload = {
-      staffusertype_id: isContractorRole || isGovernmentRole ? null : staffUserTypeId,
-      contractorusertype_id: isContractorRole ? staffUserTypeId : null,
-      governmentusertype_id: isGovernmentRole ? staffUserTypeId : null,
-      permission_for: isGovernmentRole ? "government" : isContractorRole ? "contractor" : "staff",
-      mainscreen_id: mainScreenId,
+      stateId: localBody.stateId || null,
+      districtId: localBody.districtId || null,
+      areaTypeId: localBody.areaTypeId || null,
+      localBodyType: localBody.localBodyType,
+      localBodyId: localBody.localBodyId,
+      permissionType,
+      mainScreenId: mainScreenId,
       description: description.trim(),
-      usertype_id: userTypeId,
       screens: normalizedScreens,
     };
 
     setLoading(true);
 
     try {
-      if (isEdit) {
-        await adminApi.userScreenPermissions.action(
-          `update-by-staffusertype/${staffUserTypeId}`,
-          payload
-        );
-      } else {
-        await adminApi.userScreenPermissions.action(
-          `bulk-sync-multi/${staffUserTypeId}`,
-          payload
-        );
-      }
+      // Always use the create/upsert action: its create() diff already
+      // creates/updates/removes rows correctly for whichever permission_type
+      // is currently selected. "update-by-localbody" (update_only=True) would
+      // incorrectly reject a Local Body's first-ever save of the *other*
+      // permission_type (e.g. Field Permission when only Screen Permission
+      // rows exist so far) since Screen/Field are independent row sets.
+      const actionPath = `bulk-sync-multi-localbody/${localBody.localBodyType}/${localBody.localBodyId}`;
+      await adminApi.userScreenPermissions.action(actionPath, payload);
 
-      // Sync column permissions via dedicated API (create or update, no duplicates).
-      const colSyncTasks: Promise<unknown>[] = [];
-      screenMatrix.forEach((screen) => {
-        const availableCols = screenColumns[screen.userscreen_id];
-        if (!availableCols) return; // columns not yet loaded — skip
+      await adminApi.dashboardWidgetPermissions.action(
+        `bulk-sync-by-localbody/${localBody.localBodyType}/${localBody.localBodyId}`,
+        {
+          stateId: localBody.stateId || undefined,
+          districtId: localBody.districtId || undefined,
+          areaTypeId: localBody.areaTypeId || undefined,
+          widgets,
+        },
+      );
 
-        const permIds = columnPermissionIds[screen.userscreen_id] ?? {};
+      // Sync column permissions (Field Permission only) via dedicated API.
+      if (permissionType === "field") {
+        const colSyncTasks: Promise<unknown>[] = [];
+        screenMatrix.forEach((screen) => {
+          const availableCols = screenColumns[screen.userscreen_id];
+          if (!availableCols) return;
 
-        availableCols.forEach((col) => {
-          const permId = permIds[col.unique_id] ?? null;
-          const isChecked = screen.columnIds.includes(col.unique_id);
+          const permIds = columnPermissionIds[screen.userscreen_id] ?? {};
 
-          if (permId) {
-            // Existing permission record — update in-place
-            colSyncTasks.push(updateColumnPermission(permId, { is_active: isChecked }));
-          } else if (isChecked) {
-            // New selection — create (backend uses get_or_create, safe to call)
-            colSyncTasks.push(
-              createColumnPermission({
-                userscreen_id: screen.userscreen_id,
-                column_id: col.unique_id,
-                staffusertype_id: isContractorRole || isGovernmentRole ? undefined : staffUserTypeId,
-                contractorusertype_id: isContractorRole ? staffUserTypeId : undefined,
-                governmentusertype_id: isGovernmentRole ? staffUserTypeId : undefined,
-                usertype_id: userTypeId,
-                is_active: true,
-              })
-            );
-          }
+          availableCols.forEach((col) => {
+            const permId = permIds[col.unique_id] ?? null;
+            const isChecked = screen.columnIds.includes(col.unique_id);
+
+            if (permId) {
+              colSyncTasks.push(updateColumnPermission(permId, { is_active: isChecked }));
+            } else if (isChecked) {
+              colSyncTasks.push(
+                createColumnPermission({
+                  userscreen_id: screen.userscreen_id,
+                  column_id: col.unique_id,
+                  local_body_type: localBody.localBodyType,
+                  local_body_id: localBody.localBodyId,
+                  state_id: localBody.stateId || undefined,
+                  district_id: localBody.districtId || undefined,
+                  area_type_id: localBody.areaTypeId || undefined,
+                  is_active: true,
+                })
+              );
+            }
+          });
         });
-      });
 
-      await Promise.all(colSyncTasks);
+        await Promise.all(colSyncTasks);
+      }
 
       if (isEdit) {
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
@@ -799,7 +753,7 @@ export default function UserScreenPermissionForm() {
       Swal.fire(
         t("common.save_failed"),
         firstErrorMessage(errorData.detail) ||
-          firstErrorMessage(errorData.staffusertype_id) ||
+          firstErrorMessage(errorData.local_body_id) ||
           firstErrorMessage(errorData.mainscreen_id) ||
           firstErrorMessage(errorData.screens) ||
           firstErrorMessage((errorData as any).columnIds) ||
@@ -838,105 +792,53 @@ export default function UserScreenPermissionForm() {
       }
     >
       <form onSubmit={handleSubmit}>
+        <div className="mb-6">
+          <Label>Permission Type *</Label>
+          <Select
+            value={permissionType}
+            onValueChange={(value) => {
+              setPermissionType(value as PermissionType);
+              setScreenColumns({});
+              setColumnPermissionIds({});
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Permission Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {PERMISSION_TYPE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="mb-6 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+          <h4 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+            Government Hierarchy
+          </h4>
+          <LocalBodySelector value={localBody} onChange={setLocalBody} />
+        </div>
+
+        {hasLocalBody && (
+          <div className="mb-6">
+            {loadingWidgets ? (
+              <div className="text-sm text-gray-500">Loading dashboard widgets...</div>
+            ) : (
+              <DashboardWidgetSection widgets={widgets} onChange={setWidgets} />
+            )}
+          </div>
+        )}
+
         <div className="grid md:grid-cols-3 gap-6">
-          <div>
-            <Label>{t("admin.nav.user_type")} *</Label>
-            <Select
-              value={selectedUserTypeCategoryId}
-              onValueChange={(value) => {
-                setSelectedUserTypeCategoryId(value);
-                setGovernmentLevel("");
-                if (!isEdit) {
-                  setStaffUserTypeId("");
-                  setScreenMatrix([]);
-                  setScreenColumns({});
-                  setColumnPermissionIds({});
-                  setDescription("");
-                }
-              }}
-              disabled={isEdit}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.user_type"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {userTypeOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {isGovernmentCategory && (
-            <div>
-              <Label>Government Level *</Label>
-              <Select
-                value={governmentLevel}
-                onValueChange={(value) => {
-                  setGovernmentLevel(value);
-                  if (!isEdit) {
-                    setStaffUserTypeId("");
-                    setScreenMatrix([]);
-                    setScreenColumns({});
-                    setColumnPermissionIds({});
-                    setDescription("");
-                  }
-                }}
-                disabled={isEdit}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Government Level" />
-                </SelectTrigger>
-                <SelectContent>
-                  {governmentLevelOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div>
-            <Label>{isGovernmentCategory ? "Government Staff User Type" : t("admin.nav.staff_user_type")} *</Label>
-            <Select
-              value={staffUserTypeId}
-              onValueChange={setStaffUserTypeId}
-              disabled={isEdit || !selectedUserTypeCategoryId || (isGovernmentCategory && !governmentLevel)}
-            >
-              <SelectTrigger>
-                <SelectValue
-                  placeholder={
-                    isGovernmentCategory && !governmentLevel
-                      ? "Select a level first"
-                      : t("common.select_item_placeholder", {
-                          item: isGovernmentCategory ? "Government Staff User Type" : t("admin.nav.staff_user_type"),
-                        })
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {staffUserTypes.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           <div>
             <Label>{t("admin.nav.main_screen")} *</Label>
             <Select
               value={mainScreenId}
               onValueChange={handleMainScreenChange}
+              disabled={!hasLocalBody}
             >
               <SelectTrigger>
                 <SelectValue
@@ -957,7 +859,7 @@ export default function UserScreenPermissionForm() {
         </div>
 
         {/* COLUMN LEGEND */}
-        {screenMatrix.length > 0 && (
+        {permissionType === "field" && screenMatrix.length > 0 && (
           <div className="mt-6 flex flex-wrap gap-4 text-xs text-gray-600">
             <span className="flex items-center gap-1.5">
               <input type="checkbox" checked disabled className="w-3.5 h-3.5 accent-green-600" readOnly />
@@ -1002,7 +904,7 @@ export default function UserScreenPermissionForm() {
               <tbody>
                 {screenMatrix.map((row, i) => {
                   const allActionsChecked = row.actions.length === actions.length;
-                  const cols = screenColumns[row.userscreen_id];
+                  const cols = permissionType === "field" ? screenColumns[row.userscreen_id] : undefined;
                   const allColsChecked =
                     cols && cols.length > 0
                       ? row.columnIds.length === cols.length
@@ -1046,7 +948,7 @@ export default function UserScreenPermissionForm() {
                         ))}
                       </tr>
 
-                      {/* ── Column permission row (only when columns exist) ── */}
+                      {/* ── Column permission row (Field Permission mode only) ── */}
                       {cols && cols.length > 0 && (
                         <tr className="border-b bg-slate-50/60">
                           <td className="px-4 py-2" />
@@ -1060,7 +962,6 @@ export default function UserScreenPermissionForm() {
                               </span>
                             )}
                           </td>
-                          {/* "Select all columns" checkbox in the All column */}
                           <td className="px-4 py-2 text-center">
                             <input
                               type="checkbox"
@@ -1075,7 +976,6 @@ export default function UserScreenPermissionForm() {
                               title="Select all columns"
                             />
                           </td>
-                          {/* Column checkboxes span all remaining action columns */}
                           <td
                             colSpan={actions.length}
                             className="px-4 py-2"
@@ -1191,7 +1091,7 @@ export default function UserScreenPermissionForm() {
           <Button
             type="submit"
             disabled={
-              loading || !staffUserTypeId || !mainScreenId
+              loading || !hasLocalBody || !mainScreenId
             }
           >
             {loading
@@ -1212,3 +1112,5 @@ export default function UserScreenPermissionForm() {
     </ComponentCard>
   );
 }
+
+export { encodeLocalBodyRouteId, decodeLocalBodyRouteId };

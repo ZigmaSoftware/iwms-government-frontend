@@ -43,6 +43,7 @@ import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
+import { scopeOption, type ScopeLevel } from "../../masters/shared/dataScopeOptions";
 
 /* ── Palette (fixed categorical order — never cycled/regenerated) ──── */
 const SERIES = [
@@ -120,6 +121,25 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
 };
 const toGeoOptions = (records: any[]) =>
   records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
+
+/**
+ * Merge a permission-gated hierarchy fetch (raw record list) with the user's
+ * own Data Scope value for that level, so report filters always include at
+ * least the user's own scoped state/district/area type/local body even when
+ * the fetch comes back empty (403/no screen permission on that level's own
+ * master) or doesn't otherwise include it. `extra` carries parent-id fields
+ * (e.g. state_id/district_id) needed by this page's cascading filters.
+ */
+const mergeRecordsWithScope = (
+  records: Record<string, unknown>[],
+  level: ScopeLevel,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown>[] => {
+  const scoped = scopeOption(level);
+  if (!scoped) return records;
+  if (records.some((r) => resolveGeoId(r) === scoped.value)) return records;
+  return [{ unique_id: scoped.value, name: scoped.label, ...extra }, ...records];
+};
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 const fmtKg = (v?: number | string | null, dec = 2) => {
@@ -284,6 +304,68 @@ export default function MonthlyWasteComparisonListPage() {
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
+    let cancelled = false;
+
+    // The State/District/Area Type/local-body screens may not be
+    // permission-granted to this user at all (View gates their own
+    // menu/list, not these report filter dropdowns) — their Data Scope
+    // from login always supplies their own hierarchy values regardless.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
+    const applyScopeFallback = (records: {
+      states: Record<string, unknown>[];
+      districts: Record<string, unknown>[];
+      areaTypes: Record<string, unknown>[];
+      corporations: Record<string, unknown>[];
+      municipalities: Record<string, unknown>[];
+      townPanchayats: Record<string, unknown>[];
+      panchayatUnions: Record<string, unknown>[];
+      panchayats: Record<string, unknown>[];
+    }) => {
+      setStates(mergeRecordsWithScope(records.states, "state"));
+      setDistricts(
+        mergeRecordsWithScope(
+          records.districts,
+          "district",
+          scopedStateId ? { state_id: scopedStateId } : {},
+        ),
+      );
+      setAreaTypes(
+        mergeRecordsWithScope(records.areaTypes, "area_type", {
+          ...(scopedStateId ? { state_id: scopedStateId } : {}),
+          ...(scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        }),
+      );
+      setLocalBodyRecords({
+        corporation_id: mergeRecordsWithScope(
+          records.corporations,
+          "corporation",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        municipality_id: mergeRecordsWithScope(
+          records.municipalities,
+          "municipality",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        town_panchayat_id: mergeRecordsWithScope(
+          records.townPanchayats,
+          "town_panchayat",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        panchayat_union_id: mergeRecordsWithScope(
+          records.panchayatUnions,
+          "panchayat_union",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        panchayat_id: mergeRecordsWithScope(
+          records.panchayats,
+          "panchayat",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+      });
+    };
+
     Promise.all([
       stateApi.readAll(),
       districtApi.readAll(),
@@ -293,29 +375,64 @@ export default function MonthlyWasteComparisonListPage() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
-    ]).then(
-      ([
-        stateRes,
-        districtRes,
-        areaTypeRes,
-        corporationRes,
-        municipalityRes,
-        townPanchayatRes,
-        panchayatUnionRes,
-        panchayatRes,
-      ]) => {
-        setStates(toRecordList(stateRes));
-        setDistricts(toRecordList(districtRes));
-        setAreaTypes(toRecordList(areaTypeRes));
-        setLocalBodyRecords({
-          corporation_id: toRecordList(corporationRes),
-          municipality_id: toRecordList(municipalityRes),
-          town_panchayat_id: toRecordList(townPanchayatRes),
-          panchayat_union_id: toRecordList(panchayatUnionRes),
-          panchayat_id: toRecordList(panchayatRes),
+    ])
+      .then(
+        ([
+          stateRes,
+          districtRes,
+          areaTypeRes,
+          corporationRes,
+          municipalityRes,
+          townPanchayatRes,
+          panchayatUnionRes,
+          panchayatRes,
+        ]) => {
+          if (cancelled) return;
+          applyScopeFallback({
+            states: toRecordList(stateRes),
+            districts: toRecordList(districtRes),
+            areaTypes: toRecordList(areaTypeRes),
+            corporations: toRecordList(corporationRes),
+            municipalities: toRecordList(municipalityRes),
+            townPanchayats: toRecordList(townPanchayatRes),
+            panchayatUnions: toRecordList(panchayatUnionRes),
+            panchayats: toRecordList(panchayatRes),
+          });
+        },
+      )
+      .catch(() => {
+        if (cancelled) return;
+        applyScopeFallback({
+          states: [],
+          districts: [],
+          areaTypes: [],
+          corporations: [],
+          municipalities: [],
+          townPanchayats: [],
+          panchayatUnions: [],
+          panchayats: [],
         });
-      },
-    );
+        if (
+          !scopeOption("state") &&
+          !scopeOption("district") &&
+          !scopeOption("area_type") &&
+          !scopeOption("corporation") &&
+          !scopeOption("municipality") &&
+          !scopeOption("town_panchayat") &&
+          !scopeOption("panchayat_union") &&
+          !scopeOption("panchayat")
+        ) {
+          Swal.fire(
+            t("common.error"),
+            "Failed to load local body filter options.",
+            "error",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   /* area type -> urban/rural category */

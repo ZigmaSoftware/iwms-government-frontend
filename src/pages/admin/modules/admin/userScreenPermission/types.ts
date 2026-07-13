@@ -1,3 +1,34 @@
+export type LocalBodyType =
+  | "corporation"
+  | "municipality"
+  | "town_panchayat"
+  | "panchayat_union"
+  | "panchayat";
+
+export type PermissionType = "screen" | "field";
+
+export type DashboardWidget = {
+  widgetName: string;
+  isEnabled: boolean;
+  orderNo: number;
+};
+
+export type UserScreenPermissionPayload = {
+  stateId: string | null;
+  districtId: string | null;
+  areaTypeId: string | null;
+  localBodyType: LocalBodyType | null;
+  localBodyId: string | null;
+  permissionType: PermissionType;
+  mainScreenId: string;
+  description?: string;
+  screens: Array<{
+    userScreenId: string;
+    actions: Array<{ actionId: string; isActive: boolean }>;
+    columnIds?: string[];
+  }>;
+};
+
 export type StaffUserType = {
   unique_id?: unknown;
   name?: unknown;
