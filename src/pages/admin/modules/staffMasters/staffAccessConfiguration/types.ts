@@ -1,5 +1,6 @@
 export type BasicInfoForm = {
   employeeName: string;
+  staffConfigName: string;
   mobileNumber: string;
   officeEmail: string;
   departmentId: string;
@@ -52,14 +53,13 @@ export type LocalBodyLevel =
 export type AreaTypeCategory = "urban" | "rural";
 
 export type DataScopeForm = {
+  locationNodes?: string[];
   stateId: string | null;
   districtId: string | null;
   areaTypeId: string | null;
   areaTypeCategory: AreaTypeCategory | null;
   localBodyLevel: LocalBodyLevel | null;
   localBodyId: string | null;
-  depotId: string | null;
-  vehicleId: string | null;
 };
 
 export type StaffAccessConfigPayload = {

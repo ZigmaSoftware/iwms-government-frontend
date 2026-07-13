@@ -17,9 +17,13 @@ import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-gray-100 text-gray-700",
   Collected: "bg-green-100 text-green-800",
+  "Not Collected": "bg-red-100 text-red-800",
+  "Collect Later": "bg-orange-100 text-orange-800",
   Skipped: "bg-red-100 text-red-800",
   Missed: "bg-orange-100 text-orange-800",
 };
+
+const STATUS_OPTIONS = ["Pending", "Collected", "Not Collected", "Collect Later"];
 
 const COLLECTION_TYPE_LABELS: Record<string, string> = {
   household_collection: "Household Collection",
@@ -141,6 +145,37 @@ export default function DailyTripHouseholdCollectionList() {
     const value = e.target.value;
     setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
     setGlobalFilterValue(value);
+  };
+
+  const updateRecord = (uniqueId: string, patch: Partial<DailyTripHouseholdCollectionRecord>) => {
+    setAllRecords((records) =>
+      records.map((record) =>
+        record.unique_id === uniqueId
+          ? { ...record, ...patch }
+          : record,
+      ),
+    );
+  };
+
+  const saveStatus = async (row: DailyTripHouseholdCollectionRecord) => {
+    const status = String(row.status ?? "Pending");
+    const reason = String(row.status_reason ?? "").trim();
+    if ((status === "Not Collected" || status === "Collect Later") && !reason) {
+      Swal.fire("Missing reason", "Reason is required for Not Collected and Collect Later.", "warning");
+      return;
+    }
+    try {
+      await dailyTripHouseholdCollectionApi.update(row.unique_id, {
+        status,
+        status_reason: reason || null,
+        is_collected: status === "Collected",
+        collected_at: status === "Collected" ? row.collected_at : null,
+        collected_weight_kg: status === "Collected" ? row.collected_weight_kg : null,
+      });
+      Swal.fire("Saved", "Household collection status updated.", "success");
+    } catch (err) {
+      Swal.fire("Error", extractError(err) ?? "Unable to update household collection status.", "error");
+    }
   };
 
   const renderHeader = () =>
@@ -280,9 +315,51 @@ export default function DailyTripHouseholdCollectionList() {
           sortable
           filter
           showFilterMatchModes={false}
-          style={{ minWidth: 110 }}
+          style={{ minWidth: 180 }}
           body={(row: DailyTripHouseholdCollectionRecord) => (
-            <Badge value={row.status} />
+            <div className="flex items-center gap-2">
+              <Badge value={row.status} />
+              <select
+                value={row.status ?? "Pending"}
+                onChange={(event) =>
+                  updateRecord(row.unique_id, {
+                    status: event.target.value,
+                    is_collected: event.target.value === "Collected",
+                  })
+                }
+                className="h-8 rounded-md border border-gray-300 px-2 text-xs"
+              >
+                {STATUS_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        />
+        <Column
+          field="status_reason"
+          header="Reason"
+          style={{ minWidth: 260 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => (
+            <input
+              value={String(row.status_reason ?? "")}
+              onChange={(event) => updateRecord(row.unique_id, { status_reason: event.target.value })}
+              placeholder={row.status === "Not Collected" ? "I do not collect today..." : row.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
+              className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs"
+            />
+          )}
+        />
+        <Column
+          header="Save"
+          style={{ width: 90 }}
+          body={(row: DailyTripHouseholdCollectionRecord) => (
+            <button
+              type="button"
+              onClick={() => saveStatus(row)}
+              className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700"
+            >
+              Save
+            </button>
           )}
         />
         <Column

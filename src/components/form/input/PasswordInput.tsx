@@ -23,29 +23,32 @@ export default function PasswordInput({
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="relative">
+    <div>
       {label && <Label htmlFor={id}>{label}</Label>}
-      <Input
-        id={id}
-        type={showPassword ? "text" : "password"}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        required={required}
-        className="pr-10"
-      />
-      <button
-        type="button"
-        onClick={() => setShowPassword(!showPassword)}
-        className="absolute right-2 inset-y-0 my-auto flex h-full items-center text-gray-500 hover:text-gray-700"
-        tabIndex={-1}
-      >
-        {showPassword ? (
-          <EyeOffIcon className="h-4 w-4" />
-        ) : (
-          <EyeIcon className="h-4 w-4" />
-        )}
-      </button>
+      <div className="relative">
+        <Input
+          id={id}
+          type={showPassword ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          required={required}
+          className="pr-10"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center text-gray-500 hover:text-gray-700"
+          tabIndex={-1}
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? (
+            <EyeOffIcon className="h-4 w-4" />
+          ) : (
+            <EyeIcon className="h-4 w-4" />
+          )}
+        </button>
+      </div>
     </div>
   );
 }

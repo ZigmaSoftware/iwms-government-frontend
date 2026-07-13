@@ -471,6 +471,7 @@ export default function DailyTripAssignmentForm() {
                   status: stop.status,
                   is_collected: stop.is_collected,
                   collected_weight_kg: stop.collected_weight_kg || null,
+                  status_reason: stop.status_reason || null,
                 }) as Promise<unknown>).catch(() => null)
               )
           );
@@ -798,6 +799,7 @@ export default function DailyTripAssignmentForm() {
                         <th className="px-4 py-3">Weight (kg)</th>
                         <th className="px-4 py-3">Collected</th>
                         <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Reason</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
@@ -820,9 +822,17 @@ export default function DailyTripAssignmentForm() {
                               <select value={stop.status ?? "Pending"} onChange={(e) => updateHouseholdStop(stopKey, { status: e.target.value, is_collected: e.target.value === "Collected" })} className="h-9 rounded-md border border-purple-200 px-2 text-sm">
                                 <option value="Pending">Pending</option>
                                 <option value="Collected">Collected</option>
-                                <option value="Skipped">Skipped</option>
-                                <option value="Missed">Missed</option>
+                                <option value="Not Collected">Not Collected</option>
+                                <option value="Collect Later">Collect Later</option>
                               </select>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Input
+                                value={String(stop.status_reason ?? "")}
+                                onChange={(e) => updateHouseholdStop(stopKey, { status_reason: e.target.value })}
+                                placeholder={stop.status === "Not Collected" ? "I do not collect today..." : stop.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
+                                className="h-9 w-60"
+                              />
                             </td>
                           </tr>
                         );
