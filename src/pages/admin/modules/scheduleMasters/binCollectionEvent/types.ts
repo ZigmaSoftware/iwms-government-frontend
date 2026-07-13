@@ -8,6 +8,8 @@ export type FormState = {
   bin_id: string;
   collection_date: string;
   collected_weight_kg: string;
+  status: string;
+  status_reason: string;
   driver_latitude: string;
   driver_longitude: string;
   notes: string;
@@ -20,6 +22,7 @@ export type TableFilters = {
   _bin: { value: string | null; matchMode: FilterMatchMode };
   _waste_type: { value: string | null; matchMode: FilterMatchMode };
   _panchayat: { value: string | null; matchMode: FilterMatchMode };
+  _status: { value: string | null; matchMode: FilterMatchMode };
   collection_date: { value: string | null; matchMode: FilterMatchMode };
 };
 
@@ -37,6 +40,8 @@ export type BinCERecord = {
   vehicle?: { vehicle_no?: string };
   effective_staff_template?: unknown;
   collected_weight_kg?: string | number;
+  status?: string;
+  status_reason?: string | null;
   collection_date?: string;
   driver_latitude?: string | number | null;
   driver_longitude?: string | number | null;
