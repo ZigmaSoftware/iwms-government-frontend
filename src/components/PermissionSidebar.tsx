@@ -51,9 +51,9 @@ function MenuItem({
   const location = useLocation();
   const { hasPermission } = usePermission();
 
-  // Filter screens that user has "show" permission for
+  // Filter screens that user has "view" (menu-visibility) permission for
   const visibleScreens = Object.entries(screens).filter(([screenName]) =>
-    hasPermission(moduleName, screenName, "show")
+    hasPermission(moduleName, screenName, "view")
   );
 
   // If no visible screens, don't render this module

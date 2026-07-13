@@ -14,15 +14,6 @@ type DashboardWidgetPanelProps = {
   onChange: (widgets: DashboardWidget[]) => void;
 };
 
-const DEFAULT_WIDGETS = [
-  "trip_summary",
-  "live_vehicle_map",
-  "staff_attendance",
-  "complaint_queue",
-  "weighbridge_log",
-  "monthly_report",
-];
-
 const ICONS = {
   trip_summary: BarChart3,
   live_vehicle_map: MapPinned,
@@ -37,24 +28,21 @@ const labelFor = (widgetName: string) =>
     .replace(/_/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-const normalizeWidgets = (widgets: DashboardWidget[]) => {
-  const byName = new Map(widgets.map((widget) => [widget.widgetName, widget]));
-  return DEFAULT_WIDGETS.map((widgetName, index) => ({
-    widgetName,
-    isEnabled: byName.get(widgetName)?.isEnabled ?? true,
-    orderNo: byName.get(widgetName)?.orderNo ?? index + 1,
-  }));
-};
-
 export default function DashboardWidgetPanel({
   widgets,
   onChange,
 }: DashboardWidgetPanelProps) {
-  const normalized = normalizeWidgets(widgets);
+  if (!widgets.length) {
+    return (
+      <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+        Super Admin has not enabled any dashboard widgets for this Local Body.
+      </div>
+    );
+  }
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      {normalized.map((widget) => {
+      {widgets.map((widget) => {
         const Icon = ICONS[widget.widgetName as keyof typeof ICONS] ?? BarChart3;
         return (
           <div
@@ -74,7 +62,7 @@ export default function DashboardWidgetPanel({
                 checked={widget.isEnabled}
                 onChange={(event) =>
                   onChange(
-                    normalized.map((item) =>
+                    widgets.map((item) =>
                       item.widgetName === widget.widgetName
                         ? { ...item, isEnabled: event.target.checked }
                         : item,

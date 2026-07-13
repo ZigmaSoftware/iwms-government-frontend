@@ -26,6 +26,10 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
+import {
+  mergeWithScopeOptionExtra,
+  scopeOption,
+} from "../shared/dataScopeOptions";
 
 type ApiRecord = Record<string, unknown>;
 
@@ -161,6 +165,34 @@ function LocationFields({
   });
 
   useEffect(() => {
+    let cancelled = false;
+
+    // The State/District/Area Type/local-body screens may not be
+    // permission-granted to this user at all (View gates each level's own
+    // menu/list, not these dropdowns) — their Data Scope from login always
+    // supplies their own hierarchy values regardless.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
+    const applyScopeFallback = () => {
+      setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+      setDistricts((prev) =>
+        mergeWithScopeOptionExtra(prev, "district", scopedStateId ? { stateId: scopedStateId } : {})
+      );
+      setAreaTypes((prev) =>
+        mergeWithScopeOptionExtra(prev, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {})
+      );
+      setLocalBodies((prev) => ({
+        corporation_id: mergeWithScopeOptionExtra(prev.corporation_id, "corporation", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        municipality_id: mergeWithScopeOptionExtra(prev.municipality_id, "municipality", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        town_panchayat_id: mergeWithScopeOptionExtra(prev.town_panchayat_id, "town_panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        panchayat_union_id: mergeWithScopeOptionExtra(prev.panchayat_union_id, "panchayat_union", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        panchayat_id: mergeWithScopeOptionExtra(prev.panchayat_id, "panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+      }));
+    };
+
+    applyScopeFallback();
+
     Promise.all([
       stateApi.readAll(),
       districtApi.readAll(),
@@ -171,17 +203,34 @@ function LocationFields({
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
     ]).then(([stateRes, districtRes, areaTypeRes, corpRes, muniRes, townRes, unionRes, panchayatRes]) => {
-      setStates(activeOnly(normalizeList(stateRes)).map((item) => toOption(item, ["name", "state_name"])));
-      setDistricts(activeOnly(normalizeList(districtRes)).map((item) => toOption(item, ["name", "district_name"])));
-      setAreaTypes(activeOnly(normalizeList(areaTypeRes)).map((item) => toOption(item, ["name", "area_type_name"])));
+      if (cancelled) return;
+      const fetchedStates = activeOnly(normalizeList(stateRes)).map((item) => toOption(item, ["name", "state_name"]));
+      const fetchedDistricts = activeOnly(normalizeList(districtRes)).map((item) => toOption(item, ["name", "district_name"]));
+      const fetchedAreaTypes = activeOnly(normalizeList(areaTypeRes)).map((item) => toOption(item, ["name", "area_type_name"]));
+      const fetchedCorp = activeOnly(normalizeList(corpRes)).map((item) => toOption(item, ["corporation_name", "name"]));
+      const fetchedMuni = activeOnly(normalizeList(muniRes)).map((item) => toOption(item, ["municipality_name", "name"]));
+      const fetchedTown = activeOnly(normalizeList(townRes)).map((item) => toOption(item, ["town_panchayat_name", "name"]));
+      const fetchedUnion = activeOnly(normalizeList(unionRes)).map((item) => toOption(item, ["union_name", "name"]));
+      const fetchedPanchayat = activeOnly(normalizeList(panchayatRes)).map((item) => toOption(item, ["panchayat_name", "name"]));
+
+      setStates(mergeWithScopeOptionExtra(fetchedStates, "state", {}));
+      setDistricts(mergeWithScopeOptionExtra(fetchedDistricts, "district", scopedStateId ? { stateId: scopedStateId } : {}));
+      setAreaTypes(mergeWithScopeOptionExtra(fetchedAreaTypes, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
       setLocalBodies({
-        corporation_id: activeOnly(normalizeList(corpRes)).map((item) => toOption(item, ["corporation_name", "name"])),
-        municipality_id: activeOnly(normalizeList(muniRes)).map((item) => toOption(item, ["municipality_name", "name"])),
-        town_panchayat_id: activeOnly(normalizeList(townRes)).map((item) => toOption(item, ["town_panchayat_name", "name"])),
-        panchayat_union_id: activeOnly(normalizeList(unionRes)).map((item) => toOption(item, ["union_name", "name"])),
-        panchayat_id: activeOnly(normalizeList(panchayatRes)).map((item) => toOption(item, ["panchayat_name", "name"])),
+        corporation_id: mergeWithScopeOptionExtra(fetchedCorp, "corporation", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        municipality_id: mergeWithScopeOptionExtra(fetchedMuni, "municipality", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        town_panchayat_id: mergeWithScopeOptionExtra(fetchedTown, "town_panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        panchayat_union_id: mergeWithScopeOptionExtra(fetchedUnion, "panchayat_union", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+        panchayat_id: mergeWithScopeOptionExtra(fetchedPanchayat, "panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
       });
+    }).catch(() => {
+      if (cancelled) return;
+      applyScopeFallback();
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const selectedArea = areaTypes.find((item) => item.value === value.areaTypeId);

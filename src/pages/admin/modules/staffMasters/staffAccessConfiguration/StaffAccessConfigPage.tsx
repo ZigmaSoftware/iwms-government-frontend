@@ -16,11 +16,17 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import DashboardWidgetPanel from "./DashboardWidgetPanel";
 import PermissionTree from "./PermissionTree";
 import {
+  applyAllowedActionsCeiling,
+  createActionLookup,
   createStaffAccess,
   fetchStaffAccess,
-  fetchPermissionTree,
+  fetchDashboardWidgetsForLocalBody,
+  fetchEnabledScreensForLocalBody,
+  fetchRawUserScreenActions,
   fetchUserScreenActions,
+  mapPermissionModules,
   updateStaffAccess,
+  type AllowedActionsMap,
 } from "@/helpers/admin/staffAccessConfigApi";
 import type {
   AreaTypeCategory,
@@ -30,6 +36,11 @@ import type {
   StaffAccessConfigPayload,
   UserActionOption,
 } from "./types";
+import {
+  mergeWithScopeOptionExtra,
+  scopeOption,
+} from "../../masters/shared/dataScopeOptions";
+import type { ScopeLevel } from "../../masters/shared/dataScopeOptions";
 
 type FormValues = {
   employeeName: string;
@@ -81,7 +92,9 @@ type ApiOptionRecord = {
   level_display?: string;
 };
 
-const TABS = ["Basic Info", "Login", "Permissions", "Data Scope", "Review"] as const;
+const TABS = ["Basic Info", "Login", "Data Scope", "Permissions", "Review"] as const;
+const DATA_SCOPE_TAB = 2;
+const PERMISSIONS_TAB = 3;
 
 const LOCAL_BODY_LEVELS: Array<{ value: LocalBodyLevel; label: string; entity: keyof typeof adminApi }> = [
   { value: "corporation_id", label: "Corporation", entity: "corporations" },
@@ -111,19 +124,6 @@ const normalizeEntityId = (value: unknown): string => {
   }
   return String(value);
 };
-
-const defaultWidgets: DashboardWidget[] = [
-  "trip_summary",
-  "live_vehicle_map",
-  "staff_attendance",
-  "complaint_queue",
-  "weighbridge_log",
-  "monthly_report",
-].map((widgetName, index) => ({
-  widgetName,
-  isEnabled: true,
-  orderNo: index + 1,
-}));
 
 const defaultValues: FormValues = {
   employeeName: "",
@@ -217,8 +217,11 @@ export default function StaffAccessConfigPage() {
   const values = watch();
   const [activeTab, setActiveTab] = useState(0);
   const [modules, setModules] = useState<ModulePermission[]>([]);
+  const [allowedActions, setAllowedActions] = useState<AllowedActionsMap>({});
   const [actionOptions, setActionOptions] = useState<UserActionOption[]>([]);
-  const [widgets, setWidgets] = useState<DashboardWidget[]>(defaultWidgets);
+  const [savedPermissionModules, setSavedPermissionModules] = useState<ModulePermission[] | null>(null);
+  const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
+  const [savedWidgets, setSavedWidgets] = useState<DashboardWidget[] | null>(null);
   const [apiErrors, setApiErrors] = useState<Record<string, string>>({});
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [loadingPermissions, setLoadingPermissions] = useState(false);
@@ -247,6 +250,37 @@ export default function StaffAccessConfigPage() {
 
   useEffect(() => {
     let mounted = true;
+
+    // The State/District/Area Type/local-body screens may not be
+    // permission-granted to the ACTING admin at all (View gates each
+    // level's own menu/list, not these dropdowns) — their Data Scope from
+    // login always supplies their own hierarchy values regardless. This
+    // only ever ADDS the acting admin's own scope as an extra option,
+    // never removes/restricts the staff-configuration options otherwise
+    // available here.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
+    const scopeRecord = (
+      level: ScopeLevel,
+      extra: Partial<ApiOptionRecord> = {},
+    ): ApiOptionRecord | null => {
+      const scoped = scopeOption(level);
+      if (!scoped) return null;
+      return { unique_id: scoped.value, name: scoped.label, ...extra };
+    };
+
+    const mergeRecord = (
+      records: ApiOptionRecord[],
+      level: ScopeLevel,
+      extra: Partial<ApiOptionRecord> = {},
+    ): ApiOptionRecord[] => {
+      const record = scopeRecord(level, extra);
+      if (!record) return records;
+      if (records.some((item) => (item.unique_id ?? item.id) === record.unique_id)) return records;
+      return [record, ...records];
+    };
+
     const loadOptions = async () => {
       setLoadingOptions(true);
       try {
@@ -291,18 +325,77 @@ export default function StaffAccessConfigPage() {
         setDesignationOptions(toOptions(valueOrEmpty(designationRes) as ApiOptionRecord[]));
         setDepotOptions(toOptions(valueOrEmpty(hierarchyRes) as ApiOptionRecord[]));
         setVehicleOptions(toOptions(valueOrEmpty(vehicleRes) as ApiOptionRecord[]));
-        setStateOptions(toOptions(valueOrEmpty(stateRes) as ApiOptionRecord[]));
-        setDistrictRecords(valueOrEmpty(districtRes) as ApiOptionRecord[]);
-        setAreaTypeRecords(valueOrEmpty(areaTypeRes) as ApiOptionRecord[]);
+        setStateOptions(
+          mergeWithScopeOptionExtra(
+            toOptions(valueOrEmpty(stateRes) as ApiOptionRecord[]) as Array<{ value: string; label: string }>,
+            "state",
+            {},
+          ) as SelectOption[],
+        );
+        setDistrictRecords(
+          mergeRecord(
+            valueOrEmpty(districtRes) as ApiOptionRecord[],
+            "district",
+            scopedStateId ? { state_id: scopedStateId } : {},
+          ),
+        );
+        setAreaTypeRecords(
+          mergeRecord(
+            valueOrEmpty(areaTypeRes) as ApiOptionRecord[],
+            "area_type",
+            scopedDistrictId ? { district_id: scopedDistrictId } : {},
+          ),
+        );
         setLocalBodyRecords({
-          corporation_id: valueOrEmpty(corporationRes) as ApiOptionRecord[],
-          municipality_id: valueOrEmpty(municipalityRes) as ApiOptionRecord[],
-          town_panchayat_id: valueOrEmpty(townPanchayatRes) as ApiOptionRecord[],
-          panchayat_union_id: valueOrEmpty(panchayatUnionRes) as ApiOptionRecord[],
-          panchayat_id: valueOrEmpty(panchayatRes) as ApiOptionRecord[],
+          corporation_id: mergeRecord(
+            valueOrEmpty(corporationRes) as ApiOptionRecord[],
+            "corporation",
+            scopedDistrictId ? { district_id: scopedDistrictId } : {},
+          ),
+          municipality_id: mergeRecord(
+            valueOrEmpty(municipalityRes) as ApiOptionRecord[],
+            "municipality",
+            scopedDistrictId ? { district_id: scopedDistrictId } : {},
+          ),
+          town_panchayat_id: mergeRecord(
+            valueOrEmpty(townPanchayatRes) as ApiOptionRecord[],
+            "town_panchayat",
+            scopedDistrictId ? { district_id: scopedDistrictId } : {},
+          ),
+          panchayat_union_id: mergeRecord(
+            valueOrEmpty(panchayatUnionRes) as ApiOptionRecord[],
+            "panchayat_union",
+            scopedDistrictId ? { district_id: scopedDistrictId } : {},
+          ),
+          panchayat_id: mergeRecord(
+            valueOrEmpty(panchayatRes) as ApiOptionRecord[],
+            "panchayat",
+            scopedDistrictId ? { district_id: scopedDistrictId } : {},
+          ),
         });
       } catch {
         if (mounted) {
+          setStateOptions(
+            (prev) =>
+              mergeWithScopeOptionExtra(
+                prev as Array<{ value: string; label: string }>,
+                "state",
+                {},
+              ) as SelectOption[],
+          );
+          setDistrictRecords((prev) =>
+            mergeRecord(prev, "district", scopedStateId ? { state_id: scopedStateId } : {}),
+          );
+          setAreaTypeRecords((prev) =>
+            mergeRecord(prev, "area_type", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
+          setLocalBodyRecords((prev) => ({
+            corporation_id: mergeRecord(prev.corporation_id, "corporation", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+            municipality_id: mergeRecord(prev.municipality_id, "municipality", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+            town_panchayat_id: mergeRecord(prev.town_panchayat_id, "town_panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+            panchayat_union_id: mergeRecord(prev.panchayat_union_id, "panchayat_union", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+            panchayat_id: mergeRecord(prev.panchayat_id, "panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          }));
           Swal.fire("Error", "Failed to load staff access options.", "error");
         }
       } finally {
@@ -371,15 +464,20 @@ export default function StaffAccessConfigPage() {
         setValue("depotId", String(dataScope.depotId ?? ""));
         setValue("vehicleId", String(dataScope.vehicleId ?? ""));
 
-        const [nextModules, nextActions] = await Promise.all([
-          fetchPermissionTree(roleId),
+        const [nextActions, rawActions] = await Promise.all([
           fetchUserScreenActions(),
+          fetchRawUserScreenActions(),
         ]);
         if (cancelled) return;
-        setModules(nextModules);
         setActionOptions(nextActions);
+
+        if (Array.isArray(record.permissions) && record.permissions.length) {
+          const actionLookup = createActionLookup(rawActions);
+          setSavedPermissionModules(mapPermissionModules(record.permissions, actionLookup));
+        }
+
         if (Array.isArray(record.dashboardPermissions) && record.dashboardPermissions.length) {
-          setWidgets(record.dashboardPermissions);
+          setSavedWidgets(record.dashboardPermissions);
         }
         setLoadedConfigId(id);
       } catch (error) {
@@ -421,22 +519,54 @@ export default function StaffAccessConfigPage() {
     );
   }, [governmentLevel, governmentRoles]);
 
-  const selectedRoleId = values.governmentUserTypeId;
+  const hasLocalBody = Boolean(values.localBodyLevel && values.localBodyId);
 
   useEffect(() => {
-    if (activeTab !== 2) return;
+    if (activeTab !== PERMISSIONS_TAB || !hasLocalBody) return;
     let cancelled = false;
     const loadPermissions = async () => {
       setLoadingPermissions(true);
       try {
-        const [nextModules, nextActions] = await Promise.all([
-          fetchPermissionTree(selectedRoleId),
+        const localBodyScope = {
+          localBodyType: values.localBodyLevel.replace(/_id$/, ""),
+          localBodyId: values.localBodyId,
+          stateId: values.stateId,
+          districtId: values.districtId,
+          areaTypeId: values.areaTypeId,
+        };
+
+        const [nextActions, rawActions, enabledWidgets] = await Promise.all([
           fetchUserScreenActions(),
+          fetchRawUserScreenActions(),
+          fetchDashboardWidgetsForLocalBody(localBodyScope),
         ]);
-        if (!cancelled) {
-          setModules(nextModules);
-          setActionOptions(nextActions);
-        }
+        const { modules: enabledModules, allowedActions: nextAllowedActions } =
+          await fetchEnabledScreensForLocalBody(localBodyScope, rawActions);
+        if (cancelled) return;
+
+        setActionOptions(nextActions);
+        setAllowedActions(nextAllowedActions);
+
+        // Seed from the CURRENT Super Admin ceiling (so a module/screen
+        // enabled since the staff was last saved still appears), overlaying
+        // the staff's previously-saved selections on top (edit mode) — a
+        // screen/action disabled since the staff was last saved must not
+        // silently reappear as checked.
+        const seeded = savedPermissionModules
+          ? applyAllowedActionsCeiling(enabledModules, savedPermissionModules)
+          : enabledModules;
+        setModules(seeded.length ? seeded : enabledModules);
+
+        // Same principle for dashboard widgets — only what Super Admin
+        // enabled for this Local Body may appear, and any staff-saved
+        // isEnabled value is capped to still-enabled widgets only.
+        const savedByName = new Map((savedWidgets ?? []).map((w) => [w.widgetName, w]));
+        setWidgets(
+          enabledWidgets.map((widget) => ({
+            ...widget,
+            isEnabled: widget.isEnabled && (savedByName.get(widget.widgetName)?.isEnabled ?? widget.isEnabled),
+          })),
+        );
       } catch {
         if (!cancelled) Swal.fire("Error", "Failed to load permissions.", "error");
       } finally {
@@ -447,7 +577,17 @@ export default function StaffAccessConfigPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, selectedRoleId]);
+  }, [
+    activeTab,
+    hasLocalBody,
+    values.localBodyLevel,
+    values.localBodyId,
+    values.stateId,
+    values.districtId,
+    values.areaTypeId,
+    savedPermissionModules,
+    savedWidgets,
+  ]);
 
   const districtOptions = useMemo(() => {
     if (!values.stateId) return [];
@@ -712,13 +852,22 @@ export default function StaffAccessConfigPage() {
 
   const renderPermissions = () => (
     <div className="space-y-6">
-      {loadingPermissions ? (
+      {!hasLocalBody ? (
+        <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          Select a Local Body on the Data Scope tab first — the screens available here are determined by what Super Admin has enabled for that Local Body.
+        </div>
+      ) : loadingPermissions ? (
         <div className="flex items-center gap-2 text-sm text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
           Loading permissions
         </div>
       ) : (
-        <PermissionTree modules={modules} actions={actionOptions} onChange={setModules} />
+        <PermissionTree
+          modules={modules}
+          actions={actionOptions}
+          allowedActions={allowedActions}
+          onChange={setModules}
+        />
       )}
       <DashboardWidgetPanel widgets={widgets} onChange={setWidgets} />
     </div>
@@ -1024,8 +1173,8 @@ export default function StaffAccessConfigPage() {
       <form className="space-y-6" onSubmit={(event) => event.preventDefault()}>
         {activeTab === 0 && renderBasicInfo()}
         {activeTab === 1 && renderLogin()}
-        {activeTab === 2 && renderPermissions()}
-        {activeTab === 3 && renderDataScope()}
+        {activeTab === DATA_SCOPE_TAB && renderDataScope()}
+        {activeTab === PERMISSIONS_TAB && renderPermissions()}
         {activeTab === 4 && renderReview()}
 
         {activeTab < TABS.length - 1 && (
