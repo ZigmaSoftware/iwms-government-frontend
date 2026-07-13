@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MultiSelect } from "primereact/multiselect";
 
@@ -158,7 +158,7 @@ export default function TripPlanForm() {
   const [status, setStatus] = useState("ACTIVE");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
 
-  const [staffTemplates, setStaffTemplates] = useState<Option[]>([]);
+  const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [supervisors, setSupervisors] = useState<Option[]>([]);
   const [properties, setProperties] = useState<Option[]>([]);
@@ -171,6 +171,10 @@ export default function TripPlanForm() {
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [bins, setBins] = useState<BinOption[]>([]);
+
+  // True once the user manually picks a staff template, so we only inherit its
+  // geo hierarchy on an explicit change — never while loading an existing plan.
+  const staffTemplateSelectedByUser = useRef(false);
 
   const [states, setStates] = useState<any[]>([]);
   const [districts, setDistricts] = useState<any[]>([]);
@@ -206,7 +210,7 @@ export default function TripPlanForm() {
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
       collectionPointRes, binRes,
     ]) => {
-      setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
+      setStaffTemplatesRaw(normalizeList(staffRes));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
       setSupervisors(
         normalizeList(supervisorRes).map((item: any) => ({
@@ -287,6 +291,24 @@ export default function TripPlanForm() {
     hierarchyId,
   );
 
+  // Staff templates scoped to the selected local body — keeps the already
+  // selected template present even if it falls outside the current filter.
+  const staffTemplates = useMemo<Option[]>(
+    () =>
+      staffTemplatesRaw
+        .filter(
+          (tpl) =>
+            staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
+            String(tpl?.unique_id ?? "") === staffTemplateId,
+        )
+        .map((tpl) => ({
+          value: String(tpl?.unique_id ?? tpl?.id ?? ""),
+          label: staffTemplateLabel(tpl),
+        }))
+        .filter((o) => o.value),
+    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId],
+  );
+
 useEffect(() => {
   if (!areaTypeId || !areaTypes.length) {
     if (!areaTypeId) setAreaTypeCategory("");
@@ -298,6 +320,51 @@ useEffect(() => {
     setAreaTypeCategory(areaTypeCategoryFromName(String(selectedAreaType.name ?? "")));
   }
 }, [areaTypeId, areaTypes]);
+
+// When the user picks a Staff Template, inherit its saved geo hierarchy
+// (State → District → Area Type → Local Body Type → Local Body). Values stay
+// editable afterwards. Only runs on an explicit user selection.
+useEffect(() => {
+  if (!staffTemplateSelectedByUser.current || !staffTemplateId) return;
+  let cancelled = false;
+  staffTemplateApi.read(staffTemplateId).then((tpl: ApiRecord) => {
+    if (cancelled) return;
+    setStateId(String(tpl.state?.unique_id ?? tpl.state_id ?? ""));
+    setDistrictId(String(tpl.district?.unique_id ?? tpl.district_id ?? ""));
+    const areaTypeIdValue = String(tpl.area_type?.unique_id ?? tpl.area_type_id ?? "");
+    setAreaTypeId(areaTypeIdValue);
+
+    const hierarchyMap: Record<HierarchyLevel, string | undefined> = {
+      corporation_id: tpl.corporation?.unique_id ?? tpl.corporation_id,
+      municipality_id: tpl.municipality?.unique_id ?? tpl.municipality_id,
+      town_panchayat_id: tpl.town_panchayat?.unique_id ?? tpl.town_panchayat_id,
+      panchayat_union_id: tpl.panchayat_union?.unique_id ?? tpl.panchayat_union_id,
+      panchayat_id: tpl.panchayat?.unique_id ?? tpl.panchayat_id,
+    };
+    const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
+
+    // Resolve the ULB/RLB category so the Local Body Type prefills: prefer the
+    // area type's name (nested or from the master list), else derive it from the
+    // detected local-body level (Panchayat Union / Panchayat → rural, etc.).
+    const areaTypeName = String(
+      tpl.area_type?.name ??
+        areaTypes.find((a) => resolveId(a) === areaTypeIdValue)?.name ??
+        "",
+    );
+    let category = areaTypeCategoryFromName(areaTypeName);
+    if (!category && detectedLevel) {
+      category = AREA_TYPE_LEVELS.urban.includes(detectedLevel.value) ? "urban" : "rural";
+    }
+    setAreaTypeCategory(category);
+
+    if (detectedLevel) {
+      setHierarchyLevel(detectedLevel.value);
+      setHierarchyId(String(hierarchyMap[detectedLevel.value] ?? ""));
+    }
+  }).catch(() => {});
+  return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [staffTemplateId]);
 
 useEffect(() => {
     if (!id) return;
@@ -580,7 +647,15 @@ useEffect(() => {
 
         <div>
           <Label>Staff Template *</Label>
-          <Select value={staffTemplateId} onChange={(v) => setStaffTemplateId(String(v))} options={staffTemplates} placeholder="Select Staff Template" />
+          <Select
+            value={staffTemplateId}
+            onChange={(v) => {
+              staffTemplateSelectedByUser.current = true;
+              setStaffTemplateId(String(v));
+            }}
+            options={staffTemplates}
+            placeholder="Select Staff Template"
+          />
         </div>
 
         <div>

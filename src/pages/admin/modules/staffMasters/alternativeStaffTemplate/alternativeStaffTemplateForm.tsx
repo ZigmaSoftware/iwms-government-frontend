@@ -11,10 +11,24 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import InputField from "@/components/form/input/InputField";
+import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
+import { staffTemplateLabel } from "@/utils/forms";
+
+const GEO_PAYLOAD_KEYS = [
+  "state_id",
+  "district_id",
+  "area_type_id",
+  "corporation_id",
+  "municipality_id",
+  "town_panchayat_id",
+  "panchayat_union_id",
+  "panchayat_id",
+];
 
 /* ================= INITIAL STATE ================= */
 
@@ -56,6 +70,8 @@ export default function AlternativeStaffTemplateForm() {
     "alternative-staff-template",
     ALTERNATIVE_STAFF_TEMPLATE_FIELDS
   );
+
+  const geo = useGeoHierarchy();
 
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [loading, setLoading] = useState(false);
@@ -225,7 +241,7 @@ export default function AlternativeStaffTemplateForm() {
     setStaffTemplateOptions(
       allStaffTemplates.map((tpl) => ({
         value: String(tpl.unique_id),
-        label: tpl.display_code ?? tpl.unique_id,
+        label: staffTemplateLabel(tpl),
       }))
     );
 
@@ -280,6 +296,8 @@ export default function AlternativeStaffTemplateForm() {
         setDriverOptions((items) => ensureOption(items, driverId, rec.driver_name));
         setOperatorOptions((items) => ensureOption(items, operatorId, rec.operator_name));
 
+        geo.hydrate(rec);
+
         editDataLoaded.current = true;
         setLoading(false);
       })
@@ -293,11 +311,14 @@ export default function AlternativeStaffTemplateForm() {
   }, [id, isEdit, staffRecords, t]);
 
   /* ============================
-     FETCH SELECTED STAFF TEMPLATE DATA (create mode auto-fill)
+     AUTO FILL FROM TEMPLATE (create mode only)
+     Fetch the freshly selected parent template and hydrate driver/operator +
+     the full geo hierarchy from that exact record — no intermediate state, so
+     there is no window where a stale/partial template is hydrated.
   ============================ */
 
   useEffect(() => {
-    if (!formData.staff_template) {
+    if (!templateSelectedByUser.current || !formData.staff_template) {
       setSelectedStaffTemplateData(null);
       return;
     }
@@ -306,29 +327,21 @@ export default function AlternativeStaffTemplateForm() {
       .then((tpl: any) => {
         if (cancelled) return;
         setSelectedStaffTemplateData(tpl);
+        setFormData((p) => ({
+          ...p,
+          driver: tpl.driver_id ?? "",
+          operator: tpl.operator_id ?? "",
+          extra_operator: Array.isArray(tpl.extra_operator_id)
+            ? tpl.extra_operator_id.map(toEntityId).filter(Boolean)
+            : [],
+        }));
+        // Inherit the parent staff template's geo hierarchy (editable afterward).
+        geo.hydrate(tpl);
       })
       .catch(() => {});
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.staff_template]);
-
-  /* ============================
-     AUTO FILL FROM TEMPLATE (create mode only)
-  ============================ */
-
-  useEffect(() => {
-    if (!templateSelectedByUser.current || !formData.staff_template) return;
-    const tpl: any = selectedStaffTemplateData;
-    if (!tpl) return;
-
-    setFormData((p) => ({
-      ...p,
-      driver: tpl.driver_id ?? "",
-      operator: tpl.operator_id ?? "",
-      extra_operator: Array.isArray(tpl.extra_operator_id)
-        ? tpl.extra_operator_id.map(toEntityId).filter(Boolean)
-        : [],
-    }));
-  }, [formData.staff_template, selectedStaffTemplateData]);
 
   /* ============================
      VALIDATE SELECTIONS WHEN OPTIONS CHANGE
@@ -441,8 +454,9 @@ export default function AlternativeStaffTemplateForm() {
       extra_operator: formData.extra_operator,
       change_reason: formData.change_reason,
       change_remarks: formData.change_remarks || null,
+      ...geo.buildPayload(),
     };
-    const payload = filterPayload(rawPayload);
+    const payload = filterPayload(rawPayload, GEO_PAYLOAD_KEYS);
 
     setLoading(true);
 
@@ -489,7 +503,7 @@ export default function AlternativeStaffTemplateForm() {
     return [
       {
         value: formData.staff_template,
-        label: raw?.display_code ?? formData.staff_template,
+        label: raw ? staffTemplateLabel(raw) : formData.staff_template,
       },
       ...staffTemplateOptions,
     ];
@@ -570,6 +584,9 @@ export default function AlternativeStaffTemplateForm() {
                 />
               </div>
             )}
+
+            {/* GEO HIERARCHY — inherited from the staff template, editable */}
+            <GeoHierarchyFields geo={geo} disabled={loading} />
 
             {/* FROM DATE */}
             {showField("from_date") && (

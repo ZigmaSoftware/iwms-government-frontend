@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -24,7 +24,8 @@ import {
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { normalizeList } from "@/utils/forms";
+import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
+import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import { mergeWithScopeOptionExtra } from "../../masters/shared/dataScopeOptions";
 
@@ -116,7 +117,7 @@ export default function DailyTripAssignmentForm() {
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
   const [remarks, setRemarks] = useState("");
   const [tripPlans, setTripPlans] = useState<Option[]>([]);
-  const [staffTemplates, setStaffTemplates] = useState<Option[]>([]);
+  const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<ApiRecord[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
@@ -143,6 +144,11 @@ export default function DailyTripAssignmentForm() {
   const [selectedTripPlan, setSelectedTripPlan] = useState<ApiRecord | null>(null);
   const [tripPlanLoading, setTripPlanLoading] = useState(false);
 
+  // True once the user manually picks a staff template, so we only inherit its
+  // geo hierarchy on an explicit change — never during edit load or a Trip Plan
+  // auto-fill (which sets the staff template programmatically).
+  const staffTemplateSelectedByUser = useRef(false);
+
   // Generated stops — read from the assignment record, edited inline, saved on Update.
   const [cpStops, setCpStops] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdStops, setHouseholdStops] = useState<DailyTripHouseholdCollectionInline[]>([]);
@@ -166,7 +172,7 @@ export default function DailyTripAssignmentForm() {
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
     ]) => {
       setTripPlans(toOptions(normalizeList(tripPlanRes), "display_code"));
-      setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
+      setStaffTemplatesRaw(normalizeList(staffRes));
       setAltStaffCache(normalizeList(altStaffRes));
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
       setStates(normalizeList(stateRes));
@@ -271,6 +277,50 @@ export default function DailyTripAssignmentForm() {
     }).finally(() => setTripPlanLoading(false));
   }, [tripPlanId]);
 
+  // When the user picks a Staff Template, inherit its saved geo hierarchy
+  // (State → District → Area Type → Local Body Type → Local Body). Values stay
+  // editable afterwards. Only runs on an explicit user selection — not during
+  // edit load or the Trip Plan auto-fill.
+  useEffect(() => {
+    if (!staffTemplateSelectedByUser.current || !staffTemplateId) return;
+    let cancelled = false;
+    staffTemplateApi.read(staffTemplateId).then((tpl: ApiRecord) => {
+      if (cancelled) return;
+      setStateId(String(tpl.state?.unique_id ?? tpl.state_id ?? ""));
+      setDistrictId(String(tpl.district?.unique_id ?? tpl.district_id ?? ""));
+      const areaTypeIdValue = String(tpl.area_type?.unique_id ?? tpl.area_type_id ?? "");
+      setAreaTypeId(areaTypeIdValue);
+
+      const hierarchyMap: Record<HierarchyLevel, string | undefined> = {
+        corporation_id: tpl.corporation?.unique_id ?? tpl.corporation_id,
+        municipality_id: tpl.municipality?.unique_id ?? tpl.municipality_id,
+        town_panchayat_id: tpl.town_panchayat?.unique_id ?? tpl.town_panchayat_id,
+        panchayat_union_id: tpl.panchayat_union?.unique_id ?? tpl.panchayat_union_id,
+        panchayat_id: tpl.panchayat?.unique_id ?? tpl.panchayat_id,
+      };
+      const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
+
+      // Resolve the ULB/RLB category so the Local Body Type prefills: prefer the
+      // area type's name (nested or from the master list), else derive it from
+      // the detected local-body level (Panchayat Union / Panchayat → rural).
+      const areaTypeName = String(
+        tpl.area_type?.name ??
+          areaTypes.find((a) => resolveId(a) === areaTypeIdValue)?.name ??
+          "",
+      );
+      let category = areaTypeCategoryFromName(areaTypeName);
+      if (!category && detectedLevel) category = categoryFromLevel(detectedLevel.value);
+      setAreaTypeCategory(category);
+
+      if (detectedLevel) {
+        setHierarchyLevel(detectedLevel.value);
+        setHierarchyId(String(hierarchyMap[detectedLevel.value] ?? ""));
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffTemplateId]);
+
   // ── Derive Area Type from the selected local body's master record ──────────
   // Older records/plans may have no area_type saved; the local body masters
   // (Corporation/Municipality/.../Panchayat) each carry their own area_type,
@@ -337,7 +387,7 @@ export default function DailyTripAssignmentForm() {
       .filter((alt) => altTemplateIdOf(alt) === staffTemplateId)
       .map((alt) => ({
         value: String(alt?.unique_id ?? ""),
-        label: String(alt?.display_code ?? alt?.unique_id ?? ""),
+        label: altStaffTemplateLabel(alt),
       }))
       .filter((o) => o.value);
   }, [staffTemplateId, altStaffCache]);
@@ -462,7 +512,11 @@ export default function DailyTripAssignmentForm() {
               <Label>Staff Template <span className="text-red-500">*</span></Label>
               <Select
                 value={staffTemplateId}
-                onChange={(v) => { setStaffTemplateId(String(v)); setAltStaffTemplateId(""); }}
+                onChange={(v) => {
+                  staffTemplateSelectedByUser.current = true;
+                  setStaffTemplateId(String(v));
+                  setAltStaffTemplateId("");
+                }}
                 options={staffTemplates}
                 placeholder="Select staff template"
               />

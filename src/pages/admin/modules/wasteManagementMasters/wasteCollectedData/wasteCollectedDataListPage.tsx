@@ -32,9 +32,9 @@ const cap = (str?: string) =>
 export default function WasteCollectedDataList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { encWasteManagementMaster, encWasteCollectedData } = getEncryptedRoute();
+  const { encScheduleMasters, encWasteCollectedData } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encWasteManagementMaster,
+    encScheduleMasters,
     encWasteCollectedData,
   );
 
@@ -44,10 +44,11 @@ export default function WasteCollectedDataList() {
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    zone_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    contact_no: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    area_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    city_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    location_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   /* ── load data ── */
@@ -146,13 +147,19 @@ export default function WasteCollectedDataList() {
         showGridlines
         emptyMessage={t("admin.waste_collected_data.empty_message")}
         className="p-datatable-sm"
-        globalFilterFields={["customer_name", "zone_name", "ward_name", "panchayat_name", "city_name"]}
+        globalFilterFields={["customer_name", "contact_no", "district_name", "area_type_name", "panchayat_name", "location_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column
           field="customer_name"
           header={t("admin.waste_collected_data.customer_name")}
           body={(row: WasteCollection) => cap(row.customer_name) || "-"}
+          sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="contact_no"
+          header={t("common.mobile")}
+          body={(row: WasteCollection) => row.contact_no || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
@@ -176,27 +183,25 @@ export default function WasteCollectedDataList() {
           sortable
         />
         <Column
-          field="zone_name"
-          header={t("common.zone")}
-          body={(row: WasteCollection) => cap(row.zone_name) || "-"}
+          field="district_name"
+          header={t("common.district")}
+          body={(row: WasteCollection) => cap(row.district_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
-          field="ward_name"
-          header={t("common.ward")}
-          body={(row: WasteCollection) => cap(row.ward_name) || "-"}
+          field="area_type_name"
+          header={t("common.area_type")}
+          body={(row: WasteCollection) => row.area_type_name || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
-          field="panchayat_name"
-          header={t("admin.nav.panchayat")}
-          body={(row: WasteCollection) => cap(row.panchayat_name) || "-"}
-          sortable filter showFilterMatchModes={false}
-        />
-        <Column
-          field="city_name"
-          header={t("common.city")}
-          body={(row: WasteCollection) => cap(row.city_name) || "-"}
+          field="location_name"
+          header={t("common.location")}
+          body={(row: WasteCollection) =>
+            row.location_name
+              ? `${cap(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
+              : "-"
+          }
           sortable filter showFilterMatchModes={false}
         />
         <Column
