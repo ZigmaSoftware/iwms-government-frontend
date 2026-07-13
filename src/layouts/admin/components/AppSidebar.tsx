@@ -89,6 +89,7 @@ const {
   encPanchayats,
   encBins,
   encDailyTripAssignment,
+  encDailyTripHouseholdCollection,
   encDailyTripLog,
   encDailyTripTracking,
   encBinCollectionEvent,
@@ -561,6 +562,12 @@ const scheduleOperationsItems: NavItem[] = [
         screen: "daily-trip-collection-points",
       },
       {
+        nameKey: "admin.nav.daily_trip_household_collection",
+        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
+        module: "schedule-masters",
+        screen: "daily-trip-household-collections",
+      },
+      {
         nameKey: "admin.nav.bin_collection_event",
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
         module: "schedule-masters",
@@ -738,7 +745,7 @@ const AppSidebar: React.FC = () => {
   const checkPermission = useCallback(
     (module: string | undefined, screen: string | undefined): boolean => {
       if (!module || !screen) return true;
-      const allowed = hasPermission(module, screen, "show");
+      const allowed = hasPermission(module, screen, "view");
       return allowed;
     },
     [hasPermission]

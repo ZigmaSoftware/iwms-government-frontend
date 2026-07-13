@@ -10,6 +10,7 @@ import LocalBodyAuth from "@/pages/LocalBodyAuth";
 import LocalBodyDashboard from "@/pages/localbody/LocalBodyDashboard";
 import DistrictAuth from "@/pages/DistrictAuth";
 import DistrictDashboard from "@/pages/district/DistrictDashboard";
+import StateDashboard from "@/pages/state/StateDashboard";
 import Dashboard from "@/pages/dashboard/pages/Dashboard";
 import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
@@ -124,9 +125,11 @@ export default function App() {
       <Route path="/localbody" element={<LocalBodyAuth />} />
       <Route path="/localbody/dashboard" element={<LocalBodyDashboard />} />
       <Route path="/localbody/data" element={<Navigate to="/localbody/dashboard" replace />} />
-      <Route path="/auth/district/*" element={<Navigate to="/district" replace />} />
+      <Route path="/auth/district" element={<Navigate to="/district" replace />} />
       <Route path="/district" element={<DistrictAuth />} />
       <Route path="/district/dashboard" element={<DistrictDashboard />} />
+      <Route path="/state" element={<StateDashboard />} />
+      <Route path="/state/dashboard" element={<Navigate to="/state" replace />} />
       <Route path="/" element={<HomeRedirect />} />
        <Route path="/publicgrivence/*" element={<PublicGrievance />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
@@ -135,8 +138,8 @@ export default function App() {
       <Route path="/admin" element={withAdmin(<AdminHome />)} />
       <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
       <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/new" element={withAdmin(<AdminEncryptedRouter />)} />
-      <Route path="/:encMaster/:encModule/:id/edit" element={withAdmin(<AdminEncryptedRouter />)} />
+      <Route path="/:encMaster/:encModule/new/*" element={withAdmin(<AdminEncryptedRouter />)} />
+      <Route path="/:encMaster/:encModule/:id/edit/*" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

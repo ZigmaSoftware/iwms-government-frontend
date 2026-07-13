@@ -25,6 +25,10 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
+import {
+  mergeWithScopeOptionExtra,
+  scopeOption,
+} from "../shared/dataScopeOptions";
 
 type Option = {
   value: string;
@@ -359,45 +363,87 @@ export default function CorporationForm() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // The State/District/Area Type screens may not be permission-granted to
+    // this user at all (View gates their own menu/list, not these
+    // dropdowns) — their Data Scope from login always supplies their own
+    // state/district/area type regardless.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
     Promise.all([stateApi.readAll(), districtApi.readAll(), areaTypeApi.readAll()])
       .then(([stateRes, districtRes, areaTypeRes]) => {
         if (cancelled) return;
-        setStates(
-          toRecordList(stateRes)
-            .map((row) => ({
-              value: normalizeNullable(row.unique_id ?? row.id),
-              label: textOf(row, "state_name", "name"),
-              stateId: normalizeNullable(row.state_id ?? row.state),
-            }))
-            .filter((item) => item.value && item.label)
-        );
+        const fetchedStates = toRecordList(stateRes)
+          .map((row) => ({
+            value: normalizeNullable(row.unique_id ?? row.id),
+            label: textOf(row, "state_name", "name"),
+            stateId: normalizeNullable(row.state_id ?? row.state),
+          }))
+          .filter((item) => item.value && item.label);
+        const fetchedDistricts = toRecordList(districtRes)
+          .map((row) => ({
+            value: normalizeNullable(row.unique_id ?? row.id),
+            label: textOf(row, "district_name", "name"),
+            stateId: normalizeNullable(row.state_id ?? row.state),
+          }))
+          .filter((item) => item.value && item.label);
+        const fetchedAreaTypes = toRecordList(areaTypeRes)
+          .map((row) => ({
+            value: normalizeNullable(row.unique_id ?? row.id),
+            label: textOf(row, "area_type_name", "name"),
+            stateId: normalizeNullable(row.state_id ?? row.state),
+            districtId: normalizeNullable(row.district_id ?? row.district),
+          }))
+          .filter((item) => item.value && item.label);
+
+        setStates(mergeWithScopeOptionExtra(fetchedStates, "state", {}));
         setDistricts(
-          toRecordList(districtRes)
-            .map((row) => ({
-              value: normalizeNullable(row.unique_id ?? row.id),
-              label: textOf(row, "district_name", "name"),
-              stateId: normalizeNullable(row.state_id ?? row.state),
-            }))
-            .filter((item) => item.value && item.label)
+          mergeWithScopeOptionExtra(
+            fetchedDistricts,
+            "district",
+            scopedStateId ? { stateId: scopedStateId } : {}
+          )
         );
         setAreaTypes(
-          toRecordList(areaTypeRes)
-            .map((row) => ({
-              value: normalizeNullable(row.unique_id ?? row.id),
-              label: textOf(row, "area_type_name", "name"),
-              stateId: normalizeNullable(row.state_id ?? row.state),
-              districtId: normalizeNullable(row.district_id ?? row.district),
-            }))
-            .filter((item) => item.value && item.label)
+          mergeWithScopeOptionExtra(
+            fetchedAreaTypes,
+            "area_type",
+            {
+              ...(scopedStateId ? { stateId: scopedStateId } : {}),
+              ...(scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+            }
+          )
         );
       })
-      .catch(() =>
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: "Failed to load dropdown data",
-        })
-      );
+      .catch(() => {
+        if (cancelled) return;
+        setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+        setDistricts((prev) =>
+          mergeWithScopeOptionExtra(
+            prev,
+            "district",
+            scopedStateId ? { stateId: scopedStateId } : {}
+          )
+        );
+        setAreaTypes((prev) =>
+          mergeWithScopeOptionExtra(prev, "area_type", {
+            ...(scopedStateId ? { stateId: scopedStateId } : {}),
+            ...(scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+          })
+        );
+        if (
+          !scopeOption("state") &&
+          !scopeOption("district") &&
+          !scopeOption("area_type")
+        ) {
+          Swal.fire({
+            icon: "error",
+            title: t("common.error"),
+            text: "Failed to load dropdown data",
+          });
+        }
+      });
     return () => { cancelled = true; };
   }, []);
 

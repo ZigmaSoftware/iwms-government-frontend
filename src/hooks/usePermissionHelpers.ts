@@ -47,7 +47,7 @@ export function useModulePermissions(
 export function useActionPermission(
   moduleName: string,
   screenName: string,
-  action: "view" | "add" | "edit" | "delete" | "show" = "view"
+  action = "view"
 ): boolean {
   const { hasPermission } = usePermission();
   return hasPermission(moduleName, screenName, action);
@@ -61,7 +61,7 @@ import type { ReactNode } from "react";
 interface PermissionGateProps {
   moduleName: string;
   screenName?: string;
-  action?: "view" | "add" | "edit" | "delete" | "show";
+  action?: "view" | "add" | "edit" | "delete";
   fallback?: ReactNode;
   children: ReactNode;
 }
@@ -86,7 +86,7 @@ export interface MenuItem {
   icon: ReactNode;
   path: string;
   moduleName: string;
-  action?: "view" | "add" | "edit" | "delete" | "show";
+  action?: "view" | "add" | "edit" | "delete";
 }
 
 export interface MenuConfig {
@@ -163,7 +163,7 @@ export interface ActionAvailability {
 export function useActionAvailability(
   moduleName: string,
   screenName: string,
-  action: "view" | "add" | "edit" | "delete" | "show"
+  action: "view" | "add" | "edit" | "delete"
 ): ActionAvailability {
   const { hasPermission, permissions } = usePermission();
   const canPerform = hasPermission(moduleName, screenName, action);
@@ -181,7 +181,7 @@ export function useMultiplePermissions(
   checks: Array<{
     module: string;
     screen: string;
-    action?: "view" | "add" | "edit" | "delete" | "show";
+    action?: "view" | "add" | "edit" | "delete";
   }>
 ): Record<string, boolean> {
   const { hasPermission } = usePermission();

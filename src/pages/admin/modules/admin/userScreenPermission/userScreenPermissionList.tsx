@@ -18,8 +18,57 @@ import { PencilIcon, TrashBinIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { userScreenPermissionApi } from "@/helpers/admin";
+import { adminApi } from "@/helpers/admin/registry";
 
-import type { StaffUserType } from "../types/admin.types";
+import { encodeLocalBodyRouteId } from "./userScreenPermissionForm";
+
+const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
+  corporation: "Corporation",
+  municipality: "Municipality",
+  town_panchayat: "Town Panchayat",
+  panchayat_union: "Panchayat Union",
+  panchayat: "Panchayat",
+};
+
+const LOCAL_BODY_ENTITY_BY_TYPE: Record<string, keyof typeof adminApi> = {
+  corporation: "corporations",
+  municipality: "municipalities",
+  town_panchayat: "townPanchayats",
+  panchayat_union: "panchayatUnions",
+  panchayat: "panchayats",
+};
+
+const localBodyRecordLabel = (record: Record<string, unknown>): string =>
+  String(
+    record.corporation_name ??
+      record.municipality_name ??
+      record.town_panchayat_name ??
+      record.panchayat_union_name ??
+      record.panchayat_name ??
+      record.name ??
+      record.unique_id ??
+      "",
+  );
+
+const PERMISSION_TYPE_LABELS: Record<string, string> = {
+  screen: "Screen Permission",
+  field: "Field Permission",
+};
+
+type GroupedRow = {
+  composite_key: string;
+  local_body_type: string;
+  local_body_id: string;
+  local_body_type_label: string;
+  local_body_label: string;
+  mainscreen_name: string;
+  mainscreen_id: string;
+  permission_type: string;
+  permission_type_label: string;
+  is_active: boolean;
+  legacy: boolean;
+  screens: Array<{ screen: unknown; action: unknown; order: unknown }>;
+};
 
 /* -----------------------------------------------------------
    COMPONENT
@@ -31,12 +80,13 @@ export default function UserScreenPermissionList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [permissionRows, setPermissionRows] = useState<StaffUserType[]>([]);
+  const [permissionRows, setPermissionRows] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [localBodyLabels, setLocalBodyLabels] = useState<Record<string, string>>({});
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    staffusertype_name: {
+    local_body_type_label: {
       value: null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
@@ -53,11 +103,14 @@ export default function UserScreenPermissionList() {
   const ENC_NEW_PATH = permissionNewPath;
 
   const ENC_EDIT_PATH = (
-    staffTypeId: string,
-    mainScreenId: string
+    localBodyType: string,
+    localBodyId: string,
+    mainScreenId: string,
+    permissionType: string
   ) =>
-    appendRouteQuery(permissionEditPath(staffTypeId), {
+    appendRouteQuery(permissionEditPath(encodeLocalBodyRouteId(localBodyType, localBodyId)), {
       mainscreen_id: mainScreenId,
+      permission_type: permissionType,
     });
 
   useEffect(() => {
@@ -69,7 +122,7 @@ export default function UserScreenPermissionList() {
         const data = await userScreenPermissionApi.readAll({
           params: { limit: 6000, offset: 0 },
         });
-        if (mounted) setPermissionRows(data as StaffUserType[]);
+        if (mounted) setPermissionRows(data as any[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
@@ -84,32 +137,65 @@ export default function UserScreenPermissionList() {
     };
   }, [t]);
 
-  const records = useMemo<StaffUserType[]>(() => {
-      const groupedObj: Record<string, any> = permissionRows.reduce((acc, item) => {
-        const staffTypeId = String(
-          item.staffusertype_id ??
-            item.contractorusertype_id ??
-            item.governmentusertype_id ??
-            ""
+  useEffect(() => {
+    let mounted = true;
+
+    const loadLocalBodyLabels = async () => {
+      try {
+        const entities = Object.values(LOCAL_BODY_ENTITY_BY_TYPE);
+        const results = await Promise.allSettled(
+          entities.map((entity) => adminApi[entity].readAll()),
         );
+        if (!mounted) return;
+
+        const labels: Record<string, string> = {};
+        results.forEach((result) => {
+          if (result.status !== "fulfilled" || !Array.isArray(result.value)) return;
+          (result.value as Array<Record<string, unknown>>).forEach((record) => {
+            const id = String(record.unique_id ?? "");
+            if (id) labels[id] = localBodyRecordLabel(record);
+          });
+        });
+        setLocalBodyLabels(labels);
+      } catch {
+        // Non-fatal — falls back to showing the raw id.
+      }
+    };
+
+    void loadLocalBodyLabels();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const records = useMemo<GroupedRow[]>(() => {
+      const groupedObj: Record<string, GroupedRow> = permissionRows.reduce((acc, item) => {
+        const localBodyType = String(item.local_body_type ?? "");
+        const localBodyId = String(item.local_body_id ?? "");
         const screenId = String(item.mainscreen_id ?? "");
-        const key = `${staffTypeId}__${screenId}`;
-        const staffTypeName =
-          item.staffusertype_name ??
-          item.contractorusertype_name ??
-          item.governmentusertype_name ??
-          t("common.unknown");
+        const permissionType = String(item.permission_type ?? "screen");
+        const isLegacy = !localBodyType || !localBodyId;
+        const key = isLegacy
+          ? `legacy__${item.unique_id}__${screenId}`
+          : `${localBodyType}__${localBodyId}__${screenId}__${permissionType}`;
 
         if (!acc[key]) {
           acc[key] = {
-            unique_id: staffTypeId,
             composite_key: key,
-            usertype_name: item.usertype_name ?? "",
-            staffusertype_name: staffTypeName,
+            local_body_type: localBodyType,
+            local_body_id: localBodyId,
+            local_body_type_label: isLegacy
+              ? t("common.legacy", "Legacy")
+              : LOCAL_BODY_TYPE_LABELS[localBodyType] ?? localBodyType,
+            local_body_label: isLegacy
+              ? ""
+              : localBodyLabels[localBodyId] || localBodyId,
             mainscreen_name: item.mainscreen_name ?? t("common.unknown"),
             mainscreen_id: screenId,
-            permission_for: item.permission_for,
+            permission_type: permissionType,
+            permission_type_label: PERMISSION_TYPE_LABELS[permissionType] ?? permissionType,
             is_active: item.is_active,
+            legacy: isLegacy,
             screens: [],
           };
         }
@@ -121,16 +207,21 @@ export default function UserScreenPermissionList() {
         });
 
         return acc;
-      }, {} as Record<string, any>);
+      }, {} as Record<string, GroupedRow>);
 
       return Object.values(groupedObj);
-  }, [permissionRows, t]);
+  }, [permissionRows, localBodyLabels, t]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
   ----------------------------------------------------------- */
 
-  const handleDelete = useCallback(async (row: any) => {
+  const handleDelete = useCallback(async (row: GroupedRow) => {
+    if (row.legacy) {
+      Swal.fire(t("common.error"), t("admin.user_screen_permission.legacy_readonly", "Legacy permissions are read-only."), "info");
+      return;
+    }
+
     const confirmDelete = await Swal.fire({
       title: t("common.confirm_title"),
       text: t("admin.user_screen_permission.confirm_delete"),
@@ -142,26 +233,16 @@ export default function UserScreenPermissionList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      const deletePrefix =
-        row.permission_for === "government"
-          ? "delete-by-governmentusertype"
-          : row.permission_for === "contractor"
-          ? "delete-by-contractorusertype"
-          : "delete-by-staffusertype";
-      const deletePath = `${deletePrefix}/${row.unique_id}/?mainscreen_id=${row.mainscreen_id}`;
+      const deletePath = `delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${row.mainscreen_id}`;
 
       await userScreenPermissionApi.delete(deletePath);
       setPermissionRows((current) =>
         current.filter((item) => {
-          const roleId = String(
-            item.staffusertype_id ??
-              item.contractorusertype_id ??
-              item.governmentusertype_id ??
-              ""
-          );
-          const sameStaffType = roleId === String(row.unique_id);
+          const sameLocalBody =
+            String(item.local_body_type ?? "") === row.local_body_type &&
+            String(item.local_body_id ?? "") === row.local_body_id;
           const sameMainScreen = String(item.mainscreen_id ?? "") === String(row.mainscreen_id ?? "");
-          return !(sameStaffType && sameMainScreen);
+          return !(sameLocalBody && sameMainScreen);
         })
       );
 
@@ -186,16 +267,19 @@ export default function UserScreenPermissionList() {
      ACTION BUTTONS
   ----------------------------------------------------------- */
 
-  const actionTemplate = (row: any) => (
+  const actionTemplate = (row: GroupedRow) => (
     <div className="flex gap-2 justify-center">
       <button
         title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
+        className="text-blue-600 hover:text-blue-800 disabled:opacity-40"
+        disabled={row.legacy}
         onClick={() =>
           navigate(
             ENC_EDIT_PATH(
-              row.unique_id,
-              String(row.mainscreen_id ?? "")
+              row.local_body_type,
+              row.local_body_id,
+              String(row.mainscreen_id ?? ""),
+              row.permission_type
             )
           )
         }
@@ -205,12 +289,13 @@ export default function UserScreenPermissionList() {
 
       <button
         title={t("common.delete")}
-        className="text-red-600 hover:text-red-800"
+        className="text-red-600 hover:text-red-800 disabled:opacity-40"
+        disabled={row.legacy}
         onClick={() => handleDelete(row)}
       >
         <TrashBinIcon className="size-5" />
       </button>
-     
+
     </div>
   );
 
@@ -270,7 +355,7 @@ export default function UserScreenPermissionList() {
         loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["staffusertype_name", "mainscreen_name", "usertype_name"]}
+        globalFilterFields={["local_body_type_label", "local_body_label", "mainscreen_name", "permission_type_label"]}
         header={header}
         stripedRows
         showGridlines
@@ -292,14 +377,20 @@ export default function UserScreenPermissionList() {
         />
 
         <Column
-          field="usertype_name"
-          header={t("admin.nav.user_type")}
+          field="local_body_type_label"
+          header="Local Body Type"
           sortable
         />
 
         <Column
-          field="staffusertype_name"
-          header={t("admin.nav.staff_user_type")}
+          field="local_body_label"
+          header="Local Body"
+          sortable
+        />
+
+        <Column
+          field="permission_type_label"
+          header="Permission Type"
           sortable
         />
 

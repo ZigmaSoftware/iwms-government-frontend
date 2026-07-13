@@ -36,6 +36,11 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import {
+  mergeWithScopeOptionExtra,
+  scopeOption,
+} from "../../masters/shared/dataScopeOptions";
+import type { ScopeLevel } from "../../masters/shared/dataScopeOptions";
 
 /* ===============================
    MODULE-LEVEL HELPERS
@@ -1721,6 +1726,60 @@ export default function CustomerCreationForm() {
     const toArr = (res: any) =>
       Array.isArray(res) ? res : (res as any)?.results ?? [];
 
+    // The State/District/Area Type/local-body screens may not be
+    // permission-granted to this user at all (View gates each level's own
+    // menu/list, not these dropdowns) — their Data Scope from login always
+    // supplies their own hierarchy values regardless.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
+    const scopeRecord = (
+      level: ScopeLevel,
+      extra: Record<string, unknown> = {},
+    ): Record<string, unknown> | null => {
+      const scoped = scopeOption(level);
+      if (!scoped) return null;
+      return { unique_id: scoped.value, name: scoped.label, ...extra };
+    };
+
+    const mergeRecord = (
+      records: any[],
+      level: ScopeLevel,
+      extra: Record<string, unknown> = {},
+    ): any[] => {
+      const record = scopeRecord(level, extra);
+      if (!record) return records;
+      if (records.some((item) => resolveId(item) === record.unique_id)) return records;
+      return [record, ...records];
+    };
+
+    const applyScopeFallback = () => {
+      setRawStates((prev) => mergeRecord(prev, "state"));
+      setRawDistricts((prev) =>
+        mergeRecord(prev, "district", scopedStateId ? { state_id: scopedStateId } : {}),
+      );
+      setRawAreaTypes((prev) =>
+        mergeRecord(prev, "area_type", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+      setRawCorporations((prev) =>
+        mergeRecord(prev, "corporation", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+      setRawMunicipalities((prev) =>
+        mergeRecord(prev, "municipality", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+      setRawTownPanchayats((prev) =>
+        mergeRecord(prev, "town_panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+      setRawPanchayatUnions((prev) =>
+        mergeRecord(prev, "panchayat_union", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+      setRawPanchayats((prev) =>
+        mergeRecord(prev, "panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+      );
+    };
+
+    applyScopeFallback();
+
     Promise.all([
       districtApi.readAll(),
       areaTypeApi.readAll(),
@@ -1751,17 +1810,31 @@ export default function CustomerCreationForm() {
           wasteTypes,
         ]) => {
           if (cancelled) return;
-          setRawDistricts(toArr(districts));
-          setRawAreaTypes(toArr(areaTypes));
-          setRawStates(toArr(states));
+          setRawDistricts(
+            mergeRecord(toArr(districts), "district", scopedStateId ? { state_id: scopedStateId } : {}),
+          );
+          setRawAreaTypes(
+            mergeRecord(toArr(areaTypes), "area_type", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
+          setRawStates(mergeRecord(toArr(states), "state"));
           setRawCountries(toArr(countries));
           setRawProperties(toArr(properties));
           setRawSubProperties(toArr(subProperties));
-          setRawCorporations(toArr(corporations));
-          setRawMunicipalities(toArr(municipalities));
-          setRawTownPanchayats(toArr(townPanchayats));
-          setRawPanchayatUnions(toArr(panchayatUnions));
-          setRawPanchayats(toArr(panchayats));
+          setRawCorporations(
+            mergeRecord(toArr(corporations), "corporation", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
+          setRawMunicipalities(
+            mergeRecord(toArr(municipalities), "municipality", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
+          setRawTownPanchayats(
+            mergeRecord(toArr(townPanchayats), "town_panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
+          setRawPanchayatUnions(
+            mergeRecord(toArr(panchayatUnions), "panchayat_union", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
+          setRawPanchayats(
+            mergeRecord(toArr(panchayats), "panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+          );
           setRawWasteTypes(toArr(wasteTypes));
           setDropdownsLoaded(true);
         },
@@ -1769,7 +1842,19 @@ export default function CustomerCreationForm() {
       .catch((err) => {
         if (cancelled) return;
         console.error("Failed to fetch customer dropdowns:", err);
-        Swal.fire("Error", "Failed to load customer form data", "error");
+        applyScopeFallback();
+        if (
+          !scopeOption("state") &&
+          !scopeOption("district") &&
+          !scopeOption("area_type") &&
+          !scopeOption("corporation") &&
+          !scopeOption("municipality") &&
+          !scopeOption("town_panchayat") &&
+          !scopeOption("panchayat_union") &&
+          !scopeOption("panchayat")
+        ) {
+          Swal.fire("Error", "Failed to load customer form data", "error");
+        }
       });
 
     return () => {

@@ -307,7 +307,8 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "staff-templates": ["staff-template"],
   "alternative-staff-templates": ["alternative-staff-template"],
   "daily-trip-assignments": ["daily-trip-assignment"],
-  "daily-trip-collection-points": ["daily-trip-collection-point"],
+  "daily-trip-collection-points": ["daily-trip-collection-point", "daily-trip-tracking"],
+  "daily-trip-tracking": ["daily-trip-collection-points", "daily-trip-collection-point"],
   "daily-trip-household-collections": ["daily-trip-household-collection"],
   "bin-collection-events": ["bin-collection-event"],
   "vehicle-breakdowns": ["vehicle-breakdown"],
@@ -372,7 +373,8 @@ export default function AdminEncryptedRouter() {
     return <Navigate to="/" replace />;
   }
 
-  const mode: "view" | "new" | "edit" = id ? "edit" : location.pathname.endsWith("/new") ? "new" : "view";
+  const mode: "view" | "new" | "edit" =
+    id ? "edit" : location.pathname.includes(`/${encModule}/new`) ? "new" : "view";
   const Component = resolveComponent(moduleRoutes, mode);
 
   if (!Component) {

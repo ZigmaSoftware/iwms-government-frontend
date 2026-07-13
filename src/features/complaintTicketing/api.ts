@@ -1,5 +1,9 @@
 import { adminApi } from "@/helpers/admin/registry";
 import { api } from "@/api";
+import {
+  mergeWithScopeOptionExtra,
+  type ScopeLevel,
+} from "../../pages/admin/modules/masters/shared/dataScopeOptions";
 import type {
   AssignableStaffResponse,
   ComplaintCategory,
@@ -111,23 +115,57 @@ const LOCAL_BODY_SOURCES: { api: typeof adminApi.corporations; type: LocalBodyTy
   { api: adminApi.panchayats, type: "panchayat", nameKeys: ["panchayat_name"] },
 ];
 
+/**
+ * Merge a permission-gated geo fetch result with the logged-in user's Data
+ * Scope fallback for `level`, so callers always see at least their own
+ * scoped value even when the underlying master's screen isn't
+ * permission-granted to them (403/empty fetch). Adapts between the flat
+ * GeoOption/LocalBodyOption shape (unique_id/name, plus any extra fields)
+ * used throughout complaint ticketing and the shared ScopeOption shape
+ * (value/label) the masters' Data Scope helper works with — the return
+ * shape is unchanged from what callers already receive.
+ */
+const mergeGeoWithScope = <T extends { unique_id: string; name: string }>(
+  fetched: T[],
+  level: ScopeLevel,
+  extra: Record<string, unknown> = {},
+): T[] => {
+  const scopeShaped = fetched.map(({ unique_id, name, ...rest }) => ({
+    value: unique_id,
+    label: name,
+    ...rest,
+  }));
+  const merged = mergeWithScopeOptionExtra(
+    scopeShaped,
+    level,
+    extra as Partial<Omit<(typeof scopeShaped)[number], "value" | "label">>,
+  );
+  return merged.map(({ value, label, ...rest }) => ({
+    unique_id: value,
+    name: label,
+    ...rest,
+  })) as unknown as T[];
+};
+
 export const geoApi = {
   states: async (): Promise<GeoOption[]> => {
     const rows = await adminApi.states.readAll();
-    return asRows(rows).map((row: any) => ({
+    const fetched = asRows(rows).map((row: any) => ({
       unique_id: String(row.unique_id),
       name: row.name ?? row.state_name ?? String(row.unique_id),
     }));
+    return mergeGeoWithScope(fetched, "state");
   },
   districts: async (stateId?: string): Promise<GeoOption[]> => {
     const rows = await adminApi.districts.readAll();
-    return asRows(rows)
+    const fetched = asRows(rows)
       .map((row: any) => ({
         unique_id: String(row.unique_id),
         name: row.name ?? row.district_name ?? String(row.unique_id),
         state_id: entityId(row.state_id ?? row.state),
       }))
       .filter((row) => !stateId || row.state_id === stateId);
+    return mergeGeoWithScope(fetched, "district", stateId ? { state_id: stateId } : {});
   },
   localBodies: async (districtId: string): Promise<LocalBodyOption[]> => {
     const lists = await Promise.all(
@@ -145,7 +183,15 @@ export const geoApi = {
         });
       });
     });
-    return options.sort((a, b) => a.name.localeCompare(b.name));
+    // Each local-body type's own screen may not be permission-granted to
+    // this user (View gates that level's own menu/list, not this dropdown)
+    // — fall back to the user's Data Scope value for every local-body level,
+    // so their own local body is always selectable regardless. Merged in
+    // per-type so each fallback carries the correct `type` discriminator.
+    const merged = LOCAL_BODY_SOURCES.reduce((acc, source) => {
+      return mergeGeoWithScope(acc, source.type as ScopeLevel, { type: source.type });
+    }, options);
+    return merged.sort((a, b) => a.name.localeCompare(b.name));
   },
 };
 

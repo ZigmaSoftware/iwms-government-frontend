@@ -25,12 +25,11 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
+import { mergeWithScopeOption } from "../shared/dataScopeOptions";
 
 type StateOption = {
   value: string;
   label: string;
-  continentId: string;
-  countryId: string;
 };
 
 type DistrictPayload = {
@@ -38,8 +37,6 @@ type DistrictPayload = {
   district_name: string;
   district_code?: string;
   state_id: string;
-  continent_id: string;
-  country_id: string;
   coordinates: Array<{ latitude: number; longitude: number }>;
   is_active: boolean;
 };
@@ -156,23 +153,10 @@ function DistrictEditor({
       return;
     }
 
-    const selectedState = states.find((s) => s.value === stateId);
-    if (!selectedState?.continentId || !selectedState?.countryId) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: "Selected state does not have continent and country details.",
-        confirmButtonColor: "#3085d6",
-      });
-      return;
-    }
-
     const rawPayload: DistrictPayload = {
       name: name.trim(),
       district_name: name.trim(),
       state_id: stateId,
-      continent_id: selectedState.continentId,
-      country_id: selectedState.countryId,
       coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
@@ -302,6 +286,12 @@ export default function DistrictForm() {
 
   useEffect(() => {
     let cancelled = false;
+
+    // The State screen may not be permission-granted to this user at all
+    // (View gates the States menu/list, not this dropdown) — their Data
+    // Scope from login always supplies their own state regardless.
+    setStates((prev) => mergeWithScopeOption(prev, "state"));
+
     stateApi
       .readAll()
       .then((res: unknown) => {
@@ -309,18 +299,14 @@ export default function DistrictForm() {
         const list = toRecordList(res).map((row) => ({
           value: normalizeNullable(row.unique_id ?? row.id),
           label: textOf(row, "state_name", "name"),
-          continentId: normalizeNullable(row.continent_id ?? row.continent),
-          countryId: normalizeNullable(row.country_id ?? row.country),
         }));
-        setStates(list.filter((item) => item.value && item.label));
+        const fetched = list.filter((item) => item.value && item.label);
+        setStates(mergeWithScopeOption(fetched, "state"));
       })
-      .catch(() =>
-        Swal.fire({
-          icon: "error",
-          title: t("common.error"),
-          text: "Failed to load states",
-        })
-      );
+      .catch(() => {
+        if (cancelled) return;
+        setStates((prev) => mergeWithScopeOption(prev, "state"));
+      });
     return () => {
       cancelled = true;
     };

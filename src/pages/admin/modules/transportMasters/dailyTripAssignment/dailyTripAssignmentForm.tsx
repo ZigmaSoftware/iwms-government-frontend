@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -24,8 +24,10 @@ import {
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { normalizeList } from "@/utils/forms";
+import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
+import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
+import { mergeWithScopeOptionExtra } from "../../masters/shared/dataScopeOptions";
 
 type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
@@ -53,6 +55,14 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
 
 const categoryFromLevel = (level: HierarchyLevel): "urban" | "rural" =>
   AREA_TYPE_LEVELS.urban.includes(level) ? "urban" : "rural";
+
+const SCOPE_LEVEL_BY_HIERARCHY: Record<HierarchyLevel, "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat"> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
 
 const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
 const resolveName = (record: any): string =>
@@ -107,7 +117,7 @@ export default function DailyTripAssignmentForm() {
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
   const [remarks, setRemarks] = useState("");
   const [tripPlans, setTripPlans] = useState<Option[]>([]);
-  const [staffTemplates, setStaffTemplates] = useState<Option[]>([]);
+  const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<ApiRecord[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
@@ -134,6 +144,11 @@ export default function DailyTripAssignmentForm() {
   const [selectedTripPlan, setSelectedTripPlan] = useState<ApiRecord | null>(null);
   const [tripPlanLoading, setTripPlanLoading] = useState(false);
 
+  // True once the user manually picks a staff template, so we only inherit its
+  // geo hierarchy on an explicit change — never during edit load or a Trip Plan
+  // auto-fill (which sets the staff template programmatically).
+  const staffTemplateSelectedByUser = useRef(false);
+
   // Generated stops — read from the assignment record, edited inline, saved on Update.
   const [cpStops, setCpStops] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdStops, setHouseholdStops] = useState<DailyTripHouseholdCollectionInline[]>([]);
@@ -157,7 +172,7 @@ export default function DailyTripAssignmentForm() {
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
     ]) => {
       setTripPlans(toOptions(normalizeList(tripPlanRes), "display_code"));
-      setStaffTemplates(toOptions(normalizeList(staffRes), "display_code"));
+      setStaffTemplatesRaw(normalizeList(staffRes));
       setAltStaffCache(normalizeList(altStaffRes));
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
       setStates(normalizeList(stateRes));
@@ -262,6 +277,50 @@ export default function DailyTripAssignmentForm() {
     }).finally(() => setTripPlanLoading(false));
   }, [tripPlanId]);
 
+  // When the user picks a Staff Template, inherit its saved geo hierarchy
+  // (State → District → Area Type → Local Body Type → Local Body). Values stay
+  // editable afterwards. Only runs on an explicit user selection — not during
+  // edit load or the Trip Plan auto-fill.
+  useEffect(() => {
+    if (!staffTemplateSelectedByUser.current || !staffTemplateId) return;
+    let cancelled = false;
+    staffTemplateApi.read(staffTemplateId).then((tpl: ApiRecord) => {
+      if (cancelled) return;
+      setStateId(String(tpl.state?.unique_id ?? tpl.state_id ?? ""));
+      setDistrictId(String(tpl.district?.unique_id ?? tpl.district_id ?? ""));
+      const areaTypeIdValue = String(tpl.area_type?.unique_id ?? tpl.area_type_id ?? "");
+      setAreaTypeId(areaTypeIdValue);
+
+      const hierarchyMap: Record<HierarchyLevel, string | undefined> = {
+        corporation_id: tpl.corporation?.unique_id ?? tpl.corporation_id,
+        municipality_id: tpl.municipality?.unique_id ?? tpl.municipality_id,
+        town_panchayat_id: tpl.town_panchayat?.unique_id ?? tpl.town_panchayat_id,
+        panchayat_union_id: tpl.panchayat_union?.unique_id ?? tpl.panchayat_union_id,
+        panchayat_id: tpl.panchayat?.unique_id ?? tpl.panchayat_id,
+      };
+      const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
+
+      // Resolve the ULB/RLB category so the Local Body Type prefills: prefer the
+      // area type's name (nested or from the master list), else derive it from
+      // the detected local-body level (Panchayat Union / Panchayat → rural).
+      const areaTypeName = String(
+        tpl.area_type?.name ??
+          areaTypes.find((a) => resolveId(a) === areaTypeIdValue)?.name ??
+          "",
+      );
+      let category = areaTypeCategoryFromName(areaTypeName);
+      if (!category && detectedLevel) category = categoryFromLevel(detectedLevel.value);
+      setAreaTypeCategory(category);
+
+      if (detectedLevel) {
+        setHierarchyLevel(detectedLevel.value);
+        setHierarchyId(String(hierarchyMap[detectedLevel.value] ?? ""));
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffTemplateId]);
+
   // ── Derive Area Type from the selected local body's master record ──────────
   // Older records/plans may have no area_type saved; the local body masters
   // (Corporation/Municipality/.../Panchayat) each carry their own area_type,
@@ -282,12 +341,19 @@ export default function DailyTripAssignmentForm() {
     : [{ value: hierarchyLevel, label: hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body" }];
 
   // Local Body options — keep the prefilled value present even when the
-  // district filter would hide it.
+  // district filter would hide it. Also fall back to the logged-in user's
+  // Data Scope for this level, since the level's own screen may not be
+  // permission-granted to this user (View gates their own menu/list, not
+  // this dropdown).
   const localBodyOptions = (() => {
-    const options = toGeoOptions(
-      (hierarchyRecords[hierarchyLevel] ?? []).filter(
-        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+    const options = mergeWithScopeOptionExtra(
+      toGeoOptions(
+        (hierarchyRecords[hierarchyLevel] ?? []).filter(
+          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+        ),
       ),
+      SCOPE_LEVEL_BY_HIERARCHY[hierarchyLevel],
+      {},
     );
     if (hierarchyId && !options.some((o) => o.value === hierarchyId)) {
       const current = (hierarchyRecords[hierarchyLevel] ?? []).find((item) => resolveId(item) === hierarchyId);
@@ -295,6 +361,21 @@ export default function DailyTripAssignmentForm() {
     }
     return options;
   })();
+
+  // State/District/Area Type screens may not be permission-granted to this
+  // user at all (View gates their own menu/list, not these dropdowns) —
+  // their Data Scope from login always supplies their own values regardless.
+  const stateOptions = mergeWithScopeOptionExtra(toGeoOptions(states), "state", {});
+  const districtOptions = mergeWithScopeOptionExtra(
+    toGeoOptions(districts.filter((d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId)),
+    "district",
+    {},
+  );
+  const areaTypeOptions = mergeWithScopeOptionExtra(
+    toGeoOptions(areaTypes.filter((a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId)),
+    "area_type",
+    {},
+  );
 
   // ── Alternative staff templates for the selected staff template ────────────
   const altTemplateIdOf = (alt: ApiRecord): string =>
@@ -306,7 +387,7 @@ export default function DailyTripAssignmentForm() {
       .filter((alt) => altTemplateIdOf(alt) === staffTemplateId)
       .map((alt) => ({
         value: String(alt?.unique_id ?? ""),
-        label: String(alt?.display_code ?? alt?.unique_id ?? ""),
+        label: altStaffTemplateLabel(alt),
       }))
       .filter((o) => o.value);
   }, [staffTemplateId, altStaffCache]);
@@ -390,6 +471,7 @@ export default function DailyTripAssignmentForm() {
                   status: stop.status,
                   is_collected: stop.is_collected,
                   collected_weight_kg: stop.collected_weight_kg || null,
+                  status_reason: stop.status_reason || null,
                 }) as Promise<unknown>).catch(() => null)
               )
           );
@@ -431,7 +513,11 @@ export default function DailyTripAssignmentForm() {
               <Label>Staff Template <span className="text-red-500">*</span></Label>
               <Select
                 value={staffTemplateId}
-                onChange={(v) => { setStaffTemplateId(String(v)); setAltStaffTemplateId(""); }}
+                onChange={(v) => {
+                  staffTemplateSelectedByUser.current = true;
+                  setStaffTemplateId(String(v));
+                  setAltStaffTemplateId("");
+                }}
                 options={staffTemplates}
                 placeholder="Select staff template"
               />
@@ -474,7 +560,7 @@ export default function DailyTripAssignmentForm() {
               <Select
                 value={stateId}
                 onChange={(v) => { setStateId(String(v)); setDistrictId(""); setAreaTypeId(""); setAreaTypeCategory(""); setHierarchyId(""); }}
-                options={toGeoOptions(states)}
+                options={stateOptions}
                 placeholder="Select State"
               />
             </div>
@@ -483,7 +569,7 @@ export default function DailyTripAssignmentForm() {
               <Select
                 value={districtId}
                 onChange={(v) => { setDistrictId(String(v)); setAreaTypeId(""); setAreaTypeCategory(""); setHierarchyId(""); }}
-                options={toGeoOptions(districts.filter((d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId))}
+                options={districtOptions}
                 placeholder={stateId ? "Select District" : "Select a State first"}
               />
             </div>
@@ -498,7 +584,7 @@ export default function DailyTripAssignmentForm() {
                   setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
                   setHierarchyId("");
                 }}
-                options={toGeoOptions(areaTypes.filter((a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId))}
+                options={areaTypeOptions}
                 placeholder={districtId ? "Select Area Type" : "Select a District first"}
               />
             </div>
@@ -713,6 +799,7 @@ export default function DailyTripAssignmentForm() {
                         <th className="px-4 py-3">Weight (kg)</th>
                         <th className="px-4 py-3">Collected</th>
                         <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Reason</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 bg-white">
@@ -735,9 +822,17 @@ export default function DailyTripAssignmentForm() {
                               <select value={stop.status ?? "Pending"} onChange={(e) => updateHouseholdStop(stopKey, { status: e.target.value, is_collected: e.target.value === "Collected" })} className="h-9 rounded-md border border-purple-200 px-2 text-sm">
                                 <option value="Pending">Pending</option>
                                 <option value="Collected">Collected</option>
-                                <option value="Skipped">Skipped</option>
-                                <option value="Missed">Missed</option>
+                                <option value="Not Collected">Not Collected</option>
+                                <option value="Collect Later">Collect Later</option>
                               </select>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Input
+                                value={String(stop.status_reason ?? "")}
+                                onChange={(e) => updateHouseholdStop(stopKey, { status_reason: e.target.value })}
+                                placeholder={stop.status === "Not Collected" ? "I do not collect today..." : stop.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
+                                className="h-9 w-60"
+                              />
                             </td>
                           </tr>
                         );
