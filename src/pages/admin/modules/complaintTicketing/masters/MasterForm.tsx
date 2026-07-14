@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -57,7 +58,6 @@ const emptyForm = {
   source: "",
   default_priority: "",
   default_team: "",
-  sort_order: "0",
   requires_location: true,
   requires_media: false,
   requires_address_change_detail: false,
@@ -125,7 +125,6 @@ export default function MasterForm({ kind }: Props) {
         source: idOf(record.source),
         default_priority: idOf(record.default_priority),
         default_team: idOf(record.default_team),
-        sort_order: String(record.sort_order ?? 0),
         requires_location: record.requires_location ?? true,
         requires_media: Boolean(record.requires_media),
         requires_address_change_detail: Boolean(record.requires_address_change_detail),
@@ -165,7 +164,6 @@ export default function MasterForm({ kind }: Props) {
             module_code: form.code.trim().toUpperCase(),
             module_name: form.name.trim(),
             description: form.description,
-            sort_order: Number(form.sort_order || 0),
           }
         : kind === "category"
         ? {
@@ -180,7 +178,6 @@ export default function MasterForm({ kind }: Props) {
             requires_media: form.requires_media,
             requires_address_change_detail: form.requires_address_change_detail,
             is_sensitive: form.is_sensitive,
-            sort_order: Number(form.sort_order || 0),
           }
         : kind === "subcategory"
           ? {
@@ -189,12 +186,11 @@ export default function MasterForm({ kind }: Props) {
               subcategory_code: form.code.trim().toUpperCase(),
               subcategory_name: form.name.trim(),
               default_priority: form.default_priority || null,
-              sort_order: Number(form.sort_order || 0),
             }
           : kind === "priority"
-            ? { ...common, priority_code: form.code.trim().toUpperCase(), priority_name: form.name.trim(), description: form.description, sort_order: Number(form.sort_order || 0) }
+            ? { ...common, priority_code: form.code.trim().toUpperCase(), priority_name: form.name.trim(), description: form.description }
             : kind === "status"
-              ? { ...common, status_code: form.code.trim().toUpperCase(), status_name: form.name.trim(), is_final: form.is_final, allow_reopen: form.allow_reopen, sort_order: Number(form.sort_order || 0) }
+              ? { ...common, status_code: form.code.trim().toUpperCase(), status_name: form.name.trim(), is_final: form.is_final, allow_reopen: form.allow_reopen }
               : kind === "source"
                 ? { ...common, source_code: form.code.trim().toUpperCase(), source_name: form.name.trim() }
                 : kind === "team"
@@ -306,12 +302,6 @@ export default function MasterForm({ kind }: Props) {
               <option value="">None</option>
               {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.team_name}</option>)}
             </select>
-          </div>
-        )}
-        {["module", "category", "subcategory", "priority", "status"].includes(kind) && (
-          <div>
-            <Label>Sort Order</Label>
-            <Input type="number" value={form.sort_order} onChange={(e) => setValue("sort_order", e.target.value)} />
           </div>
         )}
         {kind === "slaRule" && (

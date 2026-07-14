@@ -4,7 +4,7 @@ export type BasicInfoForm = {
   mobileNumber: string;
   officeEmail: string;
   departmentId: string;
-  designationId: string;
+  designation: string;
   doj: string;
   activeStatus: boolean;
 };
