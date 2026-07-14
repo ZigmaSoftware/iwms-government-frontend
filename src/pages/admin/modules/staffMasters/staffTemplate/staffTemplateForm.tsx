@@ -14,7 +14,7 @@ import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
+import { useGeoHierarchy, type HierarchyLevel } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
 
 const GEO_PAYLOAD_KEYS = [
@@ -130,7 +130,8 @@ export default function StaffTemplateForm() {
 
   const getStaffRole = (staff: StaffRecord): string =>
     normalizeRole(
-      staff.staffusertype_name ||
+      staff.governmentusertype_name ||
+        staff.staffusertype_name ||
         staff.contractorusertype_name ||
         staff.designation_name ||
         staff.designation ||
@@ -150,6 +151,25 @@ export default function StaffTemplateForm() {
       role.includes("collector") ||
       role.includes("supervisor") ||
       role.includes("inspector")
+    );
+  };
+
+  // Staff/Contractor rows are never geo-gated (unchanged existing behaviour).
+  // A Government-category row (has a governmentusertype) only qualifies once
+  // its own District + specific local body match what's selected in the form.
+  const isGovernmentStaff = (staff: StaffRecord): boolean => Boolean(staff.governmentusertype_name);
+
+  const matchesSelectedGeo = (
+    staff: StaffRecord,
+    districtId: string,
+    hierarchyLevel: HierarchyLevel,
+    hierarchyId: string
+  ): boolean => {
+    if (!isGovernmentStaff(staff)) return true;
+    if (!districtId || !hierarchyId) return false;
+    return (
+      toEntityId(staff.district_id) === districtId &&
+      toEntityId(staff[hierarchyLevel]) === hierarchyId
     );
   };
 
@@ -223,15 +243,19 @@ export default function StaffTemplateForm() {
   /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY ROLE ================= */
 
   useEffect(() => {
-    setDriverOptions(staffRecords.filter(isDriverRole).map(toStaffOption));
-    setOperatorOptions(staffRecords.filter(isOperatorRole).map(toStaffOption));
+    const inGeo = (s: StaffRecord) =>
+      matchesSelectedGeo(s, geo.districtId, geo.hierarchyLevel, geo.hierarchyId);
+
+    setDriverOptions(staffRecords.filter((s) => isDriverRole(s) && inGeo(s)).map(toStaffOption));
+    setOperatorOptions(staffRecords.filter((s) => isOperatorRole(s) && inGeo(s)).map(toStaffOption));
     setAdminOptions(
       staffRecords.filter((s) => getStaffRole(s).includes("admin")).map(toStaffOption)
     );
     setSupervisorOptions(
-      staffRecords.filter((s) => getStaffRole(s).includes("supervisor")).map(toStaffOption)
+      staffRecords.filter((s) => getStaffRole(s).includes("supervisor") && inGeo(s)).map(toStaffOption)
     );
-  }, [staffRecords]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffRecords, geo.districtId, geo.hierarchyLevel, geo.hierarchyId]);
 
   /* ================= LOAD TEMPLATE (EDIT) ================= */
 

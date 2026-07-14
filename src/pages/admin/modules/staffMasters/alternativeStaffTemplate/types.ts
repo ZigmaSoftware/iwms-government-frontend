@@ -15,6 +15,8 @@ export type StaffRecord = {
   user_type_name?: string;
   staffusertype_name?: string;
   contractorusertype_name?: string;
+  governmentusertype_name?: string;
+  governmentusertype_level?: string;
   designation?: string;
   designation_name?: string;
   designation_group?: string;
@@ -23,6 +25,12 @@ export type StaffRecord = {
   active_status?: boolean | number | string | null;
   company_name?: string;
   project_name?: string;
+  district_id?: string;
+  corporation_id?: string;
+  municipality_id?: string;
+  town_panchayat_id?: string;
+  panchayat_union_id?: string;
+  panchayat_id?: string;
 };
 
 export type StaffTemplateRaw = {
