@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -10,7 +11,7 @@ import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
-import type { ComplaintTicket, GeoOption, LocalBodyOption } from "@/features/complaintTicketing/types";
+import type { ComplaintTicket, GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
@@ -31,6 +32,34 @@ const STATUS_COLUMN_ORDER = [
 type SourceFilter = "all" | "public" | "internal";
 type ViewMode = "table" | "kanban";
 
+const LOCAL_BODY_TYPE_LABELS: Record<LocalBodyType, string> = {
+  corporation: "Corporation",
+  municipality: "Municipality",
+  town_panchayat: "Town Panchayat",
+  panchayat_union: "Panchayat Union",
+  panchayat: "Panchayat",
+};
+
+const LOCAL_BODY_TYPES: LocalBodyType[] = [
+  "corporation",
+  "municipality",
+  "town_panchayat",
+  "panchayat_union",
+  "panchayat",
+];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyType[]> = {
+  urban: ["corporation", "municipality", "town_panchayat"],
+  rural: ["panchayat_union", "panchayat"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
 const isPublic = (row: ComplaintTicket) => row.source_code === PUBLIC_SOURCE_CODE;
 
 export default function TicketList() {
@@ -47,9 +76,12 @@ export default function TicketList() {
 
   const [states, setStates] = useState<GeoOption[]>([]);
   const [districts, setDistricts] = useState<GeoOption[]>([]);
+  const [areaTypes, setAreaTypes] = useState<GeoOption[]>([]);
   const [cities, setCities] = useState<LocalBodyOption[]>([]);
   const [stateFilter, setStateFilter] = useState("");
   const [districtFilter, setDistrictFilter] = useState("");
+  const [areaTypeFilter, setAreaTypeFilter] = useState("");
+  const [localBodyTypeFilter, setLocalBodyTypeFilter] = useState<LocalBodyType | "">("");
   const [cityFilter, setCityFilter] = useState("");
 
   useEffect(() => {
@@ -68,23 +100,57 @@ export default function TicketList() {
     () => districts.filter((item) => !stateFilter || item.state_id === stateFilter),
     [districts, stateFilter],
   );
+  const filteredAreaTypes = useMemo(
+    () => areaTypes.filter((item) => !districtFilter || !item.district_id || item.district_id === districtFilter),
+    [areaTypes, districtFilter],
+  );
+  const selectedAreaType = areaTypes.find((item) => item.unique_id === areaTypeFilter);
+  const selectedAreaCategory = areaTypeCategoryFromName(selectedAreaType?.name ?? "");
+  const availableLocalBodyTypes = selectedAreaCategory
+    ? AREA_TYPE_LEVELS[selectedAreaCategory]
+    : LOCAL_BODY_TYPES;
 
   const onStateFilterChange = (value: string) => {
     setStateFilter(value);
     setDistrictFilter("");
+    setAreaTypeFilter("");
+    setLocalBodyTypeFilter("");
     setCityFilter("");
+    setAreaTypes([]);
     setCities([]);
   };
 
   const onDistrictFilterChange = async (value: string) => {
     setDistrictFilter(value);
+    setAreaTypeFilter("");
+    setLocalBodyTypeFilter("");
     setCityFilter("");
+    setAreaTypes([]);
     if (!value) {
       setCities([]);
       return;
     }
-    const cityRows = await geoApi.localBodies(value).catch(() => []);
-    setCities(cityRows);
+    const areaRows = await geoApi.areaTypes(value).catch(() => []);
+    setAreaTypes(areaRows);
+    setCities([]);
+  };
+
+  const onAreaTypeFilterChange = (value: string) => {
+    setAreaTypeFilter(value);
+    setLocalBodyTypeFilter("");
+    setCityFilter("");
+    setCities([]);
+  };
+
+  const onLocalBodyTypeFilterChange = async (value: string) => {
+    const nextType = value as LocalBodyType | "";
+    setLocalBodyTypeFilter(nextType);
+    setCityFilter("");
+    setCities([]);
+    if (districtFilter && areaTypeFilter && nextType) {
+      const cityRows = await geoApi.localBodies(districtFilter, areaTypeFilter, nextType).catch(() => []);
+      setCities(cityRows);
+    }
   };
 
   const scopedRecords = useMemo(() => {
@@ -93,9 +159,11 @@ export default function TicketList() {
     else if (sourceFilter === "internal") rows = rows.filter((row) => !isPublic(row));
     if (stateFilter) rows = rows.filter((row) => String(row.state_id ?? row.state ?? "") === stateFilter);
     if (districtFilter) rows = rows.filter((row) => String(row.district_id ?? "") === districtFilter);
+    if (areaTypeFilter) rows = rows.filter((row) => String(row.area_type_id ?? row.area_type ?? "") === areaTypeFilter);
+    if (localBodyTypeFilter) rows = rows.filter((row) => String(row.city_type ?? "") === localBodyTypeFilter);
     if (cityFilter) rows = rows.filter((row) => String(row.city_id ?? "") === cityFilter);
     return rows;
-  }, [records, sourceFilter, stateFilter, districtFilter, cityFilter]);
+  }, [records, sourceFilter, stateFilter, districtFilter, areaTypeFilter, localBodyTypeFilter, cityFilter]);
 
   const publicCount = useMemo(() => records.filter(isPublic).length, [records]);
 
@@ -194,11 +262,33 @@ export default function TicketList() {
           </select>
           <select
             className="h-9 rounded-md border px-2 text-sm"
-            value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
+            value={areaTypeFilter}
+            onChange={(e) => onAreaTypeFilterChange(e.target.value)}
             disabled={!districtFilter}
           >
-            <option value="">All cities</option>
+            <option value="">All area types</option>
+            {filteredAreaTypes.map((item) => (
+              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border px-2 text-sm"
+            value={localBodyTypeFilter}
+            onChange={(e) => onLocalBodyTypeFilterChange(e.target.value)}
+            disabled={!areaTypeFilter}
+          >
+            <option value="">All local body types</option>
+            {availableLocalBodyTypes.map((type) => (
+              <option key={type} value={type}>{LOCAL_BODY_TYPE_LABELS[type]}</option>
+            ))}
+          </select>
+          <select
+            className="h-9 rounded-md border px-2 text-sm"
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            disabled={!districtFilter || !areaTypeFilter || !localBodyTypeFilter}
+          >
+            <option value="">All local bodies</option>
             {cities.map((item) => (
               <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
             ))}

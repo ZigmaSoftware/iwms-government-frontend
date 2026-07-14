@@ -49,7 +49,7 @@ type FormValues = {
   mobileNumber: string;
   officeEmail: string;
   departmentId: string;
-  designationId: string;
+  designation: string;
   doj: string;
   activeStatus: boolean;
   username: string;
@@ -233,7 +233,7 @@ const defaultValues: FormValues = {
   mobileNumber: "",
   officeEmail: "",
   departmentId: "",
-  designationId: "",
+  designation: "",
   doj: "",
   activeStatus: true,
   username: "",
@@ -337,7 +337,6 @@ export default function StaffAccessConfigPage() {
   const [userTypes, setUserTypes] = useState<ApiOptionRecord[]>([]);
   const [governmentRoles, setGovernmentRoles] = useState<ApiOptionRecord[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<SelectOption[]>([]);
-  const [designationOptions, setDesignationOptions] = useState<SelectOption[]>([]);
 
   const [governmentLevel, setGovernmentLevel] = useState("");
 
@@ -391,8 +390,6 @@ export default function StaffAccessConfigPage() {
         const [
           userTypeRes,
           governmentRoleRes,
-          departmentRes,
-          designationRes,
           stateRes,
           districtRes,
           areaTypeRes,
@@ -404,8 +401,6 @@ export default function StaffAccessConfigPage() {
         ] = await Promise.allSettled([
           adminApi.userTypes.readAll(),
           adminApi.governmentUserTypes.readAll(),
-          adminApi.departments.readAll(),
-          adminApi.designations.readAll(),
           adminApi.states.readAll(),
           adminApi.districts.readAll(),
           adminApi.areatypes.readAll(),
@@ -421,8 +416,8 @@ export default function StaffAccessConfigPage() {
 
         setUserTypes(valueOrEmpty(userTypeRes) as ApiOptionRecord[]);
         setGovernmentRoles(valueOrEmpty(governmentRoleRes) as ApiOptionRecord[]);
-        setDepartmentOptions(toOptions(valueOrEmpty(departmentRes) as ApiOptionRecord[]));
-        setDesignationOptions(toOptions(valueOrEmpty(designationRes) as ApiOptionRecord[]));
+        // Departments are loaded separately, filtered by the selected
+        // corporation (see the corporation-scoped effect below).
         setStateOptions(
           mergeWithScopeOptionExtra(
             toOptions(valueOrEmpty(stateRes) as ApiOptionRecord[]) as Array<{ value: string; label: string }>,
@@ -506,6 +501,30 @@ export default function StaffAccessConfigPage() {
     };
   }, []);
 
+  // Departments belong to a corporation. Load them filtered by the corporation
+  // chosen in the data scope (when the selected local body is a corporation);
+  // otherwise load all so the field stays usable before the scope step.
+  const selectedCorporationId =
+    values.localBodyLevel === "corporation_id" ? values.localBodyId : "";
+  useEffect(() => {
+    let active = true;
+    const request = selectedCorporationId
+      ? adminApi.departments.readAll({ params: { corporation_id: selectedCorporationId } })
+      : adminApi.departments.readAll();
+    request
+      .then((res) => {
+        if (active) {
+          setDepartmentOptions(toOptions((Array.isArray(res) ? res : []) as ApiOptionRecord[]));
+        }
+      })
+      .catch(() => {
+        if (active) setDepartmentOptions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedCorporationId]);
+
   useEffect(() => {
     if (!isEdit || !id || loadingOptions || loadedConfigId === id) return;
     let cancelled = false;
@@ -542,7 +561,7 @@ export default function StaffAccessConfigPage() {
         setValue("mobileNumber", String(basicInfo.mobileNumber ?? record.contact_mobile ?? ""));
         setValue("officeEmail", String(basicInfo.officeEmail ?? record.contact_email ?? ""));
         setValue("departmentId", String(basicInfo.departmentId ?? record.department_id ?? ""));
-        setValue("designationId", String(basicInfo.designationId ?? record.designation_id ?? ""));
+        setValue("designation", String(basicInfo.designation ?? record.designation ?? ""));
         setValue("doj", String(basicInfo.doj ?? record.doj ?? ""));
         setValue("activeStatus", Boolean(basicInfo.activeStatus ?? record.active_status ?? true));
         setValue("username", String(loginConfig.username ?? record.username ?? ""));
@@ -845,7 +864,7 @@ export default function StaffAccessConfigPage() {
 
   const tabFields = (tab: number) => {
     if (tab === 0) {
-      return ["employeeName", "staffConfigName", "mobileNumber", "departmentId", "designationId"] as const;
+      return ["employeeName", "staffConfigName", "mobileNumber", "departmentId"] as const;
     }
     if (tab === 1) {
       return ["username", "password", "confirmPassword", "userTypeId", "governmentUserTypeId"] as const;
@@ -927,7 +946,7 @@ export default function StaffAccessConfigPage() {
       mobileNumber: values.mobileNumber,
       officeEmail: values.officeEmail,
       departmentId: values.departmentId,
-      designationId: values.designationId,
+      designation: values.designation,
       doj: values.doj,
       activeStatus: values.activeStatus,
     },
@@ -1030,16 +1049,13 @@ export default function StaffAccessConfigPage() {
         {renderError("departmentId")}
       </div>
       <div>
-        <Label htmlFor="designationId">Designation</Label>
-        <Select
-          id="designationId"
-          value={values.designationId}
-          onChange={(value) => setValue("designationId", value)}
-          options={designationOptions}
-          placeholder="Select designation"
+        <Label htmlFor="designation">Designation</Label>
+        <Input
+          id="designation"
+          placeholder="e.g. Sanitary Inspector"
+          {...register("designation")}
         />
-        <input type="hidden" {...register("designationId", { required: "Designation is required." })} />
-        {renderError("designationId")}
+        {renderError("designation")}
       </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
         <input type="checkbox" className="h-4 w-4" {...register("activeStatus")} />
@@ -1343,7 +1359,7 @@ export default function StaffAccessConfigPage() {
           {reviewRow("Mobile", values.mobileNumber)}
           {reviewRow("Email", values.officeEmail)}
           {reviewRow("Department", labelFromOptions(departmentOptions, values.departmentId))}
-          {reviewRow("Designation", labelFromOptions(designationOptions, values.designationId))}
+          {reviewRow("Designation", values.designation)}
           {reviewRow("Date of joining", values.doj)}
           {reviewRow("Status", values.activeStatus ? "Active" : "Inactive")}
         </>,

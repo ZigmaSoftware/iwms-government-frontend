@@ -89,7 +89,6 @@ const {
   encPanchayats,
   encBins,
   encDailyTripAssignment,
-  encDailyTripHouseholdCollection,
   encDailyTripLog,
   encDailyTripTracking,
   encBinCollectionEvent,
@@ -560,12 +559,6 @@ const scheduleOperationsItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encDailyTripTracking}`,
         module: "schedule-masters",
         screen: "daily-trip-collection-points",
-      },
-      {
-        nameKey: "admin.nav.daily_trip_household_collection",
-        path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`,
-        module: "schedule-masters",
-        screen: "daily-trip-household-collections",
       },
       {
         nameKey: "admin.nav.bin_collection_event",

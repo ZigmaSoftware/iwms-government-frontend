@@ -51,6 +51,9 @@ export type ComplaintTicket = {
   district?: ApiId | null;
   district_id?: ApiId | null;
   district_name?: string | null;
+  area_type?: ApiId | null;
+  area_type_id?: ApiId | null;
+  area_type_name?: string | null;
   corporation?: ApiId | null;
   municipality?: ApiId | null;
   town_panchayat?: ApiId | null;
@@ -280,6 +283,8 @@ export type LocalBodyOption = {
   unique_id: string;
   name: string;
   type: LocalBodyType;
+  district_id?: string | null;
+  area_type_id?: string | null;
 };
 
 export type PublicGrievanceLocationOption = {

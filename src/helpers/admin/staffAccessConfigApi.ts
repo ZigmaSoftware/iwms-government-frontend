@@ -302,7 +302,7 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
       staff_config_name: payload.basicInfo.staffConfigName,
       contact_email: payload.basicInfo.officeEmail || null,
       department_id: payload.basicInfo.departmentId || null,
-      designation_id: payload.basicInfo.designationId || null,
+      designation: payload.basicInfo.designation || null,
       doj: payload.basicInfo.doj || null,
       active_status: payload.basicInfo.activeStatus,
       contact_mobile: payload.basicInfo.mobileNumber,
