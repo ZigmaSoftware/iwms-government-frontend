@@ -58,6 +58,57 @@ export type AuthProfile = {
 
 export type DataScopeRef = { unique_id?: string; name?: string } | null;
 
+/** The level a staff data scope was granted at (most-specific field set). */
+export type ScopeGrantedLevel =
+  | "state"
+  | "district"
+  | "area_type"
+  | "corporation"
+  | "municipality"
+  | "town_panchayat"
+  | "panchayat_union"
+  | "panchayat";
+
+export type ScopeLocalBodyType =
+  | "corporation"
+  | "municipality"
+  | "town_panchayat"
+  | "panchayat_union"
+  | "panchayat";
+
+/** A government sub-admin / supervisor scoped within a local body. */
+export type ScopeStaffSummary = {
+  staff_unique_id?: string;
+  employee_name?: string | null;
+  role?: string | null;
+  staff_config_name?: string | null;
+};
+
+export type ScopeLocalBody = {
+  unique_id: string;
+  name: string | null;
+  local_body_type: ScopeLocalBodyType;
+  staff?: ScopeStaffSummary[];
+};
+
+export type ScopeAreaType = {
+  unique_id: string;
+  name: string | null;
+  group?: "urban" | "rural" | null;
+  local_bodies: ScopeLocalBody[];
+};
+
+export type ScopeDistrict = {
+  unique_id: string;
+  name: string | null;
+  area_types: ScopeAreaType[];
+};
+
+/** Full geo subtree beneath the granted scope (see backend `expanded_scope_payload`). */
+export type ScopeDescendants = {
+  districts: ScopeDistrict[];
+};
+
 export type DataScope = {
   state?: DataScopeRef;
   district?: DataScopeRef;
@@ -69,6 +120,9 @@ export type DataScope = {
   panchayat?: DataScopeRef;
   depot?: DataScopeRef;
   location_nodes?: Array<{ unique_id: string; name: string }>;
+  /** Additive scope-expansion fields (login feature). */
+  granted_level?: ScopeGrantedLevel | null;
+  descendants?: ScopeDescendants | null;
 };
 
 export type LoginPayload = {

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import type { UserRole } from "@/types/roles";
 import { USER_ROLE_STORAGE_KEY, normalizeRole } from "@/types/roles";
-import { getStoredPermissions, hasAnyPermission } from "@/utils/permissions";
+import { getStoredPermissions } from "@/utils/permissions";
 import { getStoredAccessToken, isAccessTokenValid } from "@/utils/authStorage";
 
 interface ProtectedRouteProps {
@@ -28,7 +28,16 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     //    This covers roles like "company driver" that are not "admin" by name
     //    but have been given module access by a superadmin.
     if (allowedRoles?.length && (!role || !allowedRoles.includes(role))) {
-      const hasPerms = hasAnyPermission("view", getStoredPermissions());
+      // Allow in if the superadmin has granted ANY action on ANY screen.
+      // We must not require the "view" action specifically: some roles (e.g.
+      // govt_district_admin) are granted add/premview/premedit/premdelete but
+      // no plain "view", and requiring "view" here bounces them back to /auth.
+      const storedPerms = getStoredPermissions();
+      const hasPerms = Object.values(storedPerms).some((screens) =>
+        Object.values(screens).some(
+          (actions) => Array.isArray(actions) && actions.length > 0,
+        ),
+      );
 
       console.log(
         "[ProtectedRoute] Role not in allowedRoles:",

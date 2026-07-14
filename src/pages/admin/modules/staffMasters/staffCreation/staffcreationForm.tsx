@@ -465,7 +465,7 @@ export default function StaffCreationForm() {
   const [governmentLevel, setGovernmentLevel] = useState("");
   const [userTypeCategory, setUserTypeCategory] = useState<
     "staff" | "contractor" | "government"
-  >("staff");
+  >("government");
 
   // Government scope cascade: State → District → Area Type → Local Body
   const [scopeStateOptions, setScopeStateOptions] = useState<{ value: string; label: string }[]>([]);
@@ -1058,13 +1058,10 @@ export default function StaffCreationForm() {
           );
         }
 
-        if (staff.governmentusertype_id && normalizeEntityId(staff.governmentusertype_id)) {
-          setUserTypeCategory("government");
-        } else if (staff.contractorusertype_id && normalizeEntityId(staff.contractorusertype_id)) {
-          setUserTypeCategory("contractor");
-        } else {
-          setUserTypeCategory("staff");
-        }
+        // Government-only project: staff/contractor user types are retired, so
+        // every record edits as a government user regardless of its stored type.
+        // (Legacy staff/contractor records converge to government on save.)
+        setUserTypeCategory("government");
 
 
         // Password audit fields
@@ -1460,9 +1457,9 @@ export default function StaffCreationForm() {
         employee_name: formData.employee_name,
         doj: formData.doj || null,
         department: formData.department,
+        // Designation is free text now (no FK); `designation_id` is not sent.
         designation: formData.designation,
         department_id: formData.department_id,
-        designation_id: formData.designation_id,
         grade: formData.grade,
         site_name: formData.site_name,
         staff_head: formData.staff_head,
@@ -1650,8 +1647,6 @@ export default function StaffCreationForm() {
                 resetGovernmentScope();
               }}
               options={[
-                { value: "staff", label: "Staff" },
-                { value: "contractor", label: "Contractor" },
                 { value: "government", label: "Government" },
               ]}
               placeholder="Select User Type"
