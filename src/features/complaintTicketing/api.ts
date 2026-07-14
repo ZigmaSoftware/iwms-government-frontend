@@ -167,19 +167,41 @@ export const geoApi = {
       .filter((row) => !stateId || row.state_id === stateId);
     return mergeGeoWithScope(fetched, "district", stateId ? { state_id: stateId } : {});
   },
-  localBodies: async (districtId: string): Promise<LocalBodyOption[]> => {
+  areaTypes: async (districtId?: string): Promise<GeoOption[]> => {
+    const rows = await adminApi.areatypes.readAll();
+    const fetched = asRows(rows)
+      .map((row: any) => ({
+        unique_id: String(row.unique_id),
+        name: row.name ?? row.area_type_name ?? String(row.unique_id),
+        district_id: entityId(row.district_id ?? row.district),
+      }))
+      .filter((row) => !districtId || !row.district_id || row.district_id === districtId);
+    return mergeGeoWithScope(fetched, "area_type", districtId ? { district_id: districtId } : {});
+  },
+  localBodies: async (
+    districtId: string,
+    areaTypeId?: string,
+    localBodyType?: LocalBodyType | "",
+  ): Promise<LocalBodyOption[]> => {
+    const sources = localBodyType
+      ? LOCAL_BODY_SOURCES.filter((source) => source.type === localBodyType)
+      : LOCAL_BODY_SOURCES;
     const lists = await Promise.all(
-      LOCAL_BODY_SOURCES.map((source) => source.api.readAll().catch(() => [])),
+      sources.map((source) => source.api.readAll().catch(() => [])),
     );
     const options: LocalBodyOption[] = [];
-    LOCAL_BODY_SOURCES.forEach((source, index) => {
+    sources.forEach((source, index) => {
       asRows(lists[index]).forEach((row: any) => {
         if (entityId(row.district_id ?? row.district) !== districtId) return;
+        const rowAreaTypeId = entityId(row.area_type_id ?? row.area_type);
+        if (areaTypeId && rowAreaTypeId && rowAreaTypeId !== areaTypeId) return;
         const name = source.nameKeys.map((key) => row[key]).find(Boolean) ?? row.name;
         options.push({
           unique_id: String(row.unique_id),
           name: name ?? String(row.unique_id),
           type: source.type,
+          district_id: districtId,
+          area_type_id: rowAreaTypeId,
         });
       });
     });
@@ -188,7 +210,7 @@ export const geoApi = {
     // — fall back to the user's Data Scope value for every local-body level,
     // so their own local body is always selectable regardless. Merged in
     // per-type so each fallback carries the correct `type` discriminator.
-    const merged = LOCAL_BODY_SOURCES.reduce((acc, source) => {
+    const merged = sources.reduce((acc, source) => {
       return mergeGeoWithScope(acc, source.type as ScopeLevel, { type: source.type });
     }, options);
     return merged.sort((a, b) => a.name.localeCompare(b.name));
