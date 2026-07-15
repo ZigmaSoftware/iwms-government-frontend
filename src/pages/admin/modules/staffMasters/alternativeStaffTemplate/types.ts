@@ -15,6 +15,8 @@ export type StaffRecord = {
   user_type_name?: string;
   staffusertype_name?: string;
   contractorusertype_name?: string;
+  governmentusertype_name?: string;
+  governmentusertype_level?: string;
   designation?: string;
   designation_name?: string;
   designation_group?: string;

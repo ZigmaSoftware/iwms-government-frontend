@@ -529,13 +529,7 @@ const scheduleSetupItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encTripPlans}`,
         module: "schedule-masters",
         screen: "trip-plans",
-      },
-      {
-        nameKey: "admin.nav.scheduler_config",
-        path: `/${encScheduleMasters}/${encSchedulerConfig}`,
-        module: "schedule-masters",
-        screen: "daily-trip-assignments",
-      },
+      }
     ],
   },
 ];

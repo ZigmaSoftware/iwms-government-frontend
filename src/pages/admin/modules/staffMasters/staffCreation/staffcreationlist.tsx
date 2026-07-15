@@ -24,6 +24,7 @@ const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
   employee_name: ["employee_name", "name"],
   designation: ["designation"],
+  governmentusertype_id: ["governmentusertype_id", "government_user_type", "governmentusertype"],
   doj: ["doj", "date_of_joining"],
   site_name: ["site_name", "site"],
   salary_type: ["salary_type"],
@@ -37,6 +38,15 @@ const cap = (val?: string | number | null) => {
   if (val === undefined || val === null || val === "") return "";
   const s = String(val);
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+};
+
+const humanizeGovUserType = (val?: string | null) => {
+  if (!val) return "";
+  return String(val)
+    .replace(/^govt_/, "")
+    .split("_")
+    .map((word) => cap(word))
+    .join(" ");
 };
 
 export default function StaffCreationList() {
@@ -355,6 +365,17 @@ export default function StaffCreationList() {
               sortable
               filter
               showFilterMatchModes={false}
+            />
+          )}
+
+          {showCol("governmentusertype_id") && (
+            <Column
+              field="governmentusertype_name"
+              header={t("admin.staff_creation.government_user_type")}
+              sortable
+              filter
+              showFilterMatchModes={false}
+              body={(row: Staff) => humanizeGovUserType(row.governmentusertype_name as string) || "-"}
             />
           )}
 
