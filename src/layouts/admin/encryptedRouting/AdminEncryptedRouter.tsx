@@ -51,7 +51,7 @@ import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPag
 import PropertyForm from "@/pages/admin/modules/masters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubPropertyListPage";
 import SubPropertyForm from "@/pages/admin/modules/masters/subproperty/SubPropertyForm";
-import StaffCreationList from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationlist";
+import StaffCreationList from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationList";
 import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationForm";
 import StaffAccessConfigList from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigList";
 import StaffAccessConfigPage from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigPage";
@@ -98,8 +98,6 @@ import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dail
 import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
 import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
 
-// import CollectionMonitoringListPage from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringListPage";
-// import CollectionMonitoringForm from "@/pages/admin/modules/wasteManagementMasters/pointcollection/CollectionMonitoringForm";
 import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataListPage";
 import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataForm";

@@ -280,7 +280,7 @@ export default function WasteCollectedForm() {
     e.preventDefault();
 
     if (!customerId) {
-      Swal.fire(t("common.warning"), t("admin.waste_collected_data.customer_required"), "warning");
+      Swal.fire(t("common.warning"), t("admin.household_collection_event.customer_required"), "warning");
       return;
     }
 
@@ -307,7 +307,7 @@ export default function WasteCollectedForm() {
         Swal.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await wasteCollectionApi.create(payload);
-        Swal.fire(t("common.success"), t("admin.waste_collected_data.save_success"), "success");
+        Swal.fire(t("common.success"), t("admin.household_collection_event.save_success"), "success");
       }
       navigate(LIST_PATH);
     } catch (err: any) {
@@ -320,7 +320,7 @@ export default function WasteCollectedForm() {
   return (
     <div className="p-3">
       <ComponentCard
-        title={isEdit ? t("admin.waste_collected_data.title_edit") : t("admin.waste_collected_data.title_add")}
+        title={isEdit ? t("admin.household_collection_event.title_edit") : t("admin.household_collection_event.title_add")}
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* ── Geography cascade ── */}
@@ -362,36 +362,36 @@ export default function WasteCollectedForm() {
 
             {/* Local Body Type */}
             <div>
-              <Label>{t("admin.waste_collected_data.local_body_type")}</Label>
+              <Label>{t("admin.household_collection_event.local_body_type")}</Label>
               <Select
                 value={localBodyType}
                 onChange={onLocalBodyTypeChange}
                 options={localBodyLevels.map((lvl) => ({ value: lvl, label: LOCAL_BODY_META[lvl].label }))}
-                placeholder={t("admin.waste_collected_data.local_body_type")}
+                placeholder={t("admin.household_collection_event.local_body_type")}
                 disabled={!areaTypeId}
               />
             </div>
 
             {/* Local Body */}
             <div>
-              <Label>{t("admin.waste_collected_data.local_body")}</Label>
+              <Label>{t("admin.household_collection_event.local_body")}</Label>
               <Select
                 value={localBodyId}
                 onChange={setLocalBodyId}
                 options={localBodyOptions}
-                placeholder={t("admin.waste_collected_data.local_body")}
+                placeholder={t("admin.household_collection_event.local_body")}
                 disabled={!localBodyType}
               />
             </div>
 
             {/* Trip Assignment (optional) */}
             <div>
-              <Label>{t("admin.waste_collected_data.trip_assignment")}</Label>
+              <Label>{t("admin.household_collection_event.trip_assignment")}</Label>
               <Select
                 value={tripAssignmentId}
                 onChange={(v) => setTripAssignmentId(v === "__none__" ? "" : v)}
-                options={[{ value: "__none__", label: t("admin.waste_collected_data.no_trip_assignment") }, ...tripAssignments]}
-                placeholder={t("admin.waste_collected_data.trip_assignment")}
+                options={[{ value: "__none__", label: t("admin.household_collection_event.no_trip_assignment") }, ...tripAssignments]}
+                placeholder={t("admin.household_collection_event.trip_assignment")}
               />
             </div>
           </div>
@@ -403,21 +403,21 @@ export default function WasteCollectedForm() {
             {/* Customer / Household */}
             <div>
               <Label>
-                {t("admin.waste_collected_data.customer")}
+                {t("admin.household_collection_event.customer")}
                 <span className="text-red-500"> *</span>
               </Label>
               <Select
                 value={customerId}
                 onChange={onCustomerChange}
                 options={filteredCustomers.map((c) => ({ value: resolveCustomerId(c), label: c.customer_name }))}
-                placeholder={fetchingCustomers ? t("common.loading") : t("admin.waste_collected_data.customer")}
+                placeholder={fetchingCustomers ? t("common.loading") : t("admin.household_collection_event.customer")}
                 disabled={fetchingCustomers}
               />
             </div>
 
             {/* Address (read-only) */}
             <div>
-              <Label>{t("admin.waste_collected_data.customer_address")}</Label>
+              <Label>{t("admin.household_collection_event.customer_address")}</Label>
               <Input
                 disabled
                 className="bg-gray-100"
@@ -433,7 +433,7 @@ export default function WasteCollectedForm() {
 
             {/* Dry Waste */}
             <div>
-              <Label>{t("admin.waste_collected_data.dry_waste")}</Label>
+              <Label>{t("admin.household_collection_event.dry_waste")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -444,7 +444,7 @@ export default function WasteCollectedForm() {
 
             {/* Wet Waste */}
             <div>
-              <Label>{t("admin.waste_collected_data.wet_waste")}</Label>
+              <Label>{t("admin.household_collection_event.wet_waste")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -455,7 +455,7 @@ export default function WasteCollectedForm() {
 
             {/* Mixed Waste */}
             <div>
-              <Label>{t("admin.waste_collected_data.mixed_waste")}</Label>
+              <Label>{t("admin.household_collection_event.mixed_waste")}</Label>
               <Input
                 type="number"
                 min={0}
@@ -466,7 +466,7 @@ export default function WasteCollectedForm() {
 
             {/* Total (read-only, auto-calculated) */}
             <div>
-              <Label>{t("admin.waste_collected_data.total_quantity")}</Label>
+              <Label>{t("admin.household_collection_event.total_quantity")}</Label>
               <Input disabled className="bg-gray-100" value={totalQuantity} />
             </div>
           </div>
