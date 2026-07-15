@@ -110,7 +110,8 @@ export default function AlternativeStaffTemplateForm() {
 
   const getStaffRole = (staff: StaffRecord): string =>
     normalizeRole(
-      staff.staffusertype_name ||
+      staff.governmentusertype_name ||
+        staff.staffusertype_name ||
         staff.contractorusertype_name ||
         staff.designation_name ||
         staff.designation ||
@@ -128,7 +129,6 @@ export default function AlternativeStaffTemplateForm() {
       role === "operator" ||
       role.includes("operator") ||
       role.includes("collector") ||
-      role.includes("supervisor") ||
       role.includes("inspector")
     );
   };
@@ -182,10 +182,9 @@ export default function AlternativeStaffTemplateForm() {
 
     Promise.all([
       staffTemplateApi.readAll() as Promise<any>,
-      staffCreationApi.readAll({ params: { active_status: 1 } }) as Promise<any>,
       alternativeStaffTemplateApi.readAll() as Promise<any>,
     ])
-      .then(([templatesRes, staffRes, altRes]: [any, any, any]) => {
+      .then(([templatesRes, altRes]: [any, any]) => {
         if (cancelled) return;
 
         // Store all raw template records
@@ -199,22 +198,6 @@ export default function AlternativeStaffTemplateForm() {
                 ? templatesRes.data.results
                 : [];
         setAllStaffTemplates(templateRows);
-
-        // Staff creation records
-        const staffPayload: any = staffRes;
-        const data = Array.isArray(staffPayload)
-          ? staffPayload
-          : Array.isArray(staffPayload?.results)
-            ? staffPayload.results
-            : Array.isArray(staffPayload?.data?.results)
-              ? staffPayload.data.results
-              : Array.isArray(staffPayload?.data)
-                ? staffPayload.data
-                : [];
-        const staff = data.filter(
-          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && getStaffId(u)
-        );
-        setStaffRecords(staff);
 
         // All alternative templates for overlap check
         const altRows: any[] = Array.isArray(altRes)
@@ -232,6 +215,47 @@ export default function AlternativeStaffTemplateForm() {
 
     return () => { cancelled = true; };
   }, [t]);
+
+  /* ============================
+     LOAD STAFF (SCOPED TO THE INHERITED/SELECTED LOCAL BODY)
+     — geo is populated either by picking a Staff Template (create mode)
+       or by geo.hydrate(rec) when an existing record loads (edit mode).
+  ============================ */
+
+  useEffect(() => {
+    if (!geo.hierarchyId) {
+      setStaffRecords([]);
+      return;
+    }
+
+    const geoPayload = geo.buildPayload();
+    const geoParams: Record<string, string> = {};
+    GEO_PAYLOAD_KEYS.forEach((key) => {
+      const value = (geoPayload as Record<string, any>)[key];
+      if (value) geoParams[key] = String(value);
+    });
+
+    staffCreationApi.readAll({ params: { active_status: 1, ...geoParams } })
+      .then((staffRes: any) => {
+        const staffPayload: any = staffRes;
+        const data = Array.isArray(staffPayload)
+          ? staffPayload
+          : Array.isArray(staffPayload?.results)
+            ? staffPayload.results
+            : Array.isArray(staffPayload?.data?.results)
+              ? staffPayload.data.results
+              : Array.isArray(staffPayload?.data)
+                ? staffPayload.data
+                : [];
+        const staff = data.filter(
+          (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && getStaffId(u)
+        );
+        setStaffRecords(staff);
+      })
+      .catch(() => {
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      });
+  }, [geo.stateId, geo.districtId, geo.hierarchyLevel, geo.hierarchyId, t]);
 
   /* ============================
      POPULATE DROPDOWNS FROM STAFF RECORDS (scoped by role only)
@@ -259,7 +283,7 @@ export default function AlternativeStaffTemplateForm() {
   ============================ */
 
   useEffect(() => {
-    if (!isEdit || !id || staffRecords.length === 0) return;
+    if (!isEdit || !id) return;
 
     let cancelled = false;
     setLoading(true);
@@ -308,7 +332,7 @@ export default function AlternativeStaffTemplateForm() {
       });
 
     return () => { cancelled = true; };
-  }, [id, isEdit, staffRecords, t]);
+  }, [id, isEdit, t]);
 
   /* ============================
      AUTO FILL FROM TEMPLATE (create mode only)
