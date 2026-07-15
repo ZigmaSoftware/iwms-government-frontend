@@ -65,7 +65,7 @@ const AdminBreadcrumb: React.FC = () => {
       {breadcrumbs.map((item, index) => (
         <div key={index} className="flex items-center gap-1">
           {index > 0 && (
-            <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-gray-400" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-400" />
           )}
           {item.isActive ? (
             <span className="flex items-center gap-1.5 text-sm font-semibold text-orange-600">

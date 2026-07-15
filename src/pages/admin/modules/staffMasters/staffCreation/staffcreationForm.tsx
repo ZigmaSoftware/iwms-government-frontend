@@ -496,6 +496,15 @@ export default function StaffCreationForm() {
   const [pendingPermanentDistrict, setPendingPermanentDistrict] = useState<string | null>(null);
   const [pendingPermanentCity, setPendingPermanentCity] = useState<string | null>(null);
 
+  // Government geo cascade pending prefill — applied once each level's option
+  // list arrives. Without these, the values set at edit-load can be lost to the
+  // order in which the scope-option records finish loading.
+  const [pendingStateId, setPendingStateId] = useState<string | null>(null);
+  const [pendingDistrictId, setPendingDistrictId] = useState<string | null>(null);
+  const [pendingAreaTypeId, setPendingAreaTypeId] = useState<string | null>(null);
+  const [pendingLocalBodyLevel, setPendingLocalBodyLevel] = useState<LocalBodyLevel | null>(null);
+  const [pendingLocalBodyId, setPendingLocalBodyId] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
@@ -1015,6 +1024,23 @@ export default function StaffCreationForm() {
         // governmentLevel derives from state_id/district_id/local_body_level,
         // already set above in the same setFormData call — no separate prefill needed.
         if (governmentTypeId) setPendingGovernmentUserTypeId(governmentTypeId);
+
+        // Government geo cascade — queue each level so it is re-applied once its
+        // (parent-dependent) option list has finished loading, mirroring the
+        // pending-prefill pattern used for the other dropdowns above.
+        const geoStateId = normalizeEntityId(staff.state_id);
+        const geoDistrictId = normalizeEntityId(staff.district_id);
+        const geoAreaTypeId = normalizeEntityId(staff.area_type_id);
+        const geoLocalBodyLevel = (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as const)
+          .find((level) => normalizeEntityId((staff as any)[level])) ?? null;
+        const geoLocalBodyId = (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as const)
+          .map((level) => normalizeEntityId((staff as any)[level]))
+          .find(Boolean) ?? null;
+        if (geoStateId) setPendingStateId(geoStateId);
+        if (geoDistrictId) setPendingDistrictId(geoDistrictId);
+        if (geoAreaTypeId) setPendingAreaTypeId(geoAreaTypeId);
+        if (geoLocalBodyLevel) setPendingLocalBodyLevel(geoLocalBodyLevel);
+        if (geoLocalBodyId) setPendingLocalBodyId(geoLocalBodyId);
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
         if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
@@ -1235,6 +1261,50 @@ export default function StaffCreationForm() {
       setPendingPermanentCity(null);
     }
   }, [pendingPermanentCity, cityOptions]);
+
+  // ── Government geo cascade pending-prefill resolution ────────────────────────
+  // Each level resolves only after its option list (which itself depends on the
+  // parent level's value) is available, so State → District → Area Type →
+  // Local Body Type → Local Body fill in sequence regardless of load order.
+  useEffect(() => {
+    if (!pendingStateId || scopeStateOptions.length === 0) return;
+    if (scopeStateOptions.some((o) => o.value === pendingStateId)) {
+      setFormData((prev) => ({ ...prev, state_id: pendingStateId }));
+      setPendingStateId(null);
+    }
+  }, [pendingStateId, scopeStateOptions]);
+
+  useEffect(() => {
+    if (!pendingDistrictId || scopeDistrictOptions.length === 0) return;
+    if (scopeDistrictOptions.some((o) => o.value === pendingDistrictId)) {
+      setFormData((prev) => ({ ...prev, district_id: pendingDistrictId }));
+      setPendingDistrictId(null);
+    }
+  }, [pendingDistrictId, scopeDistrictOptions]);
+
+  useEffect(() => {
+    if (!pendingAreaTypeId || scopeAreaTypeOptions.length === 0) return;
+    if (scopeAreaTypeOptions.some((o) => o.value === pendingAreaTypeId)) {
+      setFormData((prev) => ({ ...prev, area_type_id: pendingAreaTypeId }));
+      setPendingAreaTypeId(null);
+    }
+  }, [pendingAreaTypeId, scopeAreaTypeOptions]);
+
+  useEffect(() => {
+    if (!pendingLocalBodyLevel || availableScopeLocalBodyLevels.length === 0) return;
+    if (availableScopeLocalBodyLevels.some((l) => l.value === pendingLocalBodyLevel)) {
+      setFormData((prev) => ({ ...prev, local_body_level: pendingLocalBodyLevel }));
+      setPendingLocalBodyLevel(null);
+    }
+  }, [pendingLocalBodyLevel, availableScopeLocalBodyLevels]);
+
+  useEffect(() => {
+    if (!pendingLocalBodyId || scopeLocalBodyOptions.length === 0) return;
+    if (scopeLocalBodyOptions.some((o) => o.value === pendingLocalBodyId)) {
+      setFormData((prev) => ({ ...prev, local_body_id: pendingLocalBodyId }));
+      setPendingLocalBodyId(null);
+    }
+  }, [pendingLocalBodyId, scopeLocalBodyOptions]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const handleInputChange = (
