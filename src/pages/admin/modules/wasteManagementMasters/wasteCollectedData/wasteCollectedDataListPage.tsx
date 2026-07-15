@@ -1,4 +1,11 @@
 import type { WasteCollection } from "./types";
+import { ImageIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -39,6 +46,7 @@ export default function WasteCollectedDataList() {
   );
 
   const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
+  const [imageRow, setImageRow] = useState<WasteCollection | null>(null);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -93,6 +101,13 @@ export default function WasteCollectedDataList() {
 
   const actionTemplate = (row: WasteCollection) => (
     <div className="flex gap-3 justify-center">
+      <button
+        title={t("admin.waste_collected_data.view_image", "View captured image")}
+        onClick={() => setImageRow(row)}
+        className="text-emerald-600 hover:text-emerald-800"
+      >
+        <ImageIcon className="size-5" />
+      </button>
       <button
         title={t("common.edit")}
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
@@ -216,6 +231,51 @@ export default function WasteCollectedDataList() {
           style={{ width: "120px", textAlign: "center" }}
         />
       </DataTable>
+
+      <Dialog
+        open={!!imageRow}
+        onOpenChange={(open) => {
+          if (!open) setImageRow(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t("admin.waste_collected_data.captured_images", "Captured images")}
+              {imageRow?.customer_name ? ` — ${cap(imageRow.customer_name)}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 p-1 max-h-[70vh] overflow-y-auto sm:grid-cols-3">
+            {(imageRow?.capture_images ?? []).map((img, index) => (
+              <a
+                key={`${img.url}-${index}`}
+                href={img.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+                title={t("common.view")}
+              >
+                <img
+                  src={img.url}
+                  alt={`${t("admin.waste_collected_data.captured_images", "Captured image")} ${index + 1}`}
+                  className="h-40 w-full rounded-lg border object-cover"
+                  loading="lazy"
+                />
+                {img.weight != null && img.weight !== "" && (
+                  <div className="mt-1 text-center text-xs text-gray-500">
+                    {img.weight} kg
+                  </div>
+                )}
+              </a>
+            ))}
+            {!(imageRow?.capture_images?.length) && (
+              <div className="col-span-full py-6 text-center text-sm text-gray-500">
+                {t("admin.waste_collected_data.no_images", "No captured images found")}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

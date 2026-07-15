@@ -437,6 +437,7 @@ export default function DailyTripLogList() {
     mode: "view" | "verify";
   } | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [imageRow, setImageRow] = useState<DailyTripLogRecord | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -593,6 +594,16 @@ export default function DailyTripLogList() {
 
     return (
       <div className="flex items-center gap-1.5">
+        {/* Captured images */}
+        <button
+          title="View captured images"
+          onClick={() => setImageRow(row)}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+        >
+          <i className="pi pi-images text-xs" />
+          Images
+        </button>
+
         {/* View */}
         <button
           title="View details"
@@ -847,6 +858,46 @@ export default function DailyTripLogList() {
           isLoading={isVerifying}
         />
       )}
+
+      <Dialog
+        header="Captured images"
+        visible={imageRow != null}
+        onHide={() => setImageRow(null)}
+        style={{ width: "min(90vw, 720px)" }}
+        modal
+        dismissableMask
+      >
+        {(imageRow?.capture_images?.length ?? 0) === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-500">
+            No captured images found for this trip.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 p-1 sm:grid-cols-3">
+            {imageRow?.capture_images?.map((img, index) => (
+              <a
+                key={`${img.url}-${index}`}
+                href={img.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+                title="Open image"
+              >
+                <img
+                  src={img.url}
+                  alt={`Captured image ${index + 1}`}
+                  className="h-40 w-full rounded-lg border object-cover"
+                  loading="lazy"
+                />
+                {img.weight != null && img.weight !== "" && (
+                  <div className="mt-1 text-center text-xs text-gray-500">
+                    {img.weight} kg
+                  </div>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

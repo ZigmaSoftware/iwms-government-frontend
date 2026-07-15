@@ -61,4 +61,13 @@ export type WasteCollection = {
   collection_date?: string;
   collection_time?: string;
   is_active: boolean;
+  // Capture photos taken during collection (from the mobile WasteCollectionSub
+  // flow), surfaced read-only by the backend serializer as absolute /media/ URLs.
+  capture_images?: WasteCaptureImage[];
+};
+
+export type WasteCaptureImage = {
+  url: string;
+  waste_type_id?: string;
+  weight?: number | string;
 };
