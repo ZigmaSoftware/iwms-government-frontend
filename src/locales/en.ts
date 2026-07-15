@@ -1278,6 +1278,7 @@ const enResource = {
           "doj": "Date of Joining",
           "department_name": "Department Name",
           "designation": "Designation",
+          "government_user_type": "Government User Type",
           "department_id": "Department ID",
           "designation_id": "Designation ID",
           "grade": "Grade",

@@ -23,6 +23,14 @@ export type StaffRecord = {
   designation?: string;
   designation_name?: string;
   designation_group?: string;
+  state_id?: string;
+  district_id?: string;
+  area_type_id?: string;
+  corporation_id?: string | null;
+  municipality_id?: string | null;
+  town_panchayat_id?: string | null;
+  panchayat_union_id?: string | null;
+  panchayat_id?: string | null;
   is_active?: boolean;
   is_deleted?: boolean;
   active_status?: boolean | number | string | null;
