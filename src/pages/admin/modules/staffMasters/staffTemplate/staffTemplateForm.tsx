@@ -130,7 +130,8 @@ export default function StaffTemplateForm() {
 
   const getStaffRole = (staff: StaffRecord): string =>
     normalizeRole(
-      staff.staffusertype_name ||
+      staff.governmentusertype_name ||
+        staff.staffusertype_name ||
         staff.contractorusertype_name ||
         staff.designation_name ||
         staff.designation ||
@@ -148,7 +149,6 @@ export default function StaffTemplateForm() {
       role === "operator" ||
       role.includes("operator") ||
       role.includes("collector") ||
-      role.includes("supervisor") ||
       role.includes("inspector")
     );
   };
@@ -186,10 +186,22 @@ export default function StaffTemplateForm() {
     return t("common.unexpected_error");
   };
 
-  /* ================= LOAD STAFF ================= */
+  /* ================= LOAD STAFF (SCOPED TO SELECTED LOCAL BODY) ================= */
 
   useEffect(() => {
-    staffCreationApi.readAll({ params: { active_status: 1 } })
+    if (!geo.hierarchyId) {
+      setStaffRecords([]);
+      return;
+    }
+
+    const geoPayload = geo.buildPayload();
+    const geoParams: Record<string, string> = {};
+    GEO_PAYLOAD_KEYS.forEach((key) => {
+      const value = geoPayload[key];
+      if (value) geoParams[key] = String(value);
+    });
+
+    staffCreationApi.readAll({ params: { active_status: 1, ...geoParams } })
       .then((staffRes: any) => {
         const staffData = Array.isArray(staffRes)
           ? staffRes
@@ -218,7 +230,7 @@ export default function StaffTemplateForm() {
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
-  }, [t]);
+  }, [geo.stateId, geo.districtId, geo.hierarchyLevel, geo.hierarchyId, t]);
 
   /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY ROLE ================= */
 
@@ -236,7 +248,7 @@ export default function StaffTemplateForm() {
   /* ================= LOAD TEMPLATE (EDIT) ================= */
 
   useEffect(() => {
-    if (!isEdit || !id || staffRecords.length === 0) return;
+    if (!isEdit || !id) return;
 
     setFetching(true);
 
@@ -260,8 +272,15 @@ export default function StaffTemplateForm() {
         const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
         const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
         const approvedBy = toEntityId(tpl.approved_by ?? tpl.approver);
+        const extraNames: string[] = Array.isArray(tpl.extra_operator_names) ? tpl.extra_operator_names : [];
         setDriverOptions((items) => ensureOption(items, driverId, tpl.driver_name));
-        setOperatorOptions((items) => ensureOption(items, operatorId, tpl.operator_name));
+        setOperatorOptions((items) => {
+          let next = ensureOption(items, operatorId, tpl.operator_name);
+          extraIds.forEach((extraId: string, idx: number) => {
+            next = ensureOption(next, extraId, extraNames[idx]);
+          });
+          return next;
+        });
         setAdminOptions((items) => ensureOption(items, approvedBy, tpl.approved_by_name));
         if (driverId) setPendingDriverId(driverId);
         if (operatorId) setPendingOperatorId(operatorId);
@@ -274,7 +293,7 @@ export default function StaffTemplateForm() {
         Swal.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
-  }, [id, isEdit, staffRecords, t]);
+  }, [id, isEdit, t]);
 
   /* ================= CLEAR INVALID DRIVER / OPERATOR / EXTRA WHEN OPTIONS CHANGE ================= */
 
@@ -335,7 +354,8 @@ export default function StaffTemplateForm() {
   /* ================= PENDING PREFILL RESOLUTION ================= */
 
   useEffect(() => {
-    if (!pendingDriverId || staffRecords.length === 0) return;
+    if (!pendingDriverId) return;
+    if (driverOptions.length === 0 && staffRecords.length === 0) return;
     const inOptions = driverOptions.some((o) => o.value === pendingDriverId);
     const inRecords = staffRecords.some((s) => getStaffId(s) === pendingDriverId);
     if (inOptions || inRecords) {
@@ -345,7 +365,8 @@ export default function StaffTemplateForm() {
   }, [pendingDriverId, driverOptions, staffRecords]);
 
   useEffect(() => {
-    if (!pendingOperatorId || staffRecords.length === 0) return;
+    if (!pendingOperatorId) return;
+    if (operatorOptions.length === 0 && staffRecords.length === 0) return;
     const inOptions = operatorOptions.some((o) => o.value === pendingOperatorId);
     const inRecords = staffRecords.some((s) => getStaffId(s) === pendingOperatorId);
     if (inOptions || inRecords) {
@@ -367,13 +388,16 @@ export default function StaffTemplateForm() {
   }, [pendingApprovedBy, adminOptions, supervisorOptions, staffRecords]);
 
   useEffect(() => {
-    if (!pendingExtraIds || staffRecords.length === 0) return;
-    const validIds = pendingExtraIds.filter((id) =>
-      staffRecords.some((s) => getStaffId(s) === id)
+    if (!pendingExtraIds) return;
+    if (operatorOptions.length === 0 && staffRecords.length === 0) return;
+    const validIds = pendingExtraIds.filter(
+      (id) =>
+        operatorOptions.some((o) => o.value === id) ||
+        staffRecords.some((s) => getStaffId(s) === id)
     );
     setFormData((prev) => ({ ...prev, extra_operator_id: validIds }));
     setPendingExtraIds(null);
-  }, [pendingExtraIds, staffRecords]);
+  }, [pendingExtraIds, operatorOptions, staffRecords]);
 
   /* ================= DERIVED ================= */
 
