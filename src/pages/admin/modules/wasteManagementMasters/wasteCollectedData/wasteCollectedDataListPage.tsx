@@ -109,7 +109,7 @@ export default function WasteCollectedDataList() {
     renderListSearchHeader({
       value: globalFilterValue,
       onChange: onGlobalFilterChange,
-      placeholder: t("admin.waste_collected_data.search_placeholder"),
+      placeholder: t("admin.household_collection_event.search_placeholder"),
     });
 
   return (
@@ -117,15 +117,15 @@ export default function WasteCollectedDataList() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.waste_collected_data.title")}
+            {t("admin.household_collection_event.title")}
           </h1>
           <p className="text-sm text-gray-500">
-            {t("admin.waste_collected_data.subtitle")}
+            {t("admin.household_collection_event.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
-            label={t("admin.waste_collected_data.add_new")}
+            label={t("admin.household_collection_event.add_new")}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
@@ -145,14 +145,14 @@ export default function WasteCollectedDataList() {
         header={renderHeader()}
         stripedRows
         showGridlines
-        emptyMessage={t("admin.waste_collected_data.empty_message")}
+        emptyMessage={t("admin.household_collection_event.empty_message")}
         className="p-datatable-sm"
         globalFilterFields={["customer_name", "contact_no", "district_name", "area_type_name", "panchayat_name", "location_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column
           field="customer_name"
-          header={t("admin.waste_collected_data.customer_name")}
+          header={t("admin.household_collection_event.customer_name")}
           body={(row: WasteCollection) => cap(row.customer_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
@@ -164,22 +164,22 @@ export default function WasteCollectedDataList() {
         />
         <Column
           field="dry_waste"
-          header={t("admin.waste_collected_data.dry_waste")}
+          header={t("admin.household_collection_event.dry_waste")}
           sortable
         />
         <Column
           field="wet_waste"
-          header={t("admin.waste_collected_data.wet_waste")}
+          header={t("admin.household_collection_event.wet_waste")}
           sortable
         />
         <Column
           field="mixed_waste"
-          header={t("admin.waste_collected_data.mixed_waste")}
+          header={t("admin.household_collection_event.mixed_waste")}
           sortable
         />
         <Column
           field="total_quantity"
-          header={t("admin.waste_collected_data.quantity")}
+          header={t("admin.household_collection_event.quantity")}
           sortable
         />
         <Column

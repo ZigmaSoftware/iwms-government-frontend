@@ -120,7 +120,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // Customer Masters
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
-    { path: `/${encScheduleMasters}/${encWasteCollectedData}`, nameKey: "admin.nav.waste_collected_data", parentNameKey: "admin.nav.schedule_masters" },
+    { path: `/${encScheduleMasters}/${encWasteCollectedData}`, nameKey: "admin.nav.household_collection_event", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.complaint_ticket" },
     // Complaint Ticketing
     { path: `/${encComplaintTicket}/${encComplaint}`, nameKey: "admin.nav.complaint_tickets", parentNameKey: "admin.nav.complaint_ticket" },
@@ -145,7 +145,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encScheduleMasters}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_assignment", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`, nameKey: "admin.nav.daily_trip_household_collection", parentNameKey: "admin.nav.schedule_masters" },
-    { path: `/${encScheduleMasters}/${encBinCollectionEvent}`, nameKey: "admin.nav.bin_collection_event", parentNameKey: "admin.nav.schedule_masters" },
+    { path: `/${encScheduleMasters}/${encBinCollectionEvent}`, nameKey: "admin.nav.secondary_bin_collection_event", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encVehicleBreakdown}`, nameKey: "admin.nav.vehicle_breakdown", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_masters" },
     { path: `/${encScheduleMasters}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_masters" },
