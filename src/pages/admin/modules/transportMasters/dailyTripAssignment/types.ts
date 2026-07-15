@@ -58,6 +58,7 @@ export type DailyTripHouseholdCollectionInline = {
   collected_at?: string | null;
   collected_weight_kg?: string | number | null;
   status?: string;
+  status_reason?: string | null;
 };
 
 export type DailyTripAssignmentRecord = {

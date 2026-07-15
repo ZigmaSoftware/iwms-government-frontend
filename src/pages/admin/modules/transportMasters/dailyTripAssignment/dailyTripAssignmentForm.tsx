@@ -377,6 +377,24 @@ export default function DailyTripAssignmentForm() {
     {},
   );
 
+  // Staff templates scoped to the selected local body — keeps the already
+  // selected template present even if it falls outside the current filter.
+  const staffTemplates = useMemo<Option[]>(
+    () =>
+      staffTemplatesRaw
+        .filter(
+          (tpl) =>
+            staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
+            String(tpl?.unique_id ?? "") === staffTemplateId,
+        )
+        .map((tpl) => ({
+          value: String(tpl?.unique_id ?? tpl?.id ?? ""),
+          label: staffTemplateLabel(tpl),
+        }))
+        .filter((o) => o.value),
+    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId],
+  );
+
   // ── Alternative staff templates for the selected staff template ────────────
   const altTemplateIdOf = (alt: ApiRecord): string =>
     String(alt?.staff_template?.unique_id ?? alt?.staff_template ?? alt?.staff_template_id ?? "");

@@ -132,6 +132,10 @@ export default function TripPlanForm() {
   const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
   const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("corporation_id");
   const [hierarchyId, setHierarchyId] = useState("");
+  // Saved local body captured during edit-load, re-applied once its master
+  // records finish loading so the value survives the async option-list race.
+  const [pendingHierarchy, setPendingHierarchy] =
+    useState<{ level: HierarchyLevel; id: string; name: string } | null>(null);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
@@ -205,10 +209,20 @@ export default function TripPlanForm() {
       setStaffTemplatesRaw(normalizeList(staffRes));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
       setSupervisors(
-        normalizeList(supervisorRes).map((item: any) => ({
-          value: String(item?.staff_unique_id ?? item?.unique_id ?? ""),
-          label: String(item?.employee_name ?? item?.staff_unique_id ?? ""),
-        })).filter((o: Option) => o.value)
+        normalizeList(supervisorRes)
+          // Only supervisor-role government staff (e.g. Corporation Supervisor,
+          // District Supervisor) — never the full staff list. The government
+          // user type name follows the `govt_<level>_supervisor` convention.
+          .filter((item: any) =>
+            String(item?.governmentusertype_name ?? "")
+              .toLowerCase()
+              .includes("supervisor"),
+          )
+          .map((item: any) => ({
+            value: String(item?.staff_unique_id ?? item?.unique_id ?? ""),
+            label: String(item?.employee_name ?? item?.staff_unique_id ?? ""),
+          }))
+          .filter((o: Option) => o.value)
       );
       setProperties(toOptions(normalizeList(propertyRes), "property_name"));
       setSubProperties(toOptions(normalizeList(subPropertyRes), "sub_property_name"));
@@ -270,6 +284,10 @@ export default function TripPlanForm() {
       ),
     ),
     hierarchyId,
+    // Fall back to the saved local body's name so the selected value always
+    // renders, even before its master list arrives or if the district filter
+    // would otherwise exclude it.
+    pendingHierarchy && pendingHierarchy.id === hierarchyId ? pendingHierarchy.name : undefined,
   );
 
   // Staff templates scoped to the selected local body — keeps the already
@@ -301,6 +319,18 @@ useEffect(() => {
     setAreaTypeCategory(areaTypeCategoryFromName(String(selectedAreaType.name ?? "")));
   }
 }, [areaTypeId, areaTypes]);
+
+// Re-apply the saved local body once its master records are available, so the
+// prefilled value is never lost to option-list load ordering. Clears the
+// pending marker as soon as that level's records have loaded.
+useEffect(() => {
+  if (!pendingHierarchy) return;
+  setHierarchyLevel(pendingHierarchy.level);
+  setHierarchyId(pendingHierarchy.id);
+  if ((hierarchyRecords[pendingHierarchy.level] ?? []).length > 0) {
+    setPendingHierarchy(null);
+  }
+}, [pendingHierarchy, hierarchyRecords]);
 
 // When the user picks a Staff Template, inherit its saved geo hierarchy
 // (State → District → Area Type → Local Body Type → Local Body). Values stay
@@ -367,10 +397,23 @@ useEffect(() => {
         panchayat_union_id: record.panchayat_union?.unique_id,
         panchayat_id: record.panchayat?.unique_id,
       };
+      const hierarchyNested: Record<HierarchyLevel, any> = {
+        corporation_id: record.corporation,
+        municipality_id: record.municipality,
+        town_panchayat_id: record.town_panchayat,
+        panchayat_union_id: record.panchayat_union,
+        panchayat_id: record.panchayat,
+      };
       const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
       if (detectedLevel) {
         setHierarchyLevel(detectedLevel.value);
         setHierarchyId(hierarchyMap[detectedLevel.value] ?? "");
+        // Queue for re-application once the local-body master list loads.
+        setPendingHierarchy({
+          level: detectedLevel.value,
+          id: hierarchyMap[detectedLevel.value] ?? "",
+          name: resolveName(hierarchyNested[detectedLevel.value] ?? {}),
+        });
       }
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
@@ -678,7 +721,7 @@ useEffect(() => {
             optionValue="value"
             maxSelectedLabels={3}
             placeholder="Select waste types"
-            className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
             pt={{
               labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
               label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
