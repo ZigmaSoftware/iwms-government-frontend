@@ -26,8 +26,6 @@ const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   designation: ["designation"],
   governmentusertype_id: ["governmentusertype_id", "government_user_type", "governmentusertype"],
   doj: ["doj", "date_of_joining"],
-  site_name: ["site_name", "site"],
-  salary_type: ["salary_type"],
   contact_mobile: ["contact_mobile", "mobile"],
   active_status: ["active_status", "is_active"],
   qr_code: ["qr_code"],
@@ -57,13 +55,13 @@ export default function StaffCreationList() {
     "staff-creation",
     STAFF_CREATION_COLUMN_FIELDS
   );
+
+  
   const [staffs, setStaffs] = useState<Staff[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [filterParams, setFilterParams] = useState({
-    salary_type: "",
     active_status: "",
-    site_name: "",
     employee_name: "",
   });
 
@@ -74,7 +72,6 @@ export default function StaffCreationList() {
     employee_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
     designation: { value: null, matchMode: FilterMatchMode.CONTAINS },
     doj: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    site_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
   const { encStaffMasters, encStaffCreation } = getEncryptedRoute();
@@ -87,16 +84,13 @@ export default function StaffCreationList() {
     "employee_name",
     "employee_id",
     "designation",
-    "site_name",
     "contact_mobile",
   ];
 
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const requestParams = {
-    salary_type: filterParams.salary_type,
     active_status: filterParams.active_status,
-    site_name: filterParams.site_name,
     employee_name: filterParams.employee_name,
   };
 
@@ -113,6 +107,16 @@ export default function StaffCreationList() {
           : Array.isArray(payload?.data)
             ? payload.data
             : payload?.data?.results ?? [];
+        // Debug: inspect the rows and their user-type fields returned by the API.
+        console.log("[StaffCreationList] staff rows:", data);
+        console.log(
+          "[StaffCreationList] user types:",
+          (data as Staff[]).map((row) => ({
+            name: row.employee_name,
+            user_type_name: row.user_type_name,
+            governmentusertype_name: row.governmentusertype_name,
+          })),
+        );
         setStaffs(data as Staff[]);
       } catch (err) {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -227,25 +231,6 @@ export default function StaffCreationList() {
 
       {/* Filters Row */}
       <div className="grid gap-3 md:grid-cols-5">
-        {showCol("salary_type") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">
-            {t("admin.staff_creation.salary_type")}
-          </span>
-          <select
-            name="salary_type"
-            value={filterParams.salary_type}
-            onChange={handleFilterChange}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">{t("common.all")}</option>
-            <option value="Monthly">{t("admin.staff_creation.salary_monthly")}</option>
-            <option value="Daily">{t("admin.staff_creation.salary_daily")}</option>
-            <option value="Contract">{t("admin.staff_creation.salary_contract")}</option>
-          </select>
-        </div>
-        )}
-
         {showCol("active_status") && (
         <div className="flex flex-col gap-1">
           <span className="text-xs font-semibold">{t("common.status")}</span>
@@ -259,21 +244,6 @@ export default function StaffCreationList() {
             <option value="1">{t("common.active")}</option>
             <option value="0">{t("common.inactive")}</option>
           </select>
-        </div>
-        )}
-
-        {showCol("site_name") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">
-            {t("admin.staff_creation.site_name")}
-          </span>
-          <input
-            name="site_name"
-            value={filterParams.site_name}
-            onChange={handleFilterChange}
-            placeholder={t("admin.staff_creation.site_placeholder")}
-            className="h-10 rounded-lg border px-3 text-sm"
-          />
         </div>
         )}
 
@@ -358,15 +328,20 @@ export default function StaffCreationList() {
             />
           )}
 
-          {showCol("designation") && (
-            <Column
-              field="designation"
-              header={t("admin.staff_creation.designation")}
-              sortable
-              filter
-              showFilterMatchModes={false}
-            />
-          )}
+          <Column
+            field="user_type_name"
+            header="User Type"
+            sortable
+            body={(row: Staff) => cap(row.user_type_name) || "-"}
+          />
+
+          <Column
+            field="governmentusertype_name"
+            header="Government User Type"
+            sortable
+            body={(row: Staff) => row.governmentusertype_name || "-"}
+          />
+
 
           {showCol("governmentusertype_id") && (
             <Column
@@ -383,16 +358,6 @@ export default function StaffCreationList() {
             <Column
               field="doj"
               header={t("admin.staff_creation.doj")}
-              sortable
-              filter
-              showFilterMatchModes={false}
-            />
-          )}
-
-          {showCol("site_name") && (
-            <Column
-              field="site_name"
-              header={t("admin.staff_creation.site_name")}
               sortable
               filter
               showFilterMatchModes={false}

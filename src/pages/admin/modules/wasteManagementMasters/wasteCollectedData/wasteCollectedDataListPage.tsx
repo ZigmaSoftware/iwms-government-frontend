@@ -1,4 +1,11 @@
 import type { WasteCollection } from "./types";
+import { ImageIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -39,6 +46,7 @@ export default function WasteCollectedDataList() {
   );
 
   const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
+  const [imageRow, setImageRow] = useState<WasteCollection | null>(null);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -94,6 +102,13 @@ export default function WasteCollectedDataList() {
   const actionTemplate = (row: WasteCollection) => (
     <div className="flex gap-3 justify-center">
       <button
+        title={t("admin.waste_collected_data.view_image", "View captured image")}
+        onClick={() => setImageRow(row)}
+        className="text-emerald-600 hover:text-emerald-800"
+      >
+        <ImageIcon className="size-5" />
+      </button>
+      <button
         title={t("common.edit")}
         onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
         className="text-blue-600 hover:text-blue-800"
@@ -109,7 +124,7 @@ export default function WasteCollectedDataList() {
     renderListSearchHeader({
       value: globalFilterValue,
       onChange: onGlobalFilterChange,
-      placeholder: t("admin.waste_collected_data.search_placeholder"),
+      placeholder: t("admin.household_collection_event.search_placeholder"),
     });
 
   return (
@@ -117,15 +132,15 @@ export default function WasteCollectedDataList() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.waste_collected_data.title")}
+            {t("admin.household_collection_event.title")}
           </h1>
           <p className="text-sm text-gray-500">
-            {t("admin.waste_collected_data.subtitle")}
+            {t("admin.household_collection_event.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Button
-            label={t("admin.waste_collected_data.add_new")}
+            label={t("admin.household_collection_event.add_new")}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
@@ -145,14 +160,14 @@ export default function WasteCollectedDataList() {
         header={renderHeader()}
         stripedRows
         showGridlines
-        emptyMessage={t("admin.waste_collected_data.empty_message")}
+        emptyMessage={t("admin.household_collection_event.empty_message")}
         className="p-datatable-sm"
         globalFilterFields={["customer_name", "contact_no", "district_name", "area_type_name", "panchayat_name", "location_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column
           field="customer_name"
-          header={t("admin.waste_collected_data.customer_name")}
+          header={t("admin.household_collection_event.customer_name")}
           body={(row: WasteCollection) => cap(row.customer_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
@@ -164,22 +179,22 @@ export default function WasteCollectedDataList() {
         />
         <Column
           field="dry_waste"
-          header={t("admin.waste_collected_data.dry_waste")}
+          header={t("admin.household_collection_event.dry_waste")}
           sortable
         />
         <Column
           field="wet_waste"
-          header={t("admin.waste_collected_data.wet_waste")}
+          header={t("admin.household_collection_event.wet_waste")}
           sortable
         />
         <Column
           field="mixed_waste"
-          header={t("admin.waste_collected_data.mixed_waste")}
+          header={t("admin.household_collection_event.mixed_waste")}
           sortable
         />
         <Column
           field="total_quantity"
-          header={t("admin.waste_collected_data.quantity")}
+          header={t("admin.household_collection_event.quantity")}
           sortable
         />
         <Column
@@ -216,6 +231,51 @@ export default function WasteCollectedDataList() {
           style={{ width: "120px", textAlign: "center" }}
         />
       </DataTable>
+
+      <Dialog
+        open={!!imageRow}
+        onOpenChange={(open) => {
+          if (!open) setImageRow(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {t("admin.waste_collected_data.captured_images", "Captured images")}
+              {imageRow?.customer_name ? ` — ${cap(imageRow.customer_name)}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 p-1 max-h-[70vh] overflow-y-auto sm:grid-cols-3">
+            {(imageRow?.capture_images ?? []).map((img, index) => (
+              <a
+                key={`${img.url}-${index}`}
+                href={img.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+                title={t("common.view")}
+              >
+                <img
+                  src={img.url}
+                  alt={`${t("admin.waste_collected_data.captured_images", "Captured image")} ${index + 1}`}
+                  className="h-40 w-full rounded-lg border object-cover"
+                  loading="lazy"
+                />
+                {img.weight != null && img.weight !== "" && (
+                  <div className="mt-1 text-center text-xs text-gray-500">
+                    {img.weight} kg
+                  </div>
+                )}
+              </a>
+            ))}
+            {!(imageRow?.capture_images?.length) && (
+              <div className="col-span-full py-6 text-center text-sm text-gray-500">
+                {t("admin.waste_collected_data.no_images", "No captured images found")}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

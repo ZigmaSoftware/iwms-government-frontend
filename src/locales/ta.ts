@@ -832,7 +832,7 @@ const taResource = {
           "daily_trip_household_collection": "வீட்டு சேகரிப்பு புள்ளிகள்",
           "daily_trip_tracking": "தினசரி பயண கண்காணிப்பு",
           "daily_trip_log": "தினசரி பயண பதிவு",
-          "bin_collection_event": "குப்பைத்தொட்டி சேகரிப்பு நிகழ்வு",
+          "secondary_bin_collection_event": "குப்பைத்தொட்டி சேகரிப்பு நிகழ்வு",
           "vehicle_breakdown": "வாகன செயலிழப்பு",
           "scheduler_config": "தானியங்கி அட்டவணை அமைப்புகள்",
           "bin_load_log": "பின் ஏற்ற பதிவு",
@@ -852,7 +852,7 @@ const taResource = {
           "bin_master": "குப்பைத்தொட்டி மாஸ்டர்",
           "bin_creation": "குப்பைத்தொட்டி உருவாக்கம்",
           "waste_management": "கழிவு மேலாண்மை",
-          "waste_collected_data": "சேகரிக்கப்பட்ட கழிவு தரவு",
+          "household_collection_event": "சேகரிக்கப்பட்ட கழிவு தரவு",
           "collection_monitoring": "சேகரிப்பு கண்காணிப்பு",
           "panchayat_base_collection": "PLB பேஸ் கலெக்ஷன்",
           "ward_base_collection": "வார்டு பேஸ் கலெக்ஷன்",
@@ -1393,7 +1393,7 @@ const taResource = {
           "vehicle_id_label": "வாகன ஐடி",
           "select_customer_hint": "இருப்பிடத்தை காண வாடிக்கையாளரை தேர்வு செய்க"
         },
-        "waste_collected_data": {
+        "household_collection_event": {
           "title": "சேகரிக்கப்பட்ட கழிவு தரவு",
           "subtitle": "கழிவு சேகரிப்பு பதிவுகளை நிர்வகிக்க",
           "add_new": "புதியதைச் சேர்க்க",

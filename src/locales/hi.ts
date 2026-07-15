@@ -831,7 +831,7 @@ const hiResource = {
           "daily_trip_collection_point": "दैनिक ट्रिप कलेक्शन पॉइंट",
           "daily_trip_household_collection": "घरेलू संग्रह बिंदु",
           "daily_trip_log": "दैनिक ट्रिप लॉग",
-          "bin_collection_event": "बिन कलेक्शन इवेंट",
+          "secondary_bin_collection_event": "बिन कलेक्शन इवेंट",
           "vehicle_breakdown": "वाहन ब्रेकडाउन",
           "scheduler_config": "ऑटो-शेड्यूल सेटिंग्स",
           "bin_load_log": "बिन लोड लॉग",
@@ -850,7 +850,7 @@ const hiResource = {
           "bin_master": "बिन मास्टर",
           "bin_creation": "बिन निर्माण",
           "waste_management": "कचरा प्रबंधन",
-          "waste_collected_data": "संग्रहित कचरा डेटा",
+          "household_collection_event": "संग्रहित कचरा डेटा",
           "collection_monitoring": "संग्रह मॉनिटरिंग",
           "panchayat_base_collection": "PLB बेस कलेक्शन",
           "ward_base_collection": "वार्ड बेस कलेक्शन",
@@ -1392,7 +1392,7 @@ const hiResource = {
           "vehicle_id_label": "वाहन आईडी",
           "select_customer_hint": "लोकेशन देखने के लिए ग्राहक चुनें"
         },
-        "waste_collected_data": {
+        "household_collection_event": {
           "title": "संग्रहीत कचरा डेटा",
           "subtitle": "सभी कचरा संग्रह रिकॉर्ड प्रबंधित करें",
           "add_new": "नया जोड़ें",

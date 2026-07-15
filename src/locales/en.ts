@@ -838,7 +838,7 @@ const enResource = {
           "customer_masters": "Customer Masters",
           "customer_creation": "Customer Creation",
           "apartment_list": "Apartment List",
-          "waste_collected_data": "Waste Collected Data",
+          "household_collection_event": "Household Collection Event",
           "feedback": "Feedback",
           "customer_tag": "Customer Tag",
           "household_pickup_event": "Household Pickup Event",
@@ -871,7 +871,7 @@ const enResource = {
           "daily_trip_collection_point": "Daily Trip Collection Point",
           "daily_trip_household_collection": "Household Collection Points",
           "daily_trip_tracking": "Daily Trip Tracking",
-          "bin_collection_event": "Bin Collection Event",
+          "secondary_bin_collection_event": "Secondary Bin Collection Event",
           "vehicle_breakdown": "Vehicle Breakdown",
           "scheduler_config": "Auto-Schedule Settings",
           "daily_trip_log": "Daily Trip Logs",
@@ -1407,7 +1407,7 @@ const enResource = {
           "vehicle_id_label": "Vehicle ID",
           "select_customer_hint": "Select a customer to view location"
         },
-        "waste_collected_data": {
+        "household_collection_event": {
           "title": "Waste Collected Data",
           "subtitle": "Manage all waste collection records",
           "add_new": "Add New",
