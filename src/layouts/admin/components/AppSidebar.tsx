@@ -368,7 +368,6 @@ const userCreationMasters: NavItem[] = [
   },
 ];
 
-
 const customerMasters: NavItem[] = [
   {
     nameKey: "admin.nav.customer_masters",
@@ -529,13 +528,7 @@ const scheduleSetupItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encTripPlans}`,
         module: "schedule-masters",
         screen: "trip-plans",
-      },
-      {
-        nameKey: "admin.nav.scheduler_config",
-        path: `/${encScheduleMasters}/${encSchedulerConfig}`,
-        module: "schedule-masters",
-        screen: "daily-trip-assignments",
-      },
+      }
     ],
   },
 ];
@@ -561,10 +554,16 @@ const scheduleOperationsItems: NavItem[] = [
         screen: "daily-trip-collection-points",
       },
       {
-        nameKey: "admin.nav.bin_collection_event",
+        nameKey: "admin.nav.secondary_bin_collection_event",
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
         module: "schedule-masters",
-        screen: "bin-collection-events",
+        screen: "secondary-bin-collection-events",
+      },
+      {
+        nameKey: "admin.nav.household_collection_event",
+        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
+        module: "schedule-masters",
+        screen: "householdcollection-events",
       },
       {
         nameKey: "admin.nav.vehicle_breakdown",
@@ -578,12 +577,7 @@ const scheduleOperationsItems: NavItem[] = [
         module: "schedule-masters",
         screen: "daily-trip-logs",
       },
-      {
-        nameKey: "admin.nav.waste_collected_data",
-        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
-        module: "schedule-masters",
-        screen: "wastecollections",
-      },
+
     ],
   },
 ];
