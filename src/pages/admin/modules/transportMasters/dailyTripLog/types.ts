@@ -75,5 +75,14 @@ export type DailyTripLogRecord = {
   collection_status?: string;
   verified_by_name?: string | null;
   verified_at?: string | null;
+  // Capture photos taken during the trip (from the mobile capture flow),
+  // aggregated by the backend as absolute /media/ URLs.
+  capture_images?: TripLogCaptureImage[];
   [key: string]: unknown;
+};
+
+export type TripLogCaptureImage = {
+  url: string;
+  waste_type_id?: string;
+  weight?: number | string;
 };
