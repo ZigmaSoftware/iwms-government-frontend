@@ -71,6 +71,13 @@ export default function Select({
       value={shadValue}
       onValueChange={(val) => {
         if (val === placeholderValue) return;
+        // Radix's Select.Root can emit a spurious onValueChange("") when a
+        // controlled `value` doesn't match any *currently mounted* SelectItem
+        // (e.g. the popup was never opened, so items never registered). This
+        // component never offers a "clear selection" affordance, so a real
+        // user action can never produce an empty value — only this Radix
+        // quirk can. Ignore it rather than let it wipe out a valid selection.
+        if (val === "") return;
         onChange?.(val);
       }}
       disabled={disabled}
