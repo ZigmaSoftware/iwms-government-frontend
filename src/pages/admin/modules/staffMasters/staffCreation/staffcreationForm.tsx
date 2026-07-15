@@ -220,26 +220,6 @@ const toGeoOptions = (records: GeoOptionRecord[]) =>
     .map((record) => ({ value: geoOptionId(record), label: geoOptionName(record) as string }));
 
 
-const getGradeOptions = (t: (key: string) => string) => [
-  { value: "Grade A", label: t("admin.staff_creation.grade_a") },
-  { value: "Grade B", label: t("admin.staff_creation.grade_b") },
-  { value: "Grade C", label: t("admin.staff_creation.grade_c") },
-  { value: "Grade D", label: t("admin.staff_creation.grade_d") },
-];
-
-const getSiteOptions = (t: (key: string) => string) => [
-  { value: "Erode (Head Office)", label: t("admin.staff_creation.site_erode") },
-  { value: "Coimbatore", label: t("admin.staff_creation.site_coimbatore") },
-  { value: "Chennai", label: t("admin.staff_creation.site_chennai") },
-  { value: "Hyderabad", label: t("admin.staff_creation.site_hyderabad") },
-];
-
-const getSalaryTypeOptions = (t: (key: string) => string) => [
-  { value: "Monthly", label: t("admin.staff_creation.salary_monthly") },
-  { value: "Daily", label: t("admin.staff_creation.salary_daily") },
-  { value: "Contract", label: t("admin.staff_creation.salary_contract") },
-];
-
 const getYesNoOptions = (t: (key: string) => string) => [
   { value: "1", label: t("common.yes") },
   { value: "0", label: t("common.no") },
@@ -329,12 +309,8 @@ const initialFormData = {
   department_id: "",
   designation_id: "",
 
-  grade: "",
-  site_name: "",
   staff_head: "",
   staff_head_id: "",
-  employee_known: "",
-  salary_type: "",
   active_status: "1",
   staffusertype_id: "",
   contractorusertype_id: "",
@@ -384,12 +360,8 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   designation: ["designation"],
   department_id: ["department_id"],
   designation_id: ["designation_id"],
-  grade: ["grade"],
-  site_name: ["site_name", "site"],
   staff_head: ["staff_head"],
   staff_head_id: ["staff_head_id"],
-  employee_known: ["employee_known"],
-  salary_type: ["salary_type"],
   active_status: ["active_status", "is_active"],
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
   contractorusertype_id: ["contractorusertype_id", "contractor_user_type", "contractorusertype"],
@@ -519,9 +491,6 @@ export default function StaffCreationForm() {
   const backendOrigin =
     api.defaults.baseURL?.replace(/\/api\/desktop\/?$/, "") || "";
 
-  const gradeOptions = getGradeOptions(t);
-  const siteOptions = getSiteOptions(t);
-  const salaryTypeOptions = getSalaryTypeOptions(t);
   const yesNoOptions = getYesNoOptions(t);
   const maritalStatusOptions = getMaritalStatusOptions(t);
   const genderOptions = getGenderOptions(t);
@@ -960,12 +929,8 @@ export default function StaffCreationForm() {
           designation: staff.designation ?? "",
           department_id: normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id),
           designation_id: normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id),
-          grade: staff.grade ?? "",
-          site_name: staff.site_name ?? "",
           staff_head: staff.staff_head ?? "",
           staff_head_id: staff.staff_head_id ?? "",
-          employee_known: staff.employee_known ?? "",
-          salary_type: staff.salary_type ?? "",
           active_status: staff.active_status ? "1" : "0",
           login_enabled: staff.login_enabled ? "1" : "0",
 
@@ -1460,12 +1425,8 @@ export default function StaffCreationForm() {
         // Designation is free text now (no FK); `designation_id` is not sent.
         designation: formData.designation,
         department_id: formData.department_id,
-        grade: formData.grade,
-        site_name: formData.site_name,
         staff_head: formData.staff_head,
         staff_head_id: formData.staff_head_id,
-        employee_known: formData.employee_known,
-        salary_type: formData.salary_type,
         active_status: formData.active_status === "1",
         staffusertype_id:
           userTypeCategory === "staff"
@@ -1999,32 +1960,6 @@ export default function StaffCreationForm() {
             )}
           </>
         )}
-      {showField("grade") && (
-        <div>
-          <Label htmlFor="grade">{t("admin.staff_creation.grade")}</Label>
-          <Select
-            id="grade"
-            value={formData.grade}
-            onChange={(value) => handleSelectChange("grade", value)}
-            options={gradeOptions}
-            placeholder={t("admin.staff_creation.grade_placeholder")}
-          />
-        </div>
-      )}
-      {showField("site_name") && (
-        <div>
-          <Label htmlFor="site_name">
-            {t("admin.staff_creation.site_name")}
-          </Label>
-          <Select
-            id="site_name"
-            value={formData.site_name}
-            onChange={(value) => handleSelectChange("site_name", value)}
-            options={siteOptions}
-            placeholder={t("admin.staff_creation.site_placeholder")}
-          />
-        </div>
-      )}
       {showField("staff_head_id") && (
         <div>
           <Label htmlFor="staff_head_id">
@@ -2042,34 +1977,6 @@ export default function StaffCreationForm() {
                   })
                 : t("admin.staff_creation.department_id")
             }
-          />
-        </div>
-      )}
-      {showField("employee_known") && (
-        <div>
-          <Label htmlFor="employee_known">
-            {t("admin.staff_creation.employee_known")}
-          </Label>
-          <Select
-            id="employee_known"
-            value={formData.employee_known}
-            onChange={(value) => handleSelectChange("employee_known", value)}
-            options={yesNoOptions}
-            placeholder={t("admin.staff_creation.select_option")}
-          />
-        </div>
-      )}
-      {showField("salary_type") && (
-        <div>
-          <Label htmlFor="salary_type">
-            {t("admin.staff_creation.salary_type")}
-          </Label>
-          <Select
-            id="salary_type"
-            value={formData.salary_type}
-            onChange={(value) => handleSelectChange("salary_type", value)}
-            options={salaryTypeOptions}
-            placeholder={t("admin.staff_creation.salary_type_placeholder")}
           />
         </div>
       )}
