@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
-/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
