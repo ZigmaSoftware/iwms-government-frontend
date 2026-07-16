@@ -31,6 +31,7 @@ export const adminEndpoints = {
   panchayats: "masters/panchayat",
   panchayatLeaders: "masters/panchayat-leaders",
   districtLeaders: "masters/district-leaders",
+  stateLeaders: "masters/state-leaders",
   areatypes: "masters/areatypes",
   hierarchies: "masters/hierarchy",
   corporations: "masters/corporations",

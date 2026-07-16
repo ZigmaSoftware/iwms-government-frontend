@@ -751,19 +751,36 @@ type PermissionsAPIResponse = {
   column_permissions?: unknown;
 };
 
+/**
+ * Thrown by fetchPermissionsFromAPI when the backend rejects the stored
+ * access_token as expired/invalid (surfaced as 401, or 403 — this project's
+ * JWT authenticator has no authenticate_header(), so DRF coerces 401→403).
+ * Callers use this to distinguish "session is dead" from a transient/empty
+ * permissions response.
+ */
+export class PermissionAuthError extends Error {
+  status: number;
+  constructor(status: number) {
+    super(`Permissions API auth failure: HTTP ${status}`);
+    this.name = "PermissionAuthError";
+    this.status = status;
+  }
+}
+
 export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
+  const token = localStorage.getItem("access_token");
+  if (!token) return {};
+
+  const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
+  if (!apiBaseUrl) {
+    console.error("[Permissions API] ❌ API base URL not configured");
+    return {};
+  }
+
+  const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
+  let response: Response;
   try {
-    const token = localStorage.getItem("access_token");
-    if (!token) return {};
-
-    const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
-    if (!apiBaseUrl) {
-      console.error("[Permissions API] ❌ API base URL not configured");
-      return {};
-    }
-
-    const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
-    const response = await fetch(url, {
+    response = await fetch(url, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -771,12 +788,22 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
         Accept: "application/json",
       },
     });
+  } catch (error) {
+    console.error("[Permissions API] ❌ Error fetching permissions:", error);
+    return {};
+  }
 
-    if (!response.ok) {
-      console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
-      return {};
-    }
+  if (response.status === 401 || response.status === 403) {
+    console.error(`[Permissions API] ❌ HTTP ${response.status}: access_token expired/invalid`);
+    throw new PermissionAuthError(response.status);
+  }
 
+  if (!response.ok) {
+    console.error(`[Permissions API] ❌ HTTP ${response.status}: ${response.statusText}`);
+    return {};
+  }
+
+  try {
     const data = (await response.json()) as PermissionsAPIResponse;
     const permissions = sanitizePermissions(data);
 
@@ -792,7 +819,7 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
 
     return permissions;
   } catch (error) {
-    console.error("[Permissions API] ❌ Error fetching permissions:", error);
+    console.error("[Permissions API] ❌ Error parsing permissions response:", error);
     return {};
   }
 };

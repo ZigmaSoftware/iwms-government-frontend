@@ -12,7 +12,19 @@ import {
   // type PermissionDetailsMap,
   type PermissionAction,
   fetchPermissionsFromAPI,
+  PermissionAuthError,
 } from "@/utils/permissions";
+import { clearAuthSession } from "@/utils/authStorage";
+
+// Routes with their own independent login/token (leader portals) or no auth
+// at all (public grievance form) must never be bounced to /auth just because
+// a stale admin `access_token` happens to still be sitting in localStorage.
+const isAuthExemptPath = (pathname: string) =>
+  pathname.startsWith("/publicgrivence") ||
+  pathname.startsWith("/auth") ||
+  pathname.startsWith("/district") ||
+  pathname.startsWith("/localbody") ||
+  pathname.startsWith("/state");
 
 type PermissionContextValue = {
   permissions: PermissionsMap;
@@ -81,7 +93,29 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
         //   `[PermissionContext] ℹ️ Using stored permissions (isEmpty: ${Object.keys(storedPerms).length === 0})`
         // );
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof PermissionAuthError) {
+        // The admin access_token is dead — stop hammering the API every 10s
+        // and clear it so stale state doesn't linger. Only force a redirect
+        // when we're actually on an admin/dashboard route; leader portals
+        // (district/localbody/state) authenticate with their own separate
+        // tokens and must not be interrupted by this.
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        clearAuthSession();
+        if (isMountedRef.current) {
+          setPermissions({});
+          setPermissionDetails({});
+          setColumnPermissions(getStoredColumnPermissions());
+          setIsEmptyPermissions(true);
+        }
+        if (!isAuthExemptPath(window.location.pathname)) {
+          window.location.assign("/auth");
+        }
+        return;
+      }
       if (isMountedRef.current) {
         const storedPerms = getStoredPermissions();
         setPermissions(storedPerms);
