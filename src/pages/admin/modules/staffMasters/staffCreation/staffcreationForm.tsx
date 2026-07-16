@@ -195,6 +195,17 @@ const AREA_TYPE_LEVELS: Record<AreaTypeCategory, LocalBodyLevel[]> = {
   rural: ["panchayat_union_id", "panchayat_id"],
 };
 
+// Maps the local-body cascade's field name to the GovernmentStaffUserType.level
+// value it corresponds to, so the government-role dropdown is always derived
+// from — never independent of — the State/District/Local Body actually chosen.
+const LOCAL_BODY_LEVEL_TO_GOV_LEVEL: Record<LocalBodyLevel, string> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
+
 const areaTypeCategoryFromName = (name: string): AreaTypeCategory | null => {
   const normalized = name.toLowerCase();
   if (normalized.includes("urban")) return "urban";
@@ -434,7 +445,16 @@ export default function StaffCreationForm() {
   const [governmentUserTypeRecords, setGovernmentUserTypeRecords] = useState<
     { unique_id: string; name: string; name_display: string; level: string; level_display: string }[]
   >([]);
-  const [governmentLevel, setGovernmentLevel] = useState("");
+  // Derived — never independently selected — from whichever geo cascade field
+  // is currently the most specific: Local Body > District > State. This keeps
+  // the government role level always in sync with the actual selected scope.
+  const governmentLevel = formData.local_body_level
+    ? LOCAL_BODY_LEVEL_TO_GOV_LEVEL[formData.local_body_level as LocalBodyLevel]
+    : formData.district_id
+      ? "district"
+      : formData.state_id
+        ? "state"
+        : "";
   const [userTypeCategory, setUserTypeCategory] = useState<
     "staff" | "contractor" | "government"
   >("government");
@@ -475,6 +495,15 @@ export default function StaffCreationForm() {
   const [pendingPermanentState, setPendingPermanentState] = useState<string | null>(null);
   const [pendingPermanentDistrict, setPendingPermanentDistrict] = useState<string | null>(null);
   const [pendingPermanentCity, setPendingPermanentCity] = useState<string | null>(null);
+
+  // Government geo cascade pending prefill — applied once each level's option
+  // list arrives. Without these, the values set at edit-load can be lost to the
+  // order in which the scope-option records finish loading.
+  const [pendingStateId, setPendingStateId] = useState<string | null>(null);
+  const [pendingDistrictId, setPendingDistrictId] = useState<string | null>(null);
+  const [pendingAreaTypeId, setPendingAreaTypeId] = useState<string | null>(null);
+  const [pendingLocalBodyLevel, setPendingLocalBodyLevel] = useState<LocalBodyLevel | null>(null);
+  const [pendingLocalBodyId, setPendingLocalBodyId] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -538,15 +567,7 @@ export default function StaffCreationForm() {
     formData.designation_id,
   ]);
 
-  // Unique level options derived from the seeded govt records
-  const governmentLevelOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return governmentUserTypeRecords
-      .filter((r) => { if (seen.has(r.level)) return false; seen.add(r.level); return true; })
-      .map((r) => ({ value: r.level, label: r.level_display || r.level }));
-  }, [governmentUserTypeRecords]);
-
-  // Govt staff type options filtered by the selected level
+  // Govt staff type options filtered by the level derived from the geo cascade
   const filteredGovtStaffTypeOptions = useMemo(() => {
     if (!governmentLevel) return [];
     return governmentUserTypeRecords
@@ -1000,12 +1021,26 @@ export default function StaffCreationForm() {
         const governmentTypeId = normalizeEntityId(staff.governmentusertype_id);
         if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
         if (contractorTypeId) setPendingContractorUserTypeId(contractorTypeId);
-        if (governmentTypeId) {
-          setPendingGovernmentUserTypeId(governmentTypeId);
-          // Level is returned directly by the serializer
-          const level = String(staff.governmentusertype_level ?? "");
-          if (level) setGovernmentLevel(level);
-        }
+        // governmentLevel derives from state_id/district_id/local_body_level,
+        // already set above in the same setFormData call — no separate prefill needed.
+        if (governmentTypeId) setPendingGovernmentUserTypeId(governmentTypeId);
+
+        // Government geo cascade — queue each level so it is re-applied once its
+        // (parent-dependent) option list has finished loading, mirroring the
+        // pending-prefill pattern used for the other dropdowns above.
+        const geoStateId = normalizeEntityId(staff.state_id);
+        const geoDistrictId = normalizeEntityId(staff.district_id);
+        const geoAreaTypeId = normalizeEntityId(staff.area_type_id);
+        const geoLocalBodyLevel = (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as const)
+          .find((level) => normalizeEntityId((staff as any)[level])) ?? null;
+        const geoLocalBodyId = (["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"] as const)
+          .map((level) => normalizeEntityId((staff as any)[level]))
+          .find(Boolean) ?? null;
+        if (geoStateId) setPendingStateId(geoStateId);
+        if (geoDistrictId) setPendingDistrictId(geoDistrictId);
+        if (geoAreaTypeId) setPendingAreaTypeId(geoAreaTypeId);
+        if (geoLocalBodyLevel) setPendingLocalBodyLevel(geoLocalBodyLevel);
+        if (geoLocalBodyId) setPendingLocalBodyId(geoLocalBodyId);
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
         if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
@@ -1143,7 +1178,6 @@ export default function StaffCreationForm() {
     const match = governmentUserTypeRecords.find((r) => r.unique_id === pendingGovernmentUserTypeId);
     if (match) {
       setFormData((prev) => ({ ...prev, governmentusertype_id: pendingGovernmentUserTypeId }));
-      setGovernmentLevel(match.level);
       setPendingGovernmentUserTypeId(null);
     }
   }, [pendingGovernmentUserTypeId, governmentUserTypeRecords]);
@@ -1227,6 +1261,50 @@ export default function StaffCreationForm() {
       setPendingPermanentCity(null);
     }
   }, [pendingPermanentCity, cityOptions]);
+
+  // ── Government geo cascade pending-prefill resolution ────────────────────────
+  // Each level resolves only after its option list (which itself depends on the
+  // parent level's value) is available, so State → District → Area Type →
+  // Local Body Type → Local Body fill in sequence regardless of load order.
+  useEffect(() => {
+    if (!pendingStateId || scopeStateOptions.length === 0) return;
+    if (scopeStateOptions.some((o) => o.value === pendingStateId)) {
+      setFormData((prev) => ({ ...prev, state_id: pendingStateId }));
+      setPendingStateId(null);
+    }
+  }, [pendingStateId, scopeStateOptions]);
+
+  useEffect(() => {
+    if (!pendingDistrictId || scopeDistrictOptions.length === 0) return;
+    if (scopeDistrictOptions.some((o) => o.value === pendingDistrictId)) {
+      setFormData((prev) => ({ ...prev, district_id: pendingDistrictId }));
+      setPendingDistrictId(null);
+    }
+  }, [pendingDistrictId, scopeDistrictOptions]);
+
+  useEffect(() => {
+    if (!pendingAreaTypeId || scopeAreaTypeOptions.length === 0) return;
+    if (scopeAreaTypeOptions.some((o) => o.value === pendingAreaTypeId)) {
+      setFormData((prev) => ({ ...prev, area_type_id: pendingAreaTypeId }));
+      setPendingAreaTypeId(null);
+    }
+  }, [pendingAreaTypeId, scopeAreaTypeOptions]);
+
+  useEffect(() => {
+    if (!pendingLocalBodyLevel || availableScopeLocalBodyLevels.length === 0) return;
+    if (availableScopeLocalBodyLevels.some((l) => l.value === pendingLocalBodyLevel)) {
+      setFormData((prev) => ({ ...prev, local_body_level: pendingLocalBodyLevel }));
+      setPendingLocalBodyLevel(null);
+    }
+  }, [pendingLocalBodyLevel, availableScopeLocalBodyLevels]);
+
+  useEffect(() => {
+    if (!pendingLocalBodyId || scopeLocalBodyOptions.length === 0) return;
+    if (scopeLocalBodyOptions.some((o) => o.value === pendingLocalBodyId)) {
+      setFormData((prev) => ({ ...prev, local_body_id: pendingLocalBodyId }));
+      setPendingLocalBodyId(null);
+    }
+  }, [pendingLocalBodyId, scopeLocalBodyOptions]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const handleInputChange = (
@@ -1292,18 +1370,22 @@ export default function StaffCreationForm() {
         next.area_type_id = "";
         next.local_body_level = "";
         next.local_body_id = "";
+        next.governmentusertype_id = "";
       }
       if (field === "district_id") {
         next.area_type_id = "";
         next.local_body_level = "";
         next.local_body_id = "";
+        next.governmentusertype_id = "";
       }
       if (field === "area_type_id") {
         next.local_body_level = "";
         next.local_body_id = "";
+        next.governmentusertype_id = "";
       }
       if (field === "local_body_level") {
         next.local_body_id = "";
+        next.governmentusertype_id = "";
       }
 
       return next;
@@ -1604,7 +1686,6 @@ export default function StaffCreationForm() {
                 handleSelectChange("contractorusertype_id", "");
                 handleSelectChange("governmentusertype_id", "");
                 handleSelectChange("staff_head_id", "");
-                setGovernmentLevel("");
                 resetGovernmentScope();
               }}
               options={[
@@ -1644,37 +1725,6 @@ export default function StaffCreationForm() {
 
           {userTypeCategory === "government" && (
             <>
-              {/* Government Level */}
-              <div>
-                <Label htmlFor="governmentLevel">Government Level</Label>
-                <Select
-                  id="governmentLevel"
-                  value={governmentLevel}
-                  onChange={(value) => {
-                    setGovernmentLevel(value);
-                    handleSelectChange("governmentusertype_id", "");
-                    resetGovernmentScope();
-                  }}
-                  options={governmentLevelOptions}
-                  placeholder="Select Government Level"
-                />
-              </div>
-
-              {/* Government Staff User Type — filtered by level */}
-              <div>
-                <Label htmlFor="governmentusertype_id">Government Staff User Type</Label>
-                <Select
-                  id="governmentusertype_id"
-                  value={formData.governmentusertype_id}
-                  onChange={(value) => handleSelectChange("governmentusertype_id", value)}
-                  options={filteredGovtStaffTypeOptions}
-                  placeholder={
-                    governmentLevel
-                      ? "Select Staff User Type"
-                      : "Select a level first"
-                  }
-                />
-              </div>
               <div>
                 <Label htmlFor="state_id">State</Label>
                 <Select
@@ -1732,6 +1782,22 @@ export default function StaffCreationForm() {
                   />
                 </div>
               )}
+
+              {/* Government Staff User Type — filtered by the level derived from State/District/Local Body above */}
+              <div>
+                <Label htmlFor="governmentusertype_id">Government Staff User Type</Label>
+                <Select
+                  id="governmentusertype_id"
+                  value={formData.governmentusertype_id}
+                  onChange={(value) => handleSelectChange("governmentusertype_id", value)}
+                  options={filteredGovtStaffTypeOptions}
+                  placeholder={
+                    governmentLevel
+                      ? "Select Staff User Type"
+                      : "Select State/District or a Local Body first"
+                  }
+                />
+              </div>
             </>
           )}
         </>

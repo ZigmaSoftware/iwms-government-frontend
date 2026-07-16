@@ -897,7 +897,8 @@ const enResource = {
           "monthly_waste_comparison": "Monthly Waste Comparison",
           "leader_login": "Leader Login",
           "plb_leader_creation": "PLB Leader Creation",
-          "district_leader_creation": "District Leader Creation"
+          "district_leader_creation": "District Leader Creation",
+          "state_leader_creation": "State Leader Creation"
         },
         "project": {
           "company_id": "Company ID",
@@ -1277,6 +1278,7 @@ const enResource = {
           "doj": "Date of Joining",
           "department_name": "Department Name",
           "designation": "Designation",
+          "government_user_type": "Government User Type",
           "department_id": "Department ID",
           "designation_id": "Designation ID",
           "grade": "Grade",
@@ -1407,14 +1409,14 @@ const enResource = {
           "select_customer_hint": "Select a customer to view location"
         },
         "household_collection_event": {
-          "title": "Waste Collected Data",
-          "subtitle": "Manage all waste collection records",
+          "title": "Household Collection Event",
+          "subtitle": "Manage all household collection records",
           "add_new": "Add New",
           "search_placeholder": "Search waste data...",
-          "empty_message": "No waste collection records found.",
-          "loading": "Loading waste collected data...",
-          "title_add": "Add Waste Collection",
-          "title_edit": "Edit Waste Collection",
+          "empty_message": "No household collection records found.",
+          "loading": "Loading household collected data...",
+          "title_add": "Add household Collection",
+          "title_edit": "Edit household Collection",
           "customer": "Customer",
           "customer_required": "Customer is required",
           "local_body_type": "Local Body Type",

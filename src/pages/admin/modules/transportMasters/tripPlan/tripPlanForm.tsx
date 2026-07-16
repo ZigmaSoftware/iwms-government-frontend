@@ -11,6 +11,7 @@ import {
   areaTypeApi,
   collectionPointApi,
   corporationApi,
+  customerCreationApi,
   districtApi,
   municipalityApi,
   panchayatApi,
@@ -38,13 +39,21 @@ type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id"
 
 type StopRow = {
   key: string;
+  collection_type: string;
   collection_point_id: string;
   bin_id: string;
+  customer_id: string;
   is_active: boolean;
 };
 
 type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string };
 type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
+type CustomerOption = Option & {
+  hierarchyField?: HierarchyLevel;
+  hierarchyId?: string;
+  address?: string;
+  isBulk?: boolean;
+};
 
 const hierarchyIdFields: HierarchyLevel[] = ["corporation_id", "municipality_id", "town_panchayat_id", "panchayat_union_id", "panchayat_id"];
 
@@ -53,10 +62,12 @@ const makeStopKey = (() => {
   return () => `stop-${counter++}`;
 })();
 
-const emptyStop = (): StopRow => ({
+const emptyStop = (type = "bin_collection"): StopRow => ({
   key: makeStopKey(),
+  collection_type: type,
   collection_point_id: "",
   bin_id: "",
+  customer_id: "",
   is_active: true,
 });
 
@@ -78,6 +89,53 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
   if (normalized.includes("urban")) return "urban";
   if (normalized.includes("rural")) return "rural";
   return "";
+};
+
+const normalizeRole = (value: unknown): string =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const getStaffRole = (staff: ApiRecord): string =>
+  normalizeRole(
+    staff?.governmentusertype_name ||
+      staff?.staffusertype_name ||
+      staff?.contractorusertype_name ||
+      staff?.designation_name ||
+      staff?.designation ||
+      staff?.designation_group
+  );
+
+const isSupervisorRole = (staff: ApiRecord): boolean => getStaffRole(staff).includes("supervisor");
+
+const toEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return toEntityId(record.staff_unique_id ?? record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
+};
+
+// Staff/Contractor rows are never geo-gated (unchanged existing behaviour) —
+// a Government-category row (has a governmentusertype) only qualifies once
+// its own District + specific local body match what's selected in the form.
+const isGovernmentStaff = (staff: ApiRecord): boolean => Boolean(staff?.governmentusertype_name);
+
+const matchesSelectedGeo = (
+  staff: ApiRecord,
+  districtId: string,
+  hierarchyLevel: HierarchyLevel,
+  hierarchyId: string
+): boolean => {
+  if (!isGovernmentStaff(staff)) return true;
+  if (!districtId || !hierarchyId) return false;
+  return (
+    toEntityId(staff?.district_id) === districtId &&
+    toEntityId(staff?.[hierarchyLevel]) === hierarchyId
+  );
 };
 
 const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
@@ -132,6 +190,10 @@ export default function TripPlanForm() {
   const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
   const [hierarchyLevel, setHierarchyLevel] = useState<HierarchyLevel>("corporation_id");
   const [hierarchyId, setHierarchyId] = useState("");
+  // Saved local body captured during edit-load, re-applied once its master
+  // records finish loading so the value survives the async option-list race.
+  const [pendingHierarchy, setPendingHierarchy] =
+    useState<{ level: HierarchyLevel; id: string; name: string } | null>(null);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
@@ -153,6 +215,7 @@ export default function TripPlanForm() {
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [supervisors, setSupervisors] = useState<Option[]>([]);
+  const [supervisorStaffRecords, setSupervisorStaffRecords] = useState<ApiRecord[]>([]);
   const [properties, setProperties] = useState<Option[]>([]);
   const [subProperties, setSubProperties] = useState<Option[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
@@ -163,6 +226,7 @@ export default function TripPlanForm() {
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [bins, setBins] = useState<BinOption[]>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
 
   // True once the user manually picks a staff template, so we only inherit its
   // geo hierarchy on an explicit change — never while loading an existing plan.
@@ -183,7 +247,7 @@ export default function TripPlanForm() {
     Promise.all([
       staffTemplateApi.readAll(),
       vehicleCreationApi.readAll(),
-      staffCreationApi.readAll(),
+      staffCreationApi.readAll({ params: { active_status: 1 } }),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       wasteTypeApi.readAll(),
@@ -205,10 +269,20 @@ export default function TripPlanForm() {
       setStaffTemplatesRaw(normalizeList(staffRes));
       setVehicles(toOptions(normalizeList(vehicleRes), "vehicle_no"));
       setSupervisors(
-        normalizeList(supervisorRes).map((item: any) => ({
-          value: String(item?.staff_unique_id ?? item?.unique_id ?? ""),
-          label: String(item?.employee_name ?? item?.staff_unique_id ?? ""),
-        })).filter((o: Option) => o.value)
+        normalizeList(supervisorRes)
+          // Only supervisor-role government staff (e.g. Corporation Supervisor,
+          // District Supervisor) — never the full staff list. The government
+          // user type name follows the `govt_<level>_supervisor` convention.
+          .filter((item: any) =>
+            String(item?.governmentusertype_name ?? "")
+              .toLowerCase()
+              .includes("supervisor"),
+          )
+          .map((item: any) => ({
+            value: String(item?.staff_unique_id ?? item?.unique_id ?? ""),
+            label: String(item?.employee_name ?? item?.staff_unique_id ?? ""),
+          }))
+          .filter((o: Option) => o.value)
       );
       setProperties(toOptions(normalizeList(propertyRes), "property_name"));
       setSubProperties(toOptions(normalizeList(subPropertyRes), "sub_property_name"));
@@ -245,6 +319,34 @@ export default function TripPlanForm() {
     });
   }, []);
 
+  // Customers load on their own so a customer-API failure never blanks the core
+  // form fields (State, District, Staff Template, etc.). Only the Household
+  // customer dropdown depends on this list.
+  useEffect(() => {
+    customerCreationApi.readAll().then((customerRes: any) => {
+      setCustomers(
+        normalizeList(customerRes).map((item: any) => {
+          const field = hierarchyIdFields.find((key) => item?.[key]);
+          const address = [item?.building_no, item?.street, item?.area]
+            .filter(Boolean)
+            .join(", ");
+          return {
+            value: String(item?.unique_id ?? ""),
+            label: String(item?.customer_name ?? item?.unique_id ?? ""),
+            hierarchyField: field,
+            hierarchyId: field ? String(item?.[field] ?? "") : "",
+            address,
+            isBulk: Boolean(item?.is_bulkwaste_generator),
+          };
+        }).filter((o: Option) => o.value),
+      );
+    }).catch(() => {
+      // Non-fatal: household stops just won't have customer options until the
+      // endpoint recovers.
+      setCustomers([]);
+    });
+  }, []);
+
   const filteredDistricts = districts.filter(
     (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
   );
@@ -270,6 +372,10 @@ export default function TripPlanForm() {
       ),
     ),
     hierarchyId,
+    // Fall back to the saved local body's name so the selected value always
+    // renders, even before its master list arrives or if the district filter
+    // would otherwise exclude it.
+    pendingHierarchy && pendingHierarchy.id === hierarchyId ? pendingHierarchy.name : undefined,
   );
 
   // Staff templates scoped to the selected local body — keeps the already
@@ -301,6 +407,18 @@ useEffect(() => {
     setAreaTypeCategory(areaTypeCategoryFromName(String(selectedAreaType.name ?? "")));
   }
 }, [areaTypeId, areaTypes]);
+
+// Re-apply the saved local body once its master records are available, so the
+// prefilled value is never lost to option-list load ordering. Clears the
+// pending marker as soon as that level's records have loaded.
+useEffect(() => {
+  if (!pendingHierarchy) return;
+  setHierarchyLevel(pendingHierarchy.level);
+  setHierarchyId(pendingHierarchy.id);
+  if ((hierarchyRecords[pendingHierarchy.level] ?? []).length > 0) {
+    setPendingHierarchy(null);
+  }
+}, [pendingHierarchy, hierarchyRecords]);
 
 // When the user picks a Staff Template, inherit its saved geo hierarchy
 // (State → District → Area Type → Local Body Type → Local Body). Values stay
@@ -367,15 +485,32 @@ useEffect(() => {
         panchayat_union_id: record.panchayat_union?.unique_id,
         panchayat_id: record.panchayat?.unique_id,
       };
+      const hierarchyNested: Record<HierarchyLevel, any> = {
+        corporation_id: record.corporation,
+        municipality_id: record.municipality,
+        town_panchayat_id: record.town_panchayat,
+        panchayat_union_id: record.panchayat_union,
+        panchayat_id: record.panchayat,
+      };
       const detectedLevel = hierarchyLevels.find((item) => hierarchyMap[item.value]);
       if (detectedLevel) {
         setHierarchyLevel(detectedLevel.value);
         setHierarchyId(hierarchyMap[detectedLevel.value] ?? "");
+        // Queue for re-application once the local-body master list loads.
+        setPendingHierarchy({
+          level: detectedLevel.value,
+          id: hierarchyMap[detectedLevel.value] ?? "",
+          name: resolveName(hierarchyNested[detectedLevel.value] ?? {}),
+        });
       }
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
       setVehicleId(String(record.vehicle?.unique_id ?? record.vehicle_id ?? ""));
-      setSupervisorId(String(record.supervisor?.unique_id ?? record.supervisor_id ?? ""));
+      const savedSupervisorId = String(record.supervisor?.unique_id ?? record.supervisor_id ?? "");
+      setSupervisorId(savedSupervisorId);
+      // Keep the saved supervisor visible even if they no longer match the
+      // current geo/role filter (e.g. their own assignment changed since).
+      setSupervisors((prev) => ensureOption(prev, savedSupervisorId, record.supervisor?.employee_name));
       setCollectionType(String(record.collection_type ?? "bin_collection"));
       setPropertyId(String(record.property?.unique_id ?? record.property_id ?? ""));
       setSubPropertyId(String(record.sub_property?.unique_id ?? record.sub_property_id ?? ""));
@@ -401,13 +536,16 @@ useEffect(() => {
       setApprovalStatus(String(record.approval_status ?? "PENDING"));
 
       if (Array.isArray(record.plan_collection_points)) {
+        // Stops can mix types (household + secondary) within one plan, so load
+        // them all and keep each stop's own collection_type.
         const loadedStops = record.plan_collection_points
-          .filter((stop: ApiRecord) => stop.collection_type === "bin_collection")
           .sort((a: ApiRecord, b: ApiRecord) => Number(a.sequence ?? 0) - Number(b.sequence ?? 0))
           .map((stop: ApiRecord) => ({
             key: makeStopKey(),
+            collection_type: String(stop.collection_type ?? "bin_collection"),
             collection_point_id: String(stop.collection_point_id ?? ""),
             bin_id: String(stop.bin_id ?? ""),
+            customer_id: String(stop.customer_id ?? ""),
             is_active: stop.is_active !== false,
           }));
         setStops(loadedStops.length ? loadedStops : [emptyStop()]);
@@ -422,7 +560,9 @@ useEffect(() => {
   };
 
   const addStop = () => {
-    setStops((prev) => [...prev, emptyStop()]);
+    // New rows default to the plan's collection type, but each row's type is
+    // editable, so a plan can mix household and secondary-collection stops.
+    setStops((prev) => [...prev, emptyStop(collectionType)]);
   };
 
   const removeStop = (key: string) => {
@@ -450,9 +590,36 @@ useEffect(() => {
       ? collectionPoints.filter((cp) => cp.hierarchyField === hierarchyLevel && cp.hierarchyId === hierarchyId)
       : collectionPoints
     ).filter(
-      (cp) => cp.value === currentValue || !stops.some((stop) => stop.collection_point_id === cp.value),
+      (cp) =>
+        cp.value === currentValue ||
+        !stops.some(
+          (stop) => stop.collection_type === "bin_collection" && stop.collection_point_id === cp.value,
+        ),
     );
     const current = collectionPoints.find((cp) => cp.value === currentValue);
+    return ensureOption(filtered, currentValue, current?.label);
+  };
+
+  // Household stops pick one customer each. Options are scoped to the Trip Plan's
+  // local body, exclude bulk-waste generators (household stops require non-bulk
+  // customers), and exclude customers already chosen by another stop.
+  const customersForStop = (currentValue: string): CustomerOption[] => {
+    const filtered = (hierarchyId
+      ? customers.filter(
+          (cust) =>
+            cust.hierarchyField === hierarchyLevel &&
+            cust.hierarchyId === hierarchyId &&
+            !cust.isBulk,
+        )
+      : []
+    ).filter(
+      (cust) =>
+        cust.value === currentValue ||
+        !stops.some(
+          (stop) => stop.collection_type === "household_collection" && stop.customer_id === cust.value,
+        ),
+    );
+    const current = customers.find((cust) => cust.value === currentValue);
     return ensureOption(filtered, currentValue, current?.label);
   };
 
@@ -487,13 +654,24 @@ useEffect(() => {
       Swal.fire("Warning", "Trigger weight must be less than vehicle capacity.", "warning");
       return;
     }
-    if (collectionType === "bin_collection") {
+    // Stops can mix types within one plan; validate each stop by its own type.
+    if (collectionType !== "bulk_waste_collection") {
       if (!stops.length) {
-        Swal.fire("Missing details", "Add at least one collection point stop.", "warning");
+        Swal.fire("Missing details", "Add at least one stop.", "warning");
         return;
       }
-      if (stops.some((stop) => !stop.collection_point_id || !stop.bin_id)) {
-        Swal.fire("Missing details", "Every stop needs a Collection Point and a Bin.", "warning");
+      const invalidBin = stops.some(
+        (stop) => stop.collection_type === "bin_collection" && (!stop.collection_point_id || !stop.bin_id),
+      );
+      if (invalidBin) {
+        Swal.fire("Missing details", "Every Secondary Collection stop needs a Collection Point and a Bin.", "warning");
+        return;
+      }
+      const invalidHousehold = stops.some(
+        (stop) => stop.collection_type === "household_collection" && !stop.customer_id,
+      );
+      if (invalidHousehold) {
+        Swal.fire("Missing details", "Every Household stop needs a Customer.", "warning");
         return;
       }
     }
@@ -511,7 +689,12 @@ useEffect(() => {
       staff_template_id: staffTemplateId,
       vehicle_id: vehicleId,
       supervisor_id: supervisorId || null,
-      collection_type: collectionType,
+      // Plan-level type is a label only — stops carry their own per-stop type.
+      // In manual mode use the first stop's type so it reflects the plan content.
+      collection_type:
+        collectionType === "bulk_waste_collection"
+          ? "bulk_waste_collection"
+          : stops[0]?.collection_type ?? "bin_collection",
       property_id: propertyId || null,
       sub_property_id: subPropertyId || null,
       // Primary waste type: first selected (legacy)
@@ -525,15 +708,18 @@ useEffect(() => {
       repeat_days: isAutoAssign ? repeatDays : [],
       status,
       approval_status: approvalStatus,
-      collection_points: collectionType === "bin_collection"
-        ? stops.map((stop, index) => ({
-            collection_type: collectionType,
-            collection_point_id: stop.collection_point_id,
-            bin_id: stop.bin_id,
+      // Each stop carries its own collection_type so household and secondary
+      // stops can coexist in one plan.
+      collection_points: collectionType === "bulk_waste_collection"
+        ? []
+        : stops.map((stop, index) => ({
+            collection_type: stop.collection_type,
+            collection_point_id: stop.collection_type === "bin_collection" ? stop.collection_point_id : null,
+            bin_id: stop.collection_type === "bin_collection" ? stop.bin_id : null,
+            customer_id: stop.collection_type === "household_collection" ? stop.customer_id : null,
             sequence: index + 1,
             is_active: stop.is_active,
-          }))
-        : [],
+          })),
     };
     try {
       if (isEdit && id) await tripPlanApi.update(id, payload);
@@ -678,7 +864,7 @@ useEffect(() => {
             optionValue="value"
             maxSelectedLabels={3}
             placeholder="Select waste types"
-            className="!flex !h-10 !w-full !items-center !justify-between !rounded-md !border !border-input !bg-background !px-3 !py-2 !text-sm !shadow-none !ring-offset-background focus:!outline-none focus:!ring-2 focus:!ring-ring focus:!ring-offset-2 disabled:!cursor-not-allowed disabled:!opacity-50"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
             pt={{
               labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
               label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
@@ -730,18 +916,37 @@ useEffect(() => {
               <h2 className="text-base font-semibold text-gray-800">Collection Points</h2>
               <p className="text-sm text-gray-500">Add all stops for this trip plan before saving.</p>
             </div>
-            {collectionType === "bin_collection" && (
-              <button
-                type="button"
-                onClick={addStop}
-                className="rounded-lg bg-green-custom px-4 py-2 text-sm font-semibold text-white"
-              >
-                Add Stop
-              </button>
-            )}
+            <div className="flex items-end gap-3">
+              <div className="w-56">
+                <Label>Collection Mode</Label>
+                <Select
+                  value={collectionType === "bulk_waste_collection" ? "bulk_waste_collection" : "manual"}
+                  onChange={(v) =>
+                    setCollectionType(String(v) === "bulk_waste_collection" ? "bulk_waste_collection" : "bin_collection")
+                  }
+                  options={[
+                    { value: "manual", label: "Manual Stops" },
+                    { value: "bulk_waste_collection", label: "Bulk Waste (Auto)" },
+                  ]}
+                />
+              </div>
+              {collectionType !== "bulk_waste_collection" && (
+                <button
+                  type="button"
+                  onClick={addStop}
+                  className="rounded-lg bg-green-custom px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Add Stop
+                </button>
+              )}
+            </div>
           </div>
 
-          {collectionType === "bin_collection" ? (
+          {collectionType === "bulk_waste_collection" ? (
+            <div className="flex items-center rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+              Bulk waste stops are generated automatically for customers under this Trip Plan's local body — no manual stop list is needed here.
+            </div>
+          ) : (
             <div className="space-y-3">
               {stops.map((stop, index) => (
                 <div
@@ -763,29 +968,53 @@ useEffect(() => {
                   <div>
                     <Label>Type</Label>
                     <Select
-                      value={collectionType}
-                      onChange={(v) => setCollectionType(String(v))}
-                      options={collectionTypes}
+                      value={stop.collection_type}
+                      onChange={(v) =>
+                        // Switch this stop's type only; clear the fields that no
+                        // longer apply so stale values aren't submitted.
+                        updateStop(stop.key, {
+                          collection_type: String(v),
+                          collection_point_id: "",
+                          bin_id: "",
+                          customer_id: "",
+                        })
+                      }
+                      // Bulk is a whole-plan mode, so it isn't offered per stop.
+                      options={collectionTypes.filter((t) => t.value !== "bulk_waste_collection")}
                     />
                   </div>
-                  <div>
-                    <Label>Collection Point</Label>
-                    <Select
-                      value={stop.collection_point_id}
-                      onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
-                      options={collectionPointsForLocalBody(stop.collection_point_id)}
-                      placeholder={hierarchyId ? "Select an option" : "Select a Local Body first"}
-                    />
-                  </div>
-                  <div>
-                    <Label>Bin</Label>
-                    <Select
-                      value={stop.bin_id}
-                      onChange={(v) => updateStop(stop.key, { bin_id: String(v) })}
-                      options={binsForStop(stop.collection_point_id, stop.bin_id)}
-                      placeholder={stop.collection_point_id ? "Select an option" : "Select a Collection Point first"}
-                    />
-                  </div>
+                  {stop.collection_type === "household_collection" ? (
+                    <div className="lg:col-span-2">
+                      <Label>Customer</Label>
+                      <Select
+                        value={stop.customer_id}
+                        onChange={(v) => updateStop(stop.key, { customer_id: String(v) })}
+                        options={customersForStop(stop.customer_id)}
+                        placeholder={hierarchyId ? "Select an option" : "Select a Local Body first"}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <Label>Collection Point</Label>
+                        <Select
+                          value={stop.collection_point_id}
+                          onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
+                          options={collectionPointsForLocalBody(stop.collection_point_id)}
+                          placeholder={hierarchyId ? "Select an option" : "Select a Local Body first"}
+                        />
+                      </div>
+                      <div>
+                        <Label>Bin</Label>
+                        <Select
+                          value={stop.bin_id}
+                          onChange={(v) => updateStop(stop.key, { bin_id: String(v) })}
+                          options={binsForStop(stop.collection_point_id, stop.bin_id)}
+                          placeholder={stop.collection_point_id ? "Select an option" : "Select a Collection Point first"}
+                        />
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label>Active</Label>
                     <div className="flex h-10 items-center">
@@ -804,16 +1033,6 @@ useEffect(() => {
                   </div>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 lg:grid-cols-[minmax(160px,240px)_1fr]">
-              <div>
-                <Label>Type</Label>
-                <Select value={collectionType} onChange={(v) => setCollectionType(String(v))} options={collectionTypes} />
-              </div>
-              <div className="flex items-center rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                Household and bulk waste stops are generated automatically for customers under this Trip Plan's local body — no manual stop list is needed here.
-              </div>
             </div>
           )}
         </div>
