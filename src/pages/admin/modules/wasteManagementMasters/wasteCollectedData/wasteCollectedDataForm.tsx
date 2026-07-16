@@ -437,6 +437,7 @@ export default function WasteCollectedForm() {
               <Input
                 type="number"
                 min={0}
+                step="any"
                 value={dryWaste}
                 onChange={(e) => setDryWaste(Math.max(0, Number(e.target.value) || 0))}
               />
@@ -448,6 +449,7 @@ export default function WasteCollectedForm() {
               <Input
                 type="number"
                 min={0}
+                step="any"
                 value={wetWaste}
                 onChange={(e) => setWetWaste(Math.max(0, Number(e.target.value) || 0))}
               />
@@ -459,6 +461,7 @@ export default function WasteCollectedForm() {
               <Input
                 type="number"
                 min={0}
+                step="any"
                 value={mixedWaste}
                 onChange={(e) => setMixedWaste(Math.max(0, Number(e.target.value) || 0))}
               />

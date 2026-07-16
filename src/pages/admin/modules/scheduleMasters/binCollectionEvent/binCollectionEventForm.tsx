@@ -156,155 +156,167 @@ const panchayatOption = (item: ApiRecord): Option => ({
   label: textOf(item.panchayat_name, item.name, item.unique_id),
 });
 
-export default function BinCollectionEventForm() {
-  const navigate = useNavigate();
-  const { id } = useParams<{ id?: string }>();
-  const isEdit = Boolean(id);
-  const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
-  const { listPath } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
+type EditorInitial = {
+  tripAssignmentId: string;
+  tripCollectionPointId: string;
+  binId: string;
+  stateId: string;
+  districtId: string;
+  areaTypeId: string;
+  localBodyLevel: HierarchyLevel;
+  panchayatId: string;
+  collectionDate: string;
+  collectedWeightKg: string;
+  collectionStatus: string;
+  statusReason: string;
+  driverLatitude: string;
+  driverLongitude: string;
+  notes: string;
+  // Display labels for the selected geo values, taken straight from the record
+  // so the selects show the right text before the master lists arrive.
+  stateLabel: string;
+  districtLabel: string;
+  areaTypeLabel: string;
+  localBodyLabel: string;
+  assignmentLabel: string;
+  collectionPointLabel: string;
+};
 
-  const [tripAssignmentId, setTripAssignmentId] = useState("");
-  const [tripCollectionPointId, setTripCollectionPointId] = useState("");
-  const [binId, setBinId] = useState("");
-  const [panchayatId, setPanchayatId] = useState("");
-  const [stateId, setStateId] = useState("");
-  const [districtId, setDistrictId] = useState("");
-  const [areaTypeId, setAreaTypeId] = useState("");
-  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
-  const [localBodyLevel, setLocalBodyLevel] = useState<HierarchyLevel>("corporation_id");
-  const [collectionDate, setCollectionDate] = useState("");
-  const [collectedWeightKg, setCollectedWeightKg] = useState("");
-  const [collectionStatus, setCollectionStatus] = useState("Collected");
-  const [statusReason, setStatusReason] = useState("");
-  const [driverLatitude, setDriverLatitude] = useState("");
-  const [driverLongitude, setDriverLongitude] = useState("");
-  const [notes, setNotes] = useState("");
-  const [assignments, setAssignments] = useState<Option[]>([]);
-  const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
-  const [bins, setBins] = useState<Option[]>([]);
-  const [panchayats, setPanchayats] = useState<Option[]>([]);
-  const [states, setStates] = useState<any[]>([]);
-  const [districts, setDistricts] = useState<any[]>([]);
-  const [areaTypes, setAreaTypes] = useState<any[]>([]);
-  const [hierarchyRecords, setHierarchyRecords] = useState<Record<HierarchyLevel, any[]>>({
-    corporation_id: [],
-    municipality_id: [],
-    town_panchayat_id: [],
-    panchayat_union_id: [],
-    panchayat_id: [],
+type EditorData = {
+  assignments: Option[];
+  collectionPoints: Option[];
+  bins: Option[];
+  panchayats: Option[];
+  states: any[];
+  districts: any[];
+  areaTypes: any[];
+  hierarchyRecords: Record<HierarchyLevel, any[]>;
+};
+
+const EMPTY_INITIAL: EditorInitial = {
+  tripAssignmentId: "",
+  tripCollectionPointId: "",
+  binId: "",
+  stateId: "",
+  districtId: "",
+  areaTypeId: "",
+  localBodyLevel: "corporation_id",
+  panchayatId: "",
+  collectionDate: "",
+  collectedWeightKg: "",
+  collectionStatus: "Collected",
+  statusReason: "",
+  driverLatitude: "",
+  driverLongitude: "",
+  notes: "",
+  stateLabel: "",
+  districtLabel: "",
+  areaTypeLabel: "",
+  localBodyLabel: "",
+  assignmentLabel: "",
+  collectionPointLabel: "",
+};
+
+const LOCAL_BODY_NAME_KEY: Record<HierarchyLevel, string> = {
+  corporation_id: "corporation_name",
+  municipality_id: "municipality_name",
+  town_panchayat_id: "town_panchayat_name",
+  panchayat_union_id: "panchayat_union_name",
+  panchayat_id: "panchayat_name",
+};
+
+// Build the editor's initial field values from a loaded event record. Geo comes
+// from the event's own stored `*_id` fields; the local body sits in whichever
+// level column is populated.
+const initialFromRecord = (record: ApiRecord): EditorInitial => {
+  const localBodyLevel =
+    (hierarchyIdFields.find((key) => idOf(record[key])) as HierarchyLevel | undefined) ??
+    "corporation_id";
+  const localBodyId = hierarchyIdFields.some((key) => idOf(record[key]))
+    ? idOf(record[localBodyLevel])
+    : idOf(record.panchayat_id ?? record.panchayat ?? record.bin?.panchayat_id);
+  return {
+    tripAssignmentId: idOf(record.trip_assignment_id ?? record.trip_assignment),
+    tripCollectionPointId: idOf(record.trip_collection_point_id ?? record.trip_collection_point),
+    binId: idOf(record.bin_id ?? record.bin),
+    stateId: idOf(record.state_id ?? record.state),
+    districtId: idOf(record.district_id ?? record.district),
+    areaTypeId: idOf(record.area_type_id ?? record.area_type),
+    localBodyLevel,
+    panchayatId: localBodyId,
+    collectionDate: String(record.collection_date ?? ""),
+    collectedWeightKg: String(record.collected_weight_kg ?? ""),
+    collectionStatus: String(record.status ?? "Collected"),
+    statusReason: String(record.status_reason ?? ""),
+    driverLatitude: String(record.driver_latitude ?? ""),
+    driverLongitude: String(record.driver_longitude ?? ""),
+    notes: String(record.notes ?? ""),
+    stateLabel: textOf(record.state_name),
+    districtLabel: textOf(record.district_name),
+    areaTypeLabel: textOf(record.area_type_name),
+    localBodyLabel: textOf(record[LOCAL_BODY_NAME_KEY[localBodyLevel]], record.panchayat_name),
+    assignmentLabel: textOf(record.trip_assignment?.display_code, record.trip_plan?.display_code),
+    collectionPointLabel: textOf(record.collection_point?.cp_name, record.collection_point_name),
+  };
+};
+
+type EditorProps = EditorData & {
+  initial: EditorInitial;
+  isEdit: boolean;
+  id?: string;
+  listPath: string;
+  onDone: () => void;
+};
+
+// Inner editor — mounted (via a `key` on the record id) only once the record is
+// loaded, so every field's `useState` initialises from the record and the
+// prefill can never be lost to async option-list load ordering.
+function BinCollectionEventEditor({
+  initial,
+  isEdit,
+  id,
+  listPath,
+  onDone,
+  assignments,
+  collectionPoints,
+  bins,
+  states,
+  districts,
+  areaTypes,
+  hierarchyRecords,
+}: EditorProps) {
+  const [tripAssignmentId, setTripAssignmentId] = useState(initial.tripAssignmentId);
+  const [tripCollectionPointId, setTripCollectionPointId] = useState(initial.tripCollectionPointId);
+  const [binId, setBinId] = useState(initial.binId);
+  const [panchayatId, setPanchayatId] = useState(initial.panchayatId);
+  const [stateId, setStateId] = useState(initial.stateId);
+  const [districtId, setDistrictId] = useState(initial.districtId);
+  const [areaTypeId, setAreaTypeId] = useState(initial.areaTypeId);
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">(() => {
+    const selected = areaTypes.find((item) => idOf(item.unique_id ?? item.id) === initial.areaTypeId);
+    return selected ? areaTypeCategoryFromName(String(selected.name ?? selected.area_type_name ?? "")) : "";
   });
+  const [localBodyLevel, setLocalBodyLevel] = useState<HierarchyLevel>(initial.localBodyLevel);
+  const [collectionDate, setCollectionDate] = useState(initial.collectionDate);
+  const [collectedWeightKg, setCollectedWeightKg] = useState(initial.collectedWeightKg);
+  const [collectionStatus, setCollectionStatus] = useState(initial.collectionStatus);
+  const [statusReason, setStatusReason] = useState(initial.statusReason);
+  const [driverLatitude, setDriverLatitude] = useState(initial.driverLatitude);
+  const [driverLongitude, setDriverLongitude] = useState(initial.driverLongitude);
+  const [notes, setNotes] = useState(initial.notes);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    Promise.all([
-      dailyTripAssignmentApi.readAll(),
-      dailyTripCollectionPointApi.readAll(),
-      adminApi.bins.readAll(),
-      panchayatApi.readAll(),
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-    ]).then(([
-      assignmentRes,
-      cpRes,
-      binRes,
-      panchayatRes,
-      stateRes,
-      districtRes,
-      areaTypeRes,
-      corporationRes,
-      municipalityRes,
-      townPanchayatRes,
-      panchayatUnionRes,
-    ]) => {
-      setAssignments(uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)));
-      setCollectionPoints(uniqueOptions(normalizeList(cpRes).map(collectionPointOption)));
-      setBins(uniqueOptions(normalizeList(binRes).map(binOption)));
-      setPanchayats(uniqueOptions(normalizeList(panchayatRes).map(panchayatOption)));
-      setStates(normalizeList(stateRes));
-      setDistricts(normalizeList(districtRes));
-      setAreaTypes(normalizeList(areaTypeRes));
-      setHierarchyRecords({
-        corporation_id: normalizeList(corporationRes),
-        municipality_id: normalizeList(municipalityRes),
-        town_panchayat_id: normalizeList(townPanchayatRes),
-        panchayat_union_id: normalizeList(panchayatUnionRes),
-        panchayat_id: normalizeList(panchayatRes),
-      });
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!id) return;
-    binCollectionEventApi.read(id).then((record: ApiRecord) => {
-      const assignmentId = idOf(record.trip_assignment_id ?? record.trip_assignment);
-      const tripCollectionPointId = idOf(record.trip_collection_point_id ?? record.trip_collection_point);
-      const selectedBinId = idOf(record.bin_id ?? record.bin);
-      const selectedPanchayatId = idOf(record.panchayat_id ?? record.panchayat ?? record.bin?.panchayat_id);
-
-      setTripAssignmentId(assignmentId);
-      setTripCollectionPointId(tripCollectionPointId);
-      setBinId(selectedBinId);
-      setPanchayatId(selectedPanchayatId);
-      setCollectionDate(String(record.collection_date ?? ""));
-      setCollectedWeightKg(String(record.collected_weight_kg ?? ""));
-      setCollectionStatus(String(record.status ?? "Collected"));
-      setStatusReason(String(record.status_reason ?? ""));
-      setDriverLatitude(String(record.driver_latitude ?? ""));
-      setDriverLongitude(String(record.driver_longitude ?? ""));
-      setNotes(String(record.notes ?? ""));
-
-      setAssignments((items) =>
-        ensureOption(
-          items,
-          assignmentId,
-          textOf(record.trip_assignment?.display_code, record.trip_plan?.display_code, assignmentId),
-        ),
-      );
-      setCollectionPoints((items) =>
-        ensureOption(
-          items,
-          tripCollectionPointId,
-          textOf(record.collection_point?.cp_name, record.collection_point_name, tripCollectionPointId),
-        ),
-      );
-      setBins((items) => ensureOption(items, selectedBinId, textOf(record.bin?.bin_name, selectedBinId)));
-      setPanchayats((items) =>
-        ensureOption(items, selectedPanchayatId, textOf(record.panchayat_name, record.panchayat?.panchayat_name, selectedPanchayatId)),
-      );
-
-      const selectedTripCollectionPoint = record.trip_collection_point ?? record.trip_collection_point_id ?? record.collection_point ?? record.collection_point_id;
-      if (selectedTripCollectionPoint) {
-        setStateId(idOf(selectedTripCollectionPoint.state_id ?? selectedTripCollectionPoint.state));
-        setDistrictId(idOf(selectedTripCollectionPoint.district_id ?? selectedTripCollectionPoint.district));
-        const storedAreaTypeId = idOf(selectedTripCollectionPoint.area_type_id ?? selectedTripCollectionPoint.area_type);
-        setAreaTypeId(storedAreaTypeId);
-        setAreaTypeCategory(areaTypeCategoryFromName(String(selectedTripCollectionPoint.area_type?.name ?? selectedTripCollectionPoint.area_type_name ?? "")));
-        const selectedLocalBodyLevel = hierarchyIdFields.find(
-          (key) => selectedTripCollectionPoint?.[key] ?? selectedTripCollectionPoint?.[key.replace("_id", "")]?.unique_id,
-        );
-        setLocalBodyLevel(selectedLocalBodyLevel ?? "corporation_id");
-        setPanchayatId(
-          idOf(
-            selectedTripCollectionPoint?.[selectedLocalBodyLevel ?? "panchayat_id"] ??
-              selectedTripCollectionPoint?.[selectedLocalBodyLevel?.replace("_id", "") ?? "panchayat"]?.unique_id,
-          ),
-        );
-      }
-    });
-  }, [id]);
-
+  // Keep the area-type category in sync when the area type changes or its
+  // master list finishes loading.
   useEffect(() => {
     if (!areaTypeId) {
       setAreaTypeCategory("");
       return;
     }
     const selected = areaTypes.find((item) => String(item.unique_id ?? item.id) === areaTypeId);
-    setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? selected?.area_type_name ?? "")));
+    if (selected) {
+      setAreaTypeCategory(areaTypeCategoryFromName(String(selected.name ?? selected.area_type_name ?? "")));
+    }
   }, [areaTypeId, areaTypes]);
 
   const selectedCollectionPoint = useMemo(
@@ -314,38 +326,50 @@ export default function BinCollectionEventForm() {
 
   const stateOptions = useMemo(
     () =>
-      mergeWithScopeOptionExtra(
-        states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
-        "state",
-        {},
+      ensureOption(
+        mergeWithScopeOptionExtra(
+          states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+          "state",
+          {},
+        ),
+        stateId,
+        stateId === initial.stateId ? initial.stateLabel : undefined,
       ),
-    [states],
+    [states, stateId, initial.stateId, initial.stateLabel],
   );
 
   const districtOptions = useMemo(
     () =>
-      mergeWithScopeOptionExtra(
-        districts
-          .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
-          .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
-          .filter((item) => item.value),
-        "district",
-        {},
+      ensureOption(
+        mergeWithScopeOptionExtra(
+          districts
+            .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
+            .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
+            .filter((item) => item.value),
+          "district",
+          {},
+        ),
+        districtId,
+        districtId === initial.districtId ? initial.districtLabel : undefined,
       ),
-    [districts, stateId],
+    [districts, stateId, districtId, initial.districtId, initial.districtLabel],
   );
 
   const areaTypeOptions = useMemo(
     () =>
-      mergeWithScopeOptionExtra(
-        areaTypes
-          .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
-          .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
-          .filter((item) => item.value),
-        "area_type",
-        {},
+      ensureOption(
+        mergeWithScopeOptionExtra(
+          areaTypes
+            .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
+            .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
+            .filter((item) => item.value),
+          "area_type",
+          {},
+        ),
+        areaTypeId,
+        areaTypeId === initial.areaTypeId ? initial.areaTypeLabel : undefined,
       ),
-    [areaTypes, districtId],
+    [areaTypes, districtId, areaTypeId, initial.areaTypeId, initial.areaTypeLabel],
   );
 
   const availableHierarchyLevels = useMemo(
@@ -370,16 +394,32 @@ export default function BinCollectionEventForm() {
       SCOPE_LEVEL_BY_HIERARCHY[localBodyLevel],
       {},
     );
-    const selectedLabel = scoped.find((item) => item.value === panchayatId)?.label;
+    const selectedLabel =
+      scoped.find((item) => item.value === panchayatId)?.label ??
+      (panchayatId === initial.panchayatId ? initial.localBodyLabel : undefined);
     return ensureOption(scoped, panchayatId, selectedLabel);
-  }, [hierarchyRecords, localBodyLevel, districtId, panchayatId]);
+  }, [hierarchyRecords, localBodyLevel, districtId, panchayatId, initial.panchayatId, initial.localBodyLabel]);
+
+  const visibleAssignments = useMemo(
+    () =>
+      ensureOption(
+        assignments,
+        tripAssignmentId,
+        assignments.find((item) => item.value === tripAssignmentId)?.label ??
+          (tripAssignmentId === initial.tripAssignmentId ? initial.assignmentLabel : undefined),
+      ),
+    [assignments, tripAssignmentId, initial.tripAssignmentId, initial.assignmentLabel],
+  );
 
   const visibleCollectionPoints = useMemo(() => {
     const filtered = tripAssignmentId
       ? collectionPoints.filter((item) => !item.assignmentId || item.assignmentId === tripAssignmentId)
       : collectionPoints;
-    return ensureOption(filtered, tripCollectionPointId, selectedCollectionPoint?.label);
-  }, [collectionPoints, selectedCollectionPoint?.label, tripAssignmentId, tripCollectionPointId]);
+    const label =
+      selectedCollectionPoint?.label ??
+      (tripCollectionPointId === initial.tripCollectionPointId ? initial.collectionPointLabel : undefined);
+    return ensureOption(filtered, tripCollectionPointId, label);
+  }, [collectionPoints, selectedCollectionPoint?.label, tripAssignmentId, tripCollectionPointId, initial.tripCollectionPointId, initial.collectionPointLabel]);
 
   const visibleBins = useMemo(() => {
     const collectionPointId = selectedCollectionPoint?.collectionPointId;
@@ -389,12 +429,6 @@ export default function BinCollectionEventForm() {
     const selectedBin = bins.find((item) => item.value === binId);
     return ensureOption(filtered, binId, selectedBin?.label);
   }, [binId, bins, selectedCollectionPoint?.collectionPointId]);
-
-  const visiblePanchayats = useMemo(() => {
-    const selectedPanchayat = panchayats.find((item) => item.value === panchayatId);
-    const fallbackLabel = localBodyOptions.find((item) => item.value === panchayatId)?.label;
-    return ensureOption(panchayats, panchayatId, selectedPanchayat?.label ?? fallbackLabel);
-  }, [localBodyOptions, panchayatId, panchayats]);
 
   const handleAssignmentChange = (value: string) => {
     setTripAssignmentId(value);
@@ -445,7 +479,17 @@ export default function BinCollectionEventForm() {
       trip_assignment_id: tripAssignmentId,
       trip_collection_point_id: tripCollectionPointId || null,
       bin_id: binId,
-      panchayat_id: panchayatId || null,
+      // Geo scope — persist the form's explicit selections. The local body id
+      // is sent under the key matching the selected Local Body Type; the other
+      // level keys are cleared so the record reflects exactly one local body.
+      state_id: stateId || null,
+      district_id: districtId || null,
+      area_type_id: areaTypeId || null,
+      corporation_id: localBodyLevel === "corporation_id" ? panchayatId || null : null,
+      municipality_id: localBodyLevel === "municipality_id" ? panchayatId || null : null,
+      town_panchayat_id: localBodyLevel === "town_panchayat_id" ? panchayatId || null : null,
+      panchayat_union_id: localBodyLevel === "panchayat_union_id" ? panchayatId || null : null,
+      panchayat_id: localBodyLevel === "panchayat_id" ? panchayatId || null : null,
       collection_date: collectionDate,
       collected_weight_kg: collectionStatus === "Collected" ? collectedWeightKg || null : null,
       status: collectionStatus,
@@ -457,7 +501,7 @@ export default function BinCollectionEventForm() {
     try {
       if (isEdit && id) await binCollectionEventApi.update(id, payload);
       else await binCollectionEventApi.create(payload);
-      navigate(listPath);
+      onDone();
     } finally {
       setSaving(false);
     }
@@ -468,7 +512,7 @@ export default function BinCollectionEventForm() {
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <Label>Trip Assignment *</Label>
-          <Select value={tripAssignmentId} onChange={handleAssignmentChange} options={assignments} placeholder="Select Assignment" />
+          <Select value={tripAssignmentId} onChange={handleAssignmentChange} options={visibleAssignments} placeholder="Select Assignment" />
         </div>
         <div>
           <Label>Collection Point *</Label>
@@ -543,10 +587,6 @@ export default function BinCollectionEventForm() {
             disabled={!areaTypeId || !localBodyLevel}
           />
         </div>
-        {/* <div>
-          <Label>Panchayat</Label>
-          <Select value={panchayatId} onChange={(value) => setPanchayatId(String(value))} options={visiblePanchayats} placeholder="Derived from Trip Stop" disabled />
-        </div> */}
         <div>
           <Label>Collection Date *</Label>
           <Input type="date" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
@@ -601,9 +641,122 @@ export default function BinCollectionEventForm() {
         </div>
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
-          <Button type="button" variant="outline" onClick={() => navigate(listPath)}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={onDone}>Cancel</Button>
         </div>
       </form>
     </ComponentCard>
+  );
+}
+
+export default function BinCollectionEventForm() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const isEdit = Boolean(id);
+  const { encScheduleMasters, encBinCollectionEvent } = getEncryptedRoute();
+  const { listPath } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
+
+  const [data, setData] = useState<EditorData>({
+    assignments: [],
+    collectionPoints: [],
+    bins: [],
+    panchayats: [],
+    states: [],
+    districts: [],
+    areaTypes: [],
+    hierarchyRecords: {
+      corporation_id: [],
+      municipality_id: [],
+      town_panchayat_id: [],
+      panchayat_union_id: [],
+      panchayat_id: [],
+    },
+  });
+  const [record, setRecord] = useState<ApiRecord | null>(null);
+  const [loadingRecord, setLoadingRecord] = useState(isEdit);
+
+  useEffect(() => {
+    Promise.all([
+      dailyTripAssignmentApi.readAll(),
+      dailyTripCollectionPointApi.readAll(),
+      adminApi.bins.readAll(),
+      panchayatApi.readAll(),
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+    ]).then(([
+      assignmentRes,
+      cpRes,
+      binRes,
+      panchayatRes,
+      stateRes,
+      districtRes,
+      areaTypeRes,
+      corporationRes,
+      municipalityRes,
+      townPanchayatRes,
+      panchayatUnionRes,
+    ]) => {
+      setData({
+        assignments: uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)),
+        collectionPoints: uniqueOptions(normalizeList(cpRes).map(collectionPointOption)),
+        bins: uniqueOptions(normalizeList(binRes).map(binOption)),
+        panchayats: uniqueOptions(normalizeList(panchayatRes).map(panchayatOption)),
+        states: normalizeList(stateRes),
+        districts: normalizeList(districtRes),
+        areaTypes: normalizeList(areaTypeRes),
+        hierarchyRecords: {
+          corporation_id: normalizeList(corporationRes),
+          municipality_id: normalizeList(municipalityRes),
+          town_panchayat_id: normalizeList(townPanchayatRes),
+          panchayat_union_id: normalizeList(panchayatUnionRes),
+          panchayat_id: normalizeList(panchayatRes),
+        },
+      });
+    }).catch((err) => {
+      console.error("Failed to load bin collection event options", err);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    setLoadingRecord(true);
+    binCollectionEventApi.read(id)
+      .then((res: ApiRecord) => setRecord(res))
+      .catch((err) => {
+        console.error("Failed to load bin collection event", err);
+        Swal.fire("Load failed", "Could not load this bin collection event.", "error");
+      })
+      .finally(() => setLoadingRecord(false));
+  }, [id]);
+
+  // Mount the editor as soon as the record loads (a fast single fetch). The
+  // selected values render pre-filled from the record's own labels, so nothing
+  // looks empty; the full dropdown option lists stream in afterwards for when
+  // the user wants to change a value.
+  if (isEdit && (loadingRecord || !record)) {
+    return (
+      <ComponentCard title="Edit Bin Collection Event">
+        <div className="p-6 text-sm text-gray-500">Loading...</div>
+      </ComponentCard>
+    );
+  }
+
+  const initial = isEdit && record ? initialFromRecord(record) : EMPTY_INITIAL;
+  const editorKey = isEdit ? String(record?.unique_id ?? id) : "new";
+
+  return (
+    <BinCollectionEventEditor
+      key={editorKey}
+      initial={initial}
+      isEdit={isEdit}
+      id={id}
+      listPath={listPath}
+      onDone={() => navigate(listPath)}
+      {...data}
+    />
   );
 }
