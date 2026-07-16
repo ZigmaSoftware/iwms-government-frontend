@@ -17,13 +17,15 @@ import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 const STATUS_STYLES: Record<string, string> = {
   Pending: "bg-gray-100 text-gray-700",
   Collected: "bg-green-100 text-green-800",
-  "Not Collected": "bg-red-100 text-red-800",
+  "Not Available": "bg-red-100 text-red-800",
   "Collect Later": "bg-orange-100 text-orange-800",
-  Skipped: "bg-red-100 text-red-800",
-  Missed: "bg-orange-100 text-orange-800",
+  // Legacy values kept so historical rows still render with a colour.
+  "Not Collected": "bg-red-100 text-red-800",
+  Skipped: "bg-orange-100 text-orange-800",
+  Missed: "bg-red-100 text-red-800",
 };
 
-const STATUS_OPTIONS = ["Pending", "Collected", "Not Collected", "Collect Later"];
+const STATUS_OPTIONS = ["Pending", "Collected", "Not Available", "Collect Later"];
 
 const COLLECTION_TYPE_LABELS: Record<string, string> = {
   household_collection: "Household Collection",
@@ -160,8 +162,8 @@ export default function DailyTripHouseholdCollectionList() {
   const saveStatus = async (row: DailyTripHouseholdCollectionRecord) => {
     const status = String(row.status ?? "Pending");
     const reason = String(row.status_reason ?? "").trim();
-    if ((status === "Not Collected" || status === "Collect Later") && !reason) {
-      Swal.fire("Missing reason", "Reason is required for Not Collected and Collect Later.", "warning");
+    if ((status === "Not Available" || status === "Collect Later") && !reason) {
+      Swal.fire("Missing reason", "Reason is required for Not Available and Collect Later.", "warning");
       return;
     }
     try {
@@ -344,7 +346,7 @@ export default function DailyTripHouseholdCollectionList() {
             <input
               value={String(row.status_reason ?? "")}
               onChange={(event) => updateRecord(row.unique_id, { status_reason: event.target.value })}
-              placeholder={row.status === "Not Collected" ? "I do not collect today..." : row.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
+              placeholder={row.status === "Not Available" ? "Household not available today..." : row.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
               className="h-8 w-full rounded-md border border-gray-300 px-2 text-xs"
             />
           )}
