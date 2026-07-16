@@ -174,7 +174,7 @@ export default function StaffTemplateForm() {
 
   const isStaffRow = (staff: StaffRecord): boolean => {
     const userType = normalizeRole(staff.user_type_name);
-    return !userType || userType === "staff" || userType === "contractor";
+    return !userType || userType === "staff" || userType === "contractor" || userType === "government";
   };
 
   const isActiveStaff = (staff: StaffRecord): boolean => {
