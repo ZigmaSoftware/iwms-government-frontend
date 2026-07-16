@@ -879,7 +879,8 @@ const taResource = {
           "monthly_waste_comparison": "மாதாந்திர கழிவு ஒப்பீடு",
           "leader_login": "தலைவர் உள்நுழைவு",
           "plb_leader_creation": "PLB தலைவர் உருவாக்கம்",
-          "district_leader_creation": "மாவட்ட தலைவர் உருவாக்கம்"
+          "district_leader_creation": "மாவட்ட தலைவர் உருவாக்கம்",
+          "state_leader_creation": "மாநில தலைவர் உருவாக்கம்"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",

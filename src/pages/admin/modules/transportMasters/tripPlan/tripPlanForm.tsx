@@ -91,6 +91,53 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
   return "";
 };
 
+const normalizeRole = (value: unknown): string =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const getStaffRole = (staff: ApiRecord): string =>
+  normalizeRole(
+    staff?.governmentusertype_name ||
+      staff?.staffusertype_name ||
+      staff?.contractorusertype_name ||
+      staff?.designation_name ||
+      staff?.designation ||
+      staff?.designation_group
+  );
+
+const isSupervisorRole = (staff: ApiRecord): boolean => getStaffRole(staff).includes("supervisor");
+
+const toEntityId = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return toEntityId(record.staff_unique_id ?? record.unique_id ?? record.id ?? record.value);
+  }
+  return String(value).trim();
+};
+
+// Staff/Contractor rows are never geo-gated (unchanged existing behaviour) —
+// a Government-category row (has a governmentusertype) only qualifies once
+// its own District + specific local body match what's selected in the form.
+const isGovernmentStaff = (staff: ApiRecord): boolean => Boolean(staff?.governmentusertype_name);
+
+const matchesSelectedGeo = (
+  staff: ApiRecord,
+  districtId: string,
+  hierarchyLevel: HierarchyLevel,
+  hierarchyId: string
+): boolean => {
+  if (!isGovernmentStaff(staff)) return true;
+  if (!districtId || !hierarchyId) return false;
+  return (
+    toEntityId(staff?.district_id) === districtId &&
+    toEntityId(staff?.[hierarchyLevel]) === hierarchyId
+  );
+};
+
 const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
 const resolveName = (record: any): string =>
   String(
@@ -168,6 +215,7 @@ export default function TripPlanForm() {
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [supervisors, setSupervisors] = useState<Option[]>([]);
+  const [supervisorStaffRecords, setSupervisorStaffRecords] = useState<ApiRecord[]>([]);
   const [properties, setProperties] = useState<Option[]>([]);
   const [subProperties, setSubProperties] = useState<Option[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
@@ -199,7 +247,7 @@ export default function TripPlanForm() {
     Promise.all([
       staffTemplateApi.readAll(),
       vehicleCreationApi.readAll(),
-      staffCreationApi.readAll(),
+      staffCreationApi.readAll({ params: { active_status: 1 } }),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
       wasteTypeApi.readAll(),
@@ -458,7 +506,11 @@ useEffect(() => {
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
       setVehicleId(String(record.vehicle?.unique_id ?? record.vehicle_id ?? ""));
-      setSupervisorId(String(record.supervisor?.unique_id ?? record.supervisor_id ?? ""));
+      const savedSupervisorId = String(record.supervisor?.unique_id ?? record.supervisor_id ?? "");
+      setSupervisorId(savedSupervisorId);
+      // Keep the saved supervisor visible even if they no longer match the
+      // current geo/role filter (e.g. their own assignment changed since).
+      setSupervisors((prev) => ensureOption(prev, savedSupervisorId, record.supervisor?.employee_name));
       setCollectionType(String(record.collection_type ?? "bin_collection"));
       setPropertyId(String(record.property?.unique_id ?? record.property_id ?? ""));
       setSubPropertyId(String(record.sub_property?.unique_id ?? record.sub_property_id ?? ""));

@@ -25,6 +25,12 @@ export type StaffRecord = {
   active_status?: boolean | number | string | null;
   company_name?: string;
   project_name?: string;
+  district_id?: string;
+  corporation_id?: string;
+  municipality_id?: string;
+  town_panchayat_id?: string;
+  panchayat_union_id?: string;
+  panchayat_id?: string;
 };
 
 export type StaffTemplateRaw = {
