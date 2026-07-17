@@ -2,6 +2,22 @@ export type VehicleCreationPayload = Record<string, unknown>;
 
 export type VehicleCreationRecord = {
   unique_id: string;
+  state_id?: string | null;
+  state_name?: string | null;
+  district_id?: string | null;
+  district_name?: string | null;
+  area_type_id?: string | null;
+  area_type_name?: string | null;
+  corporation_id?: string | null;
+  corporation_name?: string | null;
+  municipality_id?: string | null;
+  municipality_name?: string | null;
+  town_panchayat_id?: string | null;
+  town_panchayat_name?: string | null;
+  panchayat_union_id?: string | null;
+  panchayat_union_name?: string | null;
+  panchayat_id?: string | null;
+  panchayat_name?: string | null;
   vehicle_no: string;
   vehicle_type_id?: string | null;
   fuel_type_id?: string | null;
