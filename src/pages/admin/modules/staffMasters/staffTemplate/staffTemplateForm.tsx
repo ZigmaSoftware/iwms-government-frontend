@@ -257,16 +257,35 @@ export default function StaffTemplateForm() {
     const inGeo = (s: StaffRecord) =>
       matchesSelectedGeo(s, geo.districtId, geo.hierarchyLevel, geo.hierarchyId);
 
-    setDriverOptions(staffRecords.filter((s) => isDriverRole(s) && inGeo(s)).map(toStaffOption));
-    setOperatorOptions(staffRecords.filter((s) => isOperatorRole(s) && inGeo(s)).map(toStaffOption));
-    setAdminOptions(
-      staffRecords.filter((s) => getStaffRole(s).includes("admin")).map(toStaffOption)
-    );
+    // Re-scoping must not discard an already-injected pending option (the
+    // driver/operator/approver assigned on the saved template) before the
+    // prefill-resolution effects below get a chance to consume it — otherwise
+    // an edit-mode assignee who falls outside the freshly-fetched, geo-scoped
+    // staff list (e.g. a different active_status/geo match in production)
+    // silently disappears from the dropdown and formData never gets set.
+    setDriverOptions((prev) => {
+      const scoped = staffRecords.filter((s) => isDriverRole(s) && inGeo(s)).map(toStaffOption);
+      return pendingDriverId ? ensureOption(scoped, pendingDriverId, prev.find((o) => o.value === pendingDriverId)?.label) : scoped;
+    });
+    setOperatorOptions((prev) => {
+      let scoped = staffRecords.filter((s) => isOperatorRole(s) && inGeo(s)).map(toStaffOption);
+      if (pendingOperatorId) {
+        scoped = ensureOption(scoped, pendingOperatorId, prev.find((o) => o.value === pendingOperatorId)?.label);
+      }
+      (pendingExtraIds ?? []).forEach((extraId) => {
+        scoped = ensureOption(scoped, extraId, prev.find((o) => o.value === extraId)?.label);
+      });
+      return scoped;
+    });
+    setAdminOptions((prev) => {
+      const scoped = staffRecords.filter((s) => getStaffRole(s).includes("admin")).map(toStaffOption);
+      return pendingApprovedBy ? ensureOption(scoped, pendingApprovedBy, prev.find((o) => o.value === pendingApprovedBy)?.label) : scoped;
+    });
     setSupervisorOptions(
       staffRecords.filter((s) => getStaffRole(s).includes("supervisor") && inGeo(s)).map(toStaffOption)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffRecords, geo.districtId, geo.hierarchyLevel, geo.hierarchyId]);
+  }, [staffRecords, geo.districtId, geo.hierarchyLevel, geo.hierarchyId, pendingDriverId, pendingOperatorId, pendingExtraIds, pendingApprovedBy]);
 
   /* ================= LOAD TEMPLATE (EDIT) ================= */
 
