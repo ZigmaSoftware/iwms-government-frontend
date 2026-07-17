@@ -139,6 +139,7 @@ function TimelineRow({
   isNext: boolean;
   onSelect: () => void;
 }) {
+  const [showPopup, setShowPopup] = useState(false);
   const collected = row.status === "Collected" || row.status === "Completed";
   const inProgress = row.status === "In Progress" || isCurrent;
   const dotColor = STATUS_COLOR[row.status] ?? "#ef4444";
@@ -161,7 +162,76 @@ function TimelineRow({
       </div>
 
       {/* content */}
-      <div className={`mb-4 flex-1 ${isFirst ? "mt-0" : ""}`}>
+      <div className={`mb-4 flex-1 relative ${isFirst ? "mt-0" : ""}`}>
+        {/* info button + popup (non-invasive) */}
+        <div className="absolute right-2 top-0 z-10">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowPopup((s) => !s);
+            }}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            title="View stop details"
+            aria-label={`View details for ${row.collection_point?.cp_name ?? row.unique_id}`}
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            </svg>
+          </button>
+        </div>
+        {showPopup && (
+          <div
+            role="dialog"
+            aria-modal="false"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute right-2 top-8 z-20 w-72 rounded-lg border bg-white p-3 text-xs shadow-lg"
+          >
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-gray-800 truncate">
+                  {row.sequence}. {row.collection_point?.cp_name ?? row.unique_id}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">{locationLabel(row.collection_point)}</p>
+              </div>
+              <div className="ml-2 text-right text-[11px] text-gray-500">
+                {row.trip_assignment?.scheduled_time ? row.trip_assignment.scheduled_time.slice(0, 5) : ""}
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[12px] text-gray-600">
+              <div>
+                <div className="text-[10px] text-gray-400">Status</div>
+                <div className="font-medium">{row.status}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400">Collected at</div>
+                <div className="font-medium">{row.collected_at ? fmtTime(row.collected_at) : "-"}</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400">Lat / Lon</div>
+                <div className="font-medium truncate">
+                  {row.collection_point?.latitude ?? "-"}, {row.collection_point?.longitude ?? "-"}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-gray-400">Sequence</div>
+                <div className="font-medium">{row.sequence}</div>
+              </div>
+            </div>
+            <div className="mt-3 text-right">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPopup(false);
+                }}
+                className="rounded border px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
         {collected && (
           <div className="mb-0.5 text-[10px] font-bold uppercase tracking-widest text-green-600">
             ✓ Crossed
@@ -280,9 +350,19 @@ export default function DailyTripTracking() {
   const [liveGpsReady, setLiveGpsReady] = useState(false);
   const [optimizationCycle, setOptimizationCycle] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showOrsRoute, setShowOrsRoute] = useState(true);
   const mapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
+  // Routes, collection-point markers and the vehicle marker all live in this
+  // single persistent layer group, so a data refresh only has to clear +
+  // repopulate this group — the map instance and tile layer are created once
+  // and never touched again, so pan/zoom survives every 15s poll.
+  const dynamicLayerRef = useRef<L.LayerGroup | null>(null);
   const markerRefs = useRef<Record<string, L.Marker>>({});
+  // Tracks which "view" (a specific trip, or the all-trips overview) bounds
+  // were last auto-fit for, so we only reframe the map on a genuine context
+  // switch — never on a same-context periodic data refresh.
+  const lastFitKeyRef = useRef<string | null>(null);
   const optimizingRef = useRef(false);
   const lastOptimizedVehicleStartRef = useRef("");
 
@@ -448,33 +528,48 @@ export default function DailyTripTracking() {
     lastOptimizedVehicleStartRef.current = "";
   }, []);
 
-  // ── Map ────────────────────────────────────────────────────────────────────
+  // ── Map: create once ────────────────────────────────────────────────────────
+  // The map instance and tile layer are created exactly once and never
+  // recreated on data refresh — that's what used to make the *entire* map
+  // (tiles, zoom, pan) reset every 15s poll. All refresh-driven content lives
+  // in `dynamicLayerRef`, a single layer group cleared and repopulated by the
+  // effect below.
   useEffect(() => {
-    if (!mapElement.current) return;
-    mapRef.current?.remove();
-    markerRefs.current = {};
-    const points = (data?.route_results ?? data?.results ?? []).filter(
-      (r) => r.collection_point?.latitude && r.collection_point?.longitude,
-    ).sort((a, b) => a.sequence - b.sequence);
-    const center: L.LatLngExpression =
-      points.length
-        ? [
-            Number(points[0].collection_point!.latitude),
-            Number(points[0].collection_point!.longitude),
-          ]
-        : [10.7867, 76.6548];
-    const map = L.map(mapElement.current).setView(center, points.length ? 13 : 8);
+    if (!mapElement.current || mapRef.current) return;
+    const map = L.map(mapElement.current).setView([10.7867, 76.6548], 8);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap",
     }).addTo(map);
+    dynamicLayerRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      dynamicLayerRef.current = null;
+    };
+  }, []);
+
+  // ── Map: refresh only the collection-point/route/vehicle layer ─────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    const layer = dynamicLayerRef.current;
+    if (!map || !layer) return;
+
+    layer.clearLayers();
+    markerRefs.current = {};
+
+    const points = (data?.route_results ?? data?.results ?? []).filter(
+      (r) => r.collection_point?.latitude && r.collection_point?.longitude,
+    ).sort((a, b) => a.sequence - b.sequence);
     const latLngs: L.LatLng[] = [];
+
     if (!assignmentId && overview?.trips.length) {
       overview.trips.forEach((trip, tripIndex) => {
         const color = TRIP_ROUTE_COLORS[tripIndex % TRIP_ROUTE_COLORS.length];
         if (trip.route_geojson) {
           L.geoJSON(trip.route_geojson, {
             style: { color: "#ffffff", weight: 9, opacity: 0.9 },
-          }).addTo(map);
+          }).addTo(layer);
           const routeLayer = L.geoJSON(trip.route_geojson, {
             style: { color, weight: 5, opacity: 0.9 },
           })
@@ -482,7 +577,7 @@ export default function DailyTripTracking() {
               `${trip.assignment_id} · ${trip.vehicle_no ?? "No vehicle"} · ${(trip.distance_meters / 1000).toFixed(2)} km`,
             )
             .on("click", () => selectTrip(trip.assignment_id, trip.trip_date))
-            .addTo(map);
+            .addTo(layer);
           const bounds = routeLayer.getBounds();
           if (bounds.isValid()) latLngs.push(bounds.getNorthEast(), bounds.getSouthWest());
         }
@@ -502,93 +597,92 @@ export default function DailyTripTracking() {
           })
             .bindTooltip(`${trip.assignment_id} · ${row.collection_point.cp_name ?? row.unique_id}`)
             .on("click", () => selectTrip(trip.assignment_id, trip.trip_date))
-            .addTo(map);
+            .addTo(layer);
         });
       });
-      if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [35, 35] });
-      mapRef.current = map;
-      return () => {
-        map.remove();
-        mapRef.current = null;
-      };
-    }
-    points.forEach((row) => {
-      const latLng = L.latLng(
-        Number(row.collection_point!.latitude),
-        Number(row.collection_point!.longitude),
-      );
-      latLngs.push(latLng);
-      const color = STATUS_COLOR[row.status] ?? "#ef4444";
-      const marker = L.marker(latLng, {
-        icon: L.divIcon({
-          className: "",
-          html: `<div style="width:28px;height:28px;border-radius:9999px;background:${color};border:3px solid white;box-shadow:0 2px 7px #0005;color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">${row.sequence}</div>`,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        }),
-      })
-        .bindTooltip(
-          `${row.sequence}. ${row.collection_point?.cp_name ?? row.unique_id} · ${statusLabel(row.status)}`,
-          { direction: "top", offset: [0, -12] },
-        )
-        .addTo(map);
-      markerRefs.current[row.unique_id] = marker;
-    });
-    if (routePlan?.route_legs?.length) {
-      routePlan.route_legs.forEach((leg, index) => {
-        const destination = points.find((point) => point.unique_id === leg.destination_id);
-        const routeColor = destination?.status === "Collected" ? "#22c55e" : "#2563eb";
-        L.geoJSON(leg.geometry, {
-          style: { color: "#ffffff", weight: 10, opacity: 0.95 },
-        }).addTo(map);
-        L.geoJSON(leg.geometry, {
-          style: { color: routeColor, weight: 6, opacity: 0.95 },
+    } else {
+      points.forEach((row) => {
+        const latLng = L.latLng(
+          Number(row.collection_point!.latitude),
+          Number(row.collection_point!.longitude),
+        );
+        latLngs.push(latLng);
+        const color = STATUS_COLOR[row.status] ?? "#ef4444";
+        const marker = L.marker(latLng, {
+          icon: L.divIcon({
+            className: "",
+            html: `<div style="width:28px;height:28px;border-radius:9999px;background:${color};border:3px solid white;box-shadow:0 2px 7px #0005;color:white;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center">${row.sequence}</div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          }),
         })
           .bindTooltip(
-            `${index === 0 ? "Vehicle" : `Stop ${index}`} → ${destination?.collection_point?.cp_name ?? "collection point"} · ${(leg.distance / 1000).toFixed(2)} km · ${Math.round(leg.duration / 60)} min`,
+            `${row.sequence}. ${row.collection_point?.cp_name ?? row.unique_id} · ${statusLabel(row.status)}`,
+            { direction: "top", offset: [0, -12] },
           )
-          .addTo(map);
+          .addTo(layer);
+        markerRefs.current[row.unique_id] = marker;
       });
-    } else if (routeGeoJson) {
-      L.geoJSON(routeGeoJson, {
-        style: { color: "#ffffff", weight: 10, opacity: 0.95 },
-      }).addTo(map);
-      L.geoJSON(routeGeoJson, {
-        style: { color: "#2563eb", weight: 6, opacity: 0.95 },
-      }).addTo(map);
+      if (routePlan?.route_legs?.length) {
+        routePlan.route_legs.forEach((leg, index) => {
+          const destination = points.find((point) => point.unique_id === leg.destination_id);
+          const routeColor = destination?.status === "Collected" ? "#22c55e" : "#2563eb";
+          L.geoJSON(leg.geometry, {
+            style: { color: "#ffffff", weight: 10, opacity: 0.95 },
+          }).addTo(layer);
+          L.geoJSON(leg.geometry, {
+            style: { color: routeColor, weight: 6, opacity: 0.95 },
+          })
+            .bindTooltip(
+              `${index === 0 ? "Vehicle" : `Stop ${index}`} → ${destination?.collection_point?.cp_name ?? "collection point"} · ${(leg.distance / 1000).toFixed(2)} km · ${Math.round(leg.duration / 60)} min`,
+            )
+            .addTo(layer);
+        });
+      } else if (routeGeoJson) {
+        L.geoJSON(routeGeoJson, {
+          style: { color: "#ffffff", weight: 10, opacity: 0.95 },
+        }).addTo(layer);
+        L.geoJSON(routeGeoJson, {
+          style: { color: "#2563eb", weight: 6, opacity: 0.95 },
+        }).addTo(layer);
+      }
+      const vehicle = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
+      if (vehicle) {
+        const vehicleLatLng = L.latLng(Number(vehicle.latitude), Number(vehicle.longitude));
+        L.marker(vehicleLatLng, {
+          icon: L.divIcon({
+            className: "",
+            html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 2px 8px #0006;display:flex;align-items:center;justify-content:center;font-size:18px">🚛</div>',
+            iconSize: [34, 34],
+            iconAnchor: [17, 17],
+          }),
+        })
+          .bindTooltip(`Vehicle ${data?.vehicle_tracking?.vehicle_no ?? ""}`, { direction: "top" })
+          .addTo(layer);
+        latLngs.push(vehicleLatLng);
+      } else if (routePlan?.vehicle_start) {
+        const vehicleStart = L.latLng(routePlan.vehicle_start[1], routePlan.vehicle_start[0]);
+        L.marker(vehicleStart, {
+          icon: L.divIcon({
+            className: "",
+            html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 2px 8px #0006;display:flex;align-items:center;justify-content:center;font-size:18px">🚛</div>',
+            iconSize: [34, 34],
+            iconAnchor: [17, 17],
+          }),
+        }).bindTooltip("ORS route start", { direction: "top" }).addTo(layer);
+        latLngs.push(vehicleStart);
+      }
     }
-    const vehicle = liveVehicleLocation ?? data?.vehicle_tracking?.current_location;
-    if (vehicle) {
-      const vehicleLatLng = L.latLng(Number(vehicle.latitude), Number(vehicle.longitude));
-      L.marker(vehicleLatLng, {
-        icon: L.divIcon({
-          className: "",
-          html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 2px 8px #0006;display:flex;align-items:center;justify-content:center;font-size:18px">🚛</div>',
-          iconSize: [34, 34],
-          iconAnchor: [17, 17],
-        }),
-      })
-        .bindTooltip(`Vehicle ${data?.vehicle_tracking?.vehicle_no ?? ""}`, { direction: "top" })
-        .addTo(map);
-      latLngs.push(vehicleLatLng);
-    } else if (routePlan?.vehicle_start) {
-      const vehicleStart = L.latLng(routePlan.vehicle_start[1], routePlan.vehicle_start[0]);
-      L.marker(vehicleStart, {
-        icon: L.divIcon({
-          className: "",
-          html: '<div style="width:34px;height:34px;border-radius:9999px;background:#2563eb;border:3px solid white;box-shadow:0 2px 8px #0006;display:flex;align-items:center;justify-content:center;font-size:18px">🚛</div>',
-          iconSize: [34, 34],
-          iconAnchor: [17, 17],
-        }),
-      }).bindTooltip("ORS route start", { direction: "top" }).addTo(map);
-      latLngs.push(vehicleStart);
+
+    // Only reframe the map when the *context* changes (a different trip
+    // selected, or entering/leaving the all-trips overview) — never on a
+    // same-context periodic data refresh, so the user's pan/zoom is left
+    // alone while collection-point statuses update underneath them.
+    const fitKey = assignmentId ?? "__overview__";
+    if (latLngs.length && lastFitKeyRef.current !== fitKey) {
+      map.fitBounds(L.latLngBounds(latLngs), { padding: assignmentId ? [24, 24] : [35, 35] });
+      lastFitKeyRef.current = fitKey;
     }
-    if (latLngs.length) map.fitBounds(L.latLngBounds(latLngs), { padding: [24, 24] });
-    mapRef.current = map;
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
   }, [assignmentId, data, liveVehicleLocation, overview, routeGeoJson, routePlan, selectTrip]);
 
   // ── Route Optimization ─────────────────────────────────────────────────────
@@ -925,10 +1019,23 @@ export default function DailyTripTracking() {
               </div>
             ))}
           </div>
-          {routePlan && (
+          {routePlan && showOrsRoute && (
             <div className="absolute right-4 top-4 z-[400] w-64 rounded-xl border bg-white/95 p-3 text-xs shadow-lg backdrop-blur-sm">
-              <p className="font-bold text-gray-800">ORS Vehicle Route</p>
-              <p className="mt-1 text-gray-500">{routePlan.vehicle_no ?? vehicle?.vehicle_no ?? "Assigned vehicle"}</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="font-bold text-gray-800">ORS Vehicle Route</p>
+                <button
+                  type="button"
+                  onClick={() => setShowOrsRoute(false)}
+                  className="shrink-0 rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                  title="Close ORS Vehicle Route panel"
+                  aria-label="Close panel"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-gray-500">{routePlan.vehicle_no ?? vehicle?.vehicle_no ?? "Assigned vehicle"}</p>
               <p className="text-[10px] text-gray-400">
                 Start: {routePlan.vehicle_start_source === "latest_gps" ? "latest collection GPS" : routePlan.vehicle_start_source === "request" ? "live vehicle GPS" : "first collection point fallback"}
               </p>
@@ -1157,7 +1264,7 @@ export default function DailyTripTracking() {
 
                 {rows.map((row, idx) => (
                   <TimelineRow
-                    key={row.unique_id}
+                    key={String(row.unique_id ?? `${row.sequence}-${idx}`)}
                     row={row}
                     isFirst={idx === 0}
                     isLast={idx === rows.length - 1}

@@ -11,6 +11,14 @@ export type ReportRow = {
   total_trips: number;
   collection_points_covered: number;
   average_weight_per_trip: number;
+  report_status?: string;
+  location_node_id?: string;
+  location_node_name?: string;
+  total_agreed_weight?: number;
+  variance_kg?: number;
+  variance_percent?: number;
+  collection_efficiency_percent?: number;
+  coverage_efficiency_percent?: number;
 };
 
 export type LocationComparisonRow = {
@@ -31,6 +39,14 @@ export type WasteTypeBreakdownRow = {
   total_trips: number;
   collection_points_covered: number;
   share_percent: number;
+  report_status?: string;
+  location_node_id?: string;
+  location_node_name?: string;
+  total_agreed_weight?: number;
+  variance_kg?: number;
+  variance_percent?: number;
+  collection_efficiency_percent?: number;
+  coverage_efficiency_percent?: number;
 };
 
 export type ReportResponse = {
@@ -40,10 +56,15 @@ export type ReportResponse = {
   waste_type_breakdown: WasteTypeBreakdownRow[];
   kpis: {
     total_actual_weight: number;
+    total_agreed_weight?: number;
     average_weight_per_trip: number;
     total_trips: number;
     collection_points_covered: number;
     waste_type_count?: number;
     local_body_count?: number;
+    report_status?: string;
+    collection_efficiency_percent?: number;
+    coverage_efficiency_percent?: number;
+    variance_kg?: number;
   };
 };
