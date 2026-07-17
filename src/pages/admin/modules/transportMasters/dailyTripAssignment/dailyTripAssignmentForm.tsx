@@ -840,7 +840,7 @@ export default function DailyTripAssignmentForm() {
                               <select value={stop.status ?? "Pending"} onChange={(e) => updateHouseholdStop(stopKey, { status: e.target.value, is_collected: e.target.value === "Collected" })} className="h-9 rounded-md border border-purple-200 px-2 text-sm">
                                 <option value="Pending">Pending</option>
                                 <option value="Collected">Collected</option>
-                                <option value="Not Collected">Not Collected</option>
+                                <option value="Not Available">Not Available</option>
                                 <option value="Collect Later">Collect Later</option>
                               </select>
                             </td>
@@ -848,7 +848,7 @@ export default function DailyTripAssignmentForm() {
                               <Input
                                 value={String(stop.status_reason ?? "")}
                                 onChange={(e) => updateHouseholdStop(stopKey, { status_reason: e.target.value })}
-                                placeholder={stop.status === "Not Collected" ? "I do not collect today..." : stop.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
+                                placeholder={stop.status === "Not Available" ? "Household not available today..." : stop.status === "Collect Later" ? "I will collect today later..." : "Optional reason"}
                                 className="h-9 w-60"
                               />
                             </td>
