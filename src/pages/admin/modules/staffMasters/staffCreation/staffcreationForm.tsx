@@ -1,4 +1,4 @@
-import type { ChangePasswordModalProps, ErrorWithResponse, LocationOption, Section } from "./types";
+import type { ChangePasswordModalProps, ErrorWithResponse, Section } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
@@ -144,7 +144,6 @@ function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: Chang
   );
 }
 import {
-  countryApi,
   stateApi,
   districtApi,
   areaTypeApi,
@@ -271,19 +270,6 @@ const normalizeEntityId = (value: unknown): string => {
   }
   return normalizeId(value);
 };
-
-const mapLocationOptions = (items: any[]): LocationOption[] =>
-  (items ?? [])
-    .filter((item) => item?.name && item.is_active !== false)
-    .map((item) => ({
-      value: item.name,
-      label: item.name,
-      uniqueId: normalizeId(item.unique_id ?? item.id),
-      countryId: normalizeId(item.country_id ?? item.country),
-      stateId: normalizeId(item.state_id ?? item.state),
-      districtId: normalizeId(item.district_id ?? item.district),
-    }));
-
 
 const formatErrorMessage = (t: (key: string) => string, error: unknown) => {
   if (!error) return t("common.review_fields");
@@ -432,10 +418,6 @@ export default function StaffCreationForm() {
   const [staffCreatedAt, setStaffCreatedAt] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [countryOptions, setCountryOptions] = useState<LocationOption[]>([]);
-  const [stateOptions, setStateOptions] = useState<LocationOption[]>([]);
-  const [districtOptions, setDistrictOptions] = useState<LocationOption[]>([]);
-  const [cityOptions, setCityOptions] = useState<LocationOption[]>([]);
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -489,12 +471,6 @@ export default function StaffCreationForm() {
   const [pendingGovernmentUserTypeId, setPendingGovernmentUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
   const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
-  const [pendingPresentState, setPendingPresentState] = useState<string | null>(null);
-  const [pendingPresentDistrict, setPendingPresentDistrict] = useState<string | null>(null);
-  const [pendingPresentCity, setPendingPresentCity] = useState<string | null>(null);
-  const [pendingPermanentState, setPendingPermanentState] = useState<string | null>(null);
-  const [pendingPermanentDistrict, setPendingPermanentDistrict] = useState<string | null>(null);
-  const [pendingPermanentCity, setPendingPermanentCity] = useState<string | null>(null);
 
   // Government geo cascade pending prefill — applied once each level's option
   // list arrives. Without these, the values set at edit-load can be lost to the
@@ -582,50 +558,6 @@ export default function StaffCreationForm() {
   const isDriverSelected =
     !!formData.driving_licence_no ||
     !!selectedUserType?.label?.toLowerCase().includes("driver");
-
-  const presentDistrictOptions = useMemo(
-    () =>
-      districtOptions.filter(
-        (option) =>
-          !formData.present_state ||
-          !option.stateName ||
-          option.stateName === formData.present_state,
-      ),
-    [districtOptions, formData.present_state],
-  );
-
-  const presentCityOptions = useMemo(
-    () =>
-      cityOptions.filter(
-        (option) =>
-          !formData.present_district ||
-          !option.districtName ||
-          option.districtName === formData.present_district,
-      ),
-    [cityOptions, formData.present_district],
-  );
-
-  const permanentDistrictOptions = useMemo(
-    () =>
-      districtOptions.filter(
-        (option) =>
-          !formData.permanent_state ||
-          !option.stateName ||
-          option.stateName === formData.permanent_state,
-      ),
-    [districtOptions, formData.permanent_state],
-  );
-
-  const permanentCityOptions = useMemo(
-    () =>
-      cityOptions.filter(
-        (option) =>
-          !formData.permanent_district ||
-          !option.districtName ||
-          option.districtName === formData.permanent_district,
-      ),
-    [cityOptions, formData.permanent_district],
-  );
 
   // Government scope cascade: State → District → Area Type → Local Body
   const scopeDistrictOptions = useMemo(() => {
@@ -752,41 +684,9 @@ export default function StaffCreationForm() {
   useEffect(() => {
     const loadLocationOptions = async () => {
       try {
-        const [
-          countries,
-          states,
-          districts,
-          departments,
-        ] =
-          await Promise.all([
-            countryApi.readAll(),
-            stateApi.readAll(),
-            districtApi.readAll(),
-            departmentApi.readAll({ params: { status: "active" } }),
-          ]);
-
-        const countryList = mapLocationOptions(countries);
-        const stateList = mapLocationOptions(states).map((state) => ({
-          ...state,
-          countryName: countryList.find(
-            (country) =>
-              country.uniqueId && country.uniqueId === state.countryId,
-          )?.value,
-        }));
-        const districtList = mapLocationOptions(districts).map((district) => ({
-          ...district,
-          countryName: countryList.find(
-            (country) =>
-              country.uniqueId && country.uniqueId === district.countryId,
-          )?.value,
-          stateName: stateList.find(
-            (state) => state.uniqueId && state.uniqueId === district.stateId,
-          )?.value,
-        }));
-        setCountryOptions(countryList);
-        setStateOptions(stateList);
-        setDistrictOptions(districtList);
-        setCityOptions([]);
+        const [departments] = await Promise.all([
+          departmentApi.readAll({ params: { status: "active" } }),
+        ]);
 
         const normalize = (arr: any[]) =>
           arr.filter((i) => i?.is_active !== false && i?.is_deleted !== true);
@@ -1043,12 +943,6 @@ export default function StaffCreationForm() {
         if (geoLocalBodyId) setPendingLocalBodyId(geoLocalBodyId);
         if (departmentId) setPendingDepartmentId(departmentId);
         if (designationId) setPendingDesignationId(designationId);
-        if (staff.present_address?.state) setPendingPresentState(staff.present_address.state);
-        if (staff.present_address?.district) setPendingPresentDistrict(staff.present_address.district);
-        if (staff.present_address?.city) setPendingPresentCity(staff.present_address.city);
-        if (staff.permanent_address?.state) setPendingPermanentState(staff.permanent_address.state);
-        if (staff.permanent_address?.district) setPendingPermanentDistrict(staff.permanent_address.district);
-        if (staff.permanent_address?.city) setPendingPermanentCity(staff.permanent_address.city);
 
         if (staff.driving_licence_file) {
           setLicencePreview(
@@ -1091,10 +985,25 @@ export default function StaffCreationForm() {
   }, [backendOrigin, id, isEdit]);
 
   useEffect(() => {
+    // Staff head candidates are scoped to the same local body and to one
+    // level up in the government role hierarchy (driver/operator ->
+    // supervisor, supervisor -> admin, admin -> superadmin), so this must
+    // refetch whenever the role or local body selection changes.
+    if (userTypeCategory === "government" && !formData.governmentusertype_id) {
+      setStaffHeadOptions([]);
+      return;
+    }
+
     const loadStaffHeads = async () => {
       try {
         const params: Record<string, string> = {};
         if (id) params.exclude = id;
+        if (formData.governmentusertype_id) {
+          params.governmentusertype_id = formData.governmentusertype_id;
+        }
+        if (formData.local_body_level && formData.local_body_id) {
+          params[formData.local_body_level] = formData.local_body_id;
+        }
 
         const response = await api.get(
           "/user-creations/staffcreation/staff-head-options/",
@@ -1117,7 +1026,13 @@ export default function StaffCreationForm() {
     };
 
     void loadStaffHeads();
-  }, [id]);
+  }, [
+    id,
+    userTypeCategory,
+    formData.governmentusertype_id,
+    formData.local_body_level,
+    formData.local_body_id,
+  ]);
 
   useEffect(() => {
     if (!photoFile) return;
@@ -1208,60 +1123,6 @@ export default function StaffCreationForm() {
     }
   }, [pendingDesignationId, designationOptions]);
 
-  useEffect(() => {
-    if (!pendingPresentState || stateOptions.length === 0) return;
-    const match = stateOptions.find((o) => o.value === pendingPresentState);
-    if (match) {
-      setFormData((prev) => ({ ...prev, present_state: pendingPresentState }));
-      setPendingPresentState(null);
-    }
-  }, [pendingPresentState, stateOptions]);
-
-  useEffect(() => {
-    if (!pendingPresentDistrict || districtOptions.length === 0) return;
-    const match = districtOptions.find((o) => o.value === pendingPresentDistrict);
-    if (match) {
-      setFormData((prev) => ({ ...prev, present_district: pendingPresentDistrict }));
-      setPendingPresentDistrict(null);
-    }
-  }, [pendingPresentDistrict, districtOptions]);
-
-  useEffect(() => {
-    if (!pendingPresentCity || cityOptions.length === 0) return;
-    const match = cityOptions.find((o) => o.value === pendingPresentCity);
-    if (match) {
-      setFormData((prev) => ({ ...prev, present_city: pendingPresentCity }));
-      setPendingPresentCity(null);
-    }
-  }, [pendingPresentCity, cityOptions]);
-
-  useEffect(() => {
-    if (!pendingPermanentState || stateOptions.length === 0) return;
-    const match = stateOptions.find((o) => o.value === pendingPermanentState);
-    if (match) {
-      setFormData((prev) => ({ ...prev, permanent_state: pendingPermanentState }));
-      setPendingPermanentState(null);
-    }
-  }, [pendingPermanentState, stateOptions]);
-
-  useEffect(() => {
-    if (!pendingPermanentDistrict || districtOptions.length === 0) return;
-    const match = districtOptions.find((o) => o.value === pendingPermanentDistrict);
-    if (match) {
-      setFormData((prev) => ({ ...prev, permanent_district: pendingPermanentDistrict }));
-      setPendingPermanentDistrict(null);
-    }
-  }, [pendingPermanentDistrict, districtOptions]);
-
-  useEffect(() => {
-    if (!pendingPermanentCity || cityOptions.length === 0) return;
-    const match = cityOptions.find((o) => o.value === pendingPermanentCity);
-    if (match) {
-      setFormData((prev) => ({ ...prev, permanent_city: pendingPermanentCity }));
-      setPendingPermanentCity(null);
-    }
-  }, [pendingPermanentCity, cityOptions]);
-
   // ── Government geo cascade pending-prefill resolution ────────────────────────
   // Each level resolves only after its option list (which itself depends on the
   // parent level's value) is available, so State → District → Area Type →
@@ -1321,30 +1182,6 @@ export default function StaffCreationForm() {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
 
-      if (field === "present_country") {
-        next.present_state = "";
-        next.present_district = "";
-        next.present_city = "";
-      }
-      if (field === "present_state") {
-        next.present_district = "";
-        next.present_city = "";
-      }
-      if (field === "present_district") {
-        next.present_city = "";
-      }
-      if (field === "permanent_country") {
-        next.permanent_state = "";
-        next.permanent_district = "";
-        next.permanent_city = "";
-      }
-      if (field === "permanent_state") {
-        next.permanent_district = "";
-        next.permanent_city = "";
-      }
-      if (field === "permanent_district") {
-        next.permanent_city = "";
-      }
       if (field === "department_id") {
         const department = departmentOptionsWithCurrent.find((item) => item.value === value);
         next.department = department?.name ?? "";
@@ -1357,7 +1194,11 @@ export default function StaffCreationForm() {
         const designation = designationOptionsWithCurrent.find((item) => item.value === value);
         next.designation = designation?.name ?? "";
       }
-      if (field === "staffusertype_id" || field === "contractorusertype_id") {
+      if (
+        field === "staffusertype_id" ||
+        field === "contractorusertype_id" ||
+        field === "governmentusertype_id"
+      ) {
         next.staff_head = "";
         next.staff_head_id = "";
       }
@@ -1371,21 +1212,33 @@ export default function StaffCreationForm() {
         next.local_body_level = "";
         next.local_body_id = "";
         next.governmentusertype_id = "";
+        next.staff_head = "";
+        next.staff_head_id = "";
       }
       if (field === "district_id") {
         next.area_type_id = "";
         next.local_body_level = "";
         next.local_body_id = "";
         next.governmentusertype_id = "";
+        next.staff_head = "";
+        next.staff_head_id = "";
       }
       if (field === "area_type_id") {
         next.local_body_level = "";
         next.local_body_id = "";
         next.governmentusertype_id = "";
+        next.staff_head = "";
+        next.staff_head_id = "";
       }
       if (field === "local_body_level") {
         next.local_body_id = "";
         next.governmentusertype_id = "";
+        next.staff_head = "";
+        next.staff_head_id = "";
+      }
+      if (field === "local_body_id") {
+        next.staff_head = "";
+        next.staff_head_id = "";
       }
 
       return next;
@@ -2037,12 +1890,13 @@ export default function StaffCreationForm() {
             onChange={(value) => handleSelectChange("staff_head_id", value)}
             options={staffHeadOptions}
             placeholder={
-              formData.department_id
-                ? t("common.select_item_placeholder", {
+              userTypeCategory === "government" && !formData.governmentusertype_id
+                ? "Select Government Staff User Type first"
+                : t("common.select_item_placeholder", {
                     item: t("admin.staff_creation.staff_head"),
                   })
-                : t("admin.staff_creation.department_id")
             }
+            disabled={userTypeCategory === "government" && !formData.governmentusertype_id}
           />
         </div>
       )}
@@ -2239,32 +2093,20 @@ export default function StaffCreationForm() {
               {showField("present_country") && (
                 <div>
                   <Label htmlFor="present_country">{t("common.country")}</Label>
-                  <Select
+                  <Input
                     id="present_country"
                     value={formData.present_country}
-                    onChange={(value) =>
-                      handleSelectChange("present_country", value)
-                    }
-                    options={countryOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.country"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("present_state") && (
                 <div>
                   <Label htmlFor="present_state">{t("common.state")}</Label>
-                  <Select
+                  <Input
                     id="present_state"
                     value={formData.present_state}
-                    onChange={(value) =>
-                      handleSelectChange("present_state", value)
-                    }
-                    options={stateOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.state"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2273,32 +2115,20 @@ export default function StaffCreationForm() {
                   <Label htmlFor="present_district">
                     {t("common.district")}
                   </Label>
-                  <Select
+                  <Input
                     id="present_district"
                     value={formData.present_district}
-                    onChange={(value) =>
-                      handleSelectChange("present_district", value)
-                    }
-                    options={presentDistrictOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.district"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("present_city") && (
                 <div>
                   <Label htmlFor="present_city">{t("common.city")}</Label>
-                  <Select
+                  <Input
                     id="present_city"
                     value={formData.present_city}
-                    onChange={(value) =>
-                      handleSelectChange("present_city", value)
-                    }
-                    options={presentCityOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.city"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2381,32 +2211,20 @@ export default function StaffCreationForm() {
                   <Label htmlFor="permanent_country">
                     {t("common.country")}
                   </Label>
-                  <Select
+                  <Input
                     id="permanent_country"
                     value={formData.permanent_country}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_country", value)
-                    }
-                    options={countryOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.country"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("permanent_state") && (
                 <div>
                   <Label htmlFor="permanent_state">{t("common.state")}</Label>
-                  <Select
+                  <Input
                     id="permanent_state"
                     value={formData.permanent_state}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_state", value)
-                    }
-                    options={stateOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.state"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
@@ -2415,32 +2233,20 @@ export default function StaffCreationForm() {
                   <Label htmlFor="permanent_district">
                     {t("common.district")}
                   </Label>
-                  <Select
+                  <Input
                     id="permanent_district"
                     value={formData.permanent_district}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_district", value)
-                    }
-                    options={permanentDistrictOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.district"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
               {showField("permanent_city") && (
                 <div>
                   <Label htmlFor="permanent_city">{t("common.city")}</Label>
-                  <Select
+                  <Input
                     id="permanent_city"
                     value={formData.permanent_city}
-                    onChange={(value) =>
-                      handleSelectChange("permanent_city", value)
-                    }
-                    options={permanentCityOptions}
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("common.city"),
-                    })}
+                    onChange={handleInputChange}
                   />
                 </div>
               )}
