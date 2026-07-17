@@ -14,6 +14,11 @@ import { filterActiveRecords } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import LocationFields, {
+  emptyGeo,
+  LOCAL_BODY_LEVELS,
+  type GeoLocationValue,
+} from "../../masters/shared/LocationHierarchyFields";
 
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -21,6 +26,14 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, enc
 const FILE_ICON = "/images/pdfimage/download.png";
 
 const VEHICLE_CREATION_FIELDS: Record<string, string[]> = {
+  state_id: ["state_id"],
+  district_id: ["district_id"],
+  area_type_id: ["area_type_id"],
+  corporation_id: ["corporation_id"],
+  municipality_id: ["municipality_id"],
+  town_panchayat_id: ["town_panchayat_id"],
+  panchayat_union_id: ["panchayat_union_id"],
+  panchayat_id: ["panchayat_id"],
   vehicle_no: ["vehicle_no", "vehicleNo"],
   vehicle_type_id: ["vehicle_type_id", "vehicle_type"],
   fuel_type_id: ["fuel_type_id", "fuel_type"],
@@ -125,6 +138,9 @@ export default function VehicleCreationForm() {
   // ── Submitting state ──────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ── Government hierarchy the vehicle belongs to ───────────────────────────
+  const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
+
   // ── Form state ────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
     vehicleNo: "",
@@ -164,6 +180,15 @@ export default function VehicleCreationForm() {
 
     if (vehicleTypeId) setPendingVehicleTypeId(vehicleTypeId);
     if (fuelTypeId) setPendingFuelTypeId(fuelTypeId);
+
+    const localBodyLevel = LOCAL_BODY_LEVELS.find((item) => toStr(res[item.value]))?.value ?? "";
+    setGeo({
+      stateId: toStr(res.state_id),
+      districtId: toStr(res.district_id),
+      areaTypeId: toStr(res.area_type_id),
+      localBodyLevel,
+      localBodyId: localBodyLevel ? toStr(res[localBodyLevel]) : "",
+    });
 
     setForm({
       vehicleNo: toStr(res.vehicle_no),
@@ -357,6 +382,8 @@ export default function VehicleCreationForm() {
     const missingFields: string[] = [];
     if (showField("vehicle_no") && !form.vehicleNo.trim())
       missingFields.push(t("admin.vehicle_creation.vehicle_no"));
+    if (!geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId)
+      missingFields.push(t("common.location"));
 
     if (missingFields.length > 0) {
       Swal.fire(
@@ -368,6 +395,14 @@ export default function VehicleCreationForm() {
     }
 
     const rawPayload = {
+      state_id: geo.stateId || null,
+      district_id: geo.districtId || null,
+      area_type_id: geo.areaTypeId || null,
+      corporation_id: geo.localBodyLevel === "corporation_id" ? geo.localBodyId : null,
+      municipality_id: geo.localBodyLevel === "municipality_id" ? geo.localBodyId : null,
+      town_panchayat_id: geo.localBodyLevel === "town_panchayat_id" ? geo.localBodyId : null,
+      panchayat_union_id: geo.localBodyLevel === "panchayat_union_id" ? geo.localBodyId : null,
+      panchayat_id: geo.localBodyLevel === "panchayat_id" ? geo.localBodyId : null,
       vehicle_no: form.vehicleNo.trim(),
       vehicle_type_id: form.vehicleTypeId || null,
       fuel_type_id: form.fuelTypeId || null,
@@ -445,6 +480,9 @@ export default function VehicleCreationForm() {
     >
       <form onSubmit={handleSubmit} noValidate>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* Government hierarchy the vehicle belongs to */}
+          <LocationFields value={geo} onChange={setGeo} />
 
           {/* Vehicle No */}
           {showField("vehicle_no") && (

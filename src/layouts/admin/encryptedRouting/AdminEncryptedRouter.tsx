@@ -17,22 +17,22 @@ import DepartmentList from "@/pages/admin/modules/masters/department/DepartmentL
 import DepartmentForm from "@/pages/admin/modules/masters/department/DepartmentForm";
 import DesignationList from "@/pages/admin/modules/masters/designation/DesignationListPage";
 import DesignationForm from "@/pages/admin/modules/masters/designation/DesignationForm";
-import CollectionPointListPage from "@/pages/admin/modules/masters/collectionPoint/CollectionPointListPage";
-import CollectionPointForm from "@/pages/admin/modules/masters/collectionPoint/CollectionPointForm";
-import WasteTypeListPage from "@/pages/admin/modules/masters/wasteType/WasteTypeListPage";
-import WasteTypeForm from "@/pages/admin/modules/masters/wasteType/WasteTypeForm";
-import BinListPage from "@/pages/admin/modules/masters/bin/BinListPage";
-import BinForm from "@/pages/admin/modules/masters/bin/BinForm";
+import CollectionPointListPage from "@/pages/admin/modules/scheduleMasters/collectionPoint/CollectionPointListPage";
+import CollectionPointForm from "@/pages/admin/modules/scheduleMasters/collectionPoint/CollectionPointForm";
+import WasteTypeListPage from "@/pages/admin/modules/assets/wasteType/WasteTypeListPage";
+import WasteTypeForm from "@/pages/admin/modules/assets/wasteType/WasteTypeForm";
+import BinListPage from "@/pages/admin/modules/assets/bin/BinListPage";
+import BinForm from "@/pages/admin/modules/assets/bin/BinForm";
 
 
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
 import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
-import PanchayatLeaderListPage from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderListPage";
-import PanchayatLeaderForm from "@/pages/admin/modules/masters/panchayatLeader/PanchayatLeaderForm";
-import DistrictLeaderListPage from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderListPage";
-import DistrictLeaderForm from "@/pages/admin/modules/masters/districtLeader/DistrictLeaderForm";
-import StateLeaderListPage from "@/pages/admin/modules/masters/stateLeader/StateLeaderListPage";
-import StateLeaderForm from "@/pages/admin/modules/masters/stateLeader/StateLeaderForm";
+import PanchayatLeaderListPage from "@/pages/admin/modules/leaderLogin/panchayatLeader/PanchayatLeaderListPage";
+import PanchayatLeaderForm from "@/pages/admin/modules/leaderLogin/panchayatLeader/PanchayatLeaderForm";
+import DistrictLeaderListPage from "@/pages/admin/modules/leaderLogin/districtLeader/DistrictLeaderListPage";
+import DistrictLeaderForm from "@/pages/admin/modules/leaderLogin/districtLeader/DistrictLeaderForm";
+import StateLeaderListPage from "@/pages/admin/modules/leaderLogin/stateLeader/StateLeaderListPage";
+import StateLeaderForm from "@/pages/admin/modules/leaderLogin/stateLeader/StateLeaderForm";
 import AreaTypeListPage from "@/pages/admin/modules/masters/areaType/AreaTypeListPage";
 import AreaTypeForm from "@/pages/admin/modules/masters/areaType/AreaTypeForm";
 import HierarchyListPage from "@/pages/admin/modules/masters/hierarchy/HierarchyListPage";
@@ -47,17 +47,17 @@ import PanchayatUnionListPage from "@/pages/admin/modules/masters/panchayatUnion
 import PanchayatUnionForm from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionForm";
 
 
-import PropertyList from "@/pages/admin/modules/masters/property/PropertyListPage";
-import PropertyForm from "@/pages/admin/modules/masters/property/PropertyForm";
-import SubPropertyList from "@/pages/admin/modules/masters/subproperty/SubPropertyListPage";
-import SubPropertyForm from "@/pages/admin/modules/masters/subproperty/SubPropertyForm";
-import StaffCreationList from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationList";
-import StaffCreationForm from "@/pages/admin/modules/staffMasters/staffCreation/staffcreationForm";
-import StaffAccessConfigList from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigList";
-import StaffAccessConfigPage from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/StaffAccessConfigPage";
+import PropertyList from "@/pages/admin/modules/wasteTypes/property/PropertyListPage";
+import PropertyForm from "@/pages/admin/modules/wasteTypes/property/PropertyForm";
+import SubPropertyList from "@/pages/admin/modules/wasteTypes/subproperty/SubPropertyListPage";
+import SubPropertyForm from "@/pages/admin/modules/wasteTypes/subproperty/SubPropertyForm";
+import StaffCreationList from "@/pages/admin/modules/userCreations/staffCreation/staffcreationList";
+import StaffCreationForm from "@/pages/admin/modules/userCreations/staffCreation/staffcreationForm";
+import StaffAccessConfigList from "@/pages/admin/modules/userCreations/staffAccessConfiguration/StaffAccessConfigList";
+import StaffAccessConfigPage from "@/pages/admin/modules/userCreations/staffAccessConfiguration/StaffAccessConfigPage";
 // Admin
-import UserTypeList from "@/pages/admin/modules/admin/userType/user-typeList";
-import UserTypeForm from "@/pages/admin/modules/admin/userType/user-typeForm";
+import UserTypeList from "@/pages/admin/modules/roleAssigns/userType/user-typeList";
+import UserTypeForm from "@/pages/admin/modules/roleAssigns/userType/user-typeForm";
 // Customer Master
 import CustomerCreationList from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationListPage";
 import CustomerCreationForm from "@/pages/admin/modules/customerMasters/customerCreations/customerCreationForm";
@@ -69,7 +69,7 @@ import HouseholdPickupEventForm from "@/pages/admin/modules/customerMasters/hous
 import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
 import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
 import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
-import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
+import MonthlyWasteComparisonListPage from "@/pages/admin/modules/scheduleMasters/monthlyWasteComparison/MonthlyWasteComparisonListPage";
 import TicketList from "@/pages/admin/modules/complaintTicketing/tickets/TicketList";
 import TicketForm from "@/pages/admin/modules/complaintTicketing/tickets/TicketForm";
 import TicketDetail from "@/pages/admin/modules/complaintTicketing/tickets/TicketDetail";
@@ -80,8 +80,8 @@ import VehicleTypeCreation from "@/pages/admin/modules/transportMasters/vehicleT
 import VehicleTypeCreationForm from "@/pages/admin/modules/transportMasters/vehicleTypecreation/vechicle-typeCreationForm";
 import VehicleCreationListPage from "@/pages/admin/modules/transportMasters/vehicleCreation/vehicleCreationListPage";
 import VehicleCreationForm from "@/pages/admin/modules/transportMasters/vehicleCreation/vehicleCreationForm";
-import TripPlanList from "@/pages/admin/modules/transportMasters/tripPlan/tripPlanList";
-import TripPlanForm from "@/pages/admin/modules/transportMasters/tripPlan/tripPlanForm";
+import TripPlanList from "@/pages/admin/modules/scheduleMasters/tripPlan/tripPlanList";
+import TripPlanForm from "@/pages/admin/modules/scheduleMasters/tripPlan/tripPlanForm";
 import TripAttendanceList from "@/pages/admin/modules/transportMasters/tripAttendance/tripAttendanceList";
 import TripAttendanceForm from "@/pages/admin/modules/transportMasters/tripAttendance/tripAttendanceForm";
 import VehicleTripAuditList from "@/pages/admin/modules/transportMasters/vehicleTripAudit/vehicleTripAuditList";
@@ -93,16 +93,16 @@ import VehicleHistory from "@/pages/admin/modules/vehicletracking/vehiclehistory
 import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
 import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
 import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
-import DailyTripAssignmentList from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentList"
-import DailyTripAssignmentForm from "@/pages/admin/modules/transportMasters/dailyTripAssignment/dailyTripAssignmentForm";
+import DailyTripAssignmentList from "@/pages/admin/modules/scheduleMasters/dailyTripAssignment/dailyTripAssignmentList"
+import DailyTripAssignmentForm from "@/pages/admin/modules/scheduleMasters/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripTracking from "@/pages/admin/modules/scheduleMasters/dailyTripTracking/DailyTripTracking";
-import DailyTripLogList from "@/pages/admin/modules/transportMasters/dailyTripLog/dailyTripLogList";
+import DailyTripLogList from "@/pages/admin/modules/scheduleMasters/dailyTripLog/dailyTripLogList";
 
 import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataListPage";
 import WasteCollectedForm from "@/pages/admin/modules/wasteManagementMasters/wasteCollectedData/wasteCollectedDataForm";
-import StaffUserTypeForm from "@/pages/admin/modules/admin/staffUserType/staffUserTypeForm";
-import StaffUserTypeList from "@/pages/admin/modules/admin/staffUserType/staffUserTypeList";
+import StaffUserTypeForm from "@/pages/admin/modules/roleAssigns/staffUserType/staffUserTypeForm";
+import StaffUserTypeList from "@/pages/admin/modules/roleAssigns/staffUserType/staffUserTypeList";
 
 import CategoryList from "@/pages/admin/modules/complaintTicketing/category/CategoryList";
 import CategoryForm from "@/pages/admin/modules/complaintTicketing/category/CategoryForm";
@@ -120,20 +120,20 @@ import TeamList from "@/pages/admin/modules/complaintTicketing/masters/TeamList"
 import TeamForm from "@/pages/admin/modules/complaintTicketing/masters/TeamForm";
 import SlaRuleList from "@/pages/admin/modules/complaintTicketing/masters/SlaRuleList";
 import SlaRuleForm from "@/pages/admin/modules/complaintTicketing/masters/SlaRuleForm";
-import MainScreenTypeList from "@/pages/admin/modules/admin/mainScreenType/mainScreenTypeList";
-import MainScreenTypeForm from "@/pages/admin/modules/admin/mainScreenType/mainScreenTypeForm";
-import UserScreenActionList from "@/pages/admin/modules/admin/userScreenAction/userScreenActionList";
-import UserScreenActionForm from "@/pages/admin/modules/admin/userScreenAction/userScreenActionForm";
-import MainScreenList from "@/pages/admin/modules/admin/mainScreen/mainScreenList";
-import MainScreenForm from "@/pages/admin/modules/admin/mainScreen/mainScreenForm";
-import UserScreenList from "@/pages/admin/modules/admin/userScreen/userScreenList";
-import UserScreenForm from "@/pages/admin/modules/admin/userScreen/userScreenForm";
-import UserScreenPermissionForm from "@/pages/admin/modules/admin/userScreenPermission/userScreenPermissionForm";
-import UserScreenPermissionList from "@/pages/admin/modules/admin/userScreenPermission/userScreenPermissionList";
-import StaffTemplateList from "@/pages/admin/modules/staffMasters/staffTemplate/staffTemplateList";
-import StaffTemplateForm from "@/pages/admin/modules/staffMasters/staffTemplate/staffTemplateForm";
-import AlternativeStaffTemplateList from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateList";
-import AlternativeStaffTemplateForm from "@/pages/admin/modules/staffMasters/alternativeStaffTemplate/alternativeStaffTemplateForm";
+import MainScreenTypeList from "@/pages/admin/modules/screenManagements/mainScreenType/mainScreenTypeList";
+import MainScreenTypeForm from "@/pages/admin/modules/screenManagements/mainScreenType/mainScreenTypeForm";
+import UserScreenActionList from "@/pages/admin/modules/screenManagements/userScreenAction/userScreenActionList";
+import UserScreenActionForm from "@/pages/admin/modules/screenManagements/userScreenAction/userScreenActionForm";
+import MainScreenList from "@/pages/admin/modules/screenManagements/mainScreen/mainScreenList";
+import MainScreenForm from "@/pages/admin/modules/screenManagements/mainScreen/mainScreenForm";
+import UserScreenList from "@/pages/admin/modules/screenManagements/userScreen/userScreenList";
+import UserScreenForm from "@/pages/admin/modules/screenManagements/userScreen/userScreenForm";
+import UserScreenPermissionForm from "@/pages/admin/modules/screenManagements/userScreenPermission/userScreenPermissionForm";
+import UserScreenPermissionList from "@/pages/admin/modules/screenManagements/userScreenPermission/userScreenPermissionList";
+import StaffTemplateList from "@/pages/admin/modules/scheduleMasters/staffTemplate/staffTemplateList";
+import StaffTemplateForm from "@/pages/admin/modules/scheduleMasters/staffTemplate/staffTemplateForm";
+import AlternativeStaffTemplateList from "@/pages/admin/modules/scheduleMasters/alternativeStaffTemplate/alternativeStaffTemplateList";
+import AlternativeStaffTemplateForm from "@/pages/admin/modules/scheduleMasters/alternativeStaffTemplate/alternativeStaffTemplateForm";
 import BinCollectionEventList from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventList";
 import BinCollectionEventForm from "@/pages/admin/modules/scheduleMasters/binCollectionEvent/binCollectionEventForm";
 import VehicleBreakdownList from "@/pages/admin/modules/scheduleMasters/vehicleBreakdown/vehicleBreakdownList";
