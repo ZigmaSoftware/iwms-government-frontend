@@ -4,7 +4,7 @@ import type {
   ModulePermission,
   StaffAccessConfigPayload,
   StaffAccessConfigPreviewResponse,
-} from "@/pages/admin/modules/staffMasters/staffAccessConfiguration/types";
+} from "@/pages/admin/modules/userCreations/staffAccessConfiguration/types";
 
 type RawModule = {
   mainScreenId?: string;

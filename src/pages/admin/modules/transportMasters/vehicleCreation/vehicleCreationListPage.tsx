@@ -38,6 +38,8 @@ const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   vehicle_no: ["vehicle_no", "vehicle"],
   vehicle_type_name: ["vehicle_type_id", "vehicle_type_name", "vehicle_type"],
   fuel_type_name: ["fuel_type_id", "fuel_type_name", "fuel_type"],
+  ulb_name: ["corporation_id", "corporation_name", "municipality_id", "municipality_name", "town_panchayat_id", "town_panchayat_name"],
+  rlb_name: ["panchayat_union_id", "panchayat_union_name", "panchayat_id", "panchayat_name"],
   capacity: ["capacity"],
   mileage_per_liter: ["mileage_per_liter", "mileage"],
   fuel_tank_capacity: ["fuel_tank_capacity"],
@@ -46,6 +48,30 @@ const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   rc_upload: ["rc_upload"],
   vehicle_insurance_file: ["vehicle_insurance_file"],
   is_active: ["is_active", "status", "active_status"],
+};
+
+// A vehicle belongs to exactly one urban level (Corporation/Municipality/Town
+// Panchayat) or one rural level (Panchayat Union/Panchayat) — resolve
+// whichever is populated, same convention as the Collection Point list.
+const ULB_LEVELS: Array<{ field: string; label: string }> = [
+  { field: "corporation_name", label: "Corporation" },
+  { field: "municipality_name", label: "Municipality" },
+  { field: "town_panchayat_name", label: "Town Panchayat" },
+];
+
+const RLB_LEVELS: Array<{ field: string; label: string }> = [
+  { field: "panchayat_union_name", label: "Panchayat Union" },
+  { field: "panchayat_name", label: "Panchayat" },
+];
+
+const resolveLocalBody = (row: VehicleCreationRecord, levels: Array<{ field: string; label: string }>) => {
+  for (const level of levels) {
+    const value = (row as Record<string, unknown>)[level.field];
+    if (value !== null && value !== undefined && String(value).trim() !== "") {
+      return { name: String(value), level: level.label };
+    }
+  }
+  return null;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -176,7 +202,17 @@ export default function VehicleCreationListPage() {
     };
   }, [t, refetchTrigger]);
 
-  const rows = allVehicles;
+  const rows = allVehicles.map((row) => {
+    const ulb = resolveLocalBody(row, ULB_LEVELS);
+    const rlb = resolveLocalBody(row, RLB_LEVELS);
+    return {
+      ...row,
+      _ulb_name: ulb?.name ?? "",
+      _ulb_level: ulb?.level ?? "",
+      _rlb_name: rlb?.name ?? "",
+      _rlb_level: rlb?.level ?? "",
+    };
+  });
 
   // ── Filter handlers ───────────────────────────────────────────────────────
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
@@ -512,6 +548,42 @@ export default function VehicleCreationListPage() {
             sortable
             filter
             showFilterMatchModes={false}
+          />
+        )}
+        {showCol("ulb_name") && (
+          <Column
+            field="_ulb_name"
+            header="ULB"
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: VehicleCreationRecord & { _ulb_name?: string; _ulb_level?: string }) =>
+              row._ulb_name ? (
+                <span>
+                  {row._ulb_name} <span className="text-xs text-gray-400">({row._ulb_level})</span>
+                </span>
+              ) : (
+                "-"
+              )
+            }
+          />
+        )}
+        {showCol("rlb_name") && (
+          <Column
+            field="_rlb_name"
+            header="RLB"
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: VehicleCreationRecord & { _rlb_name?: string; _rlb_level?: string }) =>
+              row._rlb_name ? (
+                <span>
+                  {row._rlb_name} <span className="text-xs text-gray-400">({row._rlb_level})</span>
+                </span>
+              ) : (
+                "-"
+              )
+            }
           />
         )}
         {showCol("capacity") && (
