@@ -146,7 +146,7 @@ import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAudi
 import LoginAuditList from "@/pages/admin/modules/audits/loginAudit/loginAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/staffMasters/unassignedStaffPool/unassignedStaffPoolForm";
-import ExternalAttendanceList from "@/pages/admin/modules/attendance/ExternalAttendanceList";
+import DailyAttendanceRegList from "@/pages/admin/modules/attendance/DailyAttendanceRegList";
 
 
 type ModuleComponent = ComponentType | undefined;
@@ -162,7 +162,7 @@ type RouteMap = Record<string, Record<string, RouteConfig>>;
 
 const ROUTES: RouteMap = {
   attendance: {
-    attendance: { component: ExternalAttendanceList },
+    attendance: { component: DailyAttendanceRegList },
   },
   admins: {
     "user-type": { list: UserTypeList, form: UserTypeForm },

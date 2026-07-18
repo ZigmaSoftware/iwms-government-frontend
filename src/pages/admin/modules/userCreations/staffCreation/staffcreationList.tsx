@@ -82,7 +82,7 @@ export default function StaffCreationList() {
 
   const globalFilterFields = [
     "employee_name",
-    "employee_id",
+    "emp_id",
     "designation",
     "contact_mobile",
   ];
@@ -327,6 +327,13 @@ export default function StaffCreationList() {
               body={(row: Staff) => cap(row.employee_name)}
             />
           )}
+
+          <Column
+            field="emp_id"
+            header="Employee ID"
+            sortable
+            body={(row: Staff) => cap(String(row.emp_id ?? "")) || "-"}
+          />
 
           <Column
             field="user_type_name"
