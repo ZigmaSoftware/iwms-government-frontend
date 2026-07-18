@@ -367,6 +367,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   password: ["password"],
   login_enabled: ["login_enabled"],
   photo: ["photo"],
+  attendance_reg_image: ["attendance_reg_image"],
   marital_status: ["marital_status"],
   dob: ["dob", "date_of_birth"],
   blood_group: ["blood_group"],
@@ -411,6 +412,8 @@ export default function StaffCreationForm() {
   const [section, setSection] = useState<Section>("official");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
+  const [attendanceImageFile, setAttendanceImageFile] = useState<File | null>(null);
+  const [attendanceImagePreview, setAttendanceImagePreview] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [sameAddress, setSameAddress] = useState(false);
@@ -418,6 +421,7 @@ export default function StaffCreationForm() {
   const [staffCreatedAt, setStaffCreatedAt] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const attendanceImageInputRef = useRef<HTMLInputElement>(null);
   const [staffUserTypeOptions, setStaffUserTypeOptions] = useState<
     { value: string; label: string }[]
   >([]);
@@ -969,6 +973,13 @@ export default function StaffCreationForm() {
               : `${backendOrigin}${staff.photo}`,
           );
         }
+        if (staff.attendance_reg_image) {
+          setAttendanceImagePreview(
+            staff.attendance_reg_image.startsWith("http")
+              ? staff.attendance_reg_image
+              : `${backendOrigin}${staff.attendance_reg_image}`,
+          );
+        }
 
       })
       .catch((error) => {
@@ -1040,6 +1051,13 @@ export default function StaffCreationForm() {
     setPhotoPreview(previewUrl);
     return () => URL.revokeObjectURL(previewUrl);
   }, [photoFile]);
+
+  useEffect(() => {
+    if (!attendanceImageFile) return;
+    const previewUrl = URL.createObjectURL(attendanceImageFile);
+    setAttendanceImagePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [attendanceImageFile]);
 
   useEffect(() => {
     if (!sameAddress) return;
@@ -1334,6 +1352,18 @@ export default function StaffCreationForm() {
       });
       return;
     }
+    if (
+      showField("attendance_reg_image") &&
+      attendanceImageFile &&
+      !attendanceImageFile.type.startsWith("image/")
+    ) {
+      Swal.fire({
+        icon: "warning",
+        title: "Invalid attendance image",
+        text: "Choose a valid image file for face registration.",
+      });
+      return;
+    }
 
     // ✅ DRIVER VALIDATION — mandatory on create AND on edit when no existing file
     if (
@@ -1447,6 +1477,9 @@ export default function StaffCreationForm() {
       // ✅ FILE APPENDS
       if (showField("photo") && photoFile) {
         formBody.append("photo", photoFile);
+      }
+      if (showField("attendance_reg_image") && attendanceImageFile) {
+        formBody.append("attendance_reg_image", attendanceImageFile);
       }
 
       if (showField("driving_licence_file") && licenceFile) {
@@ -1987,6 +2020,42 @@ export default function StaffCreationForm() {
                 className="h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-gray-700"
               />
             </div>
+          )}
+        </div>
+      )}
+
+      {showField("attendance_reg_image") && (
+        <div className="md:col-span-2">
+          <Label htmlFor="attendance_reg_image">Attendance Registration Image</Label>
+          <div className="mt-1 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-800/40">
+            <button
+              type="button"
+              onClick={() => attendanceImageInputRef.current?.click()}
+              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+            >
+              Choose face image
+            </button>
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-500">
+              {attendanceImageFile?.name || "No new image selected"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-gray-400">
+            Use a clear, front-facing photo with one person only.
+          </p>
+          <input
+            ref={attendanceImageInputRef}
+            type="file"
+            id="attendance_reg_image"
+            accept="image/*"
+            className="sr-only"
+            onChange={(event) => setAttendanceImageFile(event.target.files?.[0] ?? null)}
+          />
+          {attendanceImagePreview && (
+            <img
+              src={attendanceImagePreview}
+              alt="Attendance registration preview"
+              className="mt-2 h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm"
+            />
           )}
         </div>
       )}

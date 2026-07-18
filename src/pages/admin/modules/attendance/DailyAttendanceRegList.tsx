@@ -9,24 +9,25 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
 import Swal from "@/lib/notify";
 
-type AttendanceRecord = Record<string, unknown>;
+type DailyAttendanceRecord = Record<string, unknown>;
 
-type AttendanceResponse = {
+type DailyAttendanceResponse = {
   count: number;
-  records: AttendanceRecord[];
+  records: DailyAttendanceRecord[];
 };
 
 type ApiError = {
   response?: {
     data?: {
       detail?: string;
+      to_date?: string;
     };
   };
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const text = (row: AttendanceRecord, ...keys: string[]) => {
+const text = (row: DailyAttendanceRecord, ...keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
     if (value !== null && value !== undefined && value !== "") return String(value);
@@ -34,10 +35,10 @@ const text = (row: AttendanceRecord, ...keys: string[]) => {
   return "-";
 };
 
-export default function ExternalAttendanceList() {
+export default function DailyAttendanceRegList() {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
-  const [rows, setRows] = useState<AttendanceRecord[]>([]);
+  const [rows, setRows] = useState<DailyAttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -47,7 +48,7 @@ export default function ExternalAttendanceList() {
   const fetchAttendance = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get<AttendanceResponse>("/attendance/external-records/", {
+      const { data } = await api.get<DailyAttendanceResponse>("/attendance/records/", {
         params: {
           from_date: fromDate,
           to_date: toDate,
@@ -75,7 +76,7 @@ export default function ExternalAttendanceList() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-800">Attendance</h1>
-            <p className="text-sm text-gray-500">Recognized attendance records</p>
+            <p className="text-sm text-gray-500">Daily staff attendance records</p>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm text-gray-700">
@@ -135,15 +136,27 @@ export default function ExternalAttendanceList() {
         emptyMessage="No attendance records found."
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_: AttendanceRecord, options: { rowIndex: number }) => options.rowIndex + 1} />
-        <Column field="emp_id" header="Employee ID" body={(row: AttendanceRecord) => text(row, "emp_id", "employee_id")} sortable />
-        <Column field="name" header="Name" body={(row: AttendanceRecord) => text(row, "name", "employee_name")} sortable />
-        <Column field="recognition_date" header="Date" body={(row: AttendanceRecord) => text(row, "recognition_date", "date")} sortable />
-        <Column field="recognition_time" header="Time" body={(row: AttendanceRecord) => text(row, "recognition_time", "time")} sortable />
-        <Column field="punch_type" header="Punch" body={(row: AttendanceRecord) => text(row, "punch_type", "type")} />
-        <Column field="similarity_score" header="Similarity" body={(row: AttendanceRecord) => text(row, "similarity_score")} />
-        <Column field="latitude" header="Latitude" body={(row: AttendanceRecord) => text(row, "latitude")} />
-        <Column field="longitude" header="Longitude" body={(row: AttendanceRecord) => text(row, "longitude")} />
+        <Column header="S.No" body={(_: DailyAttendanceRecord, options: { rowIndex: number }) => options.rowIndex + 1} />
+        <Column field="emp_id" header="Employee ID" body={(row: DailyAttendanceRecord) => text(row, "emp_id")} sortable />
+        <Column field="name" header="Name" body={(row: DailyAttendanceRecord) => text(row, "name")} sortable />
+        <Column field="recognition_date" header="Date" body={(row: DailyAttendanceRecord) => text(row, "recognition_date")} sortable />
+        <Column field="recognition_time" header="Time" body={(row: DailyAttendanceRecord) => text(row, "recognition_time")} sortable />
+        <Column field="punch_type" header="Punch" body={(row: DailyAttendanceRecord) => text(row, "punch_type")} />
+        <Column field="similarity_score" header="Similarity" body={(row: DailyAttendanceRecord) => text(row, "similarity_score")} />
+        <Column field="latitude" header="Latitude" body={(row: DailyAttendanceRecord) => text(row, "latitude")} />
+        <Column field="longitude" header="Longitude" body={(row: DailyAttendanceRecord) => text(row, "longitude")} />
+        <Column
+          field="captured_image"
+          header="Capture"
+          body={(row: DailyAttendanceRecord) => {
+            const source = row.captured_image;
+            return typeof source === "string" && source ? (
+              <a href={source} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
+                View image
+              </a>
+            ) : "-";
+          }}
+        />
       </DataTable>
     </div>
   );
