@@ -264,6 +264,8 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   } else {
     localStorage.removeItem(DATA_SCOPE_STORAGE_KEY);
   }
+
+  scheduleProactiveRefresh();
 };
 
 /**
@@ -310,7 +312,51 @@ export const refreshAccessToken = async (): Promise<string | null> => {
   }
 };
 
+// Refresh 15 minutes before the access token's real expiry (e.g. at the
+// 4h45m mark of a 5h token) so it renews in the background before any
+// request has a chance to hit a 401. The reactive refresh-on-401 paths
+// (axios interceptor, permission poller) remain as a fallback for cases
+// this misses (device asleep past expiry, clock skew, etc).
+const PROACTIVE_REFRESH_BUFFER_SECONDS = 15 * 60;
+let scheduledRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const clearScheduledRefresh = (): void => {
+  if (scheduledRefreshTimer) {
+    clearTimeout(scheduledRefreshTimer);
+    scheduledRefreshTimer = null;
+  }
+};
+
+export const scheduleProactiveRefresh = (): void => {
+  clearScheduledRefresh();
+
+  const token = getStoredAccessToken();
+  if (!token) return;
+
+  let exp: number | undefined;
+  try {
+    exp = jwtDecode<JwtPayload>(token).exp;
+  } catch {
+    return;
+  }
+  if (!exp) return;
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const secondsUntilRefresh = exp - PROACTIVE_REFRESH_BUFFER_SECONDS - nowSeconds;
+  const delayMs = Math.max(secondsUntilRefresh, 0) * 1000;
+
+  scheduledRefreshTimer = setTimeout(async () => {
+    const newToken = await refreshAccessToken();
+    // Reschedule off the freshly issued token's own exp. If the refresh
+    // failed (refresh token itself is dead), don't reschedule — the
+    // reactive paths take over and only force a logout once a real
+    // request actually fails.
+    if (newToken) scheduleProactiveRefresh();
+  }, delayMs);
+};
+
 export const clearAuthSession = (): void => {
+  clearScheduledRefresh();
   localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
   localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(USER_STORAGE_KEY);
