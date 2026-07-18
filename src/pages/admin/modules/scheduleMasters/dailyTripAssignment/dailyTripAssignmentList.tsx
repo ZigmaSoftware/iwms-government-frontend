@@ -140,6 +140,30 @@ const toDateInputValue = (date = new Date()): string => {
   return localDate.toISOString().slice(0, 10);
 };
 
+const formatTime12Hour = (time?: string): string => {
+  if (!time) return "—";
+  const [hourStr, minuteStr = "00"] = time.split(":");
+  const hour = Number(hourStr);
+  if (!Number.isFinite(hour)) return time;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
+};
+
+// Bin-collection stops and household stops are tracked in separate arrays, so
+// the visible "point count" must switch on the trip's actual collection type
+// rather than always reading collection_points (which is empty/irrelevant for
+// household-only trips).
+const getPointCount = (rec: DailyTripAssignmentRecord): number => {
+  const binCount = Array.isArray(rec.collection_points) ? rec.collection_points.length : 0;
+  const householdCount = Array.isArray(rec.household_collection_points) ? rec.household_collection_points.length : 0;
+  const key = getCollectionTypeKey(rec);
+  if (key === "household") return householdCount;
+  if (key === "bin") return binCount;
+  if (key === "mixed") return binCount + householdCount;
+  return binCount || householdCount;
+};
+
 // Location = whichever local-body level the assignment (or its plan) is scoped to.
 const LOCATION_LEVELS: Array<{ key: string; nameKeys: string[]; tag: string }> = [
   { key: "corporation", nameKeys: ["corporation_name", "name"], tag: "Corporation" },
@@ -291,7 +315,7 @@ export default function DailyTripAssignmentList() {
         _location: locationInfo(rec)?.name ?? "",
         _collection_type: getCollectionTypeKey(rec),
         _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
-        _collection_point_count: String(Array.isArray(rec.collection_points) ? rec.collection_points.length : 0),
+        _collection_point_count: String(getPointCount(rec)),
       }));
   })();
 
@@ -506,14 +530,21 @@ export default function DailyTripAssignmentList() {
         <Column
           field="_collection_point_count"
           header="Collection Points"
-          body={(row: DailyTripAssignmentRecord) => Array.isArray(row.collection_points) ? row.collection_points.length : 0}
+          body={(row: DailyTripAssignmentRecord) => getPointCount(row)}
           sortable
           filter
           showFilterMatchModes={false}
           style={{ width: 150 }}
         />
         <Column field="trip_date" header="Trip Date" filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
-        <Column field="scheduled_time" header="Start Time" filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
+        <Column
+          field="scheduled_time"
+          header="Start Time"
+          body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.scheduled_time)}
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 110 }}
+        />
         <Column
           field="status"
           header="Status"
