@@ -1,4 +1,5 @@
 import { jwtDecode } from "jwt-decode";
+import { API_ROOT } from "@/config/configApi";
 import {
   clearAdminViewPreference,
   USER_ROLE_STORAGE_KEY,
@@ -262,6 +263,50 @@ export const persistLoginSession = (payload: LoginPayload): void => {
     safeSetStorageItem(DATA_SCOPE_STORAGE_KEY, JSON.stringify(dataScope));
   } else {
     localStorage.removeItem(DATA_SCOPE_STORAGE_KEY);
+  }
+};
+
+/**
+ * Exchanges the stored refresh token for a fresh access token so an expired
+ * 5-hour session can be silently renewed instead of forcing a re-login.
+ * Concurrent callers (the axios interceptor, the permission poller) share
+ * the same in-flight request via `refreshInFlight`, so only one refresh
+ * call ever hits the backend at a time. Returns null if there's no refresh
+ * token, or the backend rejects it (session is genuinely dead).
+ */
+let refreshInFlight: Promise<string | null> | null = null;
+
+export const refreshAccessToken = async (): Promise<string | null> => {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = getStoredRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const response = await fetch(`${API_ROOT}/login/refresh-token/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      const newAccessToken = data?.access_token;
+      if (!newAccessToken) return null;
+
+      safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, newAccessToken);
+      return newAccessToken as string;
+    } catch (error) {
+      console.warn("[Auth] Token refresh failed:", error);
+      return null;
+    }
+  })();
+
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
   }
 };
 
