@@ -14,7 +14,7 @@ import {
   fetchPermissionsFromAPI,
   PermissionAuthError,
 } from "@/utils/permissions";
-import { clearAuthSession } from "@/utils/authStorage";
+import { clearAuthSession, scheduleProactiveRefresh } from "@/utils/authStorage";
 
 // Routes with their own independent login/token (leader portals) or no auth
 // at all (public grievance form) must never be bounced to /auth just because
@@ -143,6 +143,11 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
     };
 
     initializePermissions();
+    // Covers a page refresh where a still-valid access_token from an
+    // earlier login already sits in localStorage — persistLoginSession
+    // only schedules the proactive refresh at login time, so a fresh
+    // page load needs to (re)arm it here too.
+    scheduleProactiveRefresh();
   }, [fetchAndUpdatePermissions]);
 
   /**
