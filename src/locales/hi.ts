@@ -1223,7 +1223,12 @@ const hiResource = {
           "permission_exists_title": "अनुमति मौजूद है",
           "permission_exists_body": "इस स्टाफ यूज़र प्रकार के लिए अनुमति पहले से मौजूद है। एडिट पर रीडायरेक्ट किया जा रहा है।",
           "all": "सभी",
-          "no_screens": "इस मुख्य स्क्रीन के लिए कोई स्क्रीन नहीं मिला."
+          "no_screens": "इस मुख्य स्क्रीन के लिए कोई स्क्रीन नहीं मिला.",
+          "add_another_main_screen": "एक और मुख्य स्क्रीन जोड़ें",
+          "all_main_screens_added": "सभी मुख्य स्क्रीन जोड़ी जा चुकी हैं",
+          "mainscreen_count": "{{count}} मुख्य स्क्रीन",
+          "mainscreen_count_other": "{{count}} मुख्य स्क्रीन",
+          "confirm_delete_count": "इस स्थानीय निकाय के {{count}} मुख्य स्क्रीन की सभी अनुमतियाँ हटा दी जाएँगी!"
         },
         "user_creation": {
           "title": "यूज़र प्रबंधन",
