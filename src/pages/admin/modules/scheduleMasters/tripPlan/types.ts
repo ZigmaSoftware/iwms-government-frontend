@@ -23,7 +23,11 @@ export type TripPlanRecord = {
   display_code?: string;
   collection_type?: string;
   district?: { name?: string };
-  panchayat?: { panchayat_name?: string };
+  corporation?: { name?: string; corporation_name?: string };
+  municipality?: { name?: string; municipality_name?: string };
+  town_panchayat?: { name?: string; town_panchayat_name?: string };
+  panchayat_union?: { name?: string; union_name?: string };
+  panchayat?: { name?: string; panchayat_name?: string };
   staff_template?: { display_code?: string };
   vehicle?: { vehicle_no?: string };
   waste_type?: { waste_type_name?: string };

@@ -19,6 +19,37 @@ import { normalizeList } from "@/utils/forms";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 
 
+// Local body can live on any one of these fields depending on the plan's
+// area type (urban → corporation/municipality/town panchayat, rural →
+// panchayat union/panchayat) — show whichever one is actually set.
+const HIERARCHY_LOCATION_FIELDS: Array<{ key: string; nameKey: string; label: string }> = [
+  { key: "corporation", nameKey: "corporation_name", label: "Corporation" },
+  { key: "municipality", nameKey: "municipality_name", label: "Municipality" },
+  { key: "town_panchayat", nameKey: "town_panchayat_name", label: "Town Panchayat" },
+  { key: "panchayat_union", nameKey: "union_name", label: "Panchayat Union" },
+  { key: "panchayat", nameKey: "panchayat_name", label: "Panchayat" },
+];
+
+const resolveLocation = (record: TripPlanRecord): string => {
+  for (const { key, nameKey, label } of HIERARCHY_LOCATION_FIELDS) {
+    const nested = record[key] as Record<string, unknown> | undefined;
+    if (!nested) continue;
+    const name = String(nested[nameKey] ?? nested.name ?? "");
+    if (name) return `${name} (${label})`;
+  }
+  return "";
+};
+
+const formatTime12Hour = (time?: string): string => {
+  if (!time) return "";
+  const [hourStr, minuteStr = "00"] = time.split(":");
+  const hour = Number(hourStr);
+  if (!Number.isFinite(hour)) return time;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
+};
+
 const extractErrorMessage = (error: unknown): string | null => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
   if (!data) return null;
@@ -71,7 +102,7 @@ export default function TripPlanList() {
 
   const rows = useMemo(() => records.map((record) => ({
     ...record,
-    _location: record.panchayat?.panchayat_name ?? "",
+    _location: resolveLocation(record),
     _collection_type:
       record.collection_type === "bin_collection"
         ? "Secondary Collection Point"
@@ -150,7 +181,7 @@ export default function TripPlanList() {
         <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} />
         <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
-        <Column field="scheduled_time" header="Time" />
+        <Column field="scheduled_time" header="Time" body={(row: TripPlanRecord) => formatTime12Hour(row.scheduled_time)} />
         <Column field="approval_status" header="Approval" />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
