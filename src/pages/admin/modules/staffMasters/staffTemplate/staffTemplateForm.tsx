@@ -257,35 +257,55 @@ export default function StaffTemplateForm() {
     const inGeo = (s: StaffRecord) =>
       matchesSelectedGeo(s, geo.districtId, geo.hierarchyLevel, geo.hierarchyId);
 
-    // Re-scoping must not discard an already-injected pending option (the
-    // driver/operator/approver assigned on the saved template) before the
-    // prefill-resolution effects below get a chance to consume it — otherwise
-    // an edit-mode assignee who falls outside the freshly-fetched, geo-scoped
-    // staff list (e.g. a different active_status/geo match in production)
-    // silently disappears from the dropdown and formData never gets set.
+    // Re-scoping must not discard the template's already-assigned driver/
+    // operator/extras/approver — otherwise an assignee who falls outside the
+    // freshly-fetched, geo-scoped staff list (e.g. their own geo no longer
+    // matches the template's current geo) silently disappears from the
+    // dropdown once pendingXxxId is cleared by the prefill-resolution effect,
+    // and formData gets wiped by the "clear invalid" effect right after.
+    // Keying off pendingXxxId only protects the option during the initial
+    // resolution race; formData.xxx_id stays correct indefinitely, so once
+    // resolved we must keep re-injecting from formData instead.
     setDriverOptions((prev) => {
       const scoped = staffRecords.filter((s) => isDriverRole(s) && inGeo(s)).map(toStaffOption);
-      return pendingDriverId ? ensureOption(scoped, pendingDriverId, prev.find((o) => o.value === pendingDriverId)?.label) : scoped;
+      const id = pendingDriverId || formData.driver_id;
+      return id ? ensureOption(scoped, id, prev.find((o) => o.value === id)?.label) : scoped;
     });
     setOperatorOptions((prev) => {
       let scoped = staffRecords.filter((s) => isOperatorRole(s) && inGeo(s)).map(toStaffOption);
-      if (pendingOperatorId) {
-        scoped = ensureOption(scoped, pendingOperatorId, prev.find((o) => o.value === pendingOperatorId)?.label);
+      const id = pendingOperatorId || formData.operator_id;
+      if (id) {
+        scoped = ensureOption(scoped, id, prev.find((o) => o.value === id)?.label);
       }
-      (pendingExtraIds ?? []).forEach((extraId) => {
+      const extraIds = pendingExtraIds ?? formData.extra_operator_id;
+      extraIds.forEach((extraId) => {
         scoped = ensureOption(scoped, extraId, prev.find((o) => o.value === extraId)?.label);
       });
       return scoped;
     });
     setAdminOptions((prev) => {
       const scoped = staffRecords.filter((s) => getStaffRole(s).includes("admin")).map(toStaffOption);
-      return pendingApprovedBy ? ensureOption(scoped, pendingApprovedBy, prev.find((o) => o.value === pendingApprovedBy)?.label) : scoped;
+      const id = pendingApprovedBy || formData.approved_by;
+      return id ? ensureOption(scoped, id, prev.find((o) => o.value === id)?.label) : scoped;
     });
     setSupervisorOptions(
       staffRecords.filter((s) => getStaffRole(s).includes("supervisor") && inGeo(s)).map(toStaffOption)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffRecords, geo.districtId, geo.hierarchyLevel, geo.hierarchyId, pendingDriverId, pendingOperatorId, pendingExtraIds, pendingApprovedBy]);
+  }, [
+    staffRecords,
+    geo.districtId,
+    geo.hierarchyLevel,
+    geo.hierarchyId,
+    pendingDriverId,
+    pendingOperatorId,
+    pendingExtraIds,
+    pendingApprovedBy,
+    formData.driver_id,
+    formData.operator_id,
+    formData.extra_operator_id,
+    formData.approved_by,
+  ]);
 
   /* ================= LOAD TEMPLATE (EDIT) ================= */
 
