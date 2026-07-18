@@ -1233,7 +1233,12 @@ const enResource = {
           "permission_exists_title": "Permission Exists",
           "permission_exists_body": "This staff user type already has permissions. Redirecting to Edit.",
           "all": "All",
-          "no_screens": "No screens found for this main screen."
+          "no_screens": "No screens found for this main screen.",
+          "add_another_main_screen": "Add Another Main Screen",
+          "all_main_screens_added": "All main screens added",
+          "mainscreen_count": "{{count}} Master",
+          "mainscreen_count_other": "{{count}} Masters",
+          "confirm_delete_count": "All permissions across {{count}} master(s) for this local body will be deleted!"
         },
         "user_creation": {
           "title": "User Management",

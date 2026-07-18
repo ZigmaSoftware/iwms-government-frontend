@@ -61,13 +61,13 @@ type GroupedRow = {
   local_body_id: string;
   local_body_type_label: string;
   local_body_label: string;
-  mainscreen_name: string;
-  mainscreen_id: string;
+  mainscreen_ids: string[];
+  mainscreen_names: string[];
+  mainscreen_names_joined: string;
   permission_type: string;
   permission_type_label: string;
   is_active: boolean;
   legacy: boolean;
-  screens: Array<{ screen: unknown; action: unknown; order: unknown }>;
 };
 
 /* -----------------------------------------------------------
@@ -90,9 +90,9 @@ export default function UserScreenPermissionList() {
       value: null,
       matchMode: FilterMatchMode.STARTS_WITH,
     },
-    mainscreen_name: {
+    mainscreen_names_joined: {
       value: null,
-      matchMode: FilterMatchMode.STARTS_WITH,
+      matchMode: FilterMatchMode.CONTAINS,
     },
   });
 
@@ -105,11 +105,9 @@ export default function UserScreenPermissionList() {
   const ENC_EDIT_PATH = (
     localBodyType: string,
     localBodyId: string,
-    mainScreenId: string,
     permissionType: string
   ) =>
     appendRouteQuery(permissionEditPath(encodeLocalBodyRouteId(localBodyType, localBodyId)), {
-      mainscreen_id: mainScreenId,
       permission_type: permissionType,
     });
 
@@ -173,11 +171,12 @@ export default function UserScreenPermissionList() {
         const localBodyType = String(item.local_body_type ?? "");
         const localBodyId = String(item.local_body_id ?? "");
         const screenId = String(item.mainscreen_id ?? "");
+        const screenName = String(item.mainscreen_name ?? t("common.unknown"));
         const permissionType = String(item.permission_type ?? "screen");
         const isLegacy = !localBodyType || !localBodyId;
         const key = isLegacy
           ? `legacy__${item.unique_id}__${screenId}`
-          : `${localBodyType}__${localBodyId}__${screenId}__${permissionType}`;
+          : `${localBodyType}__${localBodyId}__${permissionType}`;
 
         if (!acc[key]) {
           acc[key] = {
@@ -190,26 +189,28 @@ export default function UserScreenPermissionList() {
             local_body_label: isLegacy
               ? ""
               : localBodyLabels[localBodyId] || localBodyId,
-            mainscreen_name: item.mainscreen_name ?? t("common.unknown"),
-            mainscreen_id: screenId,
+            mainscreen_ids: [],
+            mainscreen_names: [],
+            mainscreen_names_joined: "",
             permission_type: permissionType,
             permission_type_label: PERMISSION_TYPE_LABELS[permissionType] ?? permissionType,
             is_active: item.is_active,
             legacy: isLegacy,
-            screens: [],
           };
         }
 
-        acc[key].screens.push({
-          screen: item.userscreen_name,
-          action: item.userscreenaction_name,
-          order: item.order_no,
-        });
+        if (screenId && !acc[key].mainscreen_ids.includes(screenId)) {
+          acc[key].mainscreen_ids.push(screenId);
+          acc[key].mainscreen_names.push(screenName);
+        }
 
         return acc;
       }, {} as Record<string, GroupedRow>);
 
-      return Object.values(groupedObj);
+      return Object.values(groupedObj).map((row) => ({
+        ...row,
+        mainscreen_names_joined: row.mainscreen_names.join(", "),
+      }));
   }, [permissionRows, localBodyLabels, t]);
 
   /* -----------------------------------------------------------
@@ -224,7 +225,10 @@ export default function UserScreenPermissionList() {
 
     const confirmDelete = await Swal.fire({
       title: t("common.confirm_title"),
-      text: t("admin.user_screen_permission.confirm_delete"),
+      text: t("admin.user_screen_permission.confirm_delete_count", {
+        count: row.mainscreen_ids.length,
+        defaultValue: t("admin.user_screen_permission.confirm_delete"),
+      }),
       icon: "warning",
       showCancelButton: true,
       confirmButtonColor: "#d33",
@@ -233,16 +237,21 @@ export default function UserScreenPermissionList() {
     if (!confirmDelete.isConfirmed) return;
 
     try {
-      const deletePath = `delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${row.mainscreen_id}`;
+      await Promise.all(
+        row.mainscreen_ids.map((mainscreenId) =>
+          userScreenPermissionApi.delete(
+            `delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${mainscreenId}`
+          )
+        )
+      );
 
-      await userScreenPermissionApi.delete(deletePath);
       setPermissionRows((current) =>
         current.filter((item) => {
           const sameLocalBody =
             String(item.local_body_type ?? "") === row.local_body_type &&
             String(item.local_body_id ?? "") === row.local_body_id;
-          const sameMainScreen = String(item.mainscreen_id ?? "") === String(row.mainscreen_id ?? "");
-          return !(sameLocalBody && sameMainScreen);
+          const samePermissionType = String(item.permission_type ?? "screen") === row.permission_type;
+          return !(sameLocalBody && samePermissionType);
         })
       );
 
@@ -275,12 +284,7 @@ export default function UserScreenPermissionList() {
         disabled={row.legacy}
         onClick={() =>
           navigate(
-            ENC_EDIT_PATH(
-              row.local_body_type,
-              row.local_body_id,
-              String(row.mainscreen_id ?? ""),
-              row.permission_type
-            )
+            ENC_EDIT_PATH(row.local_body_type, row.local_body_id, row.permission_type)
           )
         }
       >
@@ -300,6 +304,15 @@ export default function UserScreenPermissionList() {
   );
 
   const indexTemplate = (_: any, { rowIndex }: any) => rowIndex + 1;
+
+  const mainScreenCountTemplate = (row: GroupedRow) => (
+    <span title={row.mainscreen_names_joined}>
+      {t("admin.user_screen_permission.mainscreen_count", {
+        count: row.mainscreen_ids.length,
+        defaultValue: `${row.mainscreen_ids.length} Master(s)`,
+      })}
+    </span>
+  );
 
   /* -----------------------------------------------------------
      GLOBAL SEARCH
@@ -355,7 +368,7 @@ export default function UserScreenPermissionList() {
         loading={isLoading}
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={["local_body_type_label", "local_body_label", "mainscreen_name", "permission_type_label"]}
+        globalFilterFields={["local_body_type_label", "local_body_label", "mainscreen_names_joined", "permission_type_label"]}
         header={header}
         stripedRows
         showGridlines
@@ -371,9 +384,10 @@ export default function UserScreenPermissionList() {
         />
 
         <Column
-          field="mainscreen_name"
           header={t("admin.nav.main_screen")}
+          body={mainScreenCountTemplate}
           sortable
+          sortField="mainscreen_ids.length"
         />
 
         <Column
