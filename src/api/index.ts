@@ -4,6 +4,7 @@ import axios, { type AxiosInstance } from "axios";
    ENV
 -------------------------------------------------------- */
 import { API_ROOT } from "../config/configApi";
+import { clearAuthSession, refreshAccessToken } from "../utils/authStorage";
 
 const isRemovedScopeKey = (key: string): boolean => {
   const normalized = key.replace(/[^a-z]/gi, "").toLowerCase();
@@ -68,6 +69,46 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
     config.data = stripTenancyKeys(config.data);
     return config;
   });
+
+  // On a 401 (dead/expired access token — see JWTUserAuthentication.authenticate_header
+  // on the backend for why this is 401 and not 403), try a silent refresh and retry the
+  // request once before giving up. Only a failed refresh forces the user back to /auth.
+  api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config as
+        | (typeof error.config & { _retry?: boolean })
+        | undefined;
+      const isLogin = originalRequest
+        ? opts.loginPathIncludes.some((p) => originalRequest.url?.includes(p))
+        : true;
+      const isRefreshEndpoint = originalRequest?.url?.includes("refresh-token");
+
+      if (
+        error.response?.status === 401 &&
+        originalRequest &&
+        !isLogin &&
+        !isRefreshEndpoint &&
+        !originalRequest._retry
+      ) {
+        originalRequest._retry = true;
+        const newToken = await refreshAccessToken();
+
+        if (newToken) {
+          originalRequest.headers = originalRequest.headers ?? {};
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        }
+
+        clearAuthSession();
+        if (!window.location.pathname.startsWith("/auth")) {
+          window.location.assign("/auth");
+        }
+      }
+
+      return Promise.reject(error);
+    }
+  );
 
   return api;
 };
