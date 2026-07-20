@@ -25,6 +25,7 @@ import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
   encMasters,
+  encAttendance,
   encAudits,
   encCollectionPoints,
   encWasteTypes,
@@ -149,6 +150,16 @@ const navItems: NavItem[] = [
     path: "/admin",
     module: "dashboard",
     screen: "Dashboard",
+  },
+];
+
+const attendanceItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.attendance",
+    icon: <CalendarCheck size={18} />,
+    path: `/${encAttendance}/${encAttendance}`,
+    module: "attendance",
+    screen: "attendance",
   },
 ];
 
@@ -796,6 +807,7 @@ const AppSidebar: React.FC = () => {
     () => {
       const allSections = [
         { key: "main" as const, items: navItems },
+        { key: "attendance" as const, items: attendanceItems },
         { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },

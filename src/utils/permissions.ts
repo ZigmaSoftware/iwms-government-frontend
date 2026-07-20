@@ -1,5 +1,7 @@
 import { decryptSegment } from "@/utils/routeCrypto";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
+import { API_ROOT } from "@/config/configApi";
+import { refreshAccessToken } from "@/utils/authStorage";
 
 // ============================================================
 // Types
@@ -753,10 +755,10 @@ type PermissionsAPIResponse = {
 
 /**
  * Thrown by fetchPermissionsFromAPI when the backend rejects the stored
- * access_token as expired/invalid (surfaced as 401, or 403 — this project's
- * JWT authenticator has no authenticate_header(), so DRF coerces 401→403).
- * Callers use this to distinguish "session is dead" from a transient/empty
- * permissions response.
+ * access_token as expired/invalid (HTTP 401) and a silent refresh attempt
+ * also failed. A plain 403 (authenticated but lacking permission) is NOT
+ * an auth failure and must not throw this. Callers use this to distinguish
+ * "session is dead" from a transient/empty permissions response.
  */
 export class PermissionAuthError extends Error {
   status: number;
@@ -771,30 +773,43 @@ export const fetchPermissionsFromAPI = async (): Promise<PermissionsMap> => {
   const token = localStorage.getItem("access_token");
   if (!token) return {};
 
-  const apiBaseUrl = import.meta.env.VITE_API_LOCAL || import.meta.env.VITE_API_PROD;
-  if (!apiBaseUrl) {
-    console.error("[Permissions API] ❌ API base URL not configured");
-    return {};
-  }
-
-  const url = `${apiBaseUrl}/${adminEndpoints.userpermission}/`;
-  let response: Response;
-  try {
-    response = await fetch(url, {
+  const url = `${API_ROOT}/${adminEndpoints.userpermission}/`;
+  const doFetch = (bearerToken: string) =>
+    fetch(url, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${bearerToken}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
     });
+
+  let response: Response;
+  try {
+    response = await doFetch(token);
   } catch (error) {
     console.error("[Permissions API] ❌ Error fetching permissions:", error);
     return {};
   }
 
-  if (response.status === 401 || response.status === 403) {
-    console.error(`[Permissions API] ❌ HTTP ${response.status}: access_token expired/invalid`);
+  // 401 means the access token itself is dead (see JWTUserAuthentication.
+  // authenticate_header on the backend — genuine permission-denied comes
+  // back as 403 and must NOT force a logout). Try a silent refresh before
+  // giving up on the session.
+  if (response.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      try {
+        response = await doFetch(newToken);
+      } catch (error) {
+        console.error("[Permissions API] ❌ Error retrying after token refresh:", error);
+        return {};
+      }
+    }
+  }
+
+  if (response.status === 401) {
+    console.error("[Permissions API] ❌ HTTP 401: access_token expired/invalid and refresh failed");
     throw new PermissionAuthError(response.status);
   }
 
