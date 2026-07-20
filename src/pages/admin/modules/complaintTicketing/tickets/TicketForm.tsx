@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CheckCircle2, ClipboardList, Loader2, MapPinned, UserRound } from "lucide-react";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
@@ -49,7 +50,37 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
   return "";
 };
 
-const steps = ["Citizen", "Complaint", "Location"];
+const STEPS = [
+  { label: "Citizen", icon: UserRound },
+  { label: "Complaint", icon: ClipboardList },
+  { label: "Location", icon: MapPinned },
+  { label: "Review", icon: CheckCircle2 },
+] as const;
+const REVIEW_STEP = STEPS.length - 1;
+
+const PRIMARY_BUTTON_CLASS =
+  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#22a855] !bg-[#22a855] px-5 py-2 text-sm font-semibold !text-white shadow-sm transition hover:!bg-[#1a8a44] disabled:opacity-60";
+const SECONDARY_BUTTON_CLASS =
+  "inline-flex items-center justify-center gap-1.5 rounded-md border !border-[#22a855] !bg-white px-4 py-2 text-sm font-semibold !text-[#22a855] transition hover:!bg-[#e8f8ee] dark:!bg-transparent dark:hover:!bg-[#22a855]/10";
+const CANCEL_BUTTON_CLASS =
+  "inline-flex items-center justify-center rounded-md border !border-[#f7192b] !bg-[#f7192b] px-4 py-2 text-sm font-semibold !text-white transition hover:!bg-[#d91626]";
+
+const reviewRow = (label: string, value?: string | null) => (
+  <div className="flex justify-between gap-4 border-b border-gray-100 py-1.5 text-sm last:border-0 dark:border-gray-800">
+    <span className="text-gray-500">{label}</span>
+    <span className="text-right font-medium text-gray-800 dark:text-gray-200">{value?.trim() ? value : "—"}</span>
+  </div>
+);
+
+const reviewCard = (title: string, icon: React.ReactNode, body: React.ReactNode) => (
+  <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+      {icon}
+      {title}
+    </div>
+    {body}
+  </div>
+);
 
 export default function TicketWizardForm() {
   const navigate = useNavigate();
@@ -57,12 +88,14 @@ export default function TicketWizardForm() {
   const { listPath } = createCrudRoutePaths(encComplaintTicket, encComplaint);
   const [customers, setCustomers] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [wasteTypes, setWasteTypes] = useState<any[]>([]);
   const [subcategories, setSubcategories] = useState<any[]>([]);
   const [priorities, setPriorities] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [languages, setLanguages] = useState<any[]>([]);
   const [step, setStep] = useState(0);
+  const [stepError, setStepError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [states, setStates] = useState<GeoOption[]>([]);
   const [districts, setDistricts] = useState<GeoOption[]>([]);
@@ -75,6 +108,7 @@ export default function TicketWizardForm() {
     source: "",
     language: "",
     category: "",
+    waste_types: [] as string[],
     subcategory: "",
     priority: "",
     status: "",
@@ -99,7 +133,8 @@ export default function TicketWizardForm() {
       complaintStatusApi.readAll().catch(() => []),
       complaintSourceApi.readAll().catch(() => []),
       complaintLanguageApi.readAll().catch(() => []),
-    ]).then(([customerRows, categoryRows, subcategoryRows, priorityRows, statusRows, sourceRows, languageRows]) => {
+      adminApi.wasteTypes.readAll().catch(() => []),
+    ]).then(([customerRows, categoryRows, subcategoryRows, priorityRows, statusRows, sourceRows, languageRows, wasteTypeRows]) => {
       setCustomers(asArray(customerRows));
       setCategories(asArray(categoryRows));
       setSubcategories(asArray(subcategoryRows));
@@ -107,6 +142,7 @@ export default function TicketWizardForm() {
       setStatuses(asArray(statusRows));
       setSources(asArray(sourceRows));
       setLanguages(asArray(languageRows));
+      setWasteTypes(asArray(wasteTypeRows));
       setForm((prev) => ({
         ...prev,
         priority: asArray<any>(priorityRows)[0]?.unique_id ?? "",
@@ -119,6 +155,13 @@ export default function TicketWizardForm() {
   }, []);
 
   const setValue = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  const toggleWasteType = (id: string) =>
+    setForm((prev) => ({
+      ...prev,
+      waste_types: prev.waste_types.includes(id)
+        ? prev.waste_types.filter((item) => item !== id)
+        : [...prev.waste_types, id],
+    }));
   const filteredSubcategories = form.category ? subcategories.filter((item) => String(item.category) === form.category) : subcategories;
   const filteredDistricts = form.state ? districts.filter((item) => item.state_id === form.state) : districts;
   const filteredAreaTypes = form.district ? areaTypes.filter((item) => !item.district_id || item.district_id === form.district) : areaTypes;
@@ -208,12 +251,79 @@ export default function TicketWizardForm() {
     }
   };
 
+  const findLabel = (list: any[], id: string, field: string): string | undefined =>
+    list.find((item) => item.unique_id === id)?.[field];
+
+  const validateStep = (index: number): string | null => {
+    if (index === 0) {
+      if (!(form.profile_name.trim() || form.customer || form.wa_phone.trim())) {
+        return "Select a customer or enter a phone number / profile name to continue.";
+      }
+      return null;
+    }
+    if (index === 1) {
+      if (!form.category) return "Select a category to continue.";
+      if (!form.priority) return "Select a priority to continue.";
+      if (!form.status) return "Select a status to continue.";
+      if (!form.title.trim()) return "Enter a title to continue.";
+      return null;
+    }
+    return null;
+  };
+
+  const goNext = () => {
+    const error = validateStep(step);
+    if (error) {
+      setStepError(error);
+      return;
+    }
+    setStepError(null);
+    setStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+  };
+
+  const goBack = () => {
+    setStepError(null);
+    setStep((prev) => Math.max(prev - 1, 0));
+  };
+
+  const goToStep = (index: number) => {
+    if (index <= step) {
+      setStepError(null);
+      setStep(index);
+      return;
+    }
+    const error = validateStep(step);
+    if (error) {
+      setStepError(error);
+      return;
+    }
+    setStepError(null);
+    setStep(step + 1);
+  };
+
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
+    // Guard against the browser's implicit Enter-key submission firing this
+    // handler while the citizen is still on an earlier wizard step.
+    if (step !== REVIEW_STEP) {
+      goNext();
+      return;
+    }
     if (!form.category || !form.priority || !form.status || !form.title.trim()) {
       Swal.fire("Missing fields", "Title, category, priority, and status are required.", "warning");
       return;
     }
+    const confirmCreate = await Swal.fire({
+      title: "Create this ticket?",
+      text: "Please confirm you want to create this complaint ticket with the details entered.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: "Yes, create ticket",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#22a855",
+      cancelButtonColor: "#d33",
+    });
+    if (!confirmCreate.isConfirmed) return;
     setSaving(true);
     try {
       // The selected "city" maps onto exactly one of the five local-body FKs.
@@ -227,6 +337,7 @@ export default function TicketWizardForm() {
         source: form.source || null,
         language: form.language || null,
         category: form.category,
+        waste_types: form.waste_types,
         subcategory: form.subcategory || null,
         priority: form.priority,
         status: form.status,
@@ -250,27 +361,105 @@ export default function TicketWizardForm() {
     }
   };
 
-  const canContinue =
-    step === 0
-      ? Boolean(form.profile_name.trim() || form.customer || form.wa_phone.trim())
-      : step === 1
-        ? Boolean(form.category && form.priority && form.status && form.title.trim())
-        : true;
+  const customerLabel = customers.find((item) => String(item.unique_id ?? item.id) === form.customer)?.customer_name;
+
+  const renderReview = () => (
+    <div className="space-y-6">
+      {reviewCard(
+        "Citizen",
+        <UserRound className="h-4 w-4 text-gray-500" />,
+        <>
+          {reviewRow("Customer", customerLabel ?? (form.customer ? undefined : "Walk-in / unknown"))}
+          {reviewRow("Phone", form.wa_phone)}
+          {reviewRow("Profile name", form.profile_name)}
+          {reviewRow("Source", findLabel(sources, form.source, "source_name"))}
+          {reviewRow("Language", findLabel(languages, form.language, "language_name"))}
+        </>,
+      )}
+
+      {reviewCard(
+        "Complaint",
+        <ClipboardList className="h-4 w-4 text-gray-500" />,
+        <>
+          {reviewRow("Category", findLabel(categories, form.category, "category_name"))}
+          {reviewRow(
+            "Waste type",
+            wasteTypes
+              .filter((item) => form.waste_types.includes(item.unique_id))
+              .map((item) => item.waste_type_name)
+              .join(", "),
+          )}
+          {reviewRow("Subcategory", findLabel(subcategories, form.subcategory, "subcategory_name"))}
+          {reviewRow("Priority", findLabel(priorities, form.priority, "priority_name"))}
+          {reviewRow("Status", findLabel(statuses, form.status, "status_name"))}
+          {reviewRow("Title", form.title)}
+          {reviewRow("Description", form.description)}
+        </>,
+      )}
+
+      {reviewCard(
+        "Location",
+        <MapPinned className="h-4 w-4 text-gray-500" />,
+        <>
+          {reviewRow("State", findLabel(states, form.state, "name"))}
+          {reviewRow("District", findLabel(districts, form.district, "name"))}
+          {reviewRow("Area type", findLabel(areaTypes, form.area_type, "name"))}
+          {reviewRow("Local body type", form.city_type ? LOCAL_BODY_TYPE_LABELS[form.city_type] : undefined)}
+          {reviewRow("Local body", findLabel(cities, form.city, "name"))}
+          {reviewRow("Location", form.location_text)}
+          {reviewRow("Latitude", form.latitude)}
+          {reviewRow("Longitude", form.longitude)}
+        </>,
+      )}
+    </div>
+  );
 
   return (
     <ComponentCard title="Add Complaint Ticket">
-      <form onSubmit={save} className="space-y-5">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {steps.map((label, index) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setStep(index)}
-              className={`min-h-10 rounded border px-2 py-2 text-sm font-medium ${index === step ? "border-green-600 bg-green-50 text-green-700" : "border-gray-200 bg-white text-gray-600"}`}
-            >
-              {index + 1}. {label}
-            </button>
-          ))}
+      <form
+        onSubmit={save}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && step !== REVIEW_STEP && !(event.target instanceof HTMLTextAreaElement)) {
+            event.preventDefault();
+          }
+        }}
+        className="space-y-6"
+      >
+
+        <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-gray-800">
+          {STEPS.map(({ label }, index) => {
+            const isActive = step === index;
+            const isCompleted = index < step;
+            const isLocked = index > step;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => goToStep(index)}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
+                  isActive
+                    ? "!bg-[#22a855] !text-white shadow-sm"
+                    : isCompleted
+                      ? "!bg-[#e8f8ee] !text-[#22a855] hover:opacity-90"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-400"
+                }`}
+              >
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold ${
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : isCompleted
+                        ? "!bg-[#22a855] !text-white"
+                        : "bg-gray-300 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                  }`}
+                >
+                  {isCompleted ? "✓" : index + 1}
+                </span>
+                {label}
+                {isLocked && <span className="text-[10px] opacity-60">🔒</span>}
+              </button>
+            );
+          })}
         </div>
 
         {step === 0 && (
@@ -331,6 +520,30 @@ export default function TicketWizardForm() {
                 {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.status_name}</option>)}
               </select>
             </div>
+            <div className="md:col-span-3">
+              <Label>Waste Type</Label>
+              <div className="flex flex-wrap gap-2">
+                {wasteTypes.length === 0 && <p className="text-sm text-gray-500">No waste types configured.</p>}
+                {wasteTypes.map((item) => {
+                  const id = item.unique_id;
+                  const isSelected = form.waste_types.includes(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => toggleWasteType(id)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                        isSelected
+                          ? "!border-[#22a855] !bg-[#22a855] !text-white"
+                          : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50 dark:bg-transparent dark:text-gray-300"
+                      }`}
+                    >
+                      {item.waste_type_name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="md:col-span-3"><Label>Title</Label><Input value={form.title} onChange={(e) => setValue("title", e.target.value)} required /></div>
             <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
           </div>
@@ -379,14 +592,28 @@ export default function TicketWizardForm() {
           </div>
         )}
 
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(listPath)}>Cancel</button>
-          {step > 0 && <button type="button" className="rounded border px-4 py-2" onClick={() => setStep((prev) => prev - 1)}>Back</button>}
-          {step < steps.length - 1 ? (
-            <button type="button" disabled={!canContinue} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => setStep((prev) => prev + 1)}>Next</button>
-          ) : (
-            <button type="submit" disabled={saving} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
+        {step === REVIEW_STEP && renderReview()}
+
+        <div className="flex flex-col gap-2">
+          {stepError && (
+            <p className="max-w-full whitespace-normal break-words text-left text-sm font-medium text-red-600 dark:text-red-400">
+              {stepError}
+            </p>
           )}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button type="button" className={CANCEL_BUTTON_CLASS} onClick={() => navigate(listPath)}>Cancel</button>
+            {step > 0 && (
+              <button type="button" className={SECONDARY_BUTTON_CLASS} onClick={goBack}>← Back</button>
+            )}
+            {step < REVIEW_STEP ? (
+              <button type="button" className={PRIMARY_BUTTON_CLASS} onClick={goNext}>Next →</button>
+            ) : (
+              <button type="submit" disabled={saving} className={PRIMARY_BUTTON_CLASS}>
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                {saving ? "Saving..." : "Confirm & Save"}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </ComponentCard>
