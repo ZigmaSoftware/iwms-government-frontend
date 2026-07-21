@@ -82,6 +82,8 @@ export type Customer = {
   street: string;
   area: string;
   pincode: string;
+  latitude?: string;
+  longitude?: string;
   location_node_id?: string;
   location_name?: string;
   location_level?: string;
