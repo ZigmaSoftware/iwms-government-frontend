@@ -47,8 +47,8 @@ export type DailyTripLogRecord = {
     is_collected?: boolean;
     collected_weight_kg?: string | number | null;
   }[];
-  waste_type?: NamedRef & { waste_type_name?: string };
-  waste_type_id?: string;
+  waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
+  waste_type_breakdown?: { waste_type_name?: string; collected_weight_kg?: number | string }[];
   trip_date?: string;
   actual_start_time?: string | null;
   actual_end_time?: string | null;

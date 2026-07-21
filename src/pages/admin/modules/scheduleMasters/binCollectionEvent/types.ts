@@ -21,7 +21,7 @@ export type TableFilters = {
   _collection_point: { value: string | null; matchMode: FilterMatchMode };
   _bin: { value: string | null; matchMode: FilterMatchMode };
   _waste_type: { value: string | null; matchMode: FilterMatchMode };
-  _panchayat: { value: string | null; matchMode: FilterMatchMode };
+  _location: { value: string | null; matchMode: FilterMatchMode };
   _status: { value: string | null; matchMode: FilterMatchMode };
   collection_date: { value: string | null; matchMode: FilterMatchMode };
 };
@@ -48,5 +48,7 @@ export type BinCERecord = {
   notes?: string | null;
   created_at?: string;
   panchayat_name?: string | null;
+  location_name?: string | null;
+  location_level?: string | null;
   [key: string]: unknown;
 };

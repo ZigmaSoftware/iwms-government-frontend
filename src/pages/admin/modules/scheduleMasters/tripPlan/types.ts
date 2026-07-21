@@ -4,20 +4,6 @@ export type SelectOption = { value: string; label: string };
 
 export type StopRow = { collection_point_id: string; bin_id: string; sequence: number; is_active: boolean };
 
-export type FormState = {
-  district_id: string;
-  panchayat_id: string;
-  staff_template_id: string;
-  vehicle_id: string;
-  supervisor_id: string;
-  waste_type_id: string;
-  trip_trigger_weight_kg: string;
-  max_vehicle_capacity_kg: string;
-  scheduled_time: string;
-  approval_status: string;
-  status: string;
-};
-
 export type TripPlanRecord = {
   unique_id: string;
   display_code?: string;
@@ -30,7 +16,7 @@ export type TripPlanRecord = {
   panchayat?: { name?: string; panchayat_name?: string };
   staff_template?: { display_code?: string };
   vehicle?: { vehicle_no?: string };
-  waste_type?: { waste_type_name?: string };
+  waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
   scheduled_time?: string;
   approval_status?: string;
   status?: string;

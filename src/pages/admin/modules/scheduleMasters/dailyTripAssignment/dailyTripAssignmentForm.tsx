@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { MultiSelect } from "primereact/multiselect";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -93,6 +94,14 @@ const toOptions = (items: any[], labelKey: string): Option[] =>
     }))
     .filter((item) => item.value);
 
+// Prepends a synthetic option for an already-selected value so a Select shows
+// the correct current label immediately, even before its real options list
+// (e.g. a geo-scoped Trip Plan/Staff Template fetch) has finished loading.
+const ensureOption = (items: Option[], value: string, label?: string): Option[] => {
+  if (!value || items.some((item) => item.value === value)) return items;
+  return [{ value, label: label || value }, ...items];
+};
+
 const pointLabel = (point: DailyTripCollectionPointInline): string =>
   String(point.collection_point?.cp_name ?? point.collection_point_id ?? "").trim() || "—";
 
@@ -109,18 +118,28 @@ export default function DailyTripAssignmentForm() {
   const [tripPlanId, setTripPlanId] = useState("");
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [altStaffTemplateId, setAltStaffTemplateId] = useState("");
-  const [wasteTypeId, setWasteTypeId] = useState("");
+  const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
   const [vehicleId, setVehicleId] = useState("");
   const [tripDate, setTripDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [status, setStatus] = useState("Scheduled");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
   const [remarks, setRemarks] = useState("");
+  const [wasteTypeBreakdown, setWasteTypeBreakdown] = useState<
+    { waste_type_name?: string; collected_weight_kg?: number | string }[]
+  >([]);
   const [tripPlans, setTripPlans] = useState<Option[]>([]);
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<ApiRecord[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
+
+  // The record's own nested labels for the selected Trip Plan / Staff Template
+  // — used as the `ensureOption` fallback label so the Select shows the
+  // correct current value immediately in edit mode, even before the (now
+  // geo-scoped) Trip Plan / Staff Template option lists have loaded.
+  const [selectedTripPlanLabel, setSelectedTripPlanLabel] = useState("");
+  const [selectedStaffTemplateLabel, setSelectedStaffTemplateLabel] = useState("");
 
   // Full geo hierarchy — auto-filled from the selected Trip Plan, editable afterward.
   const [stateId, setStateId] = useState("");
@@ -153,11 +172,11 @@ export default function DailyTripAssignmentForm() {
   const [cpStops, setCpStops] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdStops, setHouseholdStops] = useState<DailyTripHouseholdCollectionInline[]>([]);
 
+  // Cheap, small master lists (5–10 rows each) needed immediately to populate
+  // the geo cascade selects and the waste type multiselect. wasteTypeApi has
+  // no backend filtering support at all, so it stays a plain unfiltered fetch.
   useEffect(() => {
     Promise.all([
-      tripPlanApi.readAll(),
-      staffTemplateApi.readAll(),
-      alternativeStaffTemplateApi.readAll(),
       wasteTypeApi.readAll(),
       stateApi.readAll(),
       districtApi.readAll(),
@@ -168,12 +187,9 @@ export default function DailyTripAssignmentForm() {
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
     ]).then(([
-      tripPlanRes, staffRes, altStaffRes, wasteTypeRes,
+      wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
     ]) => {
-      setTripPlans(toOptions(normalizeList(tripPlanRes), "display_code"));
-      setStaffTemplatesRaw(normalizeList(staffRes));
-      setAltStaffCache(normalizeList(altStaffRes));
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
       setStates(normalizeList(stateRes));
       setDistricts(normalizeList(districtRes));
@@ -188,14 +204,55 @@ export default function DailyTripAssignmentForm() {
     });
   }, []);
 
+  // Trip Plans — left unfiltered: its own backend viewset already auto-scopes
+  // by the requester's StaffDataScope for non-superadmin users, and in create
+  // mode the geo hierarchy itself is only known AFTER a Trip Plan is picked
+  // (see the auto-fill effect below), so gating this fetch on geo state would
+  // create a chicken-and-egg problem.
+  useEffect(() => {
+    let cancelled = false;
+    tripPlanApi.readAll().then((tripPlanRes) => {
+      if (cancelled) return;
+      setTripPlans(toOptions(normalizeList(tripPlanRes), "display_code"));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Staff Templates / Alternative Staff Templates — scoped by the geo
+  // hierarchy once it is known (from either a direct geo selection or the
+  // Trip Plan auto-fill, whichever resolves first), since Staff Template
+  // selection logically happens after Trip Plan selection in this form's
+  // flow. Re-fetches whenever the geo scope changes.
+  useEffect(() => {
+    let cancelled = false;
+    const params: Record<string, string> = {};
+    if (stateId) params.state_id = stateId;
+    if (districtId) params.district_id = districtId;
+    if (hierarchyId) params[hierarchyLevel] = hierarchyId;
+    Promise.all([
+      staffTemplateApi.readAll({ params }),
+      alternativeStaffTemplateApi.readAll({ params }),
+    ]).then(([staffRes, altStaffRes]) => {
+      if (cancelled) return;
+      setStaffTemplatesRaw(normalizeList(staffRes));
+      setAltStaffCache(normalizeList(altStaffRes));
+    });
+    return () => { cancelled = true; };
+  }, [stateId, districtId, hierarchyLevel, hierarchyId]);
+
   useEffect(() => {
     if (!id) return;
     dailyTripAssignmentApi.read(id).then((record: ApiRecord) => {
       // FK fields are write_only in the serializer; read from nested read objects instead
       setTripPlanId(String(record.trip_plan?.unique_id ?? record.trip_plan_id ?? ""));
+      setSelectedTripPlanLabel(String(record.trip_plan?.display_code ?? ""));
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
+      setSelectedStaffTemplateLabel(staffTemplateLabel(record.staff_template ?? {}));
       setAltStaffTemplateId(String(record.alt_staff_template?.unique_id ?? record.alt_staff_template_id ?? ""));
-      setWasteTypeId(String(record.waste_type?.unique_id ?? record.waste_type_id ?? ""));
+      if (Array.isArray(record.waste_types_detail) && record.waste_types_detail.length > 0) {
+        setSelectedWasteTypes(record.waste_types_detail.map((wt: any) => String(wt.unique_id)));
+      }
+      setWasteTypeBreakdown(Array.isArray(record.waste_type_breakdown) ? record.waste_type_breakdown : []);
       setVehicleId(String(record.vehicle?.unique_id ?? record.vehicle_id ?? ""));
       setTripDate(String(record.trip_date ?? ""));
       setScheduledTime(String(record.scheduled_time ?? "").slice(0, 5));
@@ -251,9 +308,17 @@ export default function DailyTripAssignmentForm() {
     setTripPlanLoading(true);
     tripPlanApi.read(tripPlanId).then((plan: ApiRecord) => {
       setSelectedTripPlan(plan);
+      if (plan.display_code) setSelectedTripPlanLabel(String(plan.display_code));
       setStaffTemplateId((prev) => prev || String(plan.staff_template?.unique_id ?? ""));
+      if (plan.staff_template) setSelectedStaffTemplateLabel(staffTemplateLabel(plan.staff_template));
       setVehicleId((prev) => prev || String(plan.vehicle?.unique_id ?? ""));
-      setWasteTypeId((prev) => prev || String(plan.waste_type?.unique_id ?? ""));
+      setSelectedWasteTypes((prev) =>
+        prev.length > 0
+          ? prev
+          : Array.isArray(plan.waste_types_detail)
+            ? plan.waste_types_detail.map((wt: any) => String(wt.unique_id))
+            : []
+      );
       setScheduledTime((prev) => prev || String(plan.scheduled_time ?? "").slice(0, 5));
 
       setStateId(String(plan.state?.unique_id ?? ""));
@@ -377,22 +442,36 @@ export default function DailyTripAssignmentForm() {
     {},
   );
 
+  // Trip Plan options — ensures the record's/plan's own selected value is
+  // always visibly labeled, even before the (unfiltered but still
+  // asynchronous) Trip Plan fetch resolves.
+  const tripPlanOptions = useMemo<Option[]>(
+    () => ensureOption(tripPlans, tripPlanId, selectedTripPlanLabel),
+    [tripPlans, tripPlanId, selectedTripPlanLabel],
+  );
+
   // Staff templates scoped to the selected local body — keeps the already
-  // selected template present even if it falls outside the current filter.
+  // selected template present even if it falls outside the current filter,
+  // and shows its correct label immediately (via ensureOption) while the
+  // geo-scoped Staff Template fetch is still in flight.
   const staffTemplates = useMemo<Option[]>(
     () =>
-      staffTemplatesRaw
-        .filter(
-          (tpl) =>
-            staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
-            String(tpl?.unique_id ?? "") === staffTemplateId,
-        )
-        .map((tpl) => ({
-          value: String(tpl?.unique_id ?? tpl?.id ?? ""),
-          label: staffTemplateLabel(tpl),
-        }))
-        .filter((o) => o.value),
-    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId],
+      ensureOption(
+        staffTemplatesRaw
+          .filter(
+            (tpl) =>
+              staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
+              String(tpl?.unique_id ?? "") === staffTemplateId,
+          )
+          .map((tpl) => ({
+            value: String(tpl?.unique_id ?? tpl?.id ?? ""),
+            label: staffTemplateLabel(tpl),
+          }))
+          .filter((o) => o.value),
+        staffTemplateId,
+        selectedStaffTemplateLabel,
+      ),
+    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId, selectedStaffTemplateLabel],
   );
 
   // ── Alternative staff templates for the selected staff template ────────────
@@ -421,6 +500,17 @@ export default function DailyTripAssignmentForm() {
   }, [staffTemplateId, tripDate, altStaffCache]);
 
   // Collection-type flags from the selected plan's stops
+  // Waste types present on the selected Trip Plan but not currently selected on
+  // this assignment. Surfaced as a callout rather than auto-applied, since an
+  // assignment's waste types can be intentionally narrowed from its plan.
+  const missingPlanWasteTypes: { unique_id: string; waste_type_name: string }[] = Array.isArray(
+    selectedTripPlan?.waste_types_detail,
+  )
+    ? selectedTripPlan.waste_types_detail.filter(
+        (wt: any) => wt?.unique_id && !selectedWasteTypes.includes(String(wt.unique_id)),
+      )
+    : [];
+
   const planStops: ApiRecord[] = Array.isArray(selectedTripPlan?.plan_collection_points)
     ? selectedTripPlan.plan_collection_points
     : [];
@@ -428,6 +518,12 @@ export default function DailyTripAssignmentForm() {
     ? householdStops.length > 0
     : planStops.some((s) => ["household_collection", "bulk_waste_collection"].includes(String(s.collection_type)));
   const previewStops = planStops.filter((s) => s.collection_type === "bin_collection" && s.bin_id);
+  // A plan generates exactly one category of daily work — only show the bin
+  // collection points section for bin_collection plans, even if stale cpStops
+  // data exists from before this constraint was enforced server-side.
+  const hasBinStops =
+    selectedTripPlan?.collection_type !== "household_collection" &&
+    (isEdit ? cpStops.length > 0 : Boolean(tripPlanId));
 
   const updateCpStop = (key: string | undefined, patch: Partial<DailyTripCollectionPointInline>) =>
     setCpStops((prev) => prev.map((item) =>
@@ -441,7 +537,7 @@ export default function DailyTripAssignmentForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!tripPlanId || !staffTemplateId || !hierarchyId || !wasteTypeId || !tripDate || !scheduledTime) {
+    if (!tripPlanId || !staffTemplateId || !hierarchyId || selectedWasteTypes.length === 0 || !tripDate || !scheduledTime) {
       Swal.fire("Missing details", "Trip Plan, Staff Template, Local Body, Waste Type, Date and Time are required.", "warning");
       return;
     }
@@ -459,7 +555,7 @@ export default function DailyTripAssignmentForm() {
       panchayat_union_id: null,
       panchayat_id: null,
       [hierarchyLevel]: hierarchyId,
-      waste_type_id: wasteTypeId,
+      waste_type_ids: selectedWasteTypes,
       vehicle_id: vehicleId || null,
       trip_date: tripDate,
       scheduled_time: scheduledTime,
@@ -524,7 +620,7 @@ export default function DailyTripAssignmentForm() {
 
             <div>
               <Label>Trip Plan <span className="text-red-500">*</span></Label>
-              <Select value={tripPlanId} onChange={(v) => setTripPlanId(String(v))} options={tripPlans} placeholder="Select trip plan" />
+              <Select value={tripPlanId} onChange={(v) => setTripPlanId(String(v))} options={tripPlanOptions} placeholder="Select trip plan" />
             </div>
 
             <div>
@@ -627,7 +723,53 @@ export default function DailyTripAssignmentForm() {
 
             <div>
               <Label>Waste Type <span className="text-red-500">*</span></Label>
-              <Select value={wasteTypeId} onChange={(v) => setWasteTypeId(String(v))} options={wasteTypes} placeholder="Select waste type" />
+              <MultiSelect
+                value={selectedWasteTypes}
+                onChange={(event) => {
+                  const raw = Array.isArray(event.value) ? event.value : [];
+                  const values = raw.map((v: any) =>
+                    v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+                  );
+                  setSelectedWasteTypes(values);
+                }}
+                options={wasteTypes}
+                optionLabel="label"
+                optionValue="value"
+                maxSelectedLabels={3}
+                placeholder="Select waste types"
+                className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+                pt={{
+                  labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+                  label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+                  trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+                  dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+                  panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+                }}
+                filter
+              />
+              {selectedWasteTypes.length === 0 && (
+                <p className="mt-1 text-xs text-red-500">Select at least one waste type</p>
+              )}
+              {missingPlanWasteTypes.length > 0 && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <span>
+                    Trip Plan also has:{" "}
+                    {missingPlanWasteTypes.map((wt) => wt.waste_type_name).join(", ")}
+                  </span>
+                  <button
+                    type="button"
+                    className="shrink-0 font-medium text-amber-900 underline"
+                    onClick={() =>
+                      setSelectedWasteTypes((prev) => [
+                        ...prev,
+                        ...missingPlanWasteTypes.map((wt) => String(wt.unique_id)),
+                      ])
+                    }
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
             </div>
 
             {isEdit && (
@@ -656,7 +798,27 @@ export default function DailyTripAssignmentForm() {
             </div>
           </div>
 
+          {isEdit && wasteTypeBreakdown.length > 0 && (
+            <div className="rounded-lg border border-gray-200">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h2 className="text-base font-semibold text-gray-800">Waste Type Breakdown</h2>
+                <p className="text-xs text-gray-500">Actual weight collected on this trip, by waste type.</p>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {wasteTypeBreakdown.map((row, index) => (
+                  <div key={index} className="flex items-center justify-between px-4 py-2 text-sm">
+                    <span className="text-gray-700">{row.waste_type_name ?? "—"}</span>
+                    <span className="font-medium text-gray-900">
+                      {row.collected_weight_kg != null ? `${row.collected_weight_kg} kg` : "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── Daily Trip Collection Points ── */}
+          {hasBinStops && (
           <div className="rounded-lg border border-gray-200">
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
               <div>
@@ -720,6 +882,7 @@ export default function DailyTripAssignmentForm() {
                       <th className="px-4 py-3">Seq</th>
                       <th className="px-4 py-3">Collection Point</th>
                       <th className="px-4 py-3">Bin</th>
+                      <th className="px-4 py-3">Waste Type</th>
                       <th className="px-4 py-3">Weight (kg)</th>
                       <th className="px-4 py-3">Collected</th>
                       <th className="px-4 py-3">Status</th>
@@ -741,6 +904,7 @@ export default function DailyTripAssignmentForm() {
                           </td>
                           <td className="px-4 py-3 font-medium text-gray-800">{pointLabel(point)}</td>
                           <td className="px-4 py-3 text-gray-700">{binLabel(point)}</td>
+                          <td className="px-4 py-3 text-gray-700">{point.waste_type_name ?? "—"}</td>
                           <td className="px-4 py-3">
                             <Input
                               type="number"
@@ -780,6 +944,7 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
           </div>
+          )}
 
           {/* ── Daily Trip Household Collection Points ── */}
           {hasHouseholdStops && (
@@ -815,6 +980,9 @@ export default function DailyTripAssignmentForm() {
                         <th className="px-4 py-3">Customer</th>
                         <th className="px-4 py-3">Address</th>
                         <th className="px-4 py-3">Weight (kg)</th>
+                        <th className="px-4 py-3">Wet (kg)</th>
+                        <th className="px-4 py-3">Dry (kg)</th>
+                        <th className="px-4 py-3">Mixed (kg)</th>
                         <th className="px-4 py-3">Collected</th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3">Reason</th>
@@ -833,6 +1001,9 @@ export default function DailyTripAssignmentForm() {
                             <td className="px-4 py-3">
                               <Input type="number" min={0} step="0.01" value={String(stop.collected_weight_kg ?? "")} onChange={(e) => updateHouseholdStop(stopKey, { collected_weight_kg: e.target.value })} className="h-9 w-28" />
                             </td>
+                            <td className="px-4 py-3 text-gray-700">{stop.wet_waste ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700">{stop.dry_waste ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700">{stop.mixed_waste ?? "—"}</td>
                             <td className="px-4 py-3">
                               <input type="checkbox" checked={Boolean(stop.is_collected)} onChange={(e) => updateHouseholdStop(stopKey, { is_collected: e.target.checked, status: e.target.checked ? "Collected" : "Pending" })} className="h-4 w-4 rounded border-gray-300" />
                             </td>

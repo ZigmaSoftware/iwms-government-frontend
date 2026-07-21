@@ -17,6 +17,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 
 
+const cap = (str?: string | null) =>
+  str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
   if (!data) return null;
@@ -33,6 +36,24 @@ const extractError = (error: unknown): string | null => {
 const formatDate = (val?: string) => {
   if (!val) return "-";
   return new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+// Trip-plan-style 12hr clock, applied to a full timestamp (created_at) since
+// this event only carries a collection *date*, not a separate time field.
+const formatTime12Hour = (val?: string): string => {
+  if (!val) return "";
+  const date = new Date(val);
+  if (Number.isNaN(date.getTime())) return "";
+  const hour = date.getHours();
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(hour12).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")} ${period}`;
+};
+
+const formatCollectionDateTime = (row: BinCERecord) => {
+  const date = formatDate(row.collection_date);
+  const time = formatTime12Hour(row.created_at);
+  return time ? `${date}, ${time}` : date;
 };
 
 const today = new Date().toISOString().split("T")[0];
@@ -70,7 +91,7 @@ export default function BinCollectionEventList() {
     _collection_point: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _bin: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _panchayat: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    _location: { value: null, matchMode: FilterMatchMode.CONTAINS },
     _status: { value: null, matchMode: FilterMatchMode.CONTAINS },
     collection_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
@@ -101,7 +122,7 @@ export default function BinCollectionEventList() {
         _bin: r.bin?.bin_name ?? "-",
         _waste_type: r.waste_type?.waste_type_name ?? "-",
         _vehicle: r.vehicle?.vehicle_no ?? "-",
-        _panchayat: r.panchayat_name ?? r.panchayat_id ?? "-",
+        _location: r.location_name ?? r.panchayat_name ?? r.panchayat_id ?? "-",
         _status: r.status ?? "-",
         collection_date: r.collection_date ?? "",
       })),
@@ -111,7 +132,7 @@ export default function BinCollectionEventList() {
   /* ── apply filters locally to get the visible subset ─────────────────────
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_status", "collection_date"] as const;
+  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_location", "_status", "collection_date"] as const;
   type FilterableField = (typeof GLOBAL_FIELDS)[number];
   const isFilterableField = (field: string): field is FilterableField =>
     (GLOBAL_FIELDS as readonly string[]).includes(field);
@@ -214,7 +235,7 @@ export default function BinCollectionEventList() {
         loading={loading}
         filters={filters}
         onFilter={(e: DataTableFilterEvent) => setFilters(e.filters as TableFilters)}
-        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_panchayat", "_status", "collection_date"]}
+        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_location", "_status", "collection_date"]}
         header={header}
         stripedRows
         showGridlines
@@ -224,7 +245,17 @@ export default function BinCollectionEventList() {
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
         <Column field="_trip_plan" header="Trip Plan" filter showFilterMatchModes={false} />
         <Column field="_collection_point" header="Collection Point" filter showFilterMatchModes={false} />
-        <Column field="_panchayat" header="PLB" filter showFilterMatchModes={false} />
+        <Column
+          field="_location"
+          header="Local Body"
+          body={(row: BinCERecord) =>
+            row.location_name
+              ? `${cap(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
+              : "-"
+          }
+          filter
+          showFilterMatchModes={false}
+        />
         <Column field="_bin" header="Bin" filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
         <Column field="_vehicle" header="Vehicle" />
@@ -250,8 +281,8 @@ export default function BinCollectionEventList() {
           header="Collection Date"
           filter
           showFilterMatchModes={false}
-          body={(row: BinCERecord) => formatDate(row.collection_date)}
-          style={{ width: 120 }}
+          body={formatCollectionDateTime}
+          style={{ width: 170 }}
         />
         <Column
           header={t("common.actions")}

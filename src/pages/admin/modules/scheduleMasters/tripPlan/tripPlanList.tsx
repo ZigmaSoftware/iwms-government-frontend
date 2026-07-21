@@ -113,7 +113,9 @@ export default function TripPlanList() {
             : "",
     _staff: record.staff_template?.display_code ?? "",
     _vehicle: record.vehicle?.vehicle_no ?? "",
-    _waste_type: record.waste_type?.waste_type_name ?? "",
+    _waste_type: Array.isArray(record.waste_types_detail)
+      ? record.waste_types_detail.map((wt: any) => wt.waste_type_name).filter(Boolean).join(", ")
+      : "",
   })), [records]);
 
   const statusBody = (row: TripPlanRecord) => {

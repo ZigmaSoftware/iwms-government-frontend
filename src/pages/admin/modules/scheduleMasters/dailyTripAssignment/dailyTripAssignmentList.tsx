@@ -210,6 +210,8 @@ export default function DailyTripAssignmentList() {
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _staff_names: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+    _vehicle: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _collection_type_label: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     _collection_point_count: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -312,6 +314,11 @@ export default function DailyTripAssignmentList() {
         ...rec,
         _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
         _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
+        _staff_names: [
+          (rec.effective_staff ?? rec.staff_template)?.operator,
+          (rec.effective_staff ?? rec.staff_template)?.driver,
+        ].filter(Boolean).join(" "),
+        _vehicle: rec.vehicle?.vehicle_no ?? "",
         _location: locationInfo(rec)?.name ?? "",
         _collection_type: getCollectionTypeKey(rec),
         _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
@@ -475,6 +482,8 @@ export default function DailyTripAssignmentList() {
           "unique_id",
           "_trip_plan",
           "_staff",
+          "_staff_names",
+          "_vehicle",
           "_location",
           "_collection_type_label",
           "_collection_point_count",
@@ -501,6 +510,30 @@ export default function DailyTripAssignmentList() {
               : (row.staff_template?.display_code ?? row.staff_template_id ?? "—")
           }
           filter showFilterMatchModes={false}
+        />
+        <Column
+          field="_staff_names"
+          header="Operator / Driver"
+          body={(row: DailyTripAssignmentRecord) => {
+            const staff = row.effective_staff ?? row.staff_template;
+            return (
+              <span className="text-sm text-gray-800">
+                <div>Operator: {staff?.operator ?? "—"}</div>
+                <div>Driver: {staff?.driver ?? "—"}</div>
+              </span>
+            );
+          }}
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 170 }}
+        />
+        <Column
+          field="_vehicle"
+          header="Vehicle"
+          body={(row: DailyTripAssignmentRecord) => row.vehicle?.vehicle_no ?? "—"}
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 120 }}
         />
         <Column
           field="_location"
