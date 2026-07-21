@@ -90,7 +90,6 @@ export default function AlternativeStaffTemplateForm() {
   const { encScheduleMasters, encAlternativeStaffTemplate } = getEncryptedRoute();
   const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleMasters, encAlternativeStaffTemplate);
 
-  const [allAlternativeTemplatesData, setAllAlternativeTemplatesData] = useState<any[]>([]);
   const [selectedStaffTemplateData, setSelectedStaffTemplateData] = useState<any>(null);
 
   /* ================= HELPERS ================= */
@@ -193,17 +192,21 @@ export default function AlternativeStaffTemplateForm() {
   };
 
   /* ============================
-     LOAD RAW TEMPLATES + STAFF RECORDS
+     LOAD RAW STAFF TEMPLATES (for the Staff Template dropdown)
+     — intentionally NOT gated on `geo.hierarchyId`: in create mode the geo
+       hierarchy is only known AFTER the user picks a staff template (see the
+       hydrate effect below), so gating this fetch on geo would leave the
+       dropdown empty at the exact moment the user needs it. The backend
+       viewset already applies `filter_flat_geo_queryset_by_requester_scope`,
+       which narrows results server-side for non-superadmin callers, so this
+       stays a plain, ungated fetch.
   ============================ */
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([
-      staffTemplateApi.readAll() as Promise<any>,
-      alternativeStaffTemplateApi.readAll() as Promise<any>,
-    ])
-      .then(([templatesRes, altRes]: [any, any]) => {
+    staffTemplateApi.readAll()
+      .then((templatesRes: any) => {
         if (cancelled) return;
 
         // Store all raw template records
@@ -217,16 +220,6 @@ export default function AlternativeStaffTemplateForm() {
                 ? templatesRes.data.results
                 : [];
         setAllStaffTemplates(templateRows);
-
-        // All alternative templates for overlap check
-        const altRows: any[] = Array.isArray(altRes)
-          ? altRes
-          : Array.isArray(altRes?.data)
-            ? altRes.data
-            : Array.isArray(altRes?.results)
-              ? altRes.results
-              : [];
-        setAllAlternativeTemplatesData(altRows);
       })
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
@@ -466,8 +459,29 @@ export default function AlternativeStaffTemplateForm() {
     }
 
     // Overlap check: same staff_template, overlapping [from_date, to_date]
+    // — fetch only the candidate rows for this staff_template from the server
+    // (instead of downloading the entire table) and keep the date-range
+    // overlap comparison itself client-side/unchanged, to avoid getting the
+    // backend's from_date__gte/to_date__lte query semantics backwards.
     if (formData.from_date && formData.to_date && formData.staff_template) {
-      const allRecords: any[] = allAlternativeTemplatesData;
+      let allRecords: any[] = [];
+      try {
+        const altRes: any = await alternativeStaffTemplateApi.readAll({
+          params: { staff_template: formData.staff_template },
+        });
+        allRecords = Array.isArray(altRes)
+          ? altRes
+          : Array.isArray(altRes?.data)
+            ? altRes.data
+            : Array.isArray(altRes?.results)
+              ? altRes.results
+              : Array.isArray(altRes?.data?.results)
+                ? altRes.data.results
+                : [];
+      } catch {
+        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        return;
+      }
 
       const overlapping = allRecords.filter((rec: any) => {
         if (String(rec.staff_template) !== String(formData.staff_template)) return false;

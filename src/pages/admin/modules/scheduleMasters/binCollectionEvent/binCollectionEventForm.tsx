@@ -41,6 +41,13 @@ type Option = {
   areaTypeId?: string;
   localBodyLevel?: HierarchyLevel;
   localBodyId?: string;
+  // Only populated on assignment options — the assignment's own local body,
+  // used to filter the Trip Assignment dropdown by the form's selected local body.
+  assignmentLocalBodyByLevel?: Partial<Record<HierarchyLevel, string>>;
+  // Only populated on assignment options — whether the assignment's trip plan
+  // includes a bin-collection stop, used to scope the Trip Assignment dropdown
+  // to bin-type trips only.
+  assignmentHasBin?: boolean;
 };
 type ApiRecord = Record<string, any>;
 
@@ -113,8 +120,20 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
 
 const assignmentOption = (item: ApiRecord): Option => ({
   value: idOf(item.unique_id ?? item.id),
-  label: textOf(item.display_code, item.trip_plan?.display_code, item.trip_plan_id?.display_code, item.unique_id),
+  // Lead with the assignment's own trip code (unique per daily instance) — the
+  // shared Trip Plan display_code repeats across every daily assignment that
+  // reuses the same driver/vehicle route, which made same-route entries
+  // indistinguishable in the dropdown.
+  label: textOf(item.unique_id, item.display_code, item.trip_plan?.display_code, item.trip_plan_id?.display_code),
   panchayatId: idOf(item.panchayat_id ?? item.panchayat),
+  assignmentLocalBodyByLevel: {
+    corporation_id: idOf(item.corporation?.unique_id ?? item.corporation),
+    municipality_id: idOf(item.municipality?.unique_id ?? item.municipality),
+    town_panchayat_id: idOf(item.town_panchayat?.unique_id ?? item.town_panchayat),
+    panchayat_union_id: idOf(item.panchayat_union?.unique_id ?? item.panchayat_union),
+    panchayat_id: idOf(item.panchayat?.unique_id ?? item.panchayat),
+  },
+  assignmentHasBin: Boolean(item.collection_types?.has_bin),
 });
 
 const collectionPointOption = (item: ApiRecord): Option => {
@@ -183,9 +202,6 @@ type EditorInitial = {
 };
 
 type EditorData = {
-  assignments: Option[];
-  collectionPoints: Option[];
-  bins: Option[];
   panchayats: Option[];
   states: any[];
   districts: any[];
@@ -277,9 +293,6 @@ function BinCollectionEventEditor({
   id,
   listPath,
   onDone,
-  assignments,
-  collectionPoints,
-  bins,
   states,
   districts,
   areaTypes,
@@ -293,7 +306,7 @@ function BinCollectionEventEditor({
   const [districtId, setDistrictId] = useState(initial.districtId);
   const [areaTypeId, setAreaTypeId] = useState(initial.areaTypeId);
   const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">(() => {
-    const selected = areaTypes.find((item) => idOf(item.unique_id ?? item.id) === initial.areaTypeId);
+    const selected = areaTypes.find((item: any) => idOf(item.unique_id ?? item.id) === initial.areaTypeId);
     return selected ? areaTypeCategoryFromName(String(selected.name ?? selected.area_type_name ?? "")) : "";
   });
   const [localBodyLevel, setLocalBodyLevel] = useState<HierarchyLevel>(initial.localBodyLevel);
@@ -306,6 +319,39 @@ function BinCollectionEventEditor({
   const [notes, setNotes] = useState(initial.notes);
   const [saving, setSaving] = useState(false);
 
+  // Trip Assignments / Collection Points / Bins — fetched here (not in the
+  // parent) scoped to the selected Local Body, since these tables are large
+  // and their serializers are heavy. Re-fetches whenever the Local Body
+  // changes; stays empty until one is chosen (already populated immediately
+  // in edit mode, since `panchayatId` initialises from the record).
+  const [assignments, setAssignments] = useState<Option[]>([]);
+  const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
+  const [bins, setBins] = useState<Option[]>([]);
+
+  useEffect(() => {
+    if (!panchayatId) {
+      setAssignments([]);
+      setCollectionPoints([]);
+      setBins([]);
+      return;
+    }
+    let cancelled = false;
+    const params = { [localBodyLevel]: panchayatId };
+    Promise.all([
+      dailyTripAssignmentApi.readAll({ params }),
+      dailyTripCollectionPointApi.readAll({ params }),
+      adminApi.bins.readAll({ params }),
+    ]).then(([assignmentRes, cpRes, binRes]) => {
+      if (cancelled) return;
+      setAssignments(uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)));
+      setCollectionPoints(uniqueOptions(normalizeList(cpRes).map(collectionPointOption)));
+      setBins(uniqueOptions(normalizeList(binRes).map(binOption)));
+    }).catch((err) => {
+      console.error("Failed to load trip assignments/collection points/bins", err);
+    });
+    return () => { cancelled = true; };
+  }, [localBodyLevel, panchayatId]);
+
   // Keep the area-type category in sync when the area type changes or its
   // master list finishes loading.
   useEffect(() => {
@@ -313,7 +359,7 @@ function BinCollectionEventEditor({
       setAreaTypeCategory("");
       return;
     }
-    const selected = areaTypes.find((item) => String(item.unique_id ?? item.id) === areaTypeId);
+    const selected = areaTypes.find((item: any) => String(item.unique_id ?? item.id) === areaTypeId);
     if (selected) {
       setAreaTypeCategory(areaTypeCategoryFromName(String(selected.name ?? selected.area_type_name ?? "")));
     }
@@ -400,16 +446,21 @@ function BinCollectionEventEditor({
     return ensureOption(scoped, panchayatId, selectedLabel);
   }, [hierarchyRecords, localBodyLevel, districtId, panchayatId, initial.panchayatId, initial.localBodyLabel]);
 
-  const visibleAssignments = useMemo(
-    () =>
-      ensureOption(
-        assignments,
-        tripAssignmentId,
-        assignments.find((item) => item.value === tripAssignmentId)?.label ??
-          (tripAssignmentId === initial.tripAssignmentId ? initial.assignmentLabel : undefined),
-      ),
-    [assignments, tripAssignmentId, initial.tripAssignmentId, initial.assignmentLabel],
-  );
+  // Scoped to bin-collection trips, and once a Local Body is selected, only
+  // Trip Assignments belonging to that exact local body — keeps the
+  // (potentially long) assignment list scoped to where the operator is
+  // actually working.
+  const visibleAssignments = useMemo(() => {
+    const binOnly = assignments.filter((item) => item.assignmentHasBin);
+    const filtered = panchayatId
+      ? binOnly.filter((item) => item.assignmentLocalBodyByLevel?.[localBodyLevel] === panchayatId)
+      : binOnly;
+    const label =
+      filtered.find((item) => item.value === tripAssignmentId)?.label ??
+      assignments.find((item) => item.value === tripAssignmentId)?.label ??
+      (tripAssignmentId === initial.tripAssignmentId ? initial.assignmentLabel : undefined);
+    return ensureOption(filtered, tripAssignmentId, label);
+  }, [assignments, tripAssignmentId, localBodyLevel, panchayatId, initial.tripAssignmentId, initial.assignmentLabel]);
 
   const visibleCollectionPoints = useMemo(() => {
     const filtered = tripAssignmentId
@@ -443,15 +494,13 @@ function BinCollectionEventEditor({
   };
 
   const handleCollectionPointChange = (value: string) => {
+    // Collection Point is scoped by the selected Trip Assignment (see
+    // visibleCollectionPoints), which is itself scoped by the Local Body the
+    // user picked — so picking a Collection Point must not reverse-drive the
+    // geography fields back from the point's own location.
     setTripCollectionPointId(value);
     const collectionPoint = collectionPoints.find((item) => item.value === value);
-    if (collectionPoint?.assignmentId) setTripAssignmentId(collectionPoint.assignmentId);
     if (collectionPoint?.binId) setBinId(collectionPoint.binId);
-    setStateId(collectionPoint?.stateId ?? "");
-    setDistrictId(collectionPoint?.districtId ?? "");
-    setAreaTypeId(collectionPoint?.areaTypeId ?? "");
-    setLocalBodyLevel(collectionPoint?.localBodyLevel ?? "corporation_id");
-    if (collectionPoint?.panchayatId) setPanchayatId(collectionPoint.panchayatId);
   };
 
   const handleBinChange = (value: string) => {
@@ -510,14 +559,6 @@ function BinCollectionEventEditor({
   return (
     <ComponentCard title={isEdit ? "Edit Bin Collection Event" : "Create Bin Collection Event"}>
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <Label>Trip Assignment *</Label>
-          <Select value={tripAssignmentId} onChange={handleAssignmentChange} options={visibleAssignments} placeholder="Select Assignment" />
-        </div>
-        <div>
-          <Label>Collection Point *</Label>
-          <Select value={tripCollectionPointId} onChange={handleCollectionPointChange} options={visibleCollectionPoints} placeholder="Select Collection Point" />
-        </div>
         <div>
           <Label>State</Label>
           <Select
@@ -588,6 +629,14 @@ function BinCollectionEventEditor({
           />
         </div>
         <div>
+          <Label>Trip Assignment *</Label>
+          <Select value={tripAssignmentId} onChange={handleAssignmentChange} options={visibleAssignments} placeholder="Select Assignment" />
+        </div>
+        <div>
+          <Label>Collection Point *</Label>
+          <Select value={tripCollectionPointId} onChange={handleCollectionPointChange} options={visibleCollectionPoints} placeholder="Select Collection Point" />
+        </div>
+        <div>
           <Label>Collection Date *</Label>
           <Input type="date" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
         </div>
@@ -656,9 +705,6 @@ export default function BinCollectionEventForm() {
   const { listPath } = createCrudRoutePaths(encScheduleMasters, encBinCollectionEvent);
 
   const [data, setData] = useState<EditorData>({
-    assignments: [],
-    collectionPoints: [],
-    bins: [],
     panchayats: [],
     states: [],
     districts: [],
@@ -674,11 +720,12 @@ export default function BinCollectionEventForm() {
   const [record, setRecord] = useState<ApiRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(isEdit);
 
+  // Reference/master lists only — small tables, safe to load in full up front.
+  // Trip Assignments / Collection Points / Bins are NOT loaded here: those
+  // tables are large and their serializers are heavy, so the editor below
+  // fetches them itself, scoped to the selected Local Body.
   useEffect(() => {
     Promise.all([
-      dailyTripAssignmentApi.readAll(),
-      dailyTripCollectionPointApi.readAll(),
-      adminApi.bins.readAll(),
       panchayatApi.readAll(),
       stateApi.readAll(),
       districtApi.readAll(),
@@ -688,9 +735,6 @@ export default function BinCollectionEventForm() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
     ]).then(([
-      assignmentRes,
-      cpRes,
-      binRes,
       panchayatRes,
       stateRes,
       districtRes,
@@ -701,9 +745,6 @@ export default function BinCollectionEventForm() {
       panchayatUnionRes,
     ]) => {
       setData({
-        assignments: uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)),
-        collectionPoints: uniqueOptions(normalizeList(cpRes).map(collectionPointOption)),
-        bins: uniqueOptions(normalizeList(binRes).map(binOption)),
         panchayats: uniqueOptions(normalizeList(panchayatRes).map(panchayatOption)),
         states: normalizeList(stateRes),
         districts: normalizeList(districtRes),

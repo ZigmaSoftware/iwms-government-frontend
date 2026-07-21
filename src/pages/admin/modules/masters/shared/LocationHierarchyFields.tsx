@@ -46,6 +46,23 @@ export const LOCAL_BODY_LEVELS: Array<{ value: LocalBodyLevel; label: string; so
   { value: "panchayat_id", label: "Panchayat", sourceType: "panchayat" },
 ];
 
+// Maps each local-body level to the `readAll` fetcher for its master table.
+const LOCAL_BODY_API: Record<LocalBodyLevel, { readAll: (config?: { params?: Record<string, string> }) => Promise<unknown> }> = {
+  corporation_id: corporationApi,
+  municipality_id: municipalityApi,
+  town_panchayat_id: townPanchayatApi,
+  panchayat_union_id: panchayatUnionApi,
+  panchayat_id: panchayatApi,
+};
+
+const LOCAL_BODY_LABEL_KEYS: Record<LocalBodyLevel, string[]> = {
+  corporation_id: ["corporation_name", "name"],
+  municipality_id: ["municipality_name", "name"],
+  town_panchayat_id: ["town_panchayat_name", "name"],
+  panchayat_union_id: ["union_name", "name"],
+  panchayat_id: ["panchayat_name", "name"],
+};
+
 type Option = { value: string; label: string; stateId?: string; districtId?: string };
 
 const idOf = (value: unknown): string => {
@@ -82,10 +99,35 @@ const areaKind = (label: string): "urban" | "rural" | "" => {
   return "";
 };
 
+const emptyLocalBodies: Record<LocalBodyLevel, Option[]> = {
+  corporation_id: [],
+  municipality_id: [],
+  town_panchayat_id: [],
+  panchayat_union_id: [],
+  panchayat_id: [],
+};
+
+// If a selected id isn't in the list yet (its scoped fetch is still in
+// flight — e.g. right after an edit-mode record loads), keep it selected
+// with a placeholder label rather than letting the <select> silently revert
+// to blank; the real label swaps in the moment the fetch resolves.
+const ensureOption = (items: Option[], selectedValue: string): Option[] => {
+  if (!selectedValue || items.some((item) => item.value === selectedValue)) return items;
+  return [{ value: selectedValue, label: selectedValue }, ...items];
+};
+
 // Cascading State -> District -> Area Type -> Local Body (Corporation /
 // Municipality / Town Panchayat for urban, Panchayat Union / Panchayat for
 // rural) selector, shared by any master that needs to place a record within
 // the government hierarchy (Collection Point, Vehicle, ...).
+//
+// Fetching is cascaded rather than downloading every geo-master table in
+// full on mount: States are cheap (top-level, ~a handful of rows) and stay
+// eager, but Districts/Area Types are only fetched once a State is chosen
+// (scoped by state_id), and the local-body-level tables — which at
+// Tamil-Nadu scale run from ~120 (municipalities) to ~12,500+ rows
+// (panchayats) — are only fetched for the one level actually selected, once
+// its prerequisite District + Area Type are chosen, scoped by those ids.
 export default function LocationFields({
   value,
   onChange,
@@ -96,82 +138,132 @@ export default function LocationFields({
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
   const [areaTypes, setAreaTypes] = useState<Option[]>([]);
-  const [localBodies, setLocalBodies] = useState<Record<LocalBodyLevel, Option[]>>({
-    corporation_id: [],
-    municipality_id: [],
-    town_panchayat_id: [],
-    panchayat_union_id: [],
-    panchayat_id: [],
-  });
+  const [localBodies, setLocalBodies] = useState<Record<LocalBodyLevel, Option[]>>(emptyLocalBodies);
 
+  const scopedStateId = scopeOption("state")?.value;
+  const scopedDistrictId = scopeOption("district")?.value;
+
+  // States — cheap, top-level list; safe to load in full up front.
   useEffect(() => {
     let cancelled = false;
-
-    // The State/District/Area Type/local-body screens may not be
-    // permission-granted to this user at all (View gates each level's own
-    // menu/list, not these dropdowns) — their Data Scope from login always
-    // supplies their own hierarchy values regardless.
-    const scopedStateId = scopeOption("state")?.value;
-    const scopedDistrictId = scopeOption("district")?.value;
-
-    const applyScopeFallback = () => {
-      setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
-      setDistricts((prev) =>
-        mergeWithScopeOptionExtra(prev, "district", scopedStateId ? { stateId: scopedStateId } : {})
-      );
-      setAreaTypes((prev) =>
-        mergeWithScopeOptionExtra(prev, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {})
-      );
-      setLocalBodies((prev) => ({
-        corporation_id: mergeWithScopeOptionExtra(prev.corporation_id, "corporation", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        municipality_id: mergeWithScopeOptionExtra(prev.municipality_id, "municipality", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        town_panchayat_id: mergeWithScopeOptionExtra(prev.town_panchayat_id, "town_panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_union_id: mergeWithScopeOptionExtra(prev.panchayat_union_id, "panchayat_union", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_id: mergeWithScopeOptionExtra(prev.panchayat_id, "panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-      }));
-    };
-
-    applyScopeFallback();
-
-    Promise.all([
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-    ]).then(([stateRes, districtRes, areaTypeRes, corpRes, muniRes, townRes, unionRes, panchayatRes]) => {
-      if (cancelled) return;
-      const fetchedStates = activeOnly(normalizeList(stateRes)).map((item) => toOption(item, ["name", "state_name"]));
-      const fetchedDistricts = activeOnly(normalizeList(districtRes)).map((item) => toOption(item, ["name", "district_name"]));
-      const fetchedAreaTypes = activeOnly(normalizeList(areaTypeRes)).map((item) => toOption(item, ["name", "area_type_name"]));
-      const fetchedCorp = activeOnly(normalizeList(corpRes)).map((item) => toOption(item, ["corporation_name", "name"]));
-      const fetchedMuni = activeOnly(normalizeList(muniRes)).map((item) => toOption(item, ["municipality_name", "name"]));
-      const fetchedTown = activeOnly(normalizeList(townRes)).map((item) => toOption(item, ["town_panchayat_name", "name"]));
-      const fetchedUnion = activeOnly(normalizeList(unionRes)).map((item) => toOption(item, ["union_name", "name"]));
-      const fetchedPanchayat = activeOnly(normalizeList(panchayatRes)).map((item) => toOption(item, ["panchayat_name", "name"]));
-
-      setStates(mergeWithScopeOptionExtra(fetchedStates, "state", {}));
-      setDistricts(mergeWithScopeOptionExtra(fetchedDistricts, "district", scopedStateId ? { stateId: scopedStateId } : {}));
-      setAreaTypes(mergeWithScopeOptionExtra(fetchedAreaTypes, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
-      setLocalBodies({
-        corporation_id: mergeWithScopeOptionExtra(fetchedCorp, "corporation", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        municipality_id: mergeWithScopeOptionExtra(fetchedMuni, "municipality", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        town_panchayat_id: mergeWithScopeOptionExtra(fetchedTown, "town_panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_union_id: mergeWithScopeOptionExtra(fetchedUnion, "panchayat_union", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_id: mergeWithScopeOptionExtra(fetchedPanchayat, "panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+    setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+    stateApi
+      .readAll()
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "state_name"]));
+        setStates(mergeWithScopeOptionExtra(fetched, "state", {}));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
       });
-    }).catch(() => {
-      if (cancelled) return;
-      applyScopeFallback();
-    });
-
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Districts — only once a State is selected, scoped by that state.
+  useEffect(() => {
+    const stateId = value.stateId || scopedStateId;
+    if (!stateId) {
+      setDistricts([]);
+      return;
+    }
+    let cancelled = false;
+    districtApi
+      .readAll({ params: { state_id: stateId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "district_name"]));
+        setDistricts(mergeWithScopeOptionExtra(fetched, "district", scopedStateId ? { stateId: scopedStateId } : {}));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDistricts((prev) => mergeWithScopeOptionExtra(prev, "district", scopedStateId ? { stateId: scopedStateId } : {}));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.stateId, scopedStateId]);
+
+  // Area Types — only once a District is selected, scoped by that district.
+  useEffect(() => {
+    const districtId = value.districtId || scopedDistrictId;
+    if (!districtId) {
+      setAreaTypes([]);
+      return;
+    }
+    let cancelled = false;
+    areaTypeApi
+      .readAll({ params: { district_id: districtId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "area_type_name"]));
+        setAreaTypes(mergeWithScopeOptionExtra(fetched, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAreaTypes((prev) => mergeWithScopeOptionExtra(prev, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.districtId, scopedDistrictId]);
+
+  // Local body — only the selected level's table, only once District + Area
+  // Type are both chosen, scoped by both ids. This is the big win: instead of
+  // downloading corporation + municipality + town_panchayat + panchayat_union
+  // + panchayat in full (the panchayat table alone runs to ~12,500+ rows
+  // statewide), only the one relevant table is fetched, and only once it's
+  // actually needed.
+  useEffect(() => {
+    const level = value.localBodyLevel;
+    const districtId = value.districtId || scopedDistrictId;
+    const areaTypeId = value.areaTypeId;
+    if (!level || !districtId || !areaTypeId) {
+      setLocalBodies((prev) => (prev === emptyLocalBodies ? prev : emptyLocalBodies));
+      return;
+    }
+    let cancelled = false;
+    const api = LOCAL_BODY_API[level];
+    const labelKeys = LOCAL_BODY_LABEL_KEYS[level];
+    const scopeLevel = LOCAL_BODY_LEVELS.find((item) => item.value === level)?.sourceType as
+      | "corporation"
+      | "municipality"
+      | "town_panchayat"
+      | "panchayat_union"
+      | "panchayat"
+      | undefined;
+    api
+      .readAll({ params: { district_id: districtId, area_type_id: areaTypeId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, labelKeys));
+        setLocalBodies({
+          ...emptyLocalBodies,
+          [level]: scopeLevel
+            ? mergeWithScopeOptionExtra(fetched, scopeLevel, scopedDistrictId ? { districtId: scopedDistrictId } : {})
+            : fetched,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLocalBodies((prev) => ({
+          ...emptyLocalBodies,
+          [level]: scopeLevel
+            ? mergeWithScopeOptionExtra(prev[level], scopeLevel, scopedDistrictId ? { districtId: scopedDistrictId } : {})
+            : prev[level],
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.localBodyLevel, value.districtId, value.areaTypeId, scopedDistrictId]);
 
   const selectedArea = areaTypes.find((item) => item.value === value.areaTypeId);
   const selectedAreaKind = areaKind(selectedArea?.label ?? "");
@@ -183,15 +275,18 @@ export default function LocationFields({
         : false,
   );
   const filteredDistricts = useMemo(
-    () => districts.filter((item) => !value.stateId || item.stateId === value.stateId),
-    [districts, value.stateId],
+    () => ensureOption(districts.filter((item) => !value.stateId || item.stateId === value.stateId), value.districtId),
+    [districts, value.stateId, value.districtId],
   );
   const filteredAreaTypes = useMemo(
-    () => areaTypes.filter((item) => !value.districtId || item.districtId === value.districtId),
-    [areaTypes, value.districtId],
+    () => ensureOption(areaTypes.filter((item) => !value.districtId || item.districtId === value.districtId), value.areaTypeId),
+    [areaTypes, value.districtId, value.areaTypeId],
   );
   const filteredLocalBodies = value.localBodyLevel
-    ? localBodies[value.localBodyLevel].filter((item) => !value.districtId || item.districtId === value.districtId)
+    ? ensureOption(
+        localBodies[value.localBodyLevel].filter((item) => !value.districtId || item.districtId === value.districtId),
+        value.localBodyId,
+      )
     : [];
 
   const emit = (patch: Partial<GeoLocationValue>) => {

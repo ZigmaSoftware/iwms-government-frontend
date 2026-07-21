@@ -107,7 +107,11 @@ function TripLogModal({
   const hhCollections = row.household_collections ?? [];
   const hhCollectedCount = hhCollections.filter((hh) => hh.is_collected).length;
   const st = row.staff_template;
-  const wasteTypeName = (row.waste_type as any)?.waste_type_name ?? row.waste_type_id ?? "-";
+  const wasteTypeName =
+    Array.isArray(row.waste_types_detail) && row.waste_types_detail.length > 0
+      ? row.waste_types_detail.map((wt) => wt.waste_type_name).filter(Boolean).join(", ")
+      : "-";
+  const wasteTypeBreakdown = Array.isArray(row.waste_type_breakdown) ? row.waste_type_breakdown : [];
   const collectedWeightFromPoints = computeCollectedWeight(cps);
   const hasPointWeights = cps.some(
     (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
@@ -185,6 +189,18 @@ function TripLogModal({
               <CollectionStatusBadge value={row.collection_status} />
             </div>
             <InfoRow label="Waste Type" value={wasteTypeName} />
+            {wasteTypeBreakdown.length > 0 && (
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-36 shrink-0">Waste Breakdown</span>
+                <div className="flex flex-col gap-0.5">
+                  {wasteTypeBreakdown.map((item, index) => (
+                    <span key={index} className="text-gray-800">
+                      {item.waste_type_name ?? "—"}: {item.collected_weight_kg ?? "—"} kg
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             <InfoRow label="Bin Weight" value={weight} />
             {row.household_collected_weight_kg != null && (
               <InfoRow
@@ -479,12 +495,15 @@ export default function DailyTripLogList() {
       rec.trip_assignment?.unique_id ??
       rec.trip_assignment_id ??
       "",
-    _waste: (rec.waste_type as any)?.waste_type_name ?? rec.waste_type_id ?? "",
+    _waste: Array.isArray(rec.waste_types_detail)
+      ? rec.waste_types_detail.map((wt) => wt.waste_type_name).filter(Boolean).join(", ")
+      : "",
     _base_template: rec.staff_template?.base?.display_code ?? "",
     _alt_template: rec.staff_template?.alt?.display_code ?? "",
     _location: rec.location?.local_body_name ?? rec.location_name ?? rec.panchayat?.panchayat_name ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
+    _vehicle: (rec.vehicle as any)?.vehicle_no ?? "",
     _computed_weight: computeCollectedWeight(rec.collection_points),
     _has_point_weights: (rec.collection_points ?? []).some(
       (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
@@ -696,6 +715,7 @@ export default function DailyTripLogList() {
           "_alt_template",
           "_driver",
           "_operator",
+          "_vehicle",
           "log_status",
           "collection_status",
           "trip_date",
@@ -834,6 +854,7 @@ export default function DailyTripLogList() {
         />
         <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
         <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
+        <Column field="_vehicle" header="Vehicle" style={{ minWidth: 110 }} />
         <Column
           field="trip_date"
           header="Trip Date"
