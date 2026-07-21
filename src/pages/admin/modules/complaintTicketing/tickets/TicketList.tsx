@@ -182,12 +182,12 @@ export default function TicketList() {
 
   const slaTemplate = (row: ComplaintTicket) => {
     if (row.sla_breached) {
-      return <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Breached</span>;
+      return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Breached</span>;
     }
     if (typeof row.sla_time_remaining_seconds === "number" && row.sla_time_remaining_seconds < 0) {
-      return <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>;
+      return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>;
     }
-    return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">On Track</span>;
+    return <span className="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">On Track</span>;
   };
 
   const kanbanColumns = useMemo(() => {
@@ -370,7 +370,7 @@ export default function TicketList() {
           <Column header="Status" body={statusTemplate} sortable sortField="status_name" />
           <Column field="assigned_team_name" header="Assigned Team" />
           <Column header="SLA Due" body={(row) => formatDateTime(row.sla_due_at)} />
-          <Column header="SLA" body={slaTemplate} />
+          <Column header="SLA" body={slaTemplate}  style={{ width: "120px" }}/>
           <Column
             header="Actions"
             body={(row) => (

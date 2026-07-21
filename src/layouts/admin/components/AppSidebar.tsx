@@ -641,52 +641,52 @@ const auditItems: NavItem[] = [
   },
 ];
 
-const fleetReportItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.fleet_reports",
-    icon: <BarChart3 size={18} />,
-    module: "fleet-reports",
-    screen: "FleetReports",
-    subItems: [
-      {
-        nameKey: "admin.nav.vehicle_tracking",
-        path: `/${encVehicleTracking}/${encVehicleTrack}`,
-        module: "vehicle-tracking",
-        screen: "VehicleTrack",
-      },
-      {
-        nameKey: "admin.nav.vehicle_history",
-        path: `/${encVehicleTracking}/${encVehicleHistory}`,
-        module: "vehicle-tracking",
-        screen: "VehicleHistory",
-      },
-      {
-        nameKey: "admin.nav.trip_summary",
-        path: `/${encReport}/${encTripSummary}`,
-        module: "reports",
-        screen: "TripSummary",
-      },
-      {
-        nameKey: "admin.nav.monthly_distance",
-        path: `/${encReport}/${encMonthlyDistance}`,
-        module: "reports",
-        screen: "MonthlyDistance",
-      },
-      {
-        nameKey: "admin.nav.waste_collected_summary",
-        path: `/${encReport}/${encWasteCollectedSummary}`,
-        module: "reports",
-        screen: "WasteCollectedSummary",
-      },
-      {
-        nameKey: "admin.nav.workforce_management",
-        path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
-        module: "workforce",
-        screen: "WorkforceManagement",
-      },
-    ],
-  },
-];
+// const fleetReportItems: NavItem[] = [
+//   {
+//     nameKey: "admin.nav.fleet_reports",
+//     icon: <BarChart3 size={18} />,
+//     module: "fleet-reports",
+//     screen: "FleetReports",
+//     subItems: [
+//       {
+//         nameKey: "admin.nav.vehicle_tracking",
+//         path: `/${encVehicleTracking}/${encVehicleTrack}`,
+//         module: "vehicle-tracking",
+//         screen: "VehicleTrack",
+//       },
+//       {
+//         nameKey: "admin.nav.vehicle_history",
+//         path: `/${encVehicleTracking}/${encVehicleHistory}`,
+//         module: "vehicle-tracking",
+//         screen: "VehicleHistory",
+//       },
+//       {
+//         nameKey: "admin.nav.trip_summary",
+//         path: `/${encReport}/${encTripSummary}`,
+//         module: "reports",
+//         screen: "TripSummary",
+//       },
+//       {
+//         nameKey: "admin.nav.monthly_distance",
+//         path: `/${encReport}/${encMonthlyDistance}`,
+//         module: "reports",
+//         screen: "MonthlyDistance",
+//       },
+//       {
+//         nameKey: "admin.nav.waste_collected_summary",
+//         path: `/${encReport}/${encWasteCollectedSummary}`,
+//         module: "reports",
+//         screen: "WasteCollectedSummary",
+//       },
+//       {
+//         nameKey: "admin.nav.workforce_management",
+//         path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
+//         module: "workforce",
+//         screen: "WorkforceManagement",
+//       },
+//     ],
+//   },
+// ];
 
 const leaderLoginItems: NavItem[] = [
   {
@@ -822,7 +822,7 @@ const AppSidebar: React.FC = () => {
         { key: "scheduleOperations" as const, items: scheduleOperationsItems },
         { key: "scheduleReports" as const, items: scheduleReportsItems },
         { key: "auditItems" as const, items: auditItems },
-        { key: "fleetReports" as const, items: fleetReportItems },
+        // { key: "fleetReports" as const, items: fleetReportItems },
         { key: "leaderLogin" as const, items: leaderLoginItems },
       ];
 

@@ -32,8 +32,7 @@ import {
   UserRound,
   Leaf,
 } from "lucide-react";
-// Background image. To use your own illustration, save it into src/images/
-// (e.g. as loginBg.png) and change the path below to "../images/loginBg.png".
+
 import LoginBg from "../images/bg1.png";
 import Logo from "../images/logo-zigma.png";
 
@@ -65,13 +64,7 @@ const getLoginErrorMessage = (error: unknown) => {
     : "Invalid credentials";
 };
 
-/**
- * Check if the permissions object has at least one module
- * with at least one screen that has any action allowed.
- * Handles both formats:
- *   - Array format:  { "common-masters": { "continents": ["view"] } }
- *   - Object format: { "common-masters": { "continents": { "view": true } } }
- */
+
 function hasAnyPermission(permissions: Record<string, unknown>): boolean {
   if (!permissions || typeof permissions !== "object") return false;
 
