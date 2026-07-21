@@ -22,7 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { mergeWithScopeOption } from "../../masters/shared/dataScopeOptions";
+import { mergeWithScopeOption } from "../../shared/dataScopeOptions";
 
 type RecordRow = Record<string, any>;
 

@@ -19,7 +19,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { userScreenApi } from "@/helpers/admin";
 
-import type { UserScreen } from "@/pages/admin/modules/screenManagements/shared/adminTypes"; 
+import type { UserScreen } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
 
 export default function UserScreenList() {
   const { t } = useTranslation();

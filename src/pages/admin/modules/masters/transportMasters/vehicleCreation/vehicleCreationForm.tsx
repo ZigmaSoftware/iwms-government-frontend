@@ -18,7 +18,7 @@ import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
   type GeoLocationValue,
-} from "../../masters/shared/LocationHierarchyFields";
+} from "../../shared/LocationHierarchyFields";
 
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();

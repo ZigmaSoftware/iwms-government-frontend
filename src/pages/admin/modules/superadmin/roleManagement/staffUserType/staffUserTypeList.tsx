@@ -21,7 +21,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { contractorUserTypeApi, governmentUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
 
-import type { StaffUserType } from "@/pages/admin/modules/screenManagements/shared/adminTypes";
+import type { StaffUserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 
 
 const toRecordList = (value: unknown): StaffUserType[] => {

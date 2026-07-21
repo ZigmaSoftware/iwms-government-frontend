@@ -15,42 +15,42 @@ import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
 import { PencilIcon } from "@/icons";
-import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { Switch } from "@/components/ui/switch";
 
-import { userScreenActionApi } from "@/helpers/admin";
+import { mainScreenTypeApi } from "@/helpers/admin";
 
-import type { UserScreenAction } from "@/pages/admin/modules/screenManagements/shared/adminTypes"; 
+import type { MainScreenType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
 
-export default function UserScreenActionList() {
+
+export default function MainScreenTypeList() {
   const { t } = useTranslation();
-  const [records, setRecords] = useState<UserScreenAction[]>([]);
+  const [mainScreenTypes, setMainScreenTypes] = useState<MainScreenType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [globalFilterValue, setGlobalFilterValue] = useState('');
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    action_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH }
   });
 
   const navigate = useNavigate();
-  const { encAdmins, encUserScreenAction } = getEncryptedRoute();
-
+  const { encAdmins, encMainScreenType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
     encAdmins,
-    encUserScreenAction,
+    encMainScreenType,
   );
 
   useEffect(() => {
     let mounted = true;
 
-    const loadActions = async () => {
+    const loadMainScreenTypes = async () => {
       setIsLoading(true);
       try {
-        const data = await userScreenActionApi.readAll();
-        if (mounted) setRecords(data as UserScreenAction[]);
+        const data = await mainScreenTypeApi.readAll();
+        if (mounted) setMainScreenTypes(data as MainScreenType[]);
       } catch {
         if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
@@ -58,7 +58,7 @@ export default function UserScreenActionList() {
       }
     };
 
-    void loadActions();
+    void loadMainScreenTypes();
 
     return () => {
       mounted = false;
@@ -73,12 +73,10 @@ export default function UserScreenActionList() {
     setGlobalFilterValue(value);
   };
 
-  const indexTemplate = (
-    _: UserScreenAction,
-    { rowIndex }: { rowIndex: number }
-  ) => rowIndex + 1;
+  const indexTemplate = (_: MainScreenType, { rowIndex }: { rowIndex: number }) =>
+    rowIndex + 1;
 
-  const actionButtonsTemplate = (row: UserScreenAction) => (
+  const actionTemplate = (row: MainScreenType) => (
     <div className="flex gap-2 justify-center">
       <button
         title={t("common.edit")}
@@ -98,14 +96,14 @@ export default function UserScreenActionList() {
     </div>
   );
 
-  const statusTemplate = (row: UserScreenAction) => {
+  const statusTemplate = (row: MainScreenType) => {
     const updateStatus = async (value: boolean) => {
       const id = String(row.unique_id);
       setPendingStatusId(id);
 
       try {
-        await userScreenActionApi.update(row.unique_id, { is_active: value });
-        setRecords((current) =>
+        await mainScreenTypeApi.update(row.unique_id, { is_active: value });
+        setMainScreenTypes((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -130,29 +128,29 @@ export default function UserScreenActionList() {
       value: globalFilterValue,
       onChange: onGlobalFilterChange,
       placeholder: t("common.search_placeholder", {
-        item: t("admin.user_screen_action.action_label"),
+        item: t("admin.nav.main_screen_type"),
       }),
     });
 
   return (
-    <div className="px-3 py-3 w-full">
-      
+    <div className="px-3 py-3 w-full ">
+    
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.user_screen_action")}
+              {t("admin.nav.main_screen_type")}
             </h1>
             <p className="text-gray-500 text-sm">
               {t("common.manage_item_records", {
-                item: t("admin.nav.user_screen_action"),
+                item: t("admin.nav.main_screen_type"),
               })}
             </p>
           </div>
 
           <Button
             label={t("common.add_item", {
-              item: t("admin.user_screen_action.action_label"),
+              item: t("admin.nav.main_screen_type"),
             })}
             icon="pi pi-plus"
             className="p-button-success"
@@ -160,18 +158,17 @@ export default function UserScreenActionList() {
           />
         </div>
 
-        {/* Table */}
         <DataTable
-          value={records}
+          value={mainScreenTypes}
           paginator
           rows={10}
           loading={isLoading}
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["action_name", "variable_name"]}
+          globalFilterFields={["type_name"]}
           header={header}
           emptyMessage={t("common.no_items_found", {
-            item: t("admin.user_screen_action.action_label"),
+            item: t("admin.nav.main_screen_type"),
           })}
           stripedRows
           showGridlines
@@ -179,27 +176,13 @@ export default function UserScreenActionList() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
           <Column
-            field="action_name"
-            header={t("common.action_name")}
+            field="type_name"
+            header={t("admin.nav.main_screen_type")}
             sortable
             style={{ minWidth: "200px" }}
           />
-          <Column
-            field="variable_name"
-            header={t("common.variable_name")}
-            sortable
-            style={{ minWidth: "200px" }}
-          />
-          <Column
-            header={t("common.status")}
-            body={statusTemplate}
-            style={{ width: "150px" }}
-          />
-          <Column
-            header={t("common.actions")}
-            body={actionButtonsTemplate}
-            style={{ width: "150px" }}
-          />
+          <Column header={t("common.status")} body={statusTemplate} style={{ width: "150px" }} />
+          <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px" }} />
         </DataTable>
  
     </div>

@@ -172,6 +172,7 @@ const MODULE_GROUPS: {
     accent: "bg-orange-400",
     sectionKeys: [
       "master",
+      "assets",
       "wasteType",
       "transportMasters",
       "customerMasters",
@@ -816,6 +817,7 @@ const AppSidebar: React.FC = () => {
         { key: "scheduleOperations" as const, items: scheduleOperationsItems },
         { key: "scheduleReports" as const, items: scheduleReportsItems },
         { key: "auditItems" as const, items: auditItems },
+        // { key: "fleetReports" as const, items: fleetReportItems },
         { key: "leaderLogin" as const, items: leaderLoginItems },
       ];
 
@@ -892,19 +894,6 @@ const AppSidebar: React.FC = () => {
     })).filter((group) => group.sections.length > 0);
   }, [filteredSections]);
 
-  // Static lookup: which module group owns each section — independent of
-  // permission/search filtering, used purely to auto-open the right group
-  // when the active route changes.
-  const sectionKeyToGroupKey = useMemo(() => {
-    const map = new Map<SidebarSectionKey, string>();
-    MODULE_GROUPS.forEach((group) => {
-      group.sectionKeys.forEach((key) => map.set(key, group.key));
-    });
-    return map;
-  }, []);
-
-  const [openGroupKey, setOpenGroupKey] = useState<string | null>(null);
-
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: SidebarSectionKey;
     index: number;
@@ -954,26 +943,15 @@ const AppSidebar: React.FC = () => {
 
   useEffect(() => {
     let matched = false;
-    let matchedGroupKey: string | null = null;
     const skipAutoOpenSubmenuKeys = new Set([
       "admin.nav.collection_monitoring",
     ]);
 
     sidebarSections.forEach((section) => {
       section.items.forEach((nav, index) => {
-        // Flat items (no subItems, e.g. Dashboard/Attendance) — match their own path.
-        if (
-          (!nav.subItems || nav.subItems.length === 0) &&
-          nav.path &&
-          isActive(nav.path, true)
-        ) {
-          matchedGroupKey = sectionKeyToGroupKey.get(section.key) ?? matchedGroupKey;
-        }
-
         nav.subItems?.forEach((sub) => {
           if (isActive(sub.path, true)) {
             matched = true;
-            matchedGroupKey = sectionKeyToGroupKey.get(section.key) ?? matchedGroupKey;
             if (!skipAutoOpenSubmenuKeys.has(sub.nameKey)) {
               setOpenSubmenu({ type: section.key, index });
             }
@@ -986,9 +964,7 @@ const AppSidebar: React.FC = () => {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpenSubmenu(null);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOpenGroupKey(matchedGroupKey);
-  }, [location, isActive, sidebarSections, sectionKeyToGroupKey]);
+  }, [location, isActive, sidebarSections]);
 
   useEffect(() => {
     if (openSubmenu) {
@@ -1015,16 +991,6 @@ const AppSidebar: React.FC = () => {
         ? null
         : { type, index }
     );
-  };
-
-  const handleGroupToggle = (key: string) => {
-    if (!showFullSidebar) {
-      toggleSidebar();
-      setOpenGroupKey(key);
-      return;
-    }
-
-    setOpenGroupKey((prev) => (prev === key ? null : key));
   };
 
   const renderMenuItems = (items: NavItem[], type: SidebarSectionKey) => (
@@ -1180,66 +1146,33 @@ const AppSidebar: React.FC = () => {
         <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
           <nav className="flex flex-col gap-1.5">
             {groupedSections.length > 0 ? (
-              groupedSections.map((group, groupIndex) => {
-                const isGroupOpen =
-                  (searchQuery.trim() !== "" && showFullSidebar) ||
-                  openGroupKey === group.key;
-
-                const sectionsContent = group.sections.map((section) => (
-                  <div key={section.key} className="flex flex-col gap-1">
-                    {renderMenuItems(section.items, section.key)}
-                  </div>
-                ));
-
-                if (!showFullSidebar) {
-                  // Icon-only rail: no room for a group header, show every
-                  // main-screen icon directly (clicking one re-expands the sidebar).
-                  return (
-                    <div key={group.key} className="flex flex-col gap-1">
-                      {groupIndex > 0 && (
-                        <div className="mx-2 my-2 h-px bg-green-100" />
-                      )}
-                      {sectionsContent}
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={group.key} className="flex flex-col gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleGroupToggle(group.key)}
+              groupedSections.map((group, groupIndex) => (
+                <div key={group.key} className="flex flex-col gap-1">
+                  {showFullSidebar ? (
+                    <div
                       className={cn(
-                        "flex w-full items-center gap-2 rounded-lg px-3 py-2 transition-colors",
-                        groupIndex === 0 ? "mt-0" : "mt-2",
-                        isGroupOpen ? "bg-gray-50" : "hover:bg-gray-50"
+                        "flex items-center gap-2 px-3 pb-1.5",
+                        groupIndex === 0 ? "pt-0" : "pt-3"
                       )}
                     >
                       <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.accent)} />
-                      <span className="flex-1 truncate text-left text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
                         {t(group.titleKey)}
                       </span>
-                      <ChevronDown
-                        className={cn(
-                          "h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200",
-                          isGroupOpen && "rotate-180"
-                        )}
-                      />
-                    </button>
-
-                    <div
-                      className={cn(
-                        "grid transition-all duration-300 ease-out",
-                        isGroupOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-                      )}
-                    >
-                      <div className="flex flex-col gap-1 overflow-hidden">
-                        {sectionsContent}
-                      </div>
                     </div>
-                  </div>
-                );
-              })
+                  ) : (
+                    groupIndex > 0 && (
+                      <div className="mx-2 my-2 h-px bg-green-100" />
+                    )
+                  )}
+
+                  {group.sections.map((section) => (
+                    <div key={section.key} className="flex flex-col gap-1">
+                      {renderMenuItems(section.items, section.key)}
+                    </div>
+                  ))}
+                </div>
+              ))
             ) : (
               showFullSidebar && searchQuery.trim() && (
                 <p className="px-3 py-6 text-center text-sm text-gray-400">

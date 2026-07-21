@@ -39,8 +39,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   mergeWithScopeOptionExtra,
   scopeOption,
-} from "../../masters/shared/dataScopeOptions";
-import type { ScopeLevel } from "../../masters/shared/dataScopeOptions";
+} from "../../shared/dataScopeOptions";
+import type { ScopeLevel } from "../../shared/dataScopeOptions";
 
 /* ===============================
    MODULE-LEVEL HELPERS

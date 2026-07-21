@@ -20,7 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { mainScreenApi } from "@/helpers/admin";
 
-import type { MainScreen } from "@/pages/admin/modules/screenManagements/shared/adminTypes"; // Correct import
+import type { MainScreen } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; // Correct import
 
 const toRecordList = (value: unknown): MainScreen[] => {
   if (Array.isArray(value)) return value as MainScreen[];

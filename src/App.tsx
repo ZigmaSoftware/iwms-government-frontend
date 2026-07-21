@@ -18,7 +18,7 @@ import NotFound from "@/pages/dashboard/pages/NotFound";
 import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
 import AdminHome from "@/pages/admin/AdminHome";
 import AdminEncryptedRouter from "@/layouts/admin/encryptedRouting/AdminEncryptedRouter";
-import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
+import CommonAuditList from "@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList";
 import DashboardEncryptedRouter from "@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter";
 
 import { AdminLayout } from "@/layouts/admin/AdminLayout";

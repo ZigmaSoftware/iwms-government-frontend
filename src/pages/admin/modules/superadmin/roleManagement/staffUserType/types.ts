@@ -1,4 +1,4 @@
-import type { StaffUserType } from "@/pages/admin/modules/screenManagements/shared/adminTypes";
+import type { StaffUserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 
 export type RoleTypeOption = {
   value: string;

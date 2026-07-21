@@ -18,7 +18,7 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
-import type { UserType } from "@/pages/admin/modules/screenManagements/shared/adminTypes"; 
+import type { UserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
 
 import { userTypeApi } from "@/helpers/admin";
 
