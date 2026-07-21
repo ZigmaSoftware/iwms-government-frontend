@@ -1,4 +1,18 @@
-export type Option = { value: string; label: string };
+export type Option = {
+  value: string;
+  label: string;
+  // Only populated on trip-assignment options — the assignment's own local
+  // body per level, used to filter the Trip Assignment dropdown by the
+  // form's selected local body.
+  localBodyByLevel?: Partial<Record<
+    "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id",
+    string
+  >>;
+  // Only populated on trip-assignment options — whether the assignment's trip
+  // plan includes a household-collection stop, used to scope the Trip
+  // Assignment dropdown to household-type trips only.
+  hasHousehold?: boolean;
+};
 
 // A geo master row (state/district/area type/local body). Extra keys vary per
 // master (corporation_name, union_name, …) so it stays index-accessible.
@@ -54,6 +68,8 @@ export type WasteCollection = {
   // Most-specific local body + its level (Corporation/Municipality/.../Panchayat)
   location_name?: string;
   location_level?: string;
+  // Vehicle that performed the collection (resolved via the linked trip assignment).
+  vehicle?: { unique_id?: string; vehicle_no?: string } | null;
   wet_waste: number;
   dry_waste: number;
   mixed_waste: number;

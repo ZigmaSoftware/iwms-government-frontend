@@ -36,6 +36,7 @@ export type StaffRecord = {
   active_status?: boolean | number | string | null;
   company_name?: string;
   project_name?: string;
+  driving_licence_expiry_date?: string;
 };
 
 export type StaffTemplateFormData = {

@@ -34,6 +34,28 @@ import { adminApi } from "@/helpers/admin/registry";
 const cap = (str?: string) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
+const formatDate = (val?: string) => {
+  if (!val) return "-";
+  return new Date(val).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+// Trip-plan-style 12hr clock — accepts "HH:MM" or "HH:MM:SS".
+const formatTime12Hour = (time?: string): string => {
+  if (!time) return "";
+  const [hourStr, minuteStr = "00"] = time.split(":");
+  const hour = Number(hourStr);
+  if (!Number.isFinite(hour)) return time;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
+};
+
+const formatCollectionDateTime = (row: WasteCollection) => {
+  const date = formatDate(row.collection_date);
+  const time = formatTime12Hour(row.collection_time);
+  return time ? `${date}, ${time}` : date;
+};
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WasteCollectedDataList() {
@@ -178,6 +200,13 @@ export default function WasteCollectedDataList() {
           sortable filter showFilterMatchModes={false}
         />
         <Column
+          field="collection_date"
+          header={t("admin.household_collection_event.collection_date", "Collection Date")}
+          body={formatCollectionDateTime}
+          sortable
+          style={{ minWidth: 170 }}
+        />
+        <Column
           field="dry_waste"
           header={t("admin.household_collection_event.dry_waste")}
           sortable
@@ -218,6 +247,11 @@ export default function WasteCollectedDataList() {
               : "-"
           }
           sortable filter showFilterMatchModes={false}
+        />
+        <Column
+          field="vehicle"
+          header={t("common.vehicle", "Vehicle")}
+          body={(row: WasteCollection) => row.vehicle?.vehicle_no ?? "-"}
         />
         <Column
           field="is_active"

@@ -879,7 +879,23 @@ const hiResource = {
           "leader_login": "नेता लॉगिन",
           "plb_leader_creation": "PLB नेता निर्माण",
           "district_leader_creation": "ज़िला नेता निर्माण",
-          "state_leader_creation": "राज्य नेता निर्माण"
+          "state_leader_creation": "राज्य नेता निर्माण",
+
+          "group_dashboard": "डैशबोर्ड",
+          "group_super_admin": "सुपर एडमिन",
+          "group_masters": "मास्टर्स",
+          "group_core_modules": "कोर मॉड्यूल",
+          "group_reports": "रिपोर्ट्स",
+          "location_masters": "लोकेशन मास्टर्स",
+          "asset_masters": "एसेट मास्टर्स",
+          "waste_properties": "कचरा गुण",
+          "waste_masters": "कचरा मास्टर्स",
+          "role_management": "भूमिका प्रबंधन",
+          "user_management": "उपयोगकर्ता प्रबंधन",
+          "audits": "ऑडिट",
+          "leader_management": "नेता प्रबंधन",
+          "screen_management": "स्क्रीन प्रबंधन",
+          "complaint_management": "शिकायत प्रबंधन"
         },
         "project": {
           "company_id": "कंपनी आईडी",
@@ -1349,6 +1365,7 @@ const hiResource = {
           "driving_licence_upload": "ड्राइविंग लाइसेंस अपलोड",
           "driving_licence_choose": "फ़ाइल चुनें",
           "driving_licence_no_file": "कोई फ़ाइल नहीं चुनी गई",
+          "driving_experience_years": "ड्राइविंग अनुभव (वर्ष)",
           "password": "पासवर्ड",
           "password_placeholder": "पासवर्ड दर्ज करें",
           "password_edit_placeholder": "मौजूदा पासवर्ड रखने के लिए खाली छोड़ दें",

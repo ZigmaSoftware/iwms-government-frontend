@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
+import ExpiryBadge from "@/components/common/ExpiryBadge";
 import {
   areaTypeApi,
   collectionPointApi,
@@ -42,10 +43,15 @@ type StopRow = {
   bin_id: string;
   customer_id: string;
   is_active: boolean;
+  // Seed labels straight from the loaded record — keep the Collection Point /
+  // Bin selects showing correct text instantly in edit mode, before the
+  // (now geo-scoped) option lists finish loading.
+  collectionPointLabel?: string;
+  binLabel?: string;
 };
 
 type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string };
-type VehicleOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string; isActive?: boolean };
+type VehicleOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string; isActive?: boolean; insuranceExpiryDate?: string | null };
 type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
 type CustomerOption = Option & {
   hierarchyField?: HierarchyLevel;
@@ -190,10 +196,14 @@ export default function TripPlanForm() {
     useState<{ level: HierarchyLevel; id: string; name: string } | null>(null);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
+  // Labels for already-selected values seeded straight from the loaded record,
+  // so the Staff Template / Vehicle selects show correct text instantly in
+  // edit mode instead of waiting on their (now geo-scoped) option lists.
+  const [initialStaffTemplateLabel, setInitialStaffTemplateLabel] = useState("");
+  const [initialVehicleLabel, setInitialVehicleLabel] = useState("");
   const [supervisorId, setSupervisorId] = useState("");
   const [collectionType, setCollectionType] = useState("bin_collection");
   // Single primary waste type (legacy)
-  const [wasteTypeId, setWasteTypeId] = useState("");
   // Multiple waste types
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
   const [scheduledTime, setScheduledTime] = useState("07:00");
@@ -233,11 +243,11 @@ export default function TripPlanForm() {
     panchayat_id: [],
   });
 
+  // Small/cheap reference lists — safe to load in full up front, needed
+  // immediately for the geo cascade UI. Waste Types has only ~7 rows and the
+  // backend has no filter support for it, so it stays eager too.
   useEffect(() => {
     Promise.all([
-      staffTemplateApi.readAll(),
-      vehicleCreationApi.readAll(),
-      staffCreationApi.readAll({ params: { active_status: 1 } }),
       wasteTypeApi.readAll(),
       stateApi.readAll(),
       districtApi.readAll(),
@@ -247,13 +257,48 @@ export default function TripPlanForm() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
-      collectionPointApi.readAll(),
-      adminApi.bins.readAll(),
     ]).then(([
-      staffRes, vehicleRes, supervisorRes, wasteTypeRes,
+      wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
-      collectionPointRes, binRes,
     ]) => {
+      setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
+      setStates(normalizeList(stateRes));
+      setDistricts(normalizeList(districtRes));
+      setAreaTypes(normalizeList(areaTypeRes));
+      setHierarchyRecords({
+        corporation_id: normalizeList(corporationRes),
+        municipality_id: normalizeList(municipalityRes),
+        town_panchayat_id: normalizeList(townPanchayatRes),
+        panchayat_union_id: normalizeList(panchayatUnionRes),
+        panchayat_id: normalizeList(panchayatRes),
+      });
+    });
+  }, []);
+
+  // Heavy/large lists — Staff Templates, Vehicles, Staff (for Supervisors),
+  // Collection Points, Bins and Customers can each run into the hundreds or
+  // thousands of rows, so they're fetched scoped to the selected geo instead
+  // of downloaded in full. Re-fetches whenever the geo scope changes; a
+  // `cancelled` flag guards against a stale response landing after a rapid
+  // geo change. All backing viewsets already support these query params
+  // (state_id/district_id/area_type_id/<hierarchyLevel>).
+  useEffect(() => {
+    let cancelled = false;
+    const geoParams: Record<string, string> = {};
+    if (stateId) geoParams.state_id = stateId;
+    if (districtId) geoParams.district_id = districtId;
+    if (areaTypeId) geoParams.area_type_id = areaTypeId;
+    if (hierarchyId) geoParams[hierarchyLevel] = hierarchyId;
+
+    Promise.all([
+      staffTemplateApi.readAll({ params: geoParams }),
+      vehicleCreationApi.readAll({ params: geoParams }),
+      staffCreationApi.readAll({ params: { active_status: 1, ...geoParams } }),
+      collectionPointApi.readAll({ params: geoParams }),
+      adminApi.bins.readAll({ params: geoParams }),
+    ]).then(([staffRes, vehicleRes, supervisorRes, collectionPointRes, binRes]) => {
+      if (cancelled) return;
+
       setStaffTemplatesRaw(normalizeList(staffRes));
       setVehicles(
         normalizeList(vehicleRes).map((item: any) => {
@@ -264,11 +309,12 @@ export default function TripPlanForm() {
             hierarchyField: field,
             hierarchyId: field ? String(item?.[field] ?? "") : "",
             isActive: item?.is_active !== false,
+            insuranceExpiryDate: item?.insurance_expiry_date ?? null,
           };
         }).filter((o: Option) => o.value),
       );
-      setSupervisors(
-        normalizeList(supervisorRes)
+      setSupervisors((prev) => {
+        const next = normalizeList(supervisorRes)
           // Only supervisor-role government staff (e.g. Corporation Supervisor,
           // District Supervisor) — never the full staff list. The government
           // user type name follows the govt_<level>_supervisor convention.
@@ -281,18 +327,12 @@ export default function TripPlanForm() {
             value: String(item?.staff_unique_id ?? item?.unique_id ?? ""),
             label: String(item?.employee_name ?? item?.staff_unique_id ?? ""),
           }))
-          .filter((o: Option) => o.value)
-      );
-      setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
-      setStates(normalizeList(stateRes));
-      setDistricts(normalizeList(districtRes));
-      setAreaTypes(normalizeList(areaTypeRes));
-      setHierarchyRecords({
-        corporation_id: normalizeList(corporationRes),
-        municipality_id: normalizeList(municipalityRes),
-        town_panchayat_id: normalizeList(townPanchayatRes),
-        panchayat_union_id: normalizeList(panchayatUnionRes),
-        panchayat_id: normalizeList(panchayatRes),
+          .filter((o: Option) => o.value);
+        // Preserve any already-selected supervisor seeded by the edit-mode
+        // load (ensureOption'd onto `prev`) even if it falls outside this
+        // geo-scoped fetch.
+        const preserved = prev.find((o) => !next.some((n) => n.value === o.value) && o.value === supervisorId);
+        return preserved ? [...next, preserved] : next;
       });
       setCollectionPoints(
         normalizeList(collectionPointRes).map((item: any) => {
@@ -314,13 +354,25 @@ export default function TripPlanForm() {
         })).filter((o: Option) => o.value),
       );
     });
-  }, []);
 
-  // Customers load on their own so a customer-API failure never blanks the core
-  // form fields (State, District, Staff Template, etc.). Only the Household
-  // customer dropdown depends on this list.
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateId, districtId, areaTypeId, hierarchyLevel, hierarchyId]);
+
+  // Customers load on their own, scoped to the same geo, so a customer-API
+  // failure never blanks the core form fields (State, District, Staff
+  // Template, etc.). Only the Household customer dropdown depends on this
+  // list. Re-fetches whenever the geo scope changes.
   useEffect(() => {
-    customerCreationApi.readAll().then((customerRes: any) => {
+    let cancelled = false;
+    const geoParams: Record<string, string> = {};
+    if (stateId) geoParams.state_id = stateId;
+    if (districtId) geoParams.district_id = districtId;
+    if (areaTypeId) geoParams.area_type_id = areaTypeId;
+    if (hierarchyId) geoParams[hierarchyLevel] = hierarchyId;
+
+    customerCreationApi.readAll({ params: geoParams }).then((customerRes: any) => {
+      if (cancelled) return;
       setCustomers(
         normalizeList(customerRes).map((item: any) => {
           const field = hierarchyIdFields.find((key) => item?.[key]);
@@ -338,11 +390,15 @@ export default function TripPlanForm() {
         }).filter((o: Option) => o.value),
       );
     }).catch(() => {
+      if (cancelled) return;
       // Non-fatal: household stops just won't have customer options until the
       // endpoint recovers.
       setCustomers([]);
     });
-  }, []);
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateId, districtId, areaTypeId, hierarchyLevel, hierarchyId]);
 
   const filteredDistricts = districts.filter(
     (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
@@ -376,10 +432,12 @@ export default function TripPlanForm() {
   );
 
   // Staff templates scoped to the selected local body — keeps the already
-  // selected template present even if it falls outside the current filter.
+  // selected template present even if it falls outside the current filter,
+  // and (in edit mode) shows its correct label instantly via
+  // `initialStaffTemplateLabel`, before the geo-scoped fetch resolves.
   const staffTemplates = useMemo<Option[]>(
-    () =>
-      staffTemplatesRaw
+    () => {
+      const options = staffTemplatesRaw
         .filter(
           (tpl) =>
             staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
@@ -389,8 +447,10 @@ export default function TripPlanForm() {
           value: String(tpl?.unique_id ?? tpl?.id ?? ""),
           label: staffTemplateLabel(tpl),
         }))
-        .filter((o) => o.value),
-    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId],
+        .filter((o) => o.value);
+      return ensureOption(options, staffTemplateId, initialStaffTemplateLabel || undefined);
+    },
+    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId, initialStaffTemplateLabel],
   );
 
 useEffect(() => {
@@ -502,7 +562,9 @@ useEffect(() => {
       }
 
       setStaffTemplateId(String(record.staff_template?.unique_id ?? record.staff_template_id ?? ""));
+      setInitialStaffTemplateLabel(record.staff_template ? staffTemplateLabel(record.staff_template) : "");
       setVehicleId(String(record.vehicle?.unique_id ?? record.vehicle_id ?? ""));
+      setInitialVehicleLabel(String(record.vehicle?.vehicle_no ?? ""));
       const savedSupervisorId = String(record.supervisor?.unique_id ?? record.supervisor_id ?? "");
       setSupervisorId(savedSupervisorId);
       // Keep the saved supervisor visible even if they no longer match the
@@ -510,14 +572,9 @@ useEffect(() => {
       setSupervisors((prev) => ensureOption(prev, savedSupervisorId, record.supervisor?.employee_name));
       setCollectionType(String(record.collection_type ?? "bin_collection"));
 
-      // Primary waste type (legacy FK)
-      setWasteTypeId(String(record.waste_type?.unique_id ?? record.waste_type_id ?? ""));
-
       // Multiple waste types
       if (Array.isArray(record.waste_types_detail) && record.waste_types_detail.length > 0) {
         setSelectedWasteTypes(record.waste_types_detail.map((wt: any) => String(wt.unique_id)));
-      } else if (record.waste_type?.unique_id) {
-        setSelectedWasteTypes([String(record.waste_type.unique_id)]);
       }
 
       const timeStr = String(record.scheduled_time ?? "");
@@ -606,8 +663,13 @@ useEffect(() => {
       : vehicles
     ).filter((v) => v.value === currentValue || v.isActive !== false);
     const current = vehicles.find((v) => v.value === currentValue);
-    return ensureOption(filtered, currentValue, current?.label);
+    return ensureOption(filtered, currentValue, current?.label || initialVehicleLabel || undefined);
   };
+
+  const selectedVehicle = useMemo(
+    () => vehicles.find((v) => v.value === vehicleId),
+    [vehicles, vehicleId]
+  );
 
 
   // Household stops are auto-assigned: a single household stop covers EVERY
@@ -687,9 +749,6 @@ useEffect(() => {
       vehicle_id: vehicleId,
       supervisor_id: supervisorId || null,
       collection_type: collectionType,
-      // Primary waste type: first selected (legacy)
-      waste_type_id: selectedWasteTypes[0] ?? wasteTypeId ?? null,
-      // All selected waste types
       waste_type_ids: selectedWasteTypes,
       scheduled_time: scheduledTime,
       trip_trigger_weight_kg: tripTriggerWeightKg ? Number(tripTriggerWeightKg) : null,
@@ -833,6 +892,11 @@ useEffect(() => {
             options={vehiclesForLocalBody(vehicleId)}
             placeholder={hierarchyId ? "Select Vehicle" : "Select a Local Body first"}
           />
+          {selectedVehicle && (
+            <div className="mt-1.5">
+              <ExpiryBadge label="Insurance" date={selectedVehicle.insuranceExpiryDate} />
+            </div>
+          )}
         </div>
 
         <div>

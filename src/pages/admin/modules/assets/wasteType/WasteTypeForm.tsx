@@ -21,7 +21,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteTypeApi } from "@/helpers/admin";
 import { complaintPriorityApi, complaintTeamApi } from "@/features/complaintTicketing/api";
-import { asArray } from "@/pages/admin/modules/complaintTicketing/utils";
+import { asArray } from "@/pages/admin/modules/core_modules/complaintManagement/utils";
 import type { ComplaintPriority, ComplaintTeam } from "@/features/complaintTicketing/types";
 
 const { encMasters, encWasteTypes } = getEncryptedRoute();
