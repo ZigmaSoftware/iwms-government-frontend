@@ -12,6 +12,7 @@ import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import InputField from "@/components/form/input/InputField";
 import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
+import ExpiryBadge from "@/components/common/ExpiryBadge";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -580,6 +581,8 @@ export default function AlternativeStaffTemplateForm() {
     return [toStaffOption(rec), ...driverOptions];
   })();
 
+  const selectedDriver = staffRecords.find((s) => getStaffId(s) === formData.driver);
+
   // Operator: exclude selected driver + inject saved option if not yet in scoped list
   const operatorOptionsWithCurrent = (() => {
     const base = operatorOptions.filter((o) => o.value !== formData.driver);
@@ -722,6 +725,11 @@ export default function AlternativeStaffTemplateForm() {
                   }
                   required
                 />
+                {selectedDriver && (
+                  <div className="mt-1.5">
+                    <ExpiryBadge label="Licence" date={selectedDriver.driving_licence_expiry_date} />
+                  </div>
+                )}
               </div>
             )}
 

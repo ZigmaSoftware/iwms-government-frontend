@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
+import ExpiryBadge from "@/components/common/ExpiryBadge";
 import {
   areaTypeApi,
   collectionPointApi,
@@ -50,7 +51,7 @@ type StopRow = {
 };
 
 type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string };
-type VehicleOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string; isActive?: boolean };
+type VehicleOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string; isActive?: boolean; insuranceExpiryDate?: string | null };
 type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
 type CustomerOption = Option & {
   hierarchyField?: HierarchyLevel;
@@ -308,6 +309,7 @@ export default function TripPlanForm() {
             hierarchyField: field,
             hierarchyId: field ? String(item?.[field] ?? "") : "",
             isActive: item?.is_active !== false,
+            insuranceExpiryDate: item?.insurance_expiry_date ?? null,
           };
         }).filter((o: Option) => o.value),
       );
@@ -664,6 +666,11 @@ useEffect(() => {
     return ensureOption(filtered, currentValue, current?.label || initialVehicleLabel || undefined);
   };
 
+  const selectedVehicle = useMemo(
+    () => vehicles.find((v) => v.value === vehicleId),
+    [vehicles, vehicleId]
+  );
+
 
   // Household stops are auto-assigned: a single household stop covers EVERY
   // non-bulk customer in the selected local body (the backend expands a stop
@@ -885,6 +892,11 @@ useEffect(() => {
             options={vehiclesForLocalBody(vehicleId)}
             placeholder={hierarchyId ? "Select Vehicle" : "Select a Local Body first"}
           />
+          {selectedVehicle && (
+            <div className="mt-1.5">
+              <ExpiryBadge label="Insurance" date={selectedVehicle.insuranceExpiryDate} />
+            </div>
+          )}
         </div>
 
         <div>

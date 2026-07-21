@@ -6,6 +6,7 @@ import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import ExpiryBadge from "@/components/common/ExpiryBadge";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
@@ -623,9 +624,12 @@ export default function VehicleCreationListPage() {
           <Column
             field="insurance_expiry_date"
             header={t("admin.vehicle_creation.insurance_expiry_date")}
-            body={(row: VehicleCreationRecord) =>
-              formatDate(row.insurance_expiry_date)
-            }
+            body={(row: VehicleCreationRecord) => (
+              <div className="flex flex-col gap-1">
+                <span>{formatDate(row.insurance_expiry_date)}</span>
+                <ExpiryBadge label="Insurance" date={row.insurance_expiry_date} />
+              </div>
+            )}
             sortable
             filter
             showFilterMatchModes={false}

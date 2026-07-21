@@ -11,6 +11,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
+import ExpiryBadge from "@/components/common/ExpiryBadge";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
@@ -450,6 +451,8 @@ export default function StaffTemplateForm() {
     return staff ? [toStaffOption(staff), ...driverOptions] : driverOptions;
   })();
 
+  const selectedDriver = staffRecords.find((item) => getStaffId(item) === formData.driver_id);
+
   const operatorOptionsWithCurrent = (() => {
     if (!formData.operator_id) return operatorOptions;
     if (operatorOptions.some((option) => option.value === formData.operator_id)) return operatorOptions;
@@ -565,6 +568,11 @@ export default function StaffTemplateForm() {
                   required
                   disabled={fetching}
                 />
+                {selectedDriver && (
+                  <div className="mt-1.5">
+                    <ExpiryBadge label="Licence" date={selectedDriver.driving_licence_expiry_date} />
+                  </div>
+                )}
               </div>
             )}
 
