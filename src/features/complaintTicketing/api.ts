@@ -238,37 +238,37 @@ export async function fetchGrievances(signal?: AbortSignal) {
 
 export const publicGrievanceApi = {
   meta: async (signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceMeta>("/publicgrivence/meta/", {
+    const { data } = await api.get<PublicGrievanceMeta>("/publicgrievance/meta/", {
       signal,
     });
     return data;
   },
   states: async (signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrivence/states/", { signal });
+    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrievance/states/", { signal });
     return data;
   },
   districts: async (stateId?: string, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrivence/districts/", {
+    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrievance/districts/", {
       params: stateId ? { state: stateId } : undefined,
       signal,
     });
     return data;
   },
   cities: async (districtId: string, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrivence/cities/", {
+    const { data } = await api.get<PublicGrievanceLocationOption[]>("/publicgrievance/cities/", {
       params: { district: districtId },
       signal,
     });
     return data;
   },
   create: async (payload: FormData) => {
-    const { data } = await api.post<PublicGrievanceResponse>("/publicgrivence/", payload, {
+    const { data } = await api.post<PublicGrievanceResponse>("/publicgrievance/", payload, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return data;
   },
   status: async (params: { ticket_no?: string; mobile?: string }, signal?: AbortSignal) => {
-    const { data } = await api.get<PublicGrievanceStatusResult[]>("/publicgrivence/status/", {
+    const { data } = await api.get<PublicGrievanceStatusResult[]>("/publicgrievance/status/", {
       params,
       signal,
     });
