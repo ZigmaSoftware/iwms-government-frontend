@@ -346,6 +346,7 @@ const initialFormData = {
   contact_email: "",
   driving_licence_no: "",
   driving_licence_expiry_date: "",
+  driving_experience_years: "",
   // emergency_contact: "",
   // emergency_mobile: "",
 };
@@ -405,6 +406,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   driving_licence_no: ["driving_licence_no", "driving_license_no"],
   driving_licence_expiry_date: ["driving_licence_expiry_date"],
   driving_licence_file: ["driving_licence_file", "driving_license_file"],
+  driving_experience_years: ["driving_experience_years", "driver_experience_years"],
 };
 
 export default function StaffCreationForm() {
@@ -559,9 +561,21 @@ export default function StaffCreationForm() {
     (opt) => opt.value === formData.staffusertype_id,
   );
 
+  const selectedContractorUserType = contractorUserTypeOptions.find(
+    (opt) => opt.value === formData.contractorusertype_id,
+  );
+
+  const selectedGovernmentUserType = governmentUserTypeRecords.find(
+    (r) => r.unique_id === formData.governmentusertype_id,
+  );
+
   const isDriverSelected =
     !!formData.driving_licence_no ||
-    !!selectedUserType?.label?.toLowerCase().includes("driver");
+    !!selectedUserType?.label?.toLowerCase().includes("driver") ||
+    !!selectedContractorUserType?.label?.toLowerCase().includes("driver") ||
+    !!(selectedGovernmentUserType?.name_display || selectedGovernmentUserType?.name)
+      ?.toLowerCase()
+      .includes("driver");
 
   // Government scope cascade: State → District → Area Type → Local Body
   const scopeDistrictOptions = useMemo(() => {
@@ -604,34 +618,33 @@ export default function StaffCreationForm() {
   }, [scopeLocalBodyRecords, formData.district_id, formData.local_body_level]);
 
 
-  const handleLicenceUpload = (file: File | null) => {
-    if (!file) return;
+  const MAX_DRIVER_FILE_SIZE_MB = 3;
 
-    const allowedTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "application/pdf",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
+  const validateDriverPdfUpload = (file: File): boolean => {
+    if (file.type !== "application/pdf") {
       Swal.fire({
         icon: "warning",
         title: "Invalid File Type",
-        text: "Only JPG, JPEG, PNG, or PDF files are allowed.",
+        text: "Only PDF files are allowed.",
       });
-      return;
+      return false;
     }
 
-    const MAX_SIZE_MB = 5;
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+    if (file.size > MAX_DRIVER_FILE_SIZE_MB * 1024 * 1024) {
       Swal.fire({
         icon: "warning",
         title: "File Too Large",
-        text: `File size must be under ${MAX_SIZE_MB} MB.`,
+        text: `File size must be under ${MAX_DRIVER_FILE_SIZE_MB} MB.`,
       });
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handleLicenceUpload = (file: File | null) => {
+    if (!file) return;
+    if (!validateDriverPdfUpload(file)) return;
 
     setLicenceFile(file);
     setLicencePreview(URL.createObjectURL(file));
@@ -644,6 +657,7 @@ export default function StaffCreationForm() {
       setFormData((prev) => ({
         ...prev,
         driving_licence_no: "",
+        driving_experience_years: "",
       }));
     }
   }, [isDriverSelected]);
@@ -910,6 +924,7 @@ export default function StaffCreationForm() {
             .find(Boolean) ?? "",
           driving_licence_no: staff.driving_licence_no ?? "",
           driving_licence_expiry_date: staff.driving_licence_expiry_date ?? "",
+          driving_experience_years: staff.driving_experience_years ?? "",
 
           // Contact details (FLAT — NOT nested)
           contact_mobile: staff.contact_mobile ?? "",
@@ -1365,21 +1380,6 @@ export default function StaffCreationForm() {
       return;
     }
 
-    // ✅ DRIVER VALIDATION — mandatory on create AND on edit when no existing file
-    if (
-      showField("driving_licence_file") &&
-      isDriverSelected &&
-      !licenceFile &&
-      !licencePreview
-    ) {
-      Swal.fire({
-        icon: "error",
-        title: "Licence Required",
-        text: "Please upload the driving licence file (JPG, JPEG, PNG or PDF).",
-      });
-      return;
-    }
-
     setSubmitting(true);
 
     try {
@@ -1452,6 +1452,12 @@ export default function StaffCreationForm() {
       }
       if (showField("driving_licence_expiry_date") && isDriverSelected) {
         rawPayload.driving_licence_expiry_date = formData.driving_licence_expiry_date || null;
+      }
+      if (showField("driving_experience_years") && isDriverSelected) {
+        rawPayload.driving_experience_years =
+          formData.driving_experience_years === ""
+            ? null
+            : Number(formData.driving_experience_years);
       }
 
       const presentPayload = buildAddressPayload("present");
@@ -1802,7 +1808,8 @@ export default function StaffCreationForm() {
 
       {isDriverSelected &&
         (showField("driving_licence_no") ||
-          showField("driving_licence_file")) && (
+          showField("driving_licence_file") ||
+          showField("driving_experience_years")) && (
           <>
             {showField("driving_licence_no") && (
               <div>
@@ -1835,7 +1842,6 @@ export default function StaffCreationForm() {
               <div className="md:col-span-2">
                 <Label htmlFor="driving_licence">
                   {t("admin.staff_creation.driving_licence_upload")}
-                  <span className="text-red-500 ml-1">*</span>
                 </Label>
 
                 <div className="mt-1 flex items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-3 transition-colors hover:border-brand-400 dark:border-gray-700 dark:bg-gray-800/40">
@@ -1869,14 +1875,14 @@ export default function StaffCreationForm() {
                 </div>
 
                 <p className="mt-1 text-xs text-gray-400">
-                  Accepted: JPG, JPEG, PNG, PDF · Max 5 MB
+                  Accepted: PDF only · Max 3 MB
                 </p>
 
                 <input
                   ref={licenceInputRef}
                   type="file"
                   id="driving_licence"
-                  accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/jpg,image/png,application/pdf"
+                  accept=".pdf,application/pdf"
                   className="sr-only"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
@@ -1886,28 +1892,31 @@ export default function StaffCreationForm() {
                 />
 
                 {licencePreview && (
-                  licencePreview.toLowerCase().endsWith(".pdf") || licenceFile?.type === "application/pdf" ? (
-                    <a
-                      href={licencePreview}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-blue-600 hover:underline dark:border-gray-700"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
-                      View PDF
-                    </a>
-                  ) : (
-                    <div className="mt-2 inline-block">
-                      <a href={licencePreview} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={licencePreview}
-                          alt="Licence preview"
-                          className="h-24 w-24 rounded-lg border border-gray-200 object-cover shadow-sm dark:border-gray-700"
-                        />
-                      </a>
-                    </div>
-                  )
+                  <a
+                    href={licencePreview}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-blue-600 hover:underline dark:border-gray-700"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+                    View PDF
+                  </a>
                 )}
+              </div>
+            )}
+
+            {showField("driving_experience_years") && (
+              <div>
+                <Label htmlFor="driving_experience_years">
+                  {t("admin.staff_creation.driving_experience_years")}
+                </Label>
+                <Input
+                  id="driving_experience_years"
+                  type="number"
+                  min={0}
+                  value={formData.driving_experience_years}
+                  onChange={handleInputChange}
+                />
               </div>
             )}
           </>

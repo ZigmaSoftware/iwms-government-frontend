@@ -880,7 +880,23 @@ const taResource = {
           "leader_login": "தலைவர் உள்நுழைவு",
           "plb_leader_creation": "PLB தலைவர் உருவாக்கம்",
           "district_leader_creation": "மாவட்ட தலைவர் உருவாக்கம்",
-          "state_leader_creation": "மாநில தலைவர் உருவாக்கம்"
+          "state_leader_creation": "மாநில தலைவர் உருவாக்கம்",
+
+          "group_dashboard": "டாஷ்போர்டு",
+          "group_super_admin": "சூப்பர் நிர்வாகி",
+          "group_masters": "மாஸ்டர்கள்",
+          "group_core_modules": "முக்கிய தொகுதிகள்",
+          "group_reports": "அறிக்கைகள்",
+          "location_masters": "இருப்பிட மாஸ்டர்கள்",
+          "asset_masters": "சொத்து மாஸ்டர்கள்",
+          "waste_properties": "கழிவு பண்புகள்",
+          "waste_masters": "கழிவு மாஸ்டர்கள்",
+          "role_management": "பங்கு மேலாண்மை",
+          "user_management": "பயனர் மேலாண்மை",
+          "audits": "ஆய்வுகள்",
+          "leader_management": "தலைவர் மேலாண்மை",
+          "screen_management": "திரை மேலாண்மை",
+          "complaint_management": "புகார் மேலாண்மை"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",
@@ -1350,6 +1366,7 @@ const taResource = {
           "driving_licence_upload": "ஓட்டுநர் உரிமம் பதிவேற்றம்",
           "driving_licence_choose": "கோப்பைத் தேர்ந்தெடுக்கவும்",
           "driving_licence_no_file": "கோப்பு தேர்ந்தெடுக்கப்படவில்லை",
+          "driving_experience_years": "ஓட்டுநர் அனுபவம் (ஆண்டுகள்)",
           "password": "கடவுச்சொல்",
           "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்",
           "password_edit_placeholder": "தற்போதைய கடவுச்சொல்லை வைத்திருக்க காலியாக விடவும்",

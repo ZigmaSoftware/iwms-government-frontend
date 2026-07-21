@@ -31,6 +31,7 @@ export type StaffRecord = {
   town_panchayat_id?: string;
   panchayat_union_id?: string;
   panchayat_id?: string;
+  driving_licence_expiry_date?: string;
 };
 
 export type StaffTemplateRaw = {
