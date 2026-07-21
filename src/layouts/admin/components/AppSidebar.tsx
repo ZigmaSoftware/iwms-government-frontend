@@ -557,31 +557,31 @@ const scheduleSetupItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_setup",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
+    module: "schedule-setup",
+    screen: "schedule-setup",
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
         path: `/${encScheduleMasters}/${encStaffTemplate}`,
-        module: "schedule-masters",
+        module: "schedule-setup",
         screen: "staff-templates",
       },
       {
         nameKey: "admin.nav.alternative_staff_template",
         path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`,
-        module: "schedule-masters",
+        module: "schedule-setup",
         screen: "alternative-staff-templates",
       },
       {
         nameKey: "admin.nav.collection_point",
         path: `/${encScheduleMasters}/${encCollectionPoints}`,
-        module: "schedule-masters",
+        module: "schedule-setup",
         screen: "collection-points",
       },
       {
         nameKey: "admin.nav.trip_plans",
         path: `/${encScheduleMasters}/${encTripPlans}`,
-        module: "schedule-masters",
+        module: "schedule-setup",
         screen: "trip-plans",
       }
     ],
@@ -593,43 +593,43 @@ const scheduleOperationsItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_operations",
     icon: <CalendarCheck size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
+    module: "schedule-operations",
+    screen: "schedule-operations",
     subItems: [
       {
         nameKey: "admin.nav.daily_trip_assignment",
         path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
-        module: "schedule-masters",
+        module: "schedule-operations",
         screen: "daily-trip-assignments",
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
         path: `/${encScheduleMasters}/${encDailyTripTracking}`,
-        module: "schedule-masters",
+        module: "schedule-operations",
         screen: "daily-trip-collection-points",
       },
       {
         nameKey: "admin.nav.secondary_bin_collection_event",
         path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
-        module: "schedule-masters",
+        module: "schedule-operations",
         screen: "secondary-bin-collection-events",
       },
       {
         nameKey: "admin.nav.household_collection_event",
         path: `/${encScheduleMasters}/${encWasteCollectedData}`,
-        module: "schedule-masters",
+        module: "schedule-operations",
         screen: "householdcollection-events",
       },
       {
         nameKey: "admin.nav.vehicle_breakdown",
         path: `/${encScheduleMasters}/${encVehicleBreakdown}`,
-        module: "schedule-masters",
+        module: "schedule-operations",
         screen: "vehicle-breakdowns",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
         path: `/${encScheduleMasters}/${encDailyTripLog}`,
-        module: "schedule-masters",
+        module: "schedule-operations",
         screen: "daily-trip-logs",
       },
 
