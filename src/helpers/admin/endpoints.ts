@@ -48,23 +48,23 @@ export const adminEndpoints = {
   /* =========================
      ASSETS
   ========================= */
-  wasteTypes: "assets/waste-types",
-  bins: "assets/bins",
+  wasteTypes: "waste-types/wastetypes",
+  bins: "waste-types/bins",
 
   /* =========================
      SCHEDULE MASTERS
   ========================= */
-  collectionPoints: "schedule-masters/collection-points",
-  staffTemplateCreation: "schedule-masters/staff-templates",
-  alternativeStaffTemplate: "schedule-masters/alternative-staff-templates",
-  tripPlans: "schedule-masters/trip-plans",
-  dailyTripAssignment: "schedule-masters/daily-trip-assignments",
-  dailyTripLog: "schedule-masters/daily-trip-logs",
-  dailyTripCollectionPoint: "schedule-masters/daily-trip-collection-points",
-  dailyTripHouseholdCollection: "schedule-masters/daily-trip-household-collections",
-  binCollectionEvent: "schedule-masters/bin-collection-events",
-  vehicleBreakdown: "schedule-masters/vehicle-breakdowns",
-  schedulerConfig: "schedule-masters/daily-trip-assignments/scheduler-config/",
+  collectionPoints: "schedule-setup/collection-points",
+  staffTemplateCreation: "schedule-setup/staff-templates",
+  alternativeStaffTemplate: "schedule-setup/alternative-staff-templates",
+  tripPlans: "schedule-setup/trip-plans",
+  dailyTripAssignment: "schedule-operations/daily-trip-assignments",
+  dailyTripLog: "schedule-operations/daily-trip-logs",
+  dailyTripCollectionPoint: "schedule-operations/daily-trip-collection-points",
+  dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
+  binCollectionEvent: "schedule-operations/bin-collection-events",
+  vehicleBreakdown: "schedule-operations/vehicle-breakdowns",
+  schedulerConfig: "schedule-operations/daily-trip-assignments/scheduler-config/",
   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",
 
@@ -104,7 +104,7 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  wasteCollections: "schedule-masters/wastecollections",
+  wasteCollections: "schedule-operations/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
   /* =========================
