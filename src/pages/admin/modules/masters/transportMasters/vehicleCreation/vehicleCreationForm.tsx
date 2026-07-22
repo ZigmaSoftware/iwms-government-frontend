@@ -26,6 +26,7 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encTransportMaster, enc
 const FILE_ICON = "/images/pdfimage/download.png";
 
 const VEHICLE_CREATION_FIELDS: Record<string, string[]> = {
+  country_id: ["country_id"],
   state_id: ["state_id"],
   district_id: ["district_id"],
   area_type_id: ["area_type_id"],
@@ -183,6 +184,7 @@ export default function VehicleCreationForm() {
 
     const localBodyLevel = LOCAL_BODY_LEVELS.find((item) => toStr(res[item.value]))?.value ?? "";
     setGeo({
+      countryId: toStr(res.country_id),
       stateId: toStr(res.state_id),
       districtId: toStr(res.district_id),
       areaTypeId: toStr(res.area_type_id),
@@ -382,7 +384,7 @@ export default function VehicleCreationForm() {
     const missingFields: string[] = [];
     if (showField("vehicle_no") && !form.vehicleNo.trim())
       missingFields.push(t("admin.vehicle_creation.vehicle_no"));
-    if (!geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId)
+    if (!geo.countryId || !geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId)
       missingFields.push(t("common.location"));
 
     if (missingFields.length > 0) {
@@ -395,6 +397,7 @@ export default function VehicleCreationForm() {
     }
 
     const rawPayload = {
+      country_id: geo.countryId || null,
       state_id: geo.stateId || null,
       district_id: geo.districtId || null,
       area_type_id: geo.areaTypeId || null,

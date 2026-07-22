@@ -20,11 +20,6 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
-import GeoFenceCoordinates, {
-  normalizeCoordinateDrafts,
-  serializeCoordinateDrafts,
-  type GeoCoordinateDraft,
-} from "@/pages/admin/modules/masters/shared/GeoFenceCoordinates";
 
 const { encCommonMasters, encContinents } = getEncryptedRoute();
 
@@ -32,7 +27,6 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encCommonMasters, encCo
 
 const CONTINENT_FIELDS: Record<string, string[]> = {
   name: ["name"],
-  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -74,9 +68,6 @@ function ContinentEditor({
   const { showField, filterPayload, getMissingRequiredFields } =
     useFieldVisibility("common-masters", "continents", CONTINENT_FIELDS);
   const [name, setName] = useState(initialPayload.name);
-  const [coordinates, setCoordinates] = useState<GeoCoordinateDraft[]>(
-    normalizeCoordinateDrafts(initialPayload.coordinates),
-  );
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,7 +90,6 @@ function ContinentEditor({
 
     const rawPayload = {
       name: trimmedName,
-      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
 
@@ -128,10 +118,6 @@ function ContinentEditor({
               required
             />
           </div>
-        )}
-
-        {showField("coordinates") && (
-          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         )}
 
         {showField("is_active") && (
@@ -250,14 +236,10 @@ function ContinentForm() {
   const initialPayload: ContinentPayload = recordData
     ? {
         name: String(recordData.name ?? ""),
-        coordinates: serializeCoordinateDrafts(
-          normalizeCoordinateDrafts(recordData.coordinates),
-        ),
         is_active: Boolean(recordData.is_active),
       }
     : {
         name: "",
-        coordinates: [],
         is_active: true,
       };
 
