@@ -16,7 +16,6 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
-import { formatCoordinates } from "@/pages/admin/modules/masters/shared/formatCoordinates";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -36,7 +35,6 @@ const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
 
 const CONTINENT_COLUMN_FIELDS: Record<string, string[]> = {
   name: ["name"],
-  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -220,7 +218,7 @@ export default function ContinentList() {
         loading={isLoading && continents.length === 0}
         filters={filters}
         onFilter={onFilter}
-        globalFilterFields={["name", "coordinates"]}
+        globalFilterFields={["name"]}
         header={header}
         stripedRows
         showGridlines
@@ -241,15 +239,6 @@ export default function ContinentList() {
             filter
             showFilterMatchModes={false}
             style={{ minWidth: "200px" }}
-          />
-        )}
-
-        {showCol("coordinates") && (
-          <Column
-            field="coordinates"
-            header="Coordinates"
-            body={(record: ContinentRecord) => formatCoordinates(record.coordinates)}
-            style={{ minWidth: "240px" }}
           />
         )}
 
