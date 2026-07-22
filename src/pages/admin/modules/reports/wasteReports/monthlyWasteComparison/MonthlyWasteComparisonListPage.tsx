@@ -1,0 +1,1252 @@
+import type { ReportResponse, ReportRow, LocationComparisonRow, WasteTypeBreakdownRow } from "./types";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "@/api";
+import { adminApi } from "@/helpers/admin/registry";
+import {
+  areaTypeApi,
+  corporationApi,
+  districtApi,
+  municipalityApi,
+  panchayatApi,
+  panchayatUnionApi,
+  stateApi,
+  townPanchayatApi,
+} from "@/helpers/admin";
+import {
+  BarChart3,
+  Calendar,
+  Download,
+  MapPin,
+  PieChart as PieChartIcon,
+  Recycle,
+  Scale,
+  Truck,
+} from "lucide-react";
+import Swal from "@/lib/notify";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useTranslation } from "react-i18next";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+import { scopeOption, type ScopeLevel } from "../../../masters/shared/dataScopeOptions";
+
+/* ── Palette (fixed categorical order — never cycled/regenerated) ──── */
+const SERIES = [
+  "#2a78d6", // blue
+  "#1baf7a", // aqua
+  "#eda100", // yellow
+  "#008300", // green
+  "#4a3aa7", // violet
+  "#e34948", // red
+  "#e87ba4", // magenta
+  "#eb6834", // orange
+];
+const OTHER_SLICE_COLOR = "#9ca3af";
+
+const initialKpis: ReportResponse["kpis"] = {
+  total_actual_weight: 0,
+  average_weight_per_trip: 0,
+  total_trips: 0,
+  collection_points_covered: 0,
+  waste_type_count: 0,
+  local_body_count: 0,
+};
+
+const currentMonth = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+};
+
+/* ── Local body hierarchy (State -> District -> Area Type -> Local Body Type -> Local Body) ── */
+type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+const localBodyLevels: Array<{ value: LocalBodyLevel; label: string }> = [
+  { value: "corporation_id", label: "Corporation" },
+  { value: "municipality_id", label: "Municipality" },
+  { value: "town_panchayat_id", label: "Town Panchayat" },
+  { value: "panchayat_union_id", label: "Panchayat Union" },
+  { value: "panchayat_id", label: "Panchayat" },
+];
+
+const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyLevel[]> = {
+  urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
+  rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("urban")) return "urban";
+  if (normalized.includes("rural")) return "rural";
+  return "";
+};
+
+const resolveGeoId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const resolveGeoName = (record: any): string =>
+  String(
+    record?.name ??
+      record?.corporation_name ??
+      record?.municipality_name ??
+      record?.town_panchayat_name ??
+      record?.union_name ??
+      record?.panchayat_name ??
+      resolveGeoId(record),
+  );
+const toRecordList = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) return value.filter((x) => x && typeof x === "object");
+  if (value && typeof value === "object") {
+    const r = (value as { results?: unknown }).results;
+    if (Array.isArray(r)) return r.filter((x) => x && typeof x === "object");
+  }
+  return [];
+};
+const toGeoOptions = (records: any[]) =>
+  records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
+
+/**
+ * Merge a permission-gated hierarchy fetch (raw record list) with the user's
+ * own Data Scope value for that level, so report filters always include at
+ * least the user's own scoped state/district/area type/local body even when
+ * the fetch comes back empty (403/no screen permission on that level's own
+ * master) or doesn't otherwise include it. `extra` carries parent-id fields
+ * (e.g. state_id/district_id) needed by this page's cascading filters.
+ */
+const mergeRecordsWithScope = (
+  records: Record<string, unknown>[],
+  level: ScopeLevel,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown>[] => {
+  const scoped = scopeOption(level);
+  if (!scoped) return records;
+  if (records.some((r) => resolveGeoId(r) === scoped.value)) return records;
+  return [{ unique_id: scoped.value, name: scoped.label, ...extra }, ...records];
+};
+
+/* ── Helpers ─────────────────────────────────────────────────────── */
+const fmtKg = (v?: number | string | null, dec = 2) => {
+  const n = Number(v);
+  return Number.isNaN(n)
+    ? "—"
+    : n.toLocaleString("en-IN", { maximumFractionDigits: dec });
+};
+const fmtAxis = (v: number) =>
+  Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
+
+/* ── Local-body weight row (simple bar, no target) ──────────────── */
+const LocalBodyWeightRow = ({
+  plb,
+  maxWeight,
+}: {
+  plb: LocationComparisonRow;
+  maxWeight: number;
+}) => {
+  const pct = maxWeight > 0 ? Math.min((plb.total_actual_weight / maxWeight) * 100, 100) : 0;
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+      <div className="w-28 shrink-0">
+        <p className="text-xs font-semibold text-gray-800 truncate" title={plb.local_body_name}>
+          {plb.local_body_name}
+        </p>
+        <p className="text-[10px] text-gray-400 mt-0.5">
+          {plb.local_body_type} · {plb.total_trips} trip{plb.total_trips !== 1 ? "s" : ""}
+        </p>
+      </div>
+      <div className="flex-1">
+        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-blue-500 transition-all duration-700"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+      <div className="w-20 text-right shrink-0">
+        <span className="text-xs font-bold text-gray-700">{fmtKg(plb.total_actual_weight)} kg</span>
+      </div>
+    </div>
+  );
+};
+
+/* ── Tooltip components ──────────────────────────────────────────── */
+const MonthTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[140px]">
+      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1">
+        <Calendar className="h-3 w-3" /> {label}
+      </p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex justify-between gap-4 mt-1">
+          <span style={{ color: p.stroke ?? p.fill }}>{p.name}</span>
+          <span className="font-bold">{fmtKg(p.value)} kg</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const PLBTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[160px]">
+      <p className="font-semibold text-gray-700 mb-2">{label}</p>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="flex justify-between gap-4 mt-1">
+          <span style={{ color: p.fill }}>{p.name}</span>
+          <span className="font-bold">{fmtKg(p.value)} kg</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const WasteTypeTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  const row = p.payload as WasteTypeBreakdownRow & { color: string };
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-xl p-3 text-xs min-w-[170px]">
+      <p className="font-semibold text-gray-700 mb-2 flex items-center gap-1.5">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: row.color }}
+        />
+        {row.waste_type}
+      </p>
+      <div className="flex justify-between gap-4">
+        <span className="text-gray-500">Weight</span>
+        <span className="font-bold">{fmtKg(row.total_actual_weight)} kg</span>
+      </div>
+      <div className="flex justify-between gap-4 mt-1">
+        <span className="text-gray-500">Share</span>
+        <span className="font-bold">{fmtKg(row.share_percent, 1)}%</span>
+      </div>
+      <div className="flex justify-between gap-4 mt-1">
+        <span className="text-gray-500">Trips</span>
+        <span className="font-bold">{row.total_trips}</span>
+      </div>
+    </div>
+  );
+};
+
+const WasteTypeLegend = ({ payload }: any) => (
+  <ul className="flex flex-wrap justify-center gap-3 mt-3">
+    {(payload ?? []).map((entry: any) => (
+      <li key={entry.value} className="flex items-center gap-1.5 text-xs text-gray-600">
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ backgroundColor: entry.color }}
+        />
+        {entry.value}
+      </li>
+    ))}
+  </ul>
+);
+
+/* ══════════════════════════════════════════════════════════════════
+    MAIN PAGE
+══════════════════════════════════════════════════════════════════ */
+export default function MonthlyWasteComparisonListPage() {
+  const { t } = useTranslation();
+
+  const [monthValue, setMonthValue] = useState(currentMonth());
+  const [appliedMonth, setAppliedMonth] = useState(currentMonth());
+  const [sortMode, setSortMode] = useState("weight");
+  const [source, setSource] = useState("bin");
+
+  /* ── local body filter cascade ── */
+  const [stateId, setStateId] = useState("");
+  const [districtId, setDistrictId] = useState("");
+  const [areaTypeId, setAreaTypeId] = useState("");
+  const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
+  const [localBodyLevel, setLocalBodyLevel] = useState<LocalBodyLevel | "">("");
+  const [localBodyId, setLocalBodyId] = useState("");
+
+  const [states, setStates] = useState<any[]>([]);
+  const [districts, setDistricts] = useState<any[]>([]);
+  const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [localBodyRecords, setLocalBodyRecords] = useState<Record<LocalBodyLevel, any[]>>({
+    corporation_id: [],
+    municipality_id: [],
+    town_panchayat_id: [],
+    panchayat_union_id: [],
+    panchayat_id: [],
+  });
+
+  const [rows, setRows] = useState<ReportRow[]>([]);
+  const [monthlyTrends, setMonthlyTrends] = useState<
+    ReportResponse["monthly_trends"]
+  >([]);
+  const [plbComparison, setPlbComparison] = useState<LocationComparisonRow[]>([]);
+  const [wasteTypeBreakdown, setWasteTypeBreakdown] = useState<WasteTypeBreakdownRow[]>([]);
+  const [kpis, setKpis] = useState<ReportResponse["kpis"]>(initialKpis);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+
+  /* fetch state/district/area type/local body dropdowns */
+  useEffect(() => {
+    let cancelled = false;
+
+    // The State/District/Area Type/local-body screens may not be
+    // permission-granted to this user at all (View gates their own
+    // menu/list, not these report filter dropdowns) — their Data Scope
+    // from login always supplies their own hierarchy values regardless.
+    const scopedStateId = scopeOption("state")?.value;
+    const scopedDistrictId = scopeOption("district")?.value;
+
+    const applyScopeFallback = (records: {
+      states: Record<string, unknown>[];
+      districts: Record<string, unknown>[];
+      areaTypes: Record<string, unknown>[];
+      corporations: Record<string, unknown>[];
+      municipalities: Record<string, unknown>[];
+      townPanchayats: Record<string, unknown>[];
+      panchayatUnions: Record<string, unknown>[];
+      panchayats: Record<string, unknown>[];
+    }) => {
+      setStates(mergeRecordsWithScope(records.states, "state"));
+      setDistricts(
+        mergeRecordsWithScope(
+          records.districts,
+          "district",
+          scopedStateId ? { state_id: scopedStateId } : {},
+        ),
+      );
+      setAreaTypes(
+        mergeRecordsWithScope(records.areaTypes, "area_type", {
+          ...(scopedStateId ? { state_id: scopedStateId } : {}),
+          ...(scopedDistrictId ? { district_id: scopedDistrictId } : {}),
+        }),
+      );
+      setLocalBodyRecords({
+        corporation_id: mergeRecordsWithScope(
+          records.corporations,
+          "corporation",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        municipality_id: mergeRecordsWithScope(
+          records.municipalities,
+          "municipality",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        town_panchayat_id: mergeRecordsWithScope(
+          records.townPanchayats,
+          "town_panchayat",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        panchayat_union_id: mergeRecordsWithScope(
+          records.panchayatUnions,
+          "panchayat_union",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+        panchayat_id: mergeRecordsWithScope(
+          records.panchayats,
+          "panchayat",
+          scopedDistrictId ? { district_id: scopedDistrictId } : {},
+        ),
+      });
+    };
+
+    Promise.all([
+      stateApi.readAll(),
+      districtApi.readAll(),
+      areaTypeApi.readAll(),
+      corporationApi.readAll(),
+      municipalityApi.readAll(),
+      townPanchayatApi.readAll(),
+      panchayatUnionApi.readAll(),
+      panchayatApi.readAll(),
+    ])
+      .then(
+        ([
+          stateRes,
+          districtRes,
+          areaTypeRes,
+          corporationRes,
+          municipalityRes,
+          townPanchayatRes,
+          panchayatUnionRes,
+          panchayatRes,
+        ]) => {
+          if (cancelled) return;
+          applyScopeFallback({
+            states: toRecordList(stateRes),
+            districts: toRecordList(districtRes),
+            areaTypes: toRecordList(areaTypeRes),
+            corporations: toRecordList(corporationRes),
+            municipalities: toRecordList(municipalityRes),
+            townPanchayats: toRecordList(townPanchayatRes),
+            panchayatUnions: toRecordList(panchayatUnionRes),
+            panchayats: toRecordList(panchayatRes),
+          });
+        },
+      )
+      .catch(() => {
+        if (cancelled) return;
+        applyScopeFallback({
+          states: [],
+          districts: [],
+          areaTypes: [],
+          corporations: [],
+          municipalities: [],
+          townPanchayats: [],
+          panchayatUnions: [],
+          panchayats: [],
+        });
+        if (
+          !scopeOption("state") &&
+          !scopeOption("district") &&
+          !scopeOption("area_type") &&
+          !scopeOption("corporation") &&
+          !scopeOption("municipality") &&
+          !scopeOption("town_panchayat") &&
+          !scopeOption("panchayat_union") &&
+          !scopeOption("panchayat")
+        ) {
+          Swal.fire(
+            t("common.error"),
+            "Failed to load local body filter options.",
+            "error",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /* area type -> urban/rural category */
+  useEffect(() => {
+    if (!areaTypeId || !areaTypes.length) {
+      if (!areaTypeId) setAreaTypeCategory("");
+      return;
+    }
+    const selected = areaTypes.find((item) => resolveGeoId(item) === areaTypeId);
+    if (selected) {
+      setAreaTypeCategory(areaTypeCategoryFromName(String(selected.name ?? "")));
+    }
+  }, [areaTypeId, areaTypes]);
+
+  const filteredDistricts = districts.filter(
+    (d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId,
+  );
+  const filteredAreaTypes = areaTypes.filter(
+    (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
+  );
+  const availableLocalBodyLevels = areaTypeCategory
+    ? localBodyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+    : [];
+  const localBodyOptions = localBodyLevel
+    ? toGeoOptions(
+        (localBodyRecords[localBodyLevel] ?? []).filter(
+          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+        ),
+      )
+    : [];
+
+  /* ── fetch report ── */
+  const fetchReport = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params: Record<string, string> = { sort: sortMode, source };
+      if (appliedMonth) params.month = appliedMonth;
+      if (localBodyLevel && localBodyId) params[localBodyLevel] = localBodyId;
+
+      const { data } = await api.get<ReportResponse>(
+        "/reports/monthly-waste-comparison/",
+        { params },
+      );
+      setRows(Array.isArray(data?.results) ? data.results : []);
+      setMonthlyTrends(
+        Array.isArray(data?.monthly_trends) ? data.monthly_trends : [],
+      );
+      setPlbComparison(
+        Array.isArray(data?.location_comparison)
+          ? data.location_comparison
+          : [],
+      );
+      setWasteTypeBreakdown(
+        Array.isArray(data?.waste_type_breakdown) ? data.waste_type_breakdown : [],
+      );
+      setKpis(data?.kpis ?? initialKpis);
+    } catch {
+      setRows([]);
+      setMonthlyTrends([]);
+      setPlbComparison([]);
+      setWasteTypeBreakdown([]);
+      setKpis(initialKpis);
+      setError("Unable to load monthly waste collection report.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchReport();
+  }, [appliedMonth, sortMode, source, localBodyLevel, localBodyId]);
+
+  /* ── derived ── */
+  const plbChartData = useMemo(
+    () =>
+      plbComparison.slice(0, 8).map((p) => ({
+        name: p.local_body_name,
+        Weight: Number(p.total_actual_weight ?? 0),
+      })),
+    [plbComparison],
+  );
+
+  const maxPlbWeight = useMemo(
+    () => plbComparison.reduce((max, p) => Math.max(max, p.total_actual_weight), 0),
+    [plbComparison],
+  );
+
+  const MAX_PIE_SLICES = 7;
+  const wasteTypePieData = useMemo(() => {
+    const sorted = [...wasteTypeBreakdown].sort(
+      (a, b) => b.total_actual_weight - a.total_actual_weight,
+    );
+    const head = sorted.slice(0, MAX_PIE_SLICES).map((row, i) => ({
+      ...row,
+      color: SERIES[i % SERIES.length],
+    }));
+    const tail = sorted.slice(MAX_PIE_SLICES);
+    if (tail.length > 0) {
+      const tailWeight = tail.reduce((s, r) => s + r.total_actual_weight, 0);
+      const tailTrips = tail.reduce((s, r) => s + r.total_trips, 0);
+      const tailPoints = tail.reduce((s, r) => s + r.collection_points_covered, 0);
+      const tailShare = tail.reduce((s, r) => s + r.share_percent, 0);
+      head.push({
+        waste_type_id: "__other__",
+        waste_type: `Other (${tail.length})`,
+        total_actual_weight: tailWeight,
+        total_trips: tailTrips,
+        collection_points_covered: tailPoints,
+        share_percent: tailShare,
+        color: OTHER_SLICE_COLOR,
+      });
+    }
+    return head;
+  }, [wasteTypeBreakdown]);
+
+  const selectedLocalBodyLabel = localBodyOptions.find((o) => o.value === localBodyId)?.label;
+
+  const handleDownload = async () => {
+    setExporting(true);
+    try {
+      const params: Record<string, string> = { sort: sortMode, source };
+      if (appliedMonth) params.month = appliedMonth;
+      if (localBodyLevel && localBodyId) params[localBodyLevel] = localBodyId;
+
+      const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
+        { params },
+      );
+      exportRecordsToExcel(
+        exportRows.map((r) => ({
+          Month: r.month,
+          "Local Body Type": r.local_body_type,
+          "Local Body": r.local_body_name,
+          "Waste Type": r.waste_type,
+          "Weight Collected (kg)": r.total_actual_weight,
+          Trips: r.total_trips,
+          Points: r.collection_points_covered,
+          "Avg/Trip (kg)": r.average_weight_per_trip,
+        })),
+        getAdminScreenExcelFilename("all"),
+        "Monthly Waste Comparison",
+      );
+    } catch {
+      Swal.fire(
+        t("common.error"),
+        "Failed to download monthly waste collection data.",
+        "error",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const clearLocalBodyFilter = () => {
+    setStateId("");
+    setDistrictId("");
+    setAreaTypeId("");
+    setAreaTypeCategory("");
+    setLocalBodyLevel("");
+    setLocalBodyId("");
+  };
+
+  /* ══════════════════════════════════════════════════════════════
+      RENDER
+  ══════════════════════════════════════════════════════════════ */
+  return (
+    <div className="p-5 space-y-5 bg-gray-50 min-h-screen font-sans">
+      {/* ── Header ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-800">
+            Monthly Waste Collection Report
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Total collected weight, trips, and waste-type composition by local body
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="month"
+            value={monthValue}
+            max={currentMonth()}
+            onChange={(e) => setMonthValue(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <select
+            value={sortMode}
+            onChange={(e) => setSortMode(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="weight">Highest weight</option>
+            <option value="trips">Most trips</option>
+          </select>
+          <select
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+            <option value="all">All Sources</option>
+          </select>
+          <button
+            onClick={() => setAppliedMonth(monthValue)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >
+            Go
+          </button>
+          <button
+            onClick={() => {
+              setMonthValue("");
+              setAppliedMonth("");
+            }}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >
+            All Months
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={!rows.length || exporting}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+          >
+            <Download className="h-4 w-4" />{" "}
+            {exporting ? "Downloading..." : "Download All"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Local body filter cascade ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <MapPin className="h-4 w-4 text-gray-400" /> Filter by Local Body
+          </h2>
+          {(stateId || districtId || areaTypeId || localBodyId) && (
+            <button
+              onClick={clearLocalBodyFilter}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <select
+            value={stateId}
+            onChange={(e) => {
+              setStateId(e.target.value);
+              setDistrictId("");
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyLevel("");
+              setLocalBodyId("");
+            }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          >
+            <option value="">Select State</option>
+            {toGeoOptions(states).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={districtId}
+            onChange={(e) => {
+              setDistrictId(e.target.value);
+              setAreaTypeId("");
+              setAreaTypeCategory("");
+              setLocalBodyLevel("");
+              setLocalBodyId("");
+            }}
+            disabled={!stateId}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">{stateId ? "Select District" : "Select a State first"}</option>
+            {toGeoOptions(filteredDistricts).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={areaTypeId}
+            onChange={(e) => {
+              const v = e.target.value;
+              const selected = filteredAreaTypes.find((a) => resolveGeoId(a) === v);
+              setAreaTypeId(v);
+              setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+              setLocalBodyLevel("");
+              setLocalBodyId("");
+            }}
+            disabled={!districtId}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">{districtId ? "Select Area Type" : "Select a District first"}</option>
+            {toGeoOptions(filteredAreaTypes).map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={localBodyLevel}
+            onChange={(e) => {
+              setLocalBodyLevel(e.target.value as LocalBodyLevel);
+              setLocalBodyId("");
+            }}
+            disabled={!areaTypeCategory}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">{areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}</option>
+            {availableLocalBodyLevels.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <select
+            value={localBodyId}
+            onChange={(e) => setLocalBodyId(e.target.value)}
+            disabled={!localBodyLevel}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+          >
+            <option value="">
+              {localBodyLevel
+                ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}`
+                : "Select a Local Body Type first"}
+            </option>
+            {localBodyOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        {localBodyId && (
+          <p className="mt-3 text-xs text-gray-500">
+            Showing data for <span className="font-semibold text-gray-700">{selectedLocalBodyLabel}</span>
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* ── 5 KPI cards ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {[
+          {
+            label: "Total Weight Collected",
+            value: `${fmtKg(kpis.total_actual_weight)} kg`,
+            accent: "border-t-blue-500",
+            icon: <Scale className="h-4 w-4" />,
+          },
+          {
+            label: "Total Trips",
+            value: fmtKg(kpis.total_trips, 0),
+            accent: "border-t-teal-500",
+            icon: <Truck className="h-4 w-4" />,
+          },
+          {
+            label: "Points Covered",
+            value: fmtKg(kpis.collection_points_covered, 0),
+            accent: "border-t-pink-500",
+            icon: <MapPin className="h-4 w-4" />,
+          },
+          {
+            label: "Waste Types",
+            value: fmtKg(kpis.waste_type_count, 0),
+            accent: "border-t-violet-500",
+            icon: <Recycle className="h-4 w-4" />,
+          },
+          {
+            label: "Local Bodies",
+            value: fmtKg(kpis.local_body_count, 0),
+            accent: "border-t-indigo-500",
+            icon: <BarChart3 className="h-4 w-4" />,
+          },
+        ].map((k) => (
+          <div
+            key={k.label}
+            className={`bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-4 ${k.accent} flex flex-col gap-2 p-4`}
+          >
+            <div className="flex items-start justify-between">
+              <p className="text-xs font-medium text-gray-500 leading-tight">
+                {k.label}
+              </p>
+              <span className="text-gray-400">{k.icon}</span>
+            </div>
+            <p className="text-xl font-bold text-gray-800 leading-none">
+              {loading ? "—" : k.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Charts row ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Monthly Trend — Area chart */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800">Monthly Trend</h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">
+            Total weight collected per month
+          </p>
+          {monthlyTrends.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+              No trend data yet.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart
+                data={monthlyTrends}
+                margin={{ top: 6, right: 20, left: 0, bottom: 4 }}
+              >
+                <defs>
+                  <linearGradient id="gradActual" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#2a78d6" stopOpacity={0.22} />
+                    <stop offset="95%" stopColor="#2a78d6" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#f3f4f6"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={fmtAxis}
+                />
+                <Tooltip content={<MonthTooltip />} />
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="total_actual_weight"
+                  name="Weight Collected"
+                  stroke="#2a78d6"
+                  strokeWidth={2.5}
+                  fill="url(#gradActual)"
+                  dot={{
+                    r: 4,
+                    fill: "#2a78d6",
+                    stroke: "#fff",
+                    strokeWidth: 2,
+                  }}
+                  activeDot={{ r: 6 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Waste composition — Pie chart */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+            <PieChartIcon className="h-4 w-4 text-gray-400" /> Waste Composition
+          </h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-2">
+            Share of total collected weight by waste type
+          </p>
+          {wasteTypePieData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+              No waste-type data yet.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Tooltip content={<WasteTypeTooltip />} />
+                <Pie
+                  data={wasteTypePieData}
+                  dataKey="total_actual_weight"
+                  nameKey="waste_type"
+                  innerRadius={52}
+                  outerRadius={82}
+                  paddingAngle={2}
+                  stroke="#fcfcfb"
+                  strokeWidth={2}
+                  label={({ share_percent }: any) =>
+                    share_percent >= 5 ? `${share_percent.toFixed(0)}%` : ""
+                  }
+                  labelLine={false}
+                >
+                  {wasteTypePieData.map((entry) => (
+                    <Cell key={entry.waste_type_id} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Legend content={<WasteTypeLegend />} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Local Body Weight — progress bars */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800">
+            Weight Collected by Local Body
+          </h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">
+            Corporation / municipality / town panchayat / panchayat union / panchayat
+          </p>
+          {plbComparison.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+              No local body data yet.
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+              {plbComparison.slice(0, 10).map((p, i) => (
+                <LocalBodyWeightRow key={i} plb={p} maxWeight={maxPlbWeight} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Local Body Weight — grouped bar */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800">
+            Local Body Comparison
+          </h2>
+          <p className="text-xs text-gray-400 mt-0.5 mb-4">
+            Total weight collected per local body
+          </p>
+          {plbChartData.length === 0 ? (
+            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">
+              No data.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart
+                data={plbChartData}
+                margin={{ top: 6, right: 16, left: 0, bottom: 56 }}
+                barCategoryGap="30%"
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="#f3f4f6"
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "#9ca3af" }}
+                  angle={-35}
+                  textAnchor="end"
+                  axisLine={false}
+                  tickLine={false}
+                  interval={0}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "#9ca3af" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={fmtAxis}
+                />
+                <Tooltip content={<PLBTooltip />} />
+                <Bar
+                  dataKey="Weight"
+                  fill="#2a78d6"
+                  maxBarSize={40}
+                  radius={[3, 3, 0, 0]}
+                >
+                  {plbChartData.map((_, i) => (
+                    <Cell key={i} fill="#2a78d6" />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════
+          WASTE TYPE BREAKDOWN TABLE
+      ══════════════════════════════════════════════════════ */}
+      {wasteTypeBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Recycle className="h-4 w-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-800">
+              Waste Type Breakdown
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
+                  <th className="px-4 py-3 text-left font-semibold">Waste Type</th>
+                  <th className="px-4 py-3 text-right font-semibold">Weight Collected (kg)</th>
+                  <th className="px-4 py-3 text-right font-semibold">Share</th>
+                  <th className="px-4 py-3 text-right font-semibold">Trips</th>
+                  <th className="px-4 py-3 text-right font-semibold">Points Covered</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 bg-white">
+                {[...wasteTypeBreakdown]
+                  .sort((a, b) => b.total_actual_weight - a.total_actual_weight)
+                  .map((w, i) => (
+                    <tr key={w.waste_type_id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                        <span
+                          className="inline-block h-2.5 w-2.5 rounded-full mr-2 align-middle"
+                          style={{ backgroundColor: SERIES[i % SERIES.length] }}
+                        />
+                        {w.waste_type}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
+                        {fmtKg(w.total_actual_weight)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600 whitespace-nowrap">
+                        {fmtKg(w.share_percent, 1)}%
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {w.total_trips}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">
+                        {w.collection_points_covered}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════
+          SUMMARY + DETAIL
+      ══════════════════════════════════════════════════════ */}
+      {!loading && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Card header */}
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-gray-100"
+            style={{
+              background: "linear-gradient(135deg,#eff6ff 0%,#e0f2fe 100%)",
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-sm">
+                <BarChart3 className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-base font-bold text-gray-800">
+                  Monthly Collection Summary
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Overall aggregate for&nbsp;
+                  <span className="font-semibold text-blue-700">
+                    {appliedMonth || "All Months"}
+                  </span>
+                  &nbsp;·&nbsp;{rows.length} record
+                  {rows.length !== 1 ? "s" : ""} combined
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Main stats grid */}
+          <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Total Weight Collected</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.total_actual_weight)} kg
+              </span>
+            </div>
+            <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Total Trips</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.total_trips, 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-pink-100 bg-pink-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Points Covered</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.collection_points_covered, 0)}
+              </span>
+            </div>
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 flex flex-col gap-1">
+              <span className="text-xs font-medium text-gray-500">Avg Weight / Trip</span>
+              <span className="text-2xl font-bold text-gray-800 leading-none">
+                {fmtKg(kpis.average_weight_per_trip)} kg
+              </span>
+            </div>
+          </div>
+
+          {/* Local body breakdown cards */}
+          {plbComparison.length > 0 && (
+            <div className="border-t border-gray-100 px-6 py-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                Local Body Breakdown — {plbComparison.length} Location
+                {plbComparison.length !== 1 ? "s" : ""}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {plbComparison.slice(0, 8).map((p, i) => (
+                  <div
+                    key={i}
+                    className="bg-white rounded-xl border border-gray-200 p-3.5 hover:shadow-md transition-shadow"
+                  >
+                    <div className="mb-2">
+                      <p className="text-xs font-bold text-gray-800">
+                        {p.local_body_name}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {p.local_body_type}
+                      </p>
+                    </div>
+                    <div className="text-center bg-blue-50 rounded-lg py-2 mb-2">
+                      <p className="text-[10px] text-blue-500 font-medium">
+                        Weight Collected
+                      </p>
+                      <p className="text-sm font-bold text-blue-700">
+                        {fmtKg(p.total_actual_weight)} kg
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-gray-400">
+                        Trips:{" "}
+                        <strong className="text-gray-600">
+                          {p.total_trips}
+                        </strong>
+                      </span>
+                      <span className="text-[10px] text-gray-400">
+                        Points:{" "}
+                        <strong className="text-gray-600">
+                          {p.collection_points_covered}
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Waste-type breakdown table (per row) */}
+          {rows.length > 0 && (
+            <div className="border-t border-gray-100 px-6 py-5">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
+                Breakdown by Local Body &amp; Waste Type — {rows.length} row
+                {rows.length !== 1 ? "s" : ""}
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Month
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Local Body Type
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Local Body
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">
+                        Waste Type
+                      </th>
+                      <th className="px-4 py-3 text-right font-semibold">
+                        Weight Collected (kg)
+                      </th>
+                      <th className="px-4 py-3 text-right font-semibold">
+                        Trips
+                      </th>
+                      <th className="px-4 py-3 text-right font-semibold">
+                        Points
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {rows.map((r) => (
+                      <tr
+                        key={r.unique_id}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {r.month}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {r.local_body_type}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+                          {r.local_body_name}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                          {r.waste_type}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-blue-700 whitespace-nowrap">
+                          {fmtKg(r.total_actual_weight)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {r.total_trips}
+                        </td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {r.collection_points_covered}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loading && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex items-center justify-center gap-3 text-gray-400">
+          <span className="animate-spin h-5 w-5 border-2 border-gray-200 border-t-blue-500 rounded-full" />
+          Loading monthly data…
+        </div>
+      )}
+    </div>
+  );
+}

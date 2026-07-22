@@ -899,7 +899,23 @@ const enResource = {
           "leader_login": "Leader Login",
           "plb_leader_creation": "PLB Leader Creation",
           "district_leader_creation": "District Leader Creation",
-          "state_leader_creation": "State Leader Creation"
+          "state_leader_creation": "State Leader Creation",
+
+          "group_dashboard": "Dashboard",
+          "group_super_admin": "Super Admin",
+          "group_masters": "Masters",
+          "group_core_modules": "Core Modules",
+          "group_reports": "Reports",
+          "location_masters": "Location Masters",
+          "asset_masters": "Asset Masters",
+          "waste_properties": "Waste Properties",
+          "waste_masters": "Waste Masters",
+          "role_management": "Role Management",
+          "user_management": "User Management",
+          "audits": "Audits",
+          "leader_management": "Leader Management",
+          "screen_management": "Screen Management",
+          "complaint_management": "Complaint Management"
         },
         "project": {
           "company_id": "Company ID",
@@ -1377,6 +1393,7 @@ const enResource = {
           "driving_licence_upload": "Driving Licence Upload",
           "driving_licence_choose": "Choose file",
           "driving_licence_no_file": "No file selected",
+          "driving_experience_years": "Driving Experience (Years)",
           "password": "Password",
           "password_placeholder": "Enter password",
           "password_edit_placeholder": "Leave blank to keep the current password",
