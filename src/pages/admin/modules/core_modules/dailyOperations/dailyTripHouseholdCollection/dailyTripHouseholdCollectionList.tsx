@@ -1,17 +1,21 @@
 import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { Button } from "primereact/button";
+import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
+import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -84,6 +88,8 @@ export default function DailyTripHouseholdCollectionList() {
   >([]);
   const [isLoading, setIsLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const [dateFilter, setDateFilter] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -94,12 +100,18 @@ export default function DailyTripHouseholdCollectionList() {
     status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
+  const buildParams = useCallback(() => {
+    const params: Record<string, string> = { ...hierarchyParams };
+    if (dateFilter) params.date = dateFilter;
+    return params;
+  }, [dateFilter, hierarchyParams]);
+
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
     (
       dailyTripHouseholdCollectionApi.readAll({
-        params: {},
+        params: buildParams(),
       }) as Promise<DailyTripHouseholdCollectionRecord[]>
     )
       .then((data) => {
@@ -119,9 +131,9 @@ export default function DailyTripHouseholdCollectionList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [buildParams, t]);
 
-  const rows = allRecords.map((rec) => ({
+  const rows = useMemo(() => allRecords.map((rec) => ({
     ...rec,
     _assignment:
       nestedText(rec.trip_assignment as NamedRef, [
@@ -129,16 +141,74 @@ export default function DailyTripHouseholdCollectionList() {
         "unique_id",
       ]) || rec.trip_assignment_id || "",
     _customer: nestedText(rec.customer as NamedRef, ["customer_name"]) || "",
+    _trip_date: nestedText(rec.trip_assignment as NamedRef, ["trip_date"]),
     _collection_type:
       COLLECTION_TYPE_LABELS[String(rec.collection_type ?? "")] ??
       text(rec.collection_type),
-    _location:
-      nestedText(rec.panchayat as NamedRef, ["panchayat_name"]) !== "-"
-        ? nestedText(rec.panchayat as NamedRef, ["panchayat_name"])
-        : "",
-  }));
+    _location: rec.hierarchy?.location_name
+      ?? nestedText(rec.customer as NamedRef, ["location_name"]),
+  })), [allRecords]);
 
   const data = rows;
+
+  const globalFields = [
+    "unique_id", "_assignment", "_collection_type", "_customer", "_location",
+    "status", "_trip_date",
+  ] as const;
+
+  const filteredRows = useMemo(() => rows.filter((row) => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (search && !globalFields.some((field) => String(row[field] ?? "").toLowerCase().includes(search))) {
+      return false;
+    }
+    return Object.entries(filters).every(([field, filter]) => {
+      const filterValue = "value" in filter ? filter.value : null;
+      if (field === "global" || !filterValue) return true;
+      return String((row as Record<string, unknown>)[field] ?? "")
+        .toLowerCase()
+        .includes(String(filterValue).toLowerCase());
+    });
+  }), [filters, globalFilterValue, rows]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const summary = useMemo(() => {
+    const total = filteredRows.reduce((sum, row) => sum + Number(row.collected_weight_kg ?? 0), 0);
+    const daily = filteredRows.reduce(
+      (sum, row) => sum + (row._trip_date === today ? Number(row.collected_weight_kg ?? 0) : 0),
+      0,
+    );
+    return { daily: daily.toFixed(2), overall: total.toFixed(2), records: filteredRows.length };
+  }, [filteredRows, today]);
+
+  const exportRows = filteredRows.map((row) => ({
+    ID: row.unique_id,
+    "Trip Assignment": row._assignment,
+    "Trip Date": row._trip_date,
+    "Collection Type": row._collection_type,
+    Customer: row._customer,
+    "Local Body": row._location,
+    Sequence: row.sequence ?? "-",
+    "Weight (kg)": row.collected_weight_kg ?? "-",
+    Status: row.status ?? "-",
+    Reason: row.status_reason ?? "-",
+    "Collected At": row.collected_at ?? "-",
+  }));
+
+  const handleExcelDownload = () =>
+    exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
+
+  const handlePdfDownload = () => {
+    try {
+      downloadRecordsPdf({
+        title: "Household Collection Events",
+        filename: "household_collection_events.pdf",
+        rows: exportRows,
+        columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
+      });
+    } catch (error) {
+      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+    }
+  };
 
   const onFilter = (e: DataTableFilterEvent) =>
     setFilters(e.filters as DataTableFilterMeta);
@@ -180,12 +250,27 @@ export default function DailyTripHouseholdCollectionList() {
     }
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: "Search household collections...",
-    });
+  const renderHeader = () => (
+    <div className="space-y-4">
+      <HierarchyFilterBar onChange={setHierarchyParams} />
+      <div className="flex flex-wrap gap-3 text-sm">
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily: {summary.daily}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall: {summary.overall}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records: {summary.records}</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-2">
+          <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handleExcelDownload} />
+          <Button label="Download PDF" icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handlePdfDownload} />
+        </div>
+        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
+          <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
+          <i className="pi pi-search text-gray-500" />
+          <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Search household collections..." className="border-none text-sm" />
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-3">
@@ -201,6 +286,7 @@ export default function DailyTripHouseholdCollectionList() {
       </div>
 
       <DataTable
+        exportable={false}
         value={data}
         dataKey="unique_id"
         paginator
@@ -220,6 +306,7 @@ export default function DailyTripHouseholdCollectionList() {
           "_customer",
           "_location",
           "status",
+          "_trip_date",
         ]}
         className="p-datatable-sm"
       >
@@ -276,19 +363,24 @@ export default function DailyTripHouseholdCollectionList() {
           showFilterMatchModes={false}
           style={{ minWidth: 180 }}
           body={(row: DailyTripHouseholdCollectionRecord) => {
-            if (row.panchayat && (row.panchayat as any).panchayat_name) {
+            const locationName = row.hierarchy?.location_name
+              ?? nestedText(row.customer as NamedRef, ["location_name"]);
+            if (locationName && locationName !== "-") {
               return (
                 <span className="text-sm text-gray-800">
-                  {String((row.panchayat as any).panchayat_name)}
-                  <span className="ml-1 text-xs text-indigo-500 font-medium">
-                    (PLB)
-                  </span>
+                  {locationName}
+                  {row.hierarchy?.location_level && (
+                    <span className="ml-1 text-xs text-indigo-500 font-medium">
+                      ({row.hierarchy.location_level})
+                    </span>
+                  )}
                 </span>
               );
             }
             return <span className="text-sm text-gray-400">—</span>;
           }}
         />
+        <Column field="_trip_date" header="Trip Date" sortable filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
         <Column
           field="sequence"
           header="Seq"

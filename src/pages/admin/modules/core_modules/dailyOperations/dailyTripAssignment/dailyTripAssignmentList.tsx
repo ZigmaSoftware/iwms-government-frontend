@@ -13,12 +13,16 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
+import { jsPDF } from "jspdf";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { dailyTripAssignmentApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
+import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { drawQrCode } from "@/utils/exportPdf";
 
 type SchedulerStatus = {
   enabled?: boolean;
@@ -204,6 +208,8 @@ export default function DailyTripAssignmentList() {
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const [filterResetKey, setFilterResetKey] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -224,14 +230,16 @@ export default function DailyTripAssignmentList() {
   const loadAssignments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const assignmentData = await (dailyTripAssignmentApi.readAll() as Promise<DailyTripAssignmentRecord[]>);
+      const assignmentData = await (dailyTripAssignmentApi.readAll({
+        params: hierarchyParams,
+      }) as Promise<DailyTripAssignmentRecord[]>);
       setAllAssignments(Array.isArray(assignmentData) ? assignmentData : []);
     } catch (err) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
     } finally {
       setIsLoading(false);
     }
-  }, [t]);
+  }, [hierarchyParams, t]);
 
   useEffect(() => {
     loadAssignments();
@@ -326,6 +334,93 @@ export default function DailyTripAssignmentList() {
       }));
   })();
 
+  const exportSource = rows.filter((row) => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (search && ![
+      row.unique_id, row._trip_plan, row._staff, row._staff_names, row._vehicle,
+      row._location, row._collection_type_label, row.status,
+      row.trip_date, row.scheduled_time,
+    ].some((value) => String(value ?? "").toLowerCase().includes(search))) {
+      return false;
+    }
+    return Object.entries(filters).every(([field, filter]) => {
+      const filterValue = "value" in filter ? filter.value : null;
+      if (field === "global" || !filterValue) return true;
+      return String((row as Record<string, unknown>)[field] ?? "")
+        .toLowerCase()
+        .includes(String(filterValue).toLowerCase());
+    });
+  });
+
+  const excelRows = exportSource.map((row) => ({
+    ID: row.unique_id,
+    "Trip Plan": row._trip_plan,
+    "Local Body": row._location,
+    "Collection Type": row._collection_type_label,
+    "Effective Staff": row._staff,
+    "Operator / Driver": row._staff_names,
+    Vehicle: row._vehicle,
+    "Collection Points": row._collection_point_count,
+    "Trip Date": row.trip_date,
+    "Start Time": formatTime12Hour(row.scheduled_time),
+    Status: row.status ?? "-",
+  }));
+
+  const handleExcelDownload = () =>
+    exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+
+  const handlePdfDownload = () => {
+    if (!exportSource.length) return;
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    exportSource.forEach((row, index) => {
+      if (index > 0) pdf.addPage();
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(18);
+      pdf.text("Daily Trip Plan", 18, 20);
+      pdf.setFontSize(10);
+      pdf.text(row.unique_id ?? "-", 18, 29);
+      drawQrCode(pdf, JSON.stringify({ daily_trip_assignment_id: row.unique_id }), 158, 18, 34);
+      const details: Array<[string, unknown]> = [
+        ["Trip Plan", row._trip_plan],
+        ["Local Body", row._location],
+        ["Collection Type", row._collection_type_label],
+        ["Effective Staff", row._staff],
+        ["Operator / Driver", row._staff_names],
+        ["Vehicle", row._vehicle],
+        ["Collection Points", row._collection_point_count],
+        ["Trip Date", row.trip_date],
+        ["Start Time", formatTime12Hour(row.scheduled_time)],
+        ["Status", row.status],
+      ];
+      let y = 58;
+      pdf.setFontSize(10);
+      details.forEach(([label, value]) => {
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${label}:`, 18, y);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(String(value ?? "-"), 60, y, { maxWidth: 125 });
+        y += 10;
+      });
+      pdf.setFontSize(8);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text("Scan the QR code to identify this daily trip assignment.", 18, 180);
+      pdf.setTextColor(0, 0, 0);
+    });
+    pdf.save("daily_trip_plans.pdf");
+  };
+
+  const hasActiveFilters =
+    Object.keys(hierarchyParams).length > 0 ||
+    collectionTypeFilter !== "all" ||
+    schedulerDate !== toDateInputValue();
+
+  const clearListFilters = () => {
+    setHierarchyParams({});
+    setCollectionTypeFilter("all");
+    setSchedulerDate(toDateInputValue());
+    setFilterResetKey((key) => key + 1);
+  };
+
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -372,28 +467,8 @@ export default function DailyTripAssignmentList() {
           <p className="text-sm text-gray-500">Manage daily trip plans with assigned collection points</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={collectionTypeFilter}
-            onChange={(e) => setCollectionTypeFilter(e.target.value as "all" | CollectionTypeKey)}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="all">All Types</option>
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household Collection</option>
-            <option value="bulk">Bulk Waste Collection</option>
-            <option value="mixed">Mixed Collection</option>
-          </select>
-
-          <label className="inline-flex items-center gap-2 text-sm text-gray-600">
-            Trip Date
-            <input
-              type="date"
-              value={schedulerDate}
-              onChange={(event) => setSchedulerDate(event.target.value)}
-              className="rounded border px-3 py-2 text-sm"
-              title="Trip date filter and manual scheduler date"
-            />
-          </label>
+          <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined" disabled={!excelRows.length} onClick={handleExcelDownload} />
+          <Button label="Download PDF" icon="pi pi-file-pdf" className="p-button-outlined" disabled={!exportSource.length} onClick={handlePdfDownload} />
 
           <Button
             label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
@@ -409,6 +484,45 @@ export default function DailyTripAssignmentList() {
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
+        </div>
+      </div>
+
+      <div className="mb-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-8">
+        <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">Collection Type</label>
+          <select
+            value={collectionTypeFilter}
+            onChange={(event) => setCollectionTypeFilter(event.target.value as "all" | CollectionTypeKey)}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          >
+            <option value="all">All Types</option>
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+            <option value="bulk">Bulk Waste Collection</option>
+            <option value="mixed">Mixed Collection</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">Trip Date</label>
+          <input
+            type="date"
+            value={schedulerDate}
+            onChange={(event) => setSchedulerDate(event.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            title="Trip date filter and manual scheduler date"
+          />
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={clearListFilters}
+            disabled={!hasActiveFilters}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <i className="pi pi-filter-slash text-xs" />
+            Clear All Filters
+          </button>
         </div>
       </div>
 
@@ -465,6 +579,7 @@ export default function DailyTripAssignmentList() {
       </div>
 
       <DataTable
+        exportable={false}
         value={rows}
         dataKey="unique_id"
         paginator

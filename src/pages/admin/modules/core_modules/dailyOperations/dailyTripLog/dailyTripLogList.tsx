@@ -23,6 +23,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "./collectionTime";
 
 
@@ -717,7 +718,7 @@ export default function DailyTripLogList() {
   /* ── download the currently filtered set (hierarchy + waste type + date +
      global search) as a detailed, per-collection-point/customer itemized
      Excel report — same shape as the trip report page ── */
-  const handleDownload = async () => {
+  const handleDownload = async (format: "excel" | "pdf") => {
     setIsExporting(true);
     try {
       const exportSource = (await dailyTripLogApi.readAllForExport({
@@ -826,7 +827,16 @@ export default function DailyTripLogList() {
         }
       });
 
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+      if (format === "excel") {
+        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+      } else {
+        downloadRecordsPdf({
+          title: "Daily Trip Logs",
+          filename: "daily_trip_logs.pdf",
+          rows: exportRows,
+          columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
+        });
+      }
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err) ?? "Failed to download trip log data.", "error");
     } finally {
@@ -847,6 +857,24 @@ export default function DailyTripLogList() {
     setCollectionType("all");
     setFilterResetKey((key) => key + 1);
   };
+
+  const summaryRows = data.filter((row) => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return true;
+    return [
+      row.unique_id, row._assignment, row._location, row._waste, row._driver,
+      row._operator, row._vehicle, row.log_status, row.collection_status, row.trip_date,
+    ].some((value) => String(value ?? "").toLowerCase().includes(search));
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const totalWeightFor = (row: (typeof summaryRows)[number]) =>
+    Number(row._has_point_weights ? row._computed_weight : row.collected_weight_kg ?? 0)
+    + Number(row.household_collected_weight_kg ?? 0);
+  const overallWeight = summaryRows.reduce((sum, row) => sum + totalWeightFor(row), 0);
+  const dailyWeight = summaryRows.reduce(
+    (sum, row) => sum + (row.trip_date === today ? totalWeightFor(row) : 0),
+    0,
+  );
 
   return (
     <div className="p-3">
@@ -872,11 +900,18 @@ export default function DailyTripLogList() {
             className="border rounded px-3 py-2 text-sm"
           />
           <Button
-            label={isExporting ? "Downloading…" : "Download"}
-            icon="pi pi-download"
+            label={isExporting ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
             className="p-button-outlined"
             disabled={isExporting || data.length === 0}
-            onClick={handleDownload}
+            onClick={() => handleDownload("excel")}
+          />
+          <Button
+            label={isExporting ? "Generating…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined"
+            disabled={isExporting || data.length === 0}
+            onClick={() => handleDownload("pdf")}
           />
         </div>
       </div>
@@ -915,6 +950,12 @@ export default function DailyTripLogList() {
             Clear All Filters
           </button>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-3 text-sm">
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily: {dailyWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall: {overallWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records: {summaryRows.length}</span>
       </div>
 
       <DataTable

@@ -15,6 +15,8 @@ import { PencilIcon } from "@/icons";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
 
 
 const cap = (str?: string | null) =>
@@ -170,6 +172,39 @@ export default function BinCollectionEventList() {
     };
   }, [filteredRows]);
 
+  const exportRows = filteredRows.map((row) => ({
+    "Trip Plan": row._trip_plan,
+    "Collection Point": row._collection_point,
+    "Local Body": row._location,
+    Bin: row._bin,
+    "Waste Type": row._waste_type,
+    Vehicle: row._vehicle,
+    Status: row._status,
+    Reason: row.status_reason || row.notes || "-",
+    "Weight (kg)": row.collected_weight_kg ?? "-",
+    "Collection Date": formatCollectionDateTime(row),
+  }));
+
+  const handleExcelDownload = () =>
+    exportRecordsToExcel(
+      exportRows,
+      getAdminScreenExcelFilename("all"),
+      "Bin Collection Events",
+    );
+
+  const handlePdfDownload = () => {
+    try {
+      downloadRecordsPdf({
+        title: "Secondary Bin Collection Events",
+        filename: "secondary_bin_collection_events.pdf",
+        rows: exportRows,
+        columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
+      });
+    } catch (error) {
+      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+    }
+  };
+
   const header = (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -178,6 +213,20 @@ export default function BinCollectionEventList() {
           <p className="text-sm text-gray-500">Scan audit log — one record per operator bin scan</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            label="Download Excel"
+            icon="pi pi-file-excel"
+            className="p-button-outlined p-button-sm"
+            disabled={exportRows.length === 0}
+            onClick={handleExcelDownload}
+          />
+          <Button
+            label="Download PDF"
+            icon="pi pi-file-pdf"
+            className="p-button-outlined p-button-sm"
+            disabled={exportRows.length === 0}
+            onClick={handlePdfDownload}
+          />
           <Button
             label="Add Bin Collection Event"
             icon="pi pi-plus"
@@ -228,6 +277,7 @@ export default function BinCollectionEventList() {
   return (
     <div className="p-3">
       <DataTable
+        exportable={false}
         value={rows}
         dataKey="unique_id"
         paginator
