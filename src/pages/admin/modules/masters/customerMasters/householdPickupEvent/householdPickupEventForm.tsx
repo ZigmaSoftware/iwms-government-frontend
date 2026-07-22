@@ -1,15 +1,22 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
+import { FieldError } from "@/components/form/FieldError";
 import { createCrudHelpers, customerCreationApi, propertiesApi, subPropertiesApi, userCreationApi, vehicleCreationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+import {
+  householdPickupEventSchema,
+  type HouseholdPickupEventFormValues,
+} from "@/schemas/householdPickupEvent.schema";
 
 type Option = { value: string; label: string };
 type RecordRow = Record<string, any>;
@@ -25,20 +32,32 @@ export default function HouseholdPickupEventForm() {
   const isEdit = Boolean(id);
   const { encCustomerMaster, encHouseholdPickupEvent } = getEncryptedRoute();
   const { listPath } = createCrudRoutePaths(encCustomerMaster, encHouseholdPickupEvent);
-  const [customerId, setCustomerId] = useState("");
-  const [propertyId, setPropertyId] = useState("");
-  const [subPropertyId, setSubPropertyId] = useState("");
-  const [pickupTime, setPickupTime] = useState("");
-  const [weightKg, setWeightKg] = useState("");
-  const [collectorStaffId, setCollectorStaffId] = useState("");
-  const [vehicleId, setVehicleId] = useState("");
-  const [source, setSource] = useState("");
   const [customers, setCustomers] = useState<Option[]>([]);
   const [properties, setProperties] = useState<Option[]>([]);
   const [subProperties, setSubProperties] = useState<Option[]>([]);
   const [collectors, setCollectors] = useState<Option[]>([]);
   const [vehicles, setVehicles] = useState<Option[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<HouseholdPickupEventFormValues>({
+    resolver: zodResolver(householdPickupEventSchema),
+    defaultValues: {
+      customer_id: "",
+      property_id: "",
+      sub_property_id: "",
+      pickup_time: "",
+      weight_kg: "",
+      collector_staff_id: "",
+      vehicle_id: "",
+      source: "",
+    },
+  });
 
   useEffect(() => {
     Promise.all([customerCreationApi.readAll(), propertiesApi.readAll(), subPropertiesApi.readAll(), userCreationApi.readAll(), vehicleCreationApi.readAll()])
@@ -54,21 +73,22 @@ export default function HouseholdPickupEventForm() {
   useEffect(() => {
     if (!id) return;
     householdPickupEventApi.read(id).then((record) => {
-      setCustomerId(String(record.customer_id ?? ""));
-      setPropertyId(String(record.property_id ?? ""));
-      setSubPropertyId(String(record.sub_property_id ?? ""));
-      setPickupTime(record.pickup_time ? String(record.pickup_time).slice(0, 16) : "");
-      setWeightKg(String(record.weight_kg ?? ""));
-      setCollectorStaffId(String(record.collector_staff_id ?? ""));
-      setVehicleId(String(record.vehicle_id ?? ""));
-      setSource(String(record.source ?? ""));
+      reset({
+        customer_id: String(record.customer_id ?? ""),
+        property_id: String(record.property_id ?? ""),
+        sub_property_id: String(record.sub_property_id ?? ""),
+        pickup_time: record.pickup_time ? String(record.pickup_time).slice(0, 16) : "",
+        weight_kg: String(record.weight_kg ?? ""),
+        collector_staff_id: String(record.collector_staff_id ?? ""),
+        vehicle_id: String(record.vehicle_id ?? ""),
+        source: String(record.source ?? ""),
+      });
     });
-  }, [id]);
+  }, [id, reset]);
 
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const onValid = async (values: HouseholdPickupEventFormValues) => {
     setSaving(true);
-    const payload = { customer_id: customerId, property_id: propertyId, sub_property_id: subPropertyId, pickup_time: pickupTime, weight_kg: weightKg, collector_staff_id: collectorStaffId, vehicle_id: vehicleId, source };
+    const payload = { ...values };
     try {
       if (isEdit && id) await householdPickupEventApi.update(id, payload);
       else await householdPickupEventApi.create(payload);
@@ -80,15 +100,77 @@ export default function HouseholdPickupEventForm() {
 
   return (
     <ComponentCard title={isEdit ? "Edit Household Pickup Event" : "Create Household Pickup Event"}>
-      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div><Label>Customer</Label><Select value={customerId} onChange={(v) => setCustomerId(String(v))} options={customers} placeholder="Select Customer" /></div>
-        <div><Label>Property</Label><Select value={propertyId} onChange={(v) => setPropertyId(String(v))} options={properties} placeholder="Select Property" /></div>
-        <div><Label>Sub Property</Label><Select value={subPropertyId} onChange={(v) => setSubPropertyId(String(v))} options={subProperties} placeholder="Select Sub Property" /></div>
-        <div><Label>Pickup Time</Label><Input type="datetime-local" value={pickupTime} onChange={(e) => setPickupTime(e.target.value)} /></div>
-        <div><Label>Weight Kg</Label><Input type="number" value={weightKg} onChange={(e) => setWeightKg(e.target.value)} /></div>
-        <div><Label>Collector</Label><Select value={collectorStaffId} onChange={(v) => setCollectorStaffId(String(v))} options={collectors} placeholder="Select Collector" /></div>
-        <div><Label>Vehicle</Label><Select value={vehicleId} onChange={(v) => setVehicleId(String(v))} options={vehicles} placeholder="Select Vehicle" /></div>
-        <div><Label>Source</Label><Input value={source} onChange={(e) => setSource(e.target.value)} /></div>
+      <form onSubmit={handleSubmit(onValid)} noValidate className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <Label>Customer</Label>
+          <Controller
+            control={control}
+            name="customer_id"
+            render={({ field }) => (
+              <Select value={field.value ?? ""} onChange={field.onChange} options={customers} placeholder="Select Customer" />
+            )}
+          />
+          <FieldError message={errors.customer_id?.message} />
+        </div>
+        <div>
+          <Label>Property</Label>
+          <Controller
+            control={control}
+            name="property_id"
+            render={({ field }) => (
+              <Select value={field.value ?? ""} onChange={field.onChange} options={properties} placeholder="Select Property" />
+            )}
+          />
+          <FieldError message={errors.property_id?.message} />
+        </div>
+        <div>
+          <Label>Sub Property</Label>
+          <Controller
+            control={control}
+            name="sub_property_id"
+            render={({ field }) => (
+              <Select value={field.value ?? ""} onChange={field.onChange} options={subProperties} placeholder="Select Sub Property" />
+            )}
+          />
+          <FieldError message={errors.sub_property_id?.message} />
+        </div>
+        <div>
+          <Label>Pickup Time</Label>
+          <Input type="datetime-local" {...register("pickup_time")} />
+          <FieldError message={errors.pickup_time?.message} />
+        </div>
+        <div>
+          <Label>Weight Kg</Label>
+          <Input type="number" {...register("weight_kg")} />
+          <FieldError message={errors.weight_kg?.message} />
+        </div>
+        <div>
+          <Label>Collector</Label>
+          <Controller
+            control={control}
+            name="collector_staff_id"
+            render={({ field }) => (
+              <Select value={field.value ?? ""} onChange={field.onChange} options={collectors} placeholder="Select Collector" />
+            )}
+          />
+          <FieldError message={errors.collector_staff_id?.message} />
+        </div>
+        <div>
+          <Label>Vehicle</Label>
+          <Controller
+            control={control}
+            name="vehicle_id"
+            render={({ field }) => (
+              <Select value={field.value ?? ""} onChange={field.onChange} options={vehicles} placeholder="Select Vehicle" />
+            )}
+          />
+          <FieldError message={errors.vehicle_id?.message} />
+        </div>
+        <div>
+          <Label>Source</Label>
+          <Input {...register("source")} />
+          <FieldError message={errors.source?.message} />
+        </div>
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save"}</Button>
           <Button type="button" variant="outline" onClick={() => navigate(listPath)}>Cancel</Button>

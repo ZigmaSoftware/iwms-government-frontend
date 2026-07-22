@@ -1,12 +1,9 @@
 import { DataCard } from "@/components/ui/DataCard";
-import { LeafletMapContainer } from "@/components/map/LeafletMapContainer";
 
-import { WastePieChart } from "@/components/ui/WastePieChart";
+
+
 import { AttendanceMonitor } from "@/components/ui/AttendanceMonitor";
-import { VehicleStatusPanel } from "./VehicleStatusPanel";
 import { ComplaintsPanel } from "./ComplaintsPanel";
-import { RecentActivityTimeline } from "./RecentActivityTimeLine";
-import { WeighmentSummary } from "@/components/ui/WeighmentSummary";
 import { CameraStatus } from "./cameraStatus";
 import { useEffect, useRef, useState } from "react";
 import { Home, Maximize2, Square, Trash2 } from "lucide-react";
@@ -183,11 +180,7 @@ export function HomeDashboard() {
       </div>
 
       <div className="flex-1 min-h-0">
-        {activeMapTab === "vehicle" && (
-          <div className="h-full w-full overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-            <LeafletMapContainer height="100%" />
-          </div>
-        )}
+    
         {activeMapTab === "bins" && <BinMapPanel />}
         {activeMapTab === "households" && <HouseholdMapPanel />}
       </div>
@@ -203,7 +196,7 @@ export function HomeDashboard() {
           {/* LEFT PANEL */}
           <div className="order-2 min-w-0 space-y-3 lg:order-0 lg:col-span-3 lg:h-full lg:overflow-y-auto lg:pr-1">
             <div className="space-y-4">
-              <WastePieChart />
+     
               <DataCard
                 title={t("dashboard.home.household_status_title")}
                 compact
@@ -247,7 +240,7 @@ export function HomeDashboard() {
                 </div>
               </DataCard>
               <AttendanceMonitor />
-              <RecentActivityTimeline />
+      
             </div>
           </div>
 
@@ -315,8 +308,7 @@ export function HomeDashboard() {
           {/* RIGHT PANEL */}
           <div className="order-3 min-w-0 space-y-3 lg:order-0 lg:col-span-3 lg:h-full lg:overflow-y-auto">
             <ComplaintsPanel />
-            <VehicleStatusPanel />
-            <WeighmentSummary />
+      
           </div>
         </div>
       </DataCard>
