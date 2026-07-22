@@ -56,6 +56,21 @@ const formatCollectionDateTime = (row: WasteCollection) => {
   return time ? `${date}, ${time}` : date;
 };
 
+// Same status vocabulary + styling as dailyTripHouseholdCollectionList.tsx's STATUS_STYLES
+// — the canonical household-stop status used across the app.
+const COLLECTION_STATUS_STYLES: Record<string, string> = {
+  Pending: "bg-gray-100 text-gray-700",
+  Collected: "bg-green-100 text-green-800",
+  "Not Available": "bg-red-100 text-red-800",
+  "Collect Later": "bg-orange-100 text-orange-800",
+};
+
+const CollectionStatusBadge = ({ value }: { value?: string }) => (
+  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${COLLECTION_STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
+    {value || "-"}
+  </span>
+);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WasteCollectedDataList() {
@@ -222,8 +237,19 @@ export default function WasteCollectedDataList() {
           sortable
         />
         <Column
+          field="sanitary_waste"
+          header={t("admin.household_collection_event.sanitary_waste")}
+          sortable
+        />
+        <Column
           field="total_quantity"
           header={t("admin.household_collection_event.quantity")}
+          sortable
+        />
+        <Column
+          field="status"
+          header={t("admin.household_collection_event.status")}
+          body={(row: WasteCollection) => <CollectionStatusBadge value={row.status} />}
           sortable
         />
         <Column

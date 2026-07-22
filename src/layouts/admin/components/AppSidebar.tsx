@@ -74,6 +74,7 @@ const {
   encStaffTemplate,
   encAlternativeStaffTemplate,
   encCommonAudit,
+  encStaffAudit,
   encTripPlans,
   encVehicleBreakdown,
   encSchedulerConfig,
@@ -630,6 +631,12 @@ const auditItems: NavItem[] = [
         path: `/${encAudits}/${encCommonAudit}`,
         module: "audits",
         screen: "common-audit",
+      },
+      {
+        nameKey: "admin.nav.staff_audit",
+        path: `/${encAudits}/${encStaffAudit}`,
+        module: "audits",
+        screen: "staff-audit",
       },
       {
         nameKey: "admin.nav.login_audit",

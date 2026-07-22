@@ -106,7 +106,19 @@ type EditorInitial = {
   wetWaste: number;
   dryWaste: number;
   mixedWaste: number;
+  sanitaryWaste: number;
+  status: string;
+  collectionDate: string;
 };
+
+// Same status vocabulary as DailyTripHouseholdCollection (daily_trip_household_collection.py)
+// — the canonical household-stop status used across the app.
+const COLLECTION_STATUS_OPTIONS: Option[] = [
+  { value: "Pending", label: "Pending" },
+  { value: "Collected", label: "Collected" },
+  { value: "Not Available", label: "Not Available" },
+  { value: "Collect Later", label: "Collect Later" },
+];
 
 const EMPTY_INITIAL: EditorInitial = {
   customerId: "",
@@ -125,6 +137,9 @@ const EMPTY_INITIAL: EditorInitial = {
   wetWaste: 0,
   dryWaste: 0,
   mixedWaste: 0,
+  sanitaryWaste: 0,
+  status: "Pending",
+  collectionDate: "",
 };
 
 const LOCAL_BODY_RECORD_NAME_KEY: Record<LocalBodyLevel, string> = {
@@ -154,6 +169,9 @@ const initialFromRecord = (record: WasteCollection): EditorInitial => {
     wetWaste: Number(record.wet_waste) || 0,
     dryWaste: Number(record.dry_waste) || 0,
     mixedWaste: Number(record.mixed_waste) || 0,
+    sanitaryWaste: Number(record.sanitary_waste) || 0,
+    status: textOf(record.status) || "Pending",
+    collectionDate: textOf(record.collection_date),
   };
 };
 
@@ -221,7 +239,10 @@ function WasteCollectedEditor({
   const [wetWaste, setWetWaste] = useState(initial.wetWaste);
   const [dryWaste, setDryWaste] = useState(initial.dryWaste);
   const [mixedWaste, setMixedWaste] = useState(initial.mixedWaste);
-  const totalQuantity = wetWaste + dryWaste + mixedWaste;
+  const [sanitaryWaste, setSanitaryWaste] = useState(initial.sanitaryWaste);
+  const [status, setStatus] = useState(initial.status);
+  const [collectionDate, setCollectionDate] = useState(initial.collectionDate);
+  const totalQuantity = wetWaste + dryWaste + mixedWaste + sanitaryWaste;
 
   /* ── heavy dropdown data — owned here, fetched scoped to the current geo
      selection (not the whole table), re-fetched whenever that scope changes.
@@ -264,28 +285,32 @@ function WasteCollectedEditor({
   }, [geoParams, t]);
 
   useEffect(() => {
-    let cancelled = false;
-    dailyTripAssignmentApi.readAll({ params: geoParams })
-      .then((res: any) => {
-        if (cancelled) return;
-        setTripAssignments(
-          toList(res).map((a) => ({
-            value: String(a.unique_id),
-            label: String(a.unique_id),
-            localBodyByLevel: {
-              corporation_id: normId(a.corporation?.unique_id ?? a.corporation),
-              municipality_id: normId(a.municipality?.unique_id ?? a.municipality),
-              town_panchayat_id: normId(a.town_panchayat?.unique_id ?? a.town_panchayat),
-              panchayat_union_id: normId(a.panchayat_union?.unique_id ?? a.panchayat_union),
-              panchayat_id: normId(a.panchayat?.unique_id ?? a.panchayat),
-            },
-            hasHousehold: Boolean(a.collection_types?.has_household),
-          })),
-        );
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [geoParams]);
+  let cancelled = false;
+  console.log("trip assignment fetch params:", geoParams);
+  dailyTripAssignmentApi.readAll({ params: geoParams })
+    .then((res: any) => {
+      if (cancelled) return;
+      console.log("trip assignment raw response:", res);
+      const mapped = toList(res).map((a) => ({
+        value: String(a.unique_id),
+        label: String(a.unique_id),
+        localBodyByLevel: {
+          corporation_id: normId(a.corporation?.unique_id ?? a.corporation),
+          municipality_id: normId(a.municipality?.unique_id ?? a.municipality),
+          town_panchayat_id: normId(a.town_panchayat?.unique_id ?? a.town_panchayat),
+          panchayat_union_id: normId(a.panchayat_union?.unique_id ?? a.panchayat_union),
+          panchayat_id: normId(a.panchayat?.unique_id ?? a.panchayat),
+        },
+        hasHousehold: Boolean(a.collection_types?.has_household),
+      }));
+      console.log("trip assignment mapped list:", mapped);
+      setTripAssignments(mapped);
+    })
+    .catch((err: any) => {
+      console.error("trip assignment fetch FAILED:", err?.response?.status, err?.response?.data ?? err);
+    });
+  return () => { cancelled = true; };
+}, [geoParams]);
 
   /* ── area type kind (urban/rural) drives which local-body levels apply ── */
   const areaTypeKind = useMemo<"urban" | "rural" | "">(() => {
@@ -449,12 +474,19 @@ function WasteCollectedEditor({
       Swal.fire(t("common.warning"), t("admin.household_collection_event.customer_required"), "warning");
       return;
     }
+    if (!collectionDate) {
+      Swal.fire(t("common.warning"), t("admin.household_collection_event.collection_date_required"), "warning");
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       customer: customerId,
       wet_waste: wetWaste,
       dry_waste: dryWaste,
       mixed_waste: mixedWaste,
+      sanitary_waste: sanitaryWaste,
+      status,
+      collection_date: collectionDate,
       trip_assignment_id: tripAssignmentId || null,
       state_id: stateId || null,
       district_id: districtId || null,
@@ -635,10 +667,46 @@ function WasteCollectedEditor({
               />
             </div>
 
+            {/* Sanitary Waste */}
+            <div>
+              <Label>{t("admin.household_collection_event.sanitary_waste")}</Label>
+              <Input
+                type="number"
+                min={0}
+                step="any"
+                value={sanitaryWaste}
+                onChange={(e) => setSanitaryWaste(Math.max(0, Number(e.target.value) || 0))}
+              />
+            </div>
+
             {/* Total (read-only, auto-calculated) */}
             <div>
               <Label>{t("admin.household_collection_event.total_quantity")}</Label>
               <Input disabled className="bg-gray-100" value={totalQuantity} />
+            </div>
+
+            {/* Collection Date */}
+            <div>
+              <Label>
+                {t("admin.household_collection_event.collection_date")}
+                <span className="text-red-500"> *</span>
+              </Label>
+              <Input
+                type="date"
+                value={collectionDate}
+                onChange={(e) => setCollectionDate(e.target.value)}
+              />
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label>{t("admin.household_collection_event.status")}</Label>
+              <Select
+                value={status}
+                onChange={(v) => setStatus(String(v))}
+                options={COLLECTION_STATUS_OPTIONS}
+                placeholder={t("admin.household_collection_event.status")}
+              />
             </div>
           </div>
 

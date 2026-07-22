@@ -32,6 +32,12 @@ export type ViewLevel = "apartment" | "block" | "flat" | "user";
 
 export type Option = { value: string; label: string };
 
+export type FamilyMember = {
+  member_name: string;
+  id_proof_type: string;
+  id_no: string;
+};
+
 export interface FormDataType {
   customer_name: string;
   contact_no: string;
@@ -45,11 +51,15 @@ export interface FormDataType {
   latitude: string;
   longitude: string;
   sqft: string;
+  water_consumption_lpd: string;
+  waste_collection_kg_per_day: string;
   property_id: string;
   sub_property_id: string;
   waste_type_ids: string[];
   id_proof_type: string;
   id_no: string;
+  member_count: string;
+  family_members: FamilyMember[];
   country_id: string;
   state_id: string;
   district_id: string;
@@ -78,24 +88,45 @@ export type Customer = {
   unique_id: string;
   customer_name: string;
   contact_no: string;
+  username?: string;
+  email?: string;
   building_no: string;
   street: string;
   area: string;
   pincode: string;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  sqft?: string | number | null;
+  water_consumption_lpd?: string | number | null;
+  waste_collection_kg_per_day?: string | number | null;
   location_node_id?: string;
   location_name?: string;
   location_level?: string;
+  state_name?: string;
+  district_name?: string;
+  area_type_name?: string;
+  corporation_name?: string;
+  municipality_name?: string;
+  town_panchayat_name?: string;
+  panchayat_union_name?: string;
+  panchayat_name?: string;
   property_name: string;
   sub_property_name: string;
   waste_types?: Array<{ unique_id: string; waste_type_name: string }>;
   waste_type_ids?: string[];
   id_proof_type: string;
   id_no: string;
+  member_count?: number | string | null;
+  family_members?: FamilyMember[];
   is_active: boolean;
   qr_code?: string;
   apartment_name?: string;
   block_no?: string;
   flat_no?: string;
+  villa_no?: string;
+  industry_name?: string;
+  industry_type?: string;
+  is_bulkwaste_generator?: boolean;
 };
 
 import type { FilterMatchMode } from "primereact/api";

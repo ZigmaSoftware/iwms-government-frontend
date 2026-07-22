@@ -1,7 +1,8 @@
 import type { DailyTripLogRecord } from "./types";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -12,11 +13,17 @@ import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
+import { MultiSelect } from "primereact/multiselect";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
-import { dailyTripLogApi } from "@/helpers/admin";
+import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
 import { api } from "@/api";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { formatCollectionTime } from "./collectionTime";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -383,10 +390,7 @@ function TripLogModal({
                       ) : null}
                       {hh.collected_at && (
                         <span className="text-xs text-gray-400">
-                          {new Date(hh.collected_at).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatCollectionTime(hh.collected_at)}
                         </span>
                       )}
                     </div>
@@ -444,6 +448,9 @@ function TripLogModal({
 ───────────────────────────────────────────────────── */
 export default function DailyTripLogList() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { encScheduleMasters, encDailyTripLog } = getEncryptedRoute();
+  const { reportPath } = createCrudRoutePaths(encScheduleMasters, encDailyTripLog);
 
   const [allLogs, setAllLogs] = useState<DailyTripLogRecord[]>([]);
   const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
@@ -455,6 +462,14 @@ export default function DailyTripLogList() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [imageRow, setImageRow] = useState<DailyTripLogRecord | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const [dateFilter, setDateFilter] = useState("");
+  const [wasteTypeIds, setWasteTypeIds] = useState<string[]>([]);
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  // Bumped to force-remount HierarchyFilterBar (it owns its own internal
+  // state/pre-seeding) whenever "Clear All Filters" is used.
+  const [filterResetKey, setFilterResetKey] = useState(0);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -467,11 +482,37 @@ export default function DailyTripLogList() {
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
 
-  /* ── load logs ── */
+  /* ── waste type dropdown options ── */
+  useEffect(() => {
+    (wasteTypeApi.readAll() as Promise<any[]>)
+      .then((data) => {
+        const options = (Array.isArray(data) ? data : []).map((wt) => ({
+          label: wt.waste_type_name ?? wt.name ?? wt.unique_id,
+          value: wt.unique_id,
+        }));
+        setWasteTypeOptions(options);
+      })
+      .catch(() => {
+        /* non-critical — filter simply shows no options */
+      });
+  }, []);
+
+  /* ── build server query params from the hierarchy/date/waste-type filters ──
+     waste_type_id is sent as one comma-separated string, not an array — axios
+     serializes array params as waste_type_id[]=a&waste_type_id[]=b, which the
+     backend's getlist("waste_type_id") never matches. */
+  const buildParams = useCallback((): Record<string, any> => {
+    const params: Record<string, any> = { ...hierarchyParams };
+    if (dateFilter) params.date = dateFilter;
+    if (wasteTypeIds.length > 0) params.waste_type_id = wasteTypeIds.join(",");
+    return params;
+  }, [hierarchyParams, dateFilter, wasteTypeIds]);
+
+  /* ── load logs (re-runs whenever hierarchy/date/waste-type filters change) ── */
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    (dailyTripLogApi.readAll() as Promise<DailyTripLogRecord[]>)
+    (dailyTripLogApi.readAll({ params: buildParams() }) as Promise<DailyTripLogRecord[]>)
       .then((data) => {
         if (mounted) setAllLogs(Array.isArray(data) ? data : []);
       })
@@ -485,7 +526,7 @@ export default function DailyTripLogList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, buildParams]);
 
   /* ── enrich rows ── */
   const rows = allLogs.map((rec) => ({
@@ -623,10 +664,10 @@ export default function DailyTripLogList() {
           Images
         </button>
 
-        {/* View */}
+        {/* View — navigates to the dedicated detail report page */}
         <button
           title="View details"
-          onClick={() => setModalState({ row, mode: "view" })}
+          onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
           className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
         >
           <i className="pi pi-eye text-xs" />
@@ -673,9 +714,143 @@ export default function DailyTripLogList() {
       placeholder: "Search trip logs...",
     });
 
+  /* ── download the currently filtered set (hierarchy + waste type + date +
+     global search) as a detailed, per-collection-point/customer itemized
+     Excel report — same shape as the trip report page ── */
+  const handleDownload = async () => {
+    setIsExporting(true);
+    try {
+      const exportSource = (await dailyTripLogApi.readAllForExport({
+        params: buildParams(),
+      })) as DailyTripLogRecord[];
+
+      const search = globalFilterValue.trim().toLowerCase();
+      const filteredSource = search
+        ? exportSource.filter((rec) => {
+            const haystack = [
+              rec.unique_id,
+              rec.trip_assignment?.display_code ?? rec.trip_assignment_id,
+              rec.location?.local_body_name ?? rec.location_name,
+              rec.driver?.employee_name,
+              rec.operator?.employee_name,
+              (rec.vehicle as any)?.vehicle_no,
+              rec.log_status,
+              rec.collection_status,
+              rec.trip_date,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+            return haystack.includes(search);
+          })
+        : exportSource;
+
+      const byCollectionType = filteredSource.filter((rec) => {
+        if (collectionType === "bin") {
+          const hasBinWeight =
+            (rec.collection_points ?? []).some(
+              (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+            ) || (rec.collected_weight_kg != null && Number(rec.collected_weight_kg) > 0);
+          return hasBinWeight;
+        }
+        if (collectionType === "household") {
+          return rec.household_collected_weight_kg != null && Number(rec.household_collected_weight_kg) > 0;
+        }
+        return true;
+      });
+
+      const exportRows: Record<string, unknown>[] = [];
+      byCollectionType.forEach((rec) => {
+        const baseRow = {
+          "Trip ID": rec.unique_id,
+          "Trip Assignment": rec.trip_assignment?.display_code ?? rec.trip_assignment_id ?? "-",
+          "Trip Date": rec.trip_date ?? "-",
+          State: rec.location?.state ?? "-",
+          District: rec.location?.district ?? "-",
+          "Local Body": rec.location?.local_body_name ?? "-",
+          "Local Body Level": rec.location?.local_body_level ?? "-",
+          Driver: rec.driver?.employee_name ?? "-",
+          Operator: rec.operator?.employee_name ?? "-",
+          Vehicle: (rec.vehicle as any)?.vehicle_no ?? "-",
+          "Log Status": rec.log_status ?? "-",
+        };
+
+        const cps = rec.collection_points ?? [];
+        const hhs = rec.household_collections ?? [];
+        const isHousehold = hhs.length > 0;
+
+        if (isHousehold) {
+          hhs.forEach((hh) => {
+            const breakdown = hh.waste_type_breakdown?.length
+              ? hh.waste_type_breakdown
+              : [{ waste_type_name: "-", collected_weight_kg: hh.collected_weight_kg }];
+            breakdown.forEach((wt) => {
+              exportRows.push({
+                ...baseRow,
+                "Point Type": "Household",
+                "Collection Point / Customer": hh.customer_name ?? hh.customer_unique_id ?? "-",
+                "Waste Type": wt.waste_type_name ?? "-",
+                "Collected Weight (kg)": wt.collected_weight_kg ?? "-",
+                "Collection Time": formatCollectionTime(hh.collected_at),
+                "Is Collected": hh.is_collected ? "Yes" : "No",
+              });
+            });
+          });
+        } else if (cps.length > 0) {
+          cps.forEach((cp) => {
+            const breakdown = cp.waste_type_breakdown?.length
+              ? cp.waste_type_breakdown
+              : [{ waste_type_name: cp.waste_type_name, collected_weight_kg: cp.collected_weight_kg }];
+            breakdown.forEach((wt) => {
+              exportRows.push({
+                ...baseRow,
+                "Point Type": "Collection Point",
+                "Collection Point / Customer": cp.cp_name ?? cp.unique_id ?? "-",
+                "Waste Type": wt.waste_type_name ?? "-",
+                "Collected Weight (kg)": wt.collected_weight_kg ?? "-",
+                "Collection Time": formatCollectionTime(cp.collected_at),
+                "Is Collected": cp.is_collected ? "Yes" : "No",
+              });
+            });
+          });
+        } else {
+          exportRows.push({
+            ...baseRow,
+            "Point Type": "-",
+            "Collection Point / Customer": "-",
+            "Waste Type": "-",
+            "Collected Weight (kg)": rec.collected_weight_kg ?? "-",
+            "Collection Time": "-",
+            "Is Collected": "-",
+          });
+        }
+      });
+
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err) ?? "Failed to download trip log data.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const hasActiveFilters =
+    Object.keys(hierarchyParams).length > 0 ||
+    Boolean(dateFilter) ||
+    wasteTypeIds.length > 0 ||
+    collectionType !== "all";
+
+  const handleClearFilters = () => {
+    setHierarchyParams({});
+    setDateFilter("");
+    setWasteTypeIds([]);
+    setCollectionType("all");
+    setFilterResetKey((key) => key + 1);
+  };
+
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
           <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
@@ -690,10 +865,60 @@ export default function DailyTripLogList() {
             <option value="bin">Bin Collection</option>
             <option value="household">Household Collection</option>
           </select>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="border rounded px-3 py-2 text-sm"
+          />
+          <Button
+            label={isExporting ? "Downloading…" : "Download"}
+            icon="pi pi-download"
+            className="p-button-outlined"
+            disabled={isExporting || data.length === 0}
+            onClick={handleDownload}
+          />
+        </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
+        <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">Waste Type</label>
+          <MultiSelect
+            value={wasteTypeIds}
+            onChange={(e) => {
+              const raw = Array.isArray(e.value) ? e.value : [];
+              // PrimeReact MultiSelect can emit full option objects instead of
+              // the scalar optionValue — normalize so filter params stay clean strings.
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setWasteTypeIds(values);
+            }}
+            options={wasteTypeOptions}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={2}
+            placeholder="All waste types"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+          />
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <i className="pi pi-filter-slash text-xs" />
+            Clear All Filters
+          </button>
         </div>
       </div>
 
       <DataTable
+        exportable={false}
         value={data}
         dataKey="unique_id"
         paginator

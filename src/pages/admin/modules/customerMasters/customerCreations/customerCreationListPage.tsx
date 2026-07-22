@@ -1,7 +1,7 @@
 import type { TableFilters } from "./types";
 import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -9,6 +9,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
+import { MultiSelect } from "primereact/multiselect";
 import { FilterMatchMode } from "primereact/api";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -21,26 +22,41 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { customerCreationApi } from "@/helpers/admin";
+import { customerCreationApi, wasteTypeApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   excelFileToCsvFile,
+  exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import HierarchyFilterBar, {
+  type HierarchyFilterParams,
+} from "@/components/filters/HierarchyFilterBar";
+import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
+import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
   contact_no: ["contact_no", "mobile"],
-  apartment_name: ["apartment_name"],
-  unit: ["block_no", "flat_no"],
+  property_name: ["property_id", "property_name"],
+  sub_property_name: ["sub_property_id", "sub_property_name"],
   location_name: ["location_node_id", "location_node", "location_name"],
   waste_types: ["waste_type_ids", "waste_types", "waste_type"],
   qr_code: ["qr_code"],
   is_active: ["is_active"],
 };
+
+const localBodyLabel = (customer: Customer): string =>
+  customer.corporation_name ||
+  customer.municipality_name ||
+  customer.town_panchayat_name ||
+  customer.panchayat_union_name ||
+  customer.panchayat_name ||
+  customer.location_name ||
+  "-";
 
 const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "customer_name", header: "customer_name", required: true, sample: "John Doe" },
@@ -80,13 +96,22 @@ export default function CustomerCreationListPage() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [selectedQr, setSelectedQr] = useState<string | null>(null);
+  const [selectedQrCustomer, setSelectedQrCustomer] = useState<Customer | null>(null);
+  const [isPrintingQr, setIsPrintingQr] = useState(false);
+  const [isPreviewingQr, setIsPreviewingQr] = useState(false);
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
     location_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
   });
+
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const [wasteTypeIds, setWasteTypeIds] = useState<string[]>([]);
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
+  const [filterResetKey, setFilterResetKey] = useState(0);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const navigate = useNavigate();
   const { encCustomerMaster, encCustomerCreation } = getEncryptedRoute();
@@ -96,11 +121,33 @@ export default function CustomerCreationListPage() {
     encCustomerCreation,
   );
 
+  /* ── waste type dropdown options ── */
+  useEffect(() => {
+    (wasteTypeApi.readAll() as Promise<any[]>)
+      .then((data) => {
+        const options = (Array.isArray(data) ? data : []).map((wt) => ({
+          label: wt.waste_type_name ?? wt.name ?? wt.unique_id,
+          value: wt.unique_id,
+        }));
+        setWasteTypeOptions(options);
+      })
+      .catch(() => {
+        /* non-critical — filter simply shows no options */
+      });
+  }, []);
+
+  /* ── build server query params from the hierarchy/waste-type filters ── */
+  const buildParams = useCallback((): Record<string, any> => {
+    const params: Record<string, any> = { ...hierarchyParams };
+    if (wasteTypeIds.length > 0) params.waste_type_id = wasteTypeIds.join(",");
+    return params;
+  }, [hierarchyParams, wasteTypeIds]);
+
   // ── Load data ─────────────────────────────────────────────────────────────
   useEffect(() => {
     let mounted = true;
     setIsLoading(true);
-    customerCreationApi.readAll()
+    customerCreationApi.readAll({ params: buildParams() })
       .then((data: unknown) => {
         if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
       })
@@ -115,7 +162,7 @@ export default function CustomerCreationListPage() {
       })
       .finally(() => { if (mounted) setIsLoading(false); });
     return () => { mounted = false; };
-  }, [t, refetchTrigger]);
+  }, [t, refetchTrigger, buildParams]);
 
   const customers = useMemo<Customer[]>(() => {
     return allCustomers
@@ -123,6 +170,15 @@ export default function CustomerCreationListPage() {
         String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
       );
   }, [allCustomers]);
+
+  const hasActiveFilters =
+    Object.keys(hierarchyParams).length > 0 || wasteTypeIds.length > 0;
+
+  const handleClearFilters = () => {
+    setHierarchyParams({});
+    setWasteTypeIds([]);
+    setFilterResetKey((key) => key + 1);
+  };
 
   const cap = (str?: string) =>
     str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
@@ -192,6 +248,55 @@ export default function CustomerCreationListPage() {
     }
   };
 
+  // ── Filtered set used for both on-screen search and exports ──────────────
+  const getFilteredExportCustomers = (): Customer[] => {
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return customers;
+    return customers.filter((row) => {
+      const wasteTypeNames = row.waste_types?.map((w) => w.waste_type_name).join(" ") ?? "";
+      const haystack = [
+        row.customer_name, row.contact_no, row.property_name, row.sub_property_name, wasteTypeNames,
+      ].join(" ").toLowerCase();
+      return haystack.includes(search);
+    });
+  };
+
+  // ── Excel export of the currently filtered customer data ─────────────────
+  const handleDownloadExcel = () => {
+    setIsExportingExcel(true);
+    try {
+      const rows = getFilteredExportCustomers();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  // ── PDF export: one full-detail page per currently filtered customer ─────
+  const handleDownloadPdf = async () => {
+    const rows = getFilteredExportCustomers();
+    if (rows.length === 0) {
+      Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+      return;
+    }
+    setIsExportingPdf(true);
+    try {
+      await downloadAllCustomersPdf(rows);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the customers PDF.",
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   const header = (
     <div className="grid gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -215,6 +320,20 @@ export default function CustomerCreationListPage() {
             disabled={isUploading}
             onClick={() => document.getElementById("excelUpload")?.click()}
           />
+          <Button
+            label={isExportingExcel ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel || customers.length === 0}
+            onClick={handleDownloadExcel}
+          />
+          <Button
+            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined"
+            disabled={isExportingPdf || customers.length === 0}
+            onClick={handleDownloadPdf}
+          />
         </div>
         <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
           <i className="pi pi-search text-gray-500" />
@@ -233,6 +352,44 @@ export default function CustomerCreationListPage() {
           />
         </div>
       </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
+        <HierarchyFilterBar
+          key={filterResetKey}
+          className="contents"
+          showClear={false}
+          onChange={setHierarchyParams}
+        />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">Waste Type</label>
+          <MultiSelect
+            value={wasteTypeIds}
+            onChange={(e) => {
+              const raw = Array.isArray(e.value) ? e.value : [];
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setWasteTypeIds(values);
+            }}
+            options={wasteTypeOptions}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={2}
+            placeholder="All waste types"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+          />
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <i className="pi pi-filter-slash text-xs" />
+            Clear All Filters
+          </button>
+        </div>
+      </div>
     </div>
   );
 
@@ -243,12 +400,62 @@ export default function CustomerCreationListPage() {
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => setSelectedQr(customer.qr_code!)}
+        onClick={() => setSelectedQrCustomer(customer)}
         title={t("admin.customer_creation.qr_show")}
       >
         <img src={customer.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
+  };
+
+  const handlePrintQr = async () => {
+    if (!selectedQrCustomer) return;
+    setIsPrintingQr(true);
+    try {
+      await downloadCustomerQrPdf(selectedQrCustomer);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the customer QR PDF.",
+      });
+    } finally {
+      setIsPrintingQr(false);
+    }
+  };
+
+  const handlePreviewQr = async () => {
+    if (!selectedQrCustomer) return;
+
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      Swal.fire({
+        icon: "warning",
+        title: "Preview blocked",
+        text: "Please allow pop-ups for this site to preview the PDF.",
+      });
+      return;
+    }
+
+    previewWindow.document.title = "Preparing customer QR PDF";
+    previewWindow.document.body.innerHTML =
+      '<p style="font-family:Arial,sans-serif;padding:24px;color:#475569">Preparing PDF preview…</p>';
+    setIsPreviewingQr(true);
+    try {
+      const pdfBlob = await createCustomerQrPdfBlob(selectedQrCustomer);
+      const previewUrl = URL.createObjectURL(pdfBlob);
+      previewWindow.location.replace(previewUrl);
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
+    } catch (error) {
+      previewWindow.close();
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to preview the customer QR PDF.",
+      });
+    } finally {
+      setIsPreviewingQr(false);
+    }
   };
 
   const statusTemplate = (row: Customer) => {
@@ -325,8 +532,8 @@ export default function CustomerCreationListPage() {
           loading={isLoading && customers.length === 0}
           filters={filters}
           globalFilterFields={[
-            "customer_name", "contact_no", "apartment_name",
-            "block_no", "flat_no", "waste_types",
+            "customer_name", "contact_no", "property_name",
+            "sub_property_name", "waste_types",
           ]}
           header={header}
           emptyMessage={t("admin.customer_creation.empty_message")}
@@ -341,32 +548,27 @@ export default function CustomerCreationListPage() {
           {showCol("contact_no") && (
             <Column field="contact_no" header={t("common.mobile")} sortable />
           )}
-          {showCol("apartment_name") && (
+          {showCol("property_name") && (
             <Column
-              field="apartment_name"
-              header="Apartment"
-              body={(row: Customer) =>
-                row.apartment_name && row.apartment_name.trim() !== "" ? cap(row.apartment_name) : "-"
-              }
+              field="property_name"
+              header={t("admin.customer_creation.property") || "Property"}
+              body={(row: Customer) => (row.property_name ? cap(row.property_name) : "-")}
+              sortable
             />
           )}
-          {showCol("unit") && (
+          {showCol("sub_property_name") && (
             <Column
-              header="Unit"
-              body={(row: Customer) =>
-                row.block_no && row.flat_no ? `${row.block_no}-${row.flat_no}` : "-"
-              }
+              field="sub_property_name"
+              header={t("admin.customer_creation.sub_property") || "Sub Property"}
+              body={(row: Customer) => (row.sub_property_name ? cap(row.sub_property_name) : "-")}
+              sortable
             />
           )}
           {showCol("location_name") && (
             <Column
               field="location_name"
               header={t("common.location") || "Location"}
-              body={(row: Customer) =>
-                row.location_name
-                  ? `${row.location_name}${row.location_level ? ` (${row.location_level})` : ""}`
-                  : "-"
-              }
+              body={(row: Customer) => localBodyLabel(row)}
               sortable
             />
           )}
@@ -391,15 +593,42 @@ export default function CustomerCreationListPage() {
         </DataTable>
       </div>
 
-      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+      <Dialog
+        open={Boolean(selectedQrCustomer)}
+        onOpenChange={(open) => !open && setSelectedQrCustomer(null)}
+      >
         <DialogContent className="w-auto max-w-[90vw] p-4">
           <DialogTitle className="sr-only">{t("admin.customer_creation.qr_title")}</DialogTitle>
-          {selectedQr && (
-            <img
-              src={selectedQr}
-              alt={t("admin.customer_creation.qr_title")}
-              className="h-auto w-[min(75vw,320px)] object-contain"
-            />
+          {selectedQrCustomer?.qr_code && (
+            <div className="flex flex-col items-center gap-4">
+              <img
+                src={selectedQrCustomer.qr_code}
+                alt={t("admin.customer_creation.qr_title")}
+                className="h-auto w-[min(75vw,320px)] object-contain"
+              />
+              <div className="text-center">
+                <p className="font-semibold text-gray-800">{selectedQrCustomer.customer_name}</p>
+                <p className="text-sm text-gray-500">{selectedQrCustomer.unique_id}</p>
+              </div>
+              <div className="flex w-full gap-2">
+                <Button
+                  label={isPreviewingQr ? "Preparing…" : "Preview"}
+                  icon="pi pi-eye"
+                  loading={isPreviewingQr}
+                  disabled={isPreviewingQr || isPrintingQr}
+                  onClick={handlePreviewQr}
+                  className="flex-1 p-button-outlined"
+                />
+                <Button
+                  label={isPrintingQr ? "Preparing PDF…" : "Print"}
+                  icon="pi pi-print"
+                  loading={isPrintingQr}
+                  disabled={isPrintingQr || isPreviewingQr}
+                  onClick={handlePrintQr}
+                  className="flex-1"
+                />
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

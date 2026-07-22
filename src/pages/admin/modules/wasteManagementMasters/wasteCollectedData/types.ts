@@ -73,7 +73,10 @@ export type WasteCollection = {
   wet_waste: number;
   dry_waste: number;
   mixed_waste: number;
+  sanitary_waste: number;
   total_quantity: number;
+  // Same vocabulary as BinCollectionEvent.status: Collected / Not Collected / Collect Later
+  status?: string;
   collection_date?: string;
   collection_time?: string;
   is_active: boolean;

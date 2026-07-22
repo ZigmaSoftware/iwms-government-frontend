@@ -19,7 +19,9 @@ import { HomeDashboard } from "@/pages/dashboard/pages/Dashboard/HomeDashboard";
 import AdminHome from "@/pages/admin/AdminHome";
 import AdminEncryptedRouter from "@/layouts/admin/encryptedRouting/AdminEncryptedRouter";
 import CommonAuditList from "@/pages/admin/modules/audits/commonAudit/commonAuditList";
+import StaffAuditList from "@/pages/admin/modules/audits/staffAudit/staffAuditList";
 import DashboardEncryptedRouter from "@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter";
+import DailyTripLogReportPage from "@/pages/admin/modules/scheduleMasters/dailyTripLog/DailyTripLogReportPage";
 
 import { AdminLayout } from "@/layouts/admin/AdminLayout";
 import { RoleBasedLayout } from "@/layouts/shared/RoleBasedLayout";
@@ -140,9 +142,11 @@ export default function App() {
       <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
       <Route path="/admin" element={withAdmin(<AdminHome />)} />
       <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
+      <Route path="/audits/staff-audit" element={withAdmin(<StaffAuditList />)} />
       <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/new/*" element={withAdmin(<AdminEncryptedRouter />)} />
       <Route path="/:encMaster/:encModule/:id/edit/*" element={withAdmin(<AdminEncryptedRouter />)} />
+      <Route path="/:encMaster/:encModule/:id/report" element={withAdmin(<DailyTripLogReportPage />)} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
