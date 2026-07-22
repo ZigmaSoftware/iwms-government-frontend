@@ -236,13 +236,13 @@ function WasteCollectedEditor({
   const [localBodyType, setLocalBodyType] = useState<LocalBodyLevel | "">(initial.localBodyType);
   const [localBodyId, setLocalBodyId] = useState(initial.localBodyId);
 
-  const [wetWaste, setWetWaste] = useState(initial.wetWaste);
-  const [dryWaste, setDryWaste] = useState(initial.dryWaste);
-  const [mixedWaste, setMixedWaste] = useState(initial.mixedWaste);
-  const [sanitaryWaste, setSanitaryWaste] = useState(initial.sanitaryWaste);
+  const [wetWaste, setWetWaste] = useState(String(initial.wetWaste || ""));
+  const [dryWaste, setDryWaste] = useState(String(initial.dryWaste || ""));
+  const [mixedWaste, setMixedWaste] = useState(String(initial.mixedWaste || ""));
+  const [sanitaryWaste, setSanitaryWaste] = useState(String(initial.sanitaryWaste || ""));
   const [status, setStatus] = useState(initial.status);
   const [collectionDate, setCollectionDate] = useState(initial.collectionDate);
-  const totalQuantity = wetWaste + dryWaste + mixedWaste + sanitaryWaste;
+  const totalQuantity = (Number(wetWaste) || 0) + (Number(dryWaste) || 0) + (Number(mixedWaste) || 0) + (Number(sanitaryWaste) || 0);
 
   /* ── heavy dropdown data — owned here, fetched scoped to the current geo
      selection (not the whole table), re-fetched whenever that scope changes.
@@ -265,6 +265,12 @@ function WasteCollectedEditor({
     return params;
   }, [stateId, districtId, areaTypeId, localBodyType, localBodyId]);
 
+  const tripAssignmentParams = useMemo(() => {
+    const params: Record<string, string> = { ...geoParams };
+    if (collectionDate) params.date = collectionDate;
+    return params;
+  }, [geoParams, collectionDate]);
+
   useEffect(() => {
     let cancelled = false;
     setFetchingCustomers(true);
@@ -286,11 +292,9 @@ function WasteCollectedEditor({
 
   useEffect(() => {
   let cancelled = false;
-  console.log("trip assignment fetch params:", geoParams);
-  dailyTripAssignmentApi.readAll({ params: geoParams })
+  dailyTripAssignmentApi.readAll({ params: tripAssignmentParams })
     .then((res: any) => {
       if (cancelled) return;
-      console.log("trip assignment raw response:", res);
       const mapped = toList(res).map((a) => ({
         value: String(a.unique_id),
         label: String(a.unique_id),
@@ -303,14 +307,13 @@ function WasteCollectedEditor({
         },
         hasHousehold: Boolean(a.collection_types?.has_household),
       }));
-      console.log("trip assignment mapped list:", mapped);
       setTripAssignments(mapped);
     })
     .catch((err: any) => {
       console.error("trip assignment fetch FAILED:", err?.response?.status, err?.response?.data ?? err);
     });
   return () => { cancelled = true; };
-}, [geoParams]);
+}, [tripAssignmentParams]);
 
   /* ── area type kind (urban/rural) drives which local-body levels apply ── */
   const areaTypeKind = useMemo<"urban" | "rural" | "">(() => {
@@ -426,7 +429,6 @@ function WasteCollectedEditor({
     const level = LOCAL_BODY_LEVELS.find((lvl) => normId((selectedCustomer as any)[lvl]));
     setLocalBodyType(level ?? "");
     setLocalBodyId(level ? normId((selectedCustomer as any)[level]) : "");
-    setTripAssignmentId("");
   }, [customerId, selectedCustomer]);
 
   /* ── handlers: changing an upper level resets the levels below it,
@@ -481,10 +483,10 @@ function WasteCollectedEditor({
 
     const payload: Record<string, unknown> = {
       customer: customerId,
-      wet_waste: wetWaste,
-      dry_waste: dryWaste,
-      mixed_waste: mixedWaste,
-      sanitary_waste: sanitaryWaste,
+      wet_waste: Number(wetWaste) || 0,
+      dry_waste: Number(dryWaste) || 0,
+      mixed_waste: Number(mixedWaste) || 0,
+      sanitary_waste: Number(sanitaryWaste) || 0,
       status,
       collection_date: collectionDate,
       trip_assignment_id: tripAssignmentId || null,
@@ -594,6 +596,19 @@ function WasteCollectedEditor({
               />
             </div>
 
+            {/* Collection Date */}
+            <div>
+              <Label>
+                {t("admin.household_collection_event.collection_date")}
+                <span className="text-red-500"> *</span>
+              </Label>
+              <Input
+                type="date"
+                value={collectionDate}
+                onChange={(e) => setCollectionDate(e.target.value)}
+              />
+            </div>
+
             {/* Trip Assignment (optional) */}
             <div>
               <Label>{t("admin.household_collection_event.trip_assignment")}</Label>
@@ -639,7 +654,7 @@ function WasteCollectedEditor({
                 min={0}
                 step="any"
                 value={dryWaste}
-                onChange={(e) => setDryWaste(Math.max(0, Number(e.target.value) || 0))}
+                onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setDryWaste(e.target.value); }}
               />
             </div>
 
@@ -651,7 +666,7 @@ function WasteCollectedEditor({
                 min={0}
                 step="any"
                 value={wetWaste}
-                onChange={(e) => setWetWaste(Math.max(0, Number(e.target.value) || 0))}
+                onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setWetWaste(e.target.value); }}
               />
             </div>
 
@@ -663,7 +678,7 @@ function WasteCollectedEditor({
                 min={0}
                 step="any"
                 value={mixedWaste}
-                onChange={(e) => setMixedWaste(Math.max(0, Number(e.target.value) || 0))}
+                onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setMixedWaste(e.target.value); }}
               />
             </div>
 
@@ -675,7 +690,7 @@ function WasteCollectedEditor({
                 min={0}
                 step="any"
                 value={sanitaryWaste}
-                onChange={(e) => setSanitaryWaste(Math.max(0, Number(e.target.value) || 0))}
+                onChange={(e) => { if (/^\d*\.?\d*$/.test(e.target.value)) setSanitaryWaste(e.target.value); }}
               />
             </div>
 
@@ -683,19 +698,6 @@ function WasteCollectedEditor({
             <div>
               <Label>{t("admin.household_collection_event.total_quantity")}</Label>
               <Input disabled className="bg-gray-100" value={totalQuantity} />
-            </div>
-
-            {/* Collection Date */}
-            <div>
-              <Label>
-                {t("admin.household_collection_event.collection_date")}
-                <span className="text-red-500"> *</span>
-              </Label>
-              <Input
-                type="date"
-                value={collectionDate}
-                onChange={(e) => setCollectionDate(e.target.value)}
-              />
             </div>
 
             {/* Status */}

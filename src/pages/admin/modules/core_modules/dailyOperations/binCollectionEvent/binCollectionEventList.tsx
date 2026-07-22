@@ -18,7 +18,6 @@ import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/fil
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 
-
 const cap = (str?: string | null) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
@@ -97,7 +96,6 @@ export default function BinCollectionEventList() {
     _status: { value: null, matchMode: FilterMatchMode.CONTAINS },
     collection_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
-
   const loadRecords = useCallback(() => {
     setLoading(true);
     const params: Record<string, string> = { ...hierarchyParams };
