@@ -20,11 +20,6 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { continentApi, countryApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import GeoFenceCoordinates, {
-  normalizeCoordinateDrafts,
-  serializeCoordinateDrafts,
-  type GeoCoordinateDraft,
-} from "@/pages/admin/modules/masters/shared/GeoFenceCoordinates";
 
 type ContinentOption = {
   value: string;
@@ -42,7 +37,6 @@ type StatePayload = {
   state_code?: string;
   continent_id: string;
   country_id: string;
-  coordinates: Array<{ latitude: number; longitude: number }>;
   is_active: boolean;
 };
 
@@ -51,7 +45,6 @@ type StateInitialPayload = {
   state_code: string;
   continent_id: string;
   country_id: string;
-  coordinates: GeoCoordinateDraft[];
   is_active: boolean;
 };
 
@@ -116,7 +109,6 @@ const STATE_FIELDS: Record<string, string[]> = {
   country_id: ["country_id"],
   state_name: ["state_name"],
   state_code: ["state_code"],
-  coordinates: ["coordinates"],
   is_active: ["is_active"],
 };
 
@@ -137,7 +129,6 @@ function StateEditor({
   const [code, setCode] = useState(initialPayload.state_code);
   const [continentId, setContinentId] = useState(initialPayload.continent_id);
   const [countryId, setCountryId] = useState(initialPayload.country_id);
-  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
   // Countries belong to a continent — narrow the list to the selected continent.
@@ -186,7 +177,6 @@ function StateEditor({
       state_name: name.trim(),
       continent_id: continentId,
       country_id: countryId,
-      coordinates: serializeCoordinateDrafts(coordinates),
       is_active: isActive,
     };
     if (code.trim()) rawPayload.state_code = code.trim();
@@ -278,10 +268,6 @@ function StateEditor({
               disabled={isSubmitting}
             />
           </div>
-        )}
-
-        {showField("coordinates") && (
-          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
         )}
 
         {showField("is_active") && (
@@ -448,7 +434,6 @@ export default function StateForm() {
         state_code: textOf(recordData, "state_code", "label"),
         continent_id: normalizeNullable(recordData.continent_id ?? recordData.continent),
         country_id: normalizeNullable(recordData.country_id ?? recordData.country),
-        coordinates: normalizeCoordinateDrafts(recordData.coordinates),
         is_active: recordData.is_active !== false,
       }
     : {
@@ -456,7 +441,6 @@ export default function StateForm() {
         state_code: "",
         continent_id: "",
         country_id: "",
-        coordinates: normalizeCoordinateDrafts(null),
         is_active: true,
       };
 

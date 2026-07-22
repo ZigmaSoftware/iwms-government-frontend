@@ -21,7 +21,6 @@ import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { PencilIcon } from "@/icons";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
-import { formatCoordinates } from "../../shared/formatCoordinates";
 
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
@@ -36,7 +35,8 @@ const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   panchayat_name: ["panchayat_id", "panchayat", "panchayat_name"],
   waste_type_name: ["wastetype_id", "waste_type_id", "waste_type", "waste_type_name"],
   qr_code: ["bin_qr", "qr_code"],
-  coordinates: ["coordinates"],
+  latitude: ["latitude", "coordinates"],
+  longitude: ["longitude", "coordinates"],
   is_active: ["is_active"],
 };
 
@@ -111,7 +111,6 @@ export default function BinList() {
       bin_status: row.bin_status ? String(row.bin_status) : undefined,
       latitude: row.latitude as number | string | undefined,
       longitude: row.longitude as number | string | undefined,
-      coordinates: row.coordinates,
       is_active: Boolean(row.is_active),
     }));
 
@@ -244,7 +243,8 @@ export default function BinList() {
           "waste_type_name",
           "wastetype_name",
           "waste_type",
-          "coordinates",
+          "latitude",
+          "longitude",
         ]}
         header={header}
         stripedRows
@@ -304,12 +304,20 @@ export default function BinList() {
             style={{ width: "100px", textAlign: "center" }}
           />
         )}
-        {showCol("coordinates") && (
+        {showCol("latitude") && (
           <Column
-            field="coordinates"
-            header="Coordinates"
-            body={(row: Bin) => formatCoordinates(row.coordinates)}
-            style={{ minWidth: "240px" }}
+            field="latitude"
+            header="Latitude"
+            body={(row: Bin) => row.latitude ?? "-"}
+            style={{ minWidth: "140px" }}
+          />
+        )}
+        {showCol("longitude") && (
+          <Column
+            field="longitude"
+            header="Longitude"
+            body={(row: Bin) => row.longitude ?? "-"}
+            style={{ minWidth: "140px" }}
           />
         )}
         {showCol("is_active") && (

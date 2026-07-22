@@ -125,6 +125,7 @@ export default function CollectionPointForm() {
       const localBodyLevel = LOCAL_BODY_LEVELS.find((item) => idOf(record[item.value]))?.value ?? "";
       setGeo({
         ...emptyGeo,
+        countryId: idOf(record.country_id ?? record.country),
         stateId: idOf(record.state_id ?? record.state),
         districtId: idOf(record.district_id ?? record.district),
         areaTypeId: idOf(record.area_type_id ?? record.area_type),
@@ -166,7 +167,7 @@ export default function CollectionPointForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId || !cpName.trim()) {
+    if (!geo.countryId || !geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId || !cpName.trim()) {
       Swal.fire("Missing details", "Location and Collection Point Name are required.", "warning");
       return;
     }
@@ -178,6 +179,7 @@ export default function CollectionPointForm() {
     const coordinatePayload = serializeCoordinateDrafts(coordinates);
     const firstCoordinate = coordinatePayload[0];
     const payload = {
+      country_id: geo.countryId,
       state_id: geo.stateId,
       district_id: geo.districtId,
       area_type_id: geo.areaTypeId,

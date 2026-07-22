@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Label } from "@/components/ui/label";
 import {
   areaTypeApi,
+  countryApi,
   corporationApi,
   districtApi,
   municipalityApi,
@@ -23,6 +24,7 @@ export type LocalBodyLevel =
   | "panchayat_id";
 
 export type GeoLocationValue = {
+  countryId: string;
   stateId: string;
   districtId: string;
   areaTypeId: string;
@@ -31,6 +33,7 @@ export type GeoLocationValue = {
 };
 
 export const emptyGeo: GeoLocationValue = {
+  countryId: "",
   stateId: "",
   districtId: "",
   areaTypeId: "",
@@ -63,7 +66,13 @@ const LOCAL_BODY_LABEL_KEYS: Record<LocalBodyLevel, string[]> = {
   panchayat_id: ["panchayat_name", "name"],
 };
 
-type Option = { value: string; label: string; stateId?: string; districtId?: string };
+type Option = {
+  value: string;
+  label: string;
+  countryId?: string;
+  stateId?: string;
+  districtId?: string;
+};
 
 const idOf = (value: unknown): string => {
   if (!value) return "";
@@ -88,6 +97,7 @@ const activeOnly = (items: ApiRecord[]) =>
 const toOption = (item: ApiRecord, labelKeys: string[]): Option => ({
   value: idOf(item.unique_id ?? item.id),
   label: String(labelKeys.map((key) => item[key]).find(Boolean) ?? item.name ?? item.unique_id ?? ""),
+  countryId: idOf(item.country_id ?? item.country),
   stateId: idOf(item.state_id ?? item.state),
   districtId: idOf(item.district_id ?? item.district),
 });
@@ -116,7 +126,7 @@ const ensureOption = (items: Option[], selectedValue: string): Option[] => {
   return [{ value: selectedValue, label: selectedValue }, ...items];
 };
 
-// Cascading State -> District -> Area Type -> Local Body (Corporation /
+// Cascading Country -> State -> District -> Area Type -> Local Body (Corporation /
 // Municipality / Town Panchayat for urban, Panchayat Union / Panchayat for
 // rural) selector, shared by any master that needs to place a record within
 // the government hierarchy (Collection Point, Vehicle, ...).
@@ -135,6 +145,7 @@ export default function LocationFields({
   value: GeoLocationValue;
   onChange: (value: GeoLocationValue) => void;
 }) {
+  const [countries, setCountries] = useState<Option[]>([]);
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
   const [areaTypes, setAreaTypes] = useState<Option[]>([]);
@@ -143,26 +154,47 @@ export default function LocationFields({
   const scopedStateId = scopeOption("state")?.value;
   const scopedDistrictId = scopeOption("district")?.value;
 
-  // States — cheap, top-level list; safe to load in full up front.
+  // Countries are the root of the hierarchy and can be loaded eagerly.
   useEffect(() => {
     let cancelled = false;
-    setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
-    stateApi
+    countryApi
       .readAll()
       .then((res: unknown) => {
         if (cancelled) return;
-        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "state_name"]));
-        setStates(mergeWithScopeOptionExtra(fetched, "state", {}));
+        setCountries(activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "country_name"])));
       })
       .catch(() => {
         if (cancelled) return;
-        setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+        setCountries([]);
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // States — only once a Country is selected, scoped by that country.
+  useEffect(() => {
+    if (!value.countryId) {
+      setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+      return;
+    }
+    let cancelled = false;
+    stateApi
+      .readAll({ params: { country: value.countryId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "state_name"]));
+        setStates(mergeWithScopeOptionExtra(fetched, "state", { countryId: value.countryId }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStates((prev) => mergeWithScopeOptionExtra(prev, "state", { countryId: value.countryId }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [value.countryId]);
 
   // Districts — only once a State is selected, scoped by that state.
   useEffect(() => {
@@ -278,6 +310,10 @@ export default function LocationFields({
     () => ensureOption(districts.filter((item) => !value.stateId || item.stateId === value.stateId), value.districtId),
     [districts, value.stateId, value.districtId],
   );
+  const filteredStates = useMemo(
+    () => ensureOption(states.filter((item) => !value.countryId || item.countryId === value.countryId), value.stateId),
+    [states, value.countryId, value.stateId],
+  );
   const filteredAreaTypes = useMemo(
     () => ensureOption(areaTypes.filter((item) => !value.districtId || item.districtId === value.districtId), value.areaTypeId),
     [areaTypes, value.districtId, value.areaTypeId],
@@ -297,10 +333,17 @@ export default function LocationFields({
   return (
     <>
       <div>
+        <Label>Country *</Label>
+        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.countryId} onChange={(event) => emit({ countryId: event.target.value, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })}>
+          <option value="">Select Country</option>
+          {ensureOption(countries, value.countryId).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </div>
+      <div>
         <Label>State *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId}>
           <option value="">Select State</option>
-          {states.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredStates.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
       <div>

@@ -2,6 +2,8 @@ export type VehicleCreationPayload = Record<string, unknown>;
 
 export type VehicleCreationRecord = {
   unique_id: string;
+  country_id?: string | null;
+  country_name?: string | null;
   state_id?: string | null;
   state_name?: string | null;
   district_id?: string | null;

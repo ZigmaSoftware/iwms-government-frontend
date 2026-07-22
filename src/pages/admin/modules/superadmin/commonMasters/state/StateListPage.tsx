@@ -12,7 +12,6 @@ import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { stateApi } from "@/helpers/admin";
-import { formatCoordinates } from "@/pages/admin/modules/masters/shared/formatCoordinates";
 
 type StateListRecord = {
   unique_id: string;
@@ -34,7 +33,6 @@ const displayValue = (value: unknown) =>
 const columns = [
   { field: "state_name", header: "State Name" },
   { field: "state_code", header: "State Code" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function StateListPage() {
@@ -154,11 +152,7 @@ export default function StateListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: StateListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : displayValue(row[column.field])
-            }
+            body={(row: StateListRecord) => displayValue(row[column.field])}
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
