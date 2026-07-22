@@ -6,6 +6,7 @@ export type DailyTripHouseholdCollectionRecord = {
   trip_assignment?: NamedRef;
   customer_id?: string;
   customer?: NamedRef;
+  hierarchy?: { location_name?: string; location_level?: string } | null;
   collection_type?: string;
   waste_collection_id?: string | null;
   panchayat?: { unique_id?: string; panchayat_name?: string } | null;
@@ -15,5 +16,6 @@ export type DailyTripHouseholdCollectionRecord = {
   collected_weight_kg?: string | number | null;
   status?: string;
   status_reason?: string | null;
+  created_at?: string;
   [key: string]: unknown;
 };

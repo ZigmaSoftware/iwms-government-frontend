@@ -983,6 +983,7 @@ export default function DailyTripAssignmentForm() {
                         <th className="px-4 py-3">Wet (kg)</th>
                         <th className="px-4 py-3">Dry (kg)</th>
                         <th className="px-4 py-3">Mixed (kg)</th>
+                        <th className="px-4 py-3">Sanitary (kg)</th>
                         <th className="px-4 py-3">Collected</th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3">Reason</th>
@@ -1004,6 +1005,7 @@ export default function DailyTripAssignmentForm() {
                             <td className="px-4 py-3 text-gray-700">{stop.wet_waste ?? "—"}</td>
                             <td className="px-4 py-3 text-gray-700">{stop.dry_waste ?? "—"}</td>
                             <td className="px-4 py-3 text-gray-700">{stop.mixed_waste ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700">{stop.sanitary_waste ?? "—"}</td>
                             <td className="px-4 py-3">
                               <input type="checkbox" checked={Boolean(stop.is_collected)} onChange={(e) => updateHouseholdStop(stopKey, { is_collected: e.target.checked, status: e.target.checked ? "Collected" : "Pending" })} className="h-4 w-4 rounded border-gray-300" />
                             </td>

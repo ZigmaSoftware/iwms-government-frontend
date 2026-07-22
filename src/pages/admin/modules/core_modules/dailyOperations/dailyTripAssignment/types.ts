@@ -61,6 +61,7 @@ export type DailyTripHouseholdCollectionInline = {
   wet_waste?: number | null;
   dry_waste?: number | null;
   mixed_waste?: number | null;
+  sanitary_waste?: number | null;
   status?: string;
   status_reason?: string | null;
 };

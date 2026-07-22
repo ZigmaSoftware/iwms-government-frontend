@@ -2,6 +2,12 @@ export type StaffRef = { unique_id?: string; staff_unique_id?: string; employee_
 
 export type NamedRef = { unique_id?: string; name?: string; [key: string]: unknown };
 
+export type WasteTypeBreakdownItem = {
+  waste_type_id?: string | null;
+  waste_type_name?: string | null;
+  collected_weight_kg?: string | number | null;
+};
+
 export type StaffTemplateDetail = {
   unique_id?: string;
   display_code?: string;
@@ -45,10 +51,14 @@ export type DailyTripLogRecord = {
     cp_name?: string;
     sequence?: number;
     is_collected?: boolean;
+    status?: string;
+    collected_at?: string | null;
     collected_weight_kg?: string | number | null;
+    waste_type_name?: string | null;
+    waste_type_breakdown?: WasteTypeBreakdownItem[];
   }[];
   waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
-  waste_type_breakdown?: { waste_type_name?: string; collected_weight_kg?: number | string }[];
+  waste_type_breakdown?: WasteTypeBreakdownItem[];
   trip_date?: string;
   actual_start_time?: string | null;
   actual_end_time?: string | null;
@@ -64,6 +74,7 @@ export type DailyTripLogRecord = {
     customer_unique_id?: string | null;
     is_collected?: boolean;
     collected_weight_kg?: string | number | null;
+    waste_type_breakdown?: WasteTypeBreakdownItem[];
     collected_at?: string | null;
     status?: string;
   }[];

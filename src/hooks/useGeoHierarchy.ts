@@ -161,9 +161,19 @@ export function useGeoHierarchy() {
   };
   const setAreaTypeId = (value: string) => {
     const selected = areaTypes.find((a) => resolveId(a) === value);
+    const category = areaTypeCategoryFromName(
+      String(selected?.name ?? selected?.area_type_name ?? ""),
+    );
     setAreaTypeIdRaw(value);
-    setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
+    setAreaTypeCategory(category);
     setHierarchyId("");
+    // The previous hierarchyLevel may not belong to the new category (e.g. it
+    // was "corporation_id" from an urban pick, but the new area type is
+    // rural) — repoint it to the first level valid for this category so the
+    // Local Body Type select always has a matching, non-blank option.
+    if (category) {
+      setHierarchyLevelRaw(AREA_TYPE_LEVELS[category][0]);
+    }
   };
   const setHierarchyLevel = (value: HierarchyLevel) => {
     setHierarchyLevelRaw(value);

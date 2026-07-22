@@ -143,6 +143,7 @@ import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports
 import StaffTemplateAuditList from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList";
 import StaffTemplateAuditForm from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditForm";
 import CommonAuditList from "@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList";
+import StaffAuditList from "@/pages/admin/modules/audits/staffAudit/staffAuditList";
 import LoginAuditList from "@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList";
 import UnassignedStaffPoolList from "@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolList";
 import UnassignedStaffPoolForm from "@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolForm";
@@ -268,6 +269,7 @@ const ROUTES: RouteMap = {
   },
   audits: {
     "common-audit": { list: CommonAuditList },
+    "staff-audit": { list: StaffAuditList },
     "login-audit": { list: LoginAuditList },
     "login-audits": { list: LoginAuditList },
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },

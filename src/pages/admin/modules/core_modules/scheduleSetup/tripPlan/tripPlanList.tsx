@@ -162,6 +162,7 @@ export default function TripPlanList() {
   return (
     <div className="p-3">
       <DataTable
+        exportable={false}
         value={rows}
         dataKey="unique_id"
         paginator

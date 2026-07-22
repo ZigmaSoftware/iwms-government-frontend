@@ -17,6 +17,8 @@ interface HierarchyFilterBarProps {
    */
   onChange: (params: HierarchyFilterParams) => void;
   className?: string;
+  /** Show the inline "Clear" link next to the Local Body field. Defaults to true. */
+  showClear?: boolean;
 }
 
 /**
@@ -28,7 +30,7 @@ interface HierarchyFilterBarProps {
  * pre-seeds the caller's own corporation/local body from the stored data scope
  * so the list opens already narrowed to what they manage.
  */
-export default function HierarchyFilterBar({ onChange, className }: HierarchyFilterBarProps) {
+export default function HierarchyFilterBar({ onChange, className, showClear = true }: HierarchyFilterBarProps) {
   const geo = useGeoHierarchy();
   const seeded = useRef(false);
 
@@ -114,13 +116,15 @@ export default function HierarchyFilterBar({ onChange, className }: HierarchyFil
             placeholder="All"
             disabled={!geo.areaTypeCategory}
           />
-          <button
-            type="button"
-            onClick={clear}
-            className="whitespace-nowrap text-sm text-blue-600 hover:text-blue-800"
-          >
-            Clear
-          </button>
+          {showClear && (
+            <button
+              type="button"
+              onClick={clear}
+              className="whitespace-nowrap text-sm text-blue-600 hover:text-blue-800"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
     </div>

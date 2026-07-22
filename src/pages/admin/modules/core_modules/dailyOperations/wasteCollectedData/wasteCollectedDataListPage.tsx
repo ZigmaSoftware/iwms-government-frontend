@@ -7,9 +7,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -18,6 +17,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
+import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 
@@ -25,6 +25,9 @@ import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,6 +59,21 @@ const formatCollectionDateTime = (row: WasteCollection) => {
   return time ? `${date}, ${time}` : date;
 };
 
+// Same status vocabulary + styling as dailyTripHouseholdCollectionList.tsx's STATUS_STYLES
+// — the canonical household-stop status used across the app.
+const COLLECTION_STATUS_STYLES: Record<string, string> = {
+  Pending: "bg-gray-100 text-gray-700",
+  Collected: "bg-green-100 text-green-800",
+  "Not Available": "bg-red-100 text-red-800",
+  "Collect Later": "bg-orange-100 text-orange-800",
+};
+
+const CollectionStatusBadge = ({ value }: { value?: string }) => (
+  <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${COLLECTION_STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-700"}`}>
+    {value || "-"}
+  </span>
+);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WasteCollectedDataList() {
@@ -71,6 +89,8 @@ export default function WasteCollectedDataList() {
   const [imageRow, setImageRow] = useState<WasteCollection | null>(null);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const [dateFilter, setDateFilter] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -85,7 +105,7 @@ export default function WasteCollectedDataList() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    adminApi.wasteCollections.readAll()
+    adminApi.wasteCollections.readAll({ params: hierarchyParams })
       .then((res: any) => {
         if (!mounted) return;
         const rows: WasteCollection[] = Array.isArray(res) ? res : res?.results ?? [];
@@ -94,7 +114,55 @@ export default function WasteCollectedDataList() {
       .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(err) }); })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
-  }, [t]);
+  }, [hierarchyParams, t]);
+
+  const filteredRows = useMemo(() => wasteCollections.filter((row) => {
+    if (dateFilter && row.collection_date !== dateFilter) return false;
+    const search = globalFilterValue.trim().toLowerCase();
+    if (!search) return true;
+    return [
+      row.customer_name, row.contact_no, row.district_name, row.area_type_name,
+      row.location_name, row.status, row.collection_date, row.vehicle?.vehicle_no,
+    ].some((value) => String(value ?? "").toLowerCase().includes(search));
+  }), [dateFilter, globalFilterValue, wasteCollections]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const overallWeight = filteredRows.reduce((sum, row) => sum + Number(row.total_quantity ?? 0), 0);
+  const dailyWeight = filteredRows.reduce(
+    (sum, row) => sum + (row.collection_date === today ? Number(row.total_quantity ?? 0) : 0),
+    0,
+  );
+  const exportRows = filteredRows.map((row) => ({
+    Customer: row.customer_name,
+    Mobile: row.contact_no ?? "-",
+    "Collection Date": formatCollectionDateTime(row),
+    "Dry Waste (kg)": row.dry_waste,
+    "Wet Waste (kg)": row.wet_waste,
+    "Mixed Waste (kg)": row.mixed_waste,
+    "Sanitary Waste (kg)": row.sanitary_waste,
+    "Total Quantity (kg)": row.total_quantity,
+    Status: row.status ?? "-",
+    District: row.district_name ?? "-",
+    "Area Type": row.area_type_name ?? "-",
+    "Local Body": row.location_name ?? "-",
+    Vehicle: row.vehicle?.vehicle_no ?? "-",
+  }));
+
+  const handleExcelDownload = () =>
+    exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
+
+  const handlePdfDownload = () => {
+    try {
+      downloadRecordsPdf({
+        title: "Household Collection Events",
+        filename: "household_collection_events.pdf",
+        rows: exportRows,
+        columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
+      });
+    } catch (error) {
+      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+    }
+  };
 
   const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
 
@@ -142,12 +210,27 @@ export default function WasteCollectedDataList() {
 
   const indexTemplate = (_: WasteCollection, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.household_collection_event.search_placeholder"),
-    });
+  const renderHeader = () => (
+    <div className="space-y-4">
+      <HierarchyFilterBar onChange={setHierarchyParams} />
+      <div className="flex flex-wrap gap-3 text-sm">
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily: {dailyWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall: {overallWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records: {filteredRows.length}</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-2">
+          <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handleExcelDownload} />
+          <Button label="Download PDF" icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handlePdfDownload} />
+        </div>
+        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
+          <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
+          <i className="pi pi-search text-gray-500" />
+          <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder={t("admin.household_collection_event.search_placeholder")} className="border-none text-sm" />
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-3">
@@ -171,7 +254,8 @@ export default function WasteCollectedDataList() {
       </div>
 
       <DataTable
-        value={wasteCollections}
+        exportable={false}
+        value={filteredRows}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -222,8 +306,19 @@ export default function WasteCollectedDataList() {
           sortable
         />
         <Column
+          field="sanitary_waste"
+          header={t("admin.household_collection_event.sanitary_waste")}
+          sortable
+        />
+        <Column
           field="total_quantity"
           header={t("admin.household_collection_event.quantity")}
+          sortable
+        />
+        <Column
+          field="status"
+          header={t("admin.household_collection_event.status")}
+          body={(row: WasteCollection) => <CollectionStatusBadge value={row.status} />}
           sortable
         />
         <Column

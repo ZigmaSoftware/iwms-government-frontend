@@ -1,4 +1,4 @@
-import type { FormDataType, Option } from "./types";
+import type { FamilyMember, FormDataType, Option } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -122,11 +122,15 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   latitude: ["latitude"],
   longitude: ["longitude"],
   sqft: ["sqft"],
+  water_consumption_lpd: ["water_consumption_lpd"],
+  waste_collection_kg_per_day: ["waste_collection_kg_per_day"],
   property_id: ["property_id", "property"],
   sub_property_id: ["sub_property_id", "sub_property"],
   waste_type_ids: ["waste_type_ids", "waste_types", "waste_type"],
   id_proof_type: ["id_proof_type"],
   id_no: ["id_no"],
+  member_count: ["member_count"],
+  family_members: ["family_members"],
   country_id: ["country_id", "country"],
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
@@ -161,6 +165,19 @@ const hierarchyLevels: Array<{ value: HierarchyLevel; label: string; optionLabel
   { value: "panchayat_union_id", label: "Panchayat Union", optionLabel: "union_name" },
   { value: "panchayat_id", label: "Panchayat", optionLabel: "panchayat_name" },
 ];
+
+// Bulk waste generator auto-detection thresholds (must mirror backend thresholds)
+const BULK_WASTE_SQFT_THRESHOLD = 20000;
+const BULK_WASTE_WATER_LPD_THRESHOLD = 40000;
+const BULK_WASTE_COLLECTION_KG_THRESHOLD = 100;
+
+// Waste types allowed for Residential properties
+const RESIDENTIAL_WASTE_TYPE_KEYWORDS = ["dry", "wet", "mixed", "sanitary"];
+
+// Password rule: 8-12 chars, at least one uppercase, one lowercase, one special character
+const PASSWORD_PATTERN = /^(?=.*[A-Z])(?=.*[a-z])(?=.*[^A-Za-z0-9]).{8,12}$/;
+const PASSWORD_RULE_MESSAGE =
+  "Password must be 8-12 characters long and include at least one uppercase letter, one lowercase letter, and one special character.";
 
 type AreaType = "urban" | "rural";
 const areaTypeHierarchyMap: Record<AreaType, HierarchyLevel[]> = {
@@ -480,6 +497,104 @@ const MultiSelectCheckboxes = ({
   );
 };
 
+const FamilyMembersRepeater = ({
+  members,
+  onChange,
+  idProofTypeOptions,
+  label,
+  maxCount,
+}: {
+  members: FamilyMember[];
+  onChange: (members: FamilyMember[]) => void;
+  idProofTypeOptions: Option[];
+  label: string;
+  maxCount: number | null;
+}) => {
+  const atLimit = maxCount !== null && members.length >= maxCount;
+
+  const updateMember = (index: number, patch: Partial<FamilyMember>) => {
+    onChange(members.map((m, i) => (i === index ? { ...m, ...patch } : m)));
+  };
+  const removeMember = (index: number) => {
+    onChange(members.filter((_, i) => i !== index));
+  };
+  const addMember = () => {
+    if (atLimit) return;
+    onChange([...members, { member_name: "", id_proof_type: "", id_no: "" }]);
+  };
+
+  return (
+    <div className="space-y-3 md:col-span-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium text-gray-700">{label}</Label>
+        <button
+          type="button"
+          onClick={addMember}
+          disabled={atLimit}
+          title={atLimit ? "Reached the Member Count limit" : undefined}
+          className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
+        >
+          + Add Member
+        </button>
+      </div>
+      {maxCount !== null && (
+        <p className="text-xs text-gray-500">
+          {members.length}/{maxCount} member(s) added — set Member Count above to add more rows.
+        </p>
+      )}
+      {members.length === 0 ? (
+        <p className="text-sm text-gray-500">No family members added.</p>
+      ) : (
+        <div className="space-y-3">
+          {members.map((member, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 bg-gray-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]"
+            >
+              <Input
+                value={member.member_name}
+                onChange={(e) => updateMember(index, { member_name: e.target.value })}
+                placeholder="Member name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="off"
+              />
+              <Select
+                value={member.id_proof_type || undefined}
+                onValueChange={(v) => updateMember(index, { id_proof_type: v })}
+              >
+                <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white">
+                  <SelectValue placeholder="ID proof type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {idProofTypeOptions.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                value={member.id_no}
+                onChange={(e) => updateMember(index, { id_no: e.target.value })}
+                placeholder="ID number"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => removeMember(index)}
+                className="rounded-md bg-red-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const PropertySelectionStep = ({
   properties,
   subProperties,
@@ -618,10 +733,14 @@ function CustomerEditor({
     latitude: initialPayload.latitude,
     longitude: initialPayload.longitude,
     sqft: initialPayload.sqft,
+    water_consumption_lpd: initialPayload.water_consumption_lpd,
+    waste_collection_kg_per_day: initialPayload.waste_collection_kg_per_day,
     property_id: initialPayload.property_id,
     sub_property_id: initialPayload.sub_property_id,
     id_proof_type: initialPayload.id_proof_type,
     id_no: initialPayload.id_no,
+    member_count: initialPayload.member_count,
+    family_members: initialPayload.family_members,
     country_id: initialPayload.country_id,
     state_id: initialPayload.state_id,
     district_id: initialPayload.district_id,
@@ -789,7 +908,6 @@ function CustomerEditor({
     setFormData((prev) => ({
       ...prev,
       location_node_id: "",
-      area_type_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -840,6 +958,90 @@ function CustomerEditor({
   const isVilla = subName.includes("villa");
   const isIndustry = subName.includes("industry");
   const isHierarchySelected = Boolean(selectedHierarchyId);
+
+  /* ===============================
+     RESIDENTIAL WASTE TYPE RESTRICTION
+  ================================ */
+  const selectedProperty = useMemo(
+    () => dropdowns.properties.find((p: any) => resolveId(p) === formData.property_id),
+    [formData.property_id, dropdowns.properties],
+  );
+  const isResidentialProperty = (selectedProperty?.property_name || "")
+    .toLowerCase()
+    .includes("residential");
+
+  const wasteTypeOptions = useMemo(() => {
+    const all = dropdowns.wasteTypes.map((wasteType: any) => ({
+      value: resolveId(wasteType),
+      label: wasteType.waste_type_name || wasteType.name || resolveId(wasteType),
+    }));
+    if (!isResidentialProperty) return all;
+    return all.filter((option) =>
+      RESIDENTIAL_WASTE_TYPE_KEYWORDS.some((keyword) =>
+        option.label.toLowerCase().includes(keyword),
+      ),
+    );
+  }, [dropdowns.wasteTypes, isResidentialProperty]);
+
+  useEffect(() => {
+    if (!isResidentialProperty) return;
+    setFormData((prev) => {
+      const allowedIds = new Set(wasteTypeOptions.map((o) => o.value));
+      const pruned = prev.waste_type_ids.filter((id) => allowedIds.has(id));
+      if (pruned.length === prev.waste_type_ids.length) return prev;
+      return { ...prev, waste_type_ids: pruned };
+    });
+  }, [isResidentialProperty, wasteTypeOptions]);
+
+  /* ===============================
+     AUTOMATIC BULK WASTE GENERATOR DETECTION
+  ================================ */
+  const autoBulkWasteGenerator = useMemo(() => {
+    const sqftValue = parseFloat(formData.sqft);
+    const waterValue = parseFloat(formData.water_consumption_lpd);
+    const wasteValue = parseFloat(formData.waste_collection_kg_per_day);
+    return (
+      (!isNaN(sqftValue) && sqftValue > BULK_WASTE_SQFT_THRESHOLD) ||
+      (!isNaN(waterValue) && waterValue > BULK_WASTE_WATER_LPD_THRESHOLD) ||
+      (!isNaN(wasteValue) && wasteValue > BULK_WASTE_COLLECTION_KG_THRESHOLD)
+    );
+  }, [formData.sqft, formData.water_consumption_lpd, formData.waste_collection_kg_per_day]);
+
+  useEffect(() => {
+    if (autoBulkWasteGenerator && !formData.is_bulkwaste_generator) {
+      update("is_bulkwaste_generator", true);
+    }
+  }, [autoBulkWasteGenerator]);
+
+  /* ===============================
+     FAMILY MEMBERS (OPTIONAL)
+  ================================ */
+  const idProofTypeOptions: Option[] = useMemo(
+    () => [
+      { value: "AADHAAR", label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar" },
+      { value: "VOTER_ID", label: t("admin.customer_creation.id_proof_voter") || "Voter ID" },
+      { value: "PAN_CARD", label: t("admin.customer_creation.id_proof_pan") || "PAN Card" },
+      { value: "DL", label: t("admin.customer_creation.id_proof_dl") || "Driving License" },
+      { value: "PASSPORT", label: t("admin.customer_creation.id_proof_passport") || "Passport" },
+    ],
+    [t],
+  );
+
+  useEffect(() => {
+    const count = parseInt(formData.member_count, 10);
+    if (isNaN(count) || count < 0) return;
+    setFormData((prev) => {
+      if (prev.family_members.length === count) return prev;
+      if (prev.family_members.length > count) {
+        return { ...prev, family_members: prev.family_members.slice(0, count) };
+      }
+      const additions = Array.from(
+        { length: count - prev.family_members.length },
+        () => ({ member_name: "", id_proof_type: "", id_no: "" }),
+      );
+      return { ...prev, family_members: [...prev.family_members, ...additions] };
+    });
+  }, [formData.member_count]);
 
   /* ===============================
      VALIDATION
@@ -914,8 +1116,12 @@ function CustomerEditor({
       Swal.fire("Invalid Email", "Please enter a valid email address", "warning");
       return false;
     }
-    if (showField("password") && !isEdit && formData.password.length < 8) {
-      Swal.fire("Weak Password", "Password must be at least 8 characters", "warning");
+    if (
+      showField("password") &&
+      (!isEdit || formData.password) &&
+      !PASSWORD_PATTERN.test(formData.password)
+    ) {
+      Swal.fire("Weak Password", PASSWORD_RULE_MESSAGE, "warning");
       return false;
     }
     if (showField("pincode") && !/^\d{6}$/.test(formData.pincode)) {
@@ -946,6 +1152,40 @@ function CustomerEditor({
       Swal.fire("Invalid Square Feet", "Please enter a valid square feet value", "warning");
       return false;
     }
+    if (formData.water_consumption_lpd && parseFloat(formData.water_consumption_lpd) < 0) {
+      Swal.fire(
+        "Invalid Water Consumption",
+        "Please enter a valid water consumption value",
+        "warning",
+      );
+      return false;
+    }
+    if (
+      formData.waste_collection_kg_per_day &&
+      parseFloat(formData.waste_collection_kg_per_day) < 0
+    ) {
+      Swal.fire(
+        "Invalid Waste Collection",
+        "Please enter a valid waste collection value",
+        "warning",
+      );
+      return false;
+    }
+    const filledFamilyMemberCount = formData.family_members.filter(
+      (m) => m.member_name.trim() || m.id_proof_type.trim() || m.id_no.trim(),
+    ).length;
+    if (filledFamilyMemberCount > 0) {
+      const memberCount = parseInt(formData.member_count, 10);
+      const allowedCount = isNaN(memberCount) ? 0 : memberCount;
+      if (filledFamilyMemberCount > allowedCount) {
+        Swal.fire(
+          "Too Many Family Members",
+          `Family member ID proof rows (${filledFamilyMemberCount}) cannot exceed the Member Count (${allowedCount}).`,
+          "warning",
+        );
+        return false;
+      }
+    }
     return true;
   };
 
@@ -963,6 +1203,18 @@ function CustomerEditor({
         ? String(parseFloat(formData.longitude))
         : formData.longitude,
       sqft: showField("sqft") ? String(parseFloat(formData.sqft)) : formData.sqft,
+      water_consumption_lpd:
+        showField("water_consumption_lpd") && formData.water_consumption_lpd
+          ? String(parseFloat(formData.water_consumption_lpd))
+          : formData.water_consumption_lpd,
+      waste_collection_kg_per_day:
+        showField("waste_collection_kg_per_day") && formData.waste_collection_kg_per_day
+          ? String(parseFloat(formData.waste_collection_kg_per_day))
+          : formData.waste_collection_kg_per_day,
+      member_count: formData.member_count ? String(parseInt(formData.member_count, 10)) : "",
+      family_members: formData.family_members.filter(
+        (m) => m.member_name.trim() || m.id_proof_type.trim() || m.id_no.trim(),
+      ),
       ...(isEdit && !formData.password ? { password: undefined } : {}),
     };
     await onSubmit(
@@ -1088,7 +1340,7 @@ function CustomerEditor({
                         )
                       : t(
                           "admin.customer_creation.password_placeholder",
-                          "Enter password (min 8 chars)",
+                          "8-12 chars, upper+lower+special",
                         )
                   }
                 />
@@ -1163,6 +1415,118 @@ function CustomerEditor({
           <FormSection
             title={t("admin.customer_creation.address_info") || "Address Information"}
           >
+            <ShadcnSelect
+              label="State"
+              value={formData.state_id}
+              onChange={(v) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  state_id: v,
+                  district_id: "",
+                  area_type_id: "",
+                  location_node_id: "",
+                  corporation_id: "",
+                  municipality_id: "",
+                  town_panchayat_id: "",
+                  panchayat_union_id: "",
+                  panchayat_id: "",
+                }));
+                setSelectedAreaType("");
+                setSelectedHierarchyType("");
+              }}
+              options={filteredStates.map((s: any) => ({
+                value: resolveId(s),
+                label: s.name || s.state_name || resolveId(s),
+              }))}
+              placeholder="Select state"
+            />
+            <ShadcnSelect
+              label="District"
+              value={formData.district_id}
+              onChange={(v) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  district_id: v,
+                  area_type_id: "",
+                  location_node_id: "",
+                  corporation_id: "",
+                  municipality_id: "",
+                  town_panchayat_id: "",
+                  panchayat_union_id: "",
+                  panchayat_id: "",
+                }));
+                setSelectedAreaType("");
+                setSelectedHierarchyType("");
+              }}
+              options={filteredDistricts.map((d: any) => ({
+                value: resolveId(d),
+                label: d.name || d.district_name || resolveId(d),
+              }))}
+              placeholder={formData.state_id ? "Select district" : "Select a state first"}
+              disabled={!formData.state_id}
+            />
+            <ShadcnSelect
+              label="Area Type"
+              value={formData.area_type_id}
+              onChange={(v) => {
+                update("area_type_id", v);
+                const selected = filteredAreaTypes.find(
+                  (areaType: any) => resolveId(areaType) === v,
+                );
+                const areaName = String(
+                  selected?.name ?? selected?.area_type_name ?? "",
+                ).toLowerCase();
+                setSelectedAreaType(
+                  areaName.includes("urban")
+                    ? "urban"
+                    : areaName.includes("rural")
+                      ? "rural"
+                      : "",
+                );
+                setSelectedHierarchyType("");
+                setFormData((prev) => ({
+                  ...prev,
+                  area_type_id: v,
+                  location_node_id: "",
+                  corporation_id: "",
+                  municipality_id: "",
+                  town_panchayat_id: "",
+                  panchayat_union_id: "",
+                  panchayat_id: "",
+                }));
+              }}
+              options={filteredAreaTypes.map((areaType: any) => ({
+                value: resolveId(areaType),
+                label: areaType.name || areaType.area_type_name || resolveId(areaType),
+              }))}
+              placeholder={formData.district_id ? "Select area type" : "Select a district first"}
+              disabled={!formData.district_id}
+            />
+            <ShadcnSelect
+              label="Local Body"
+              value={selectedHierarchyType}
+              onChange={(v) => setHierarchyValue(v as HierarchyLevel, "")}
+              options={availableHierarchyLevels.map((level) => ({
+                value: level.value,
+                label: level.label,
+              }))}
+              placeholder={selectedAreaType ? "Select local body type" : "Select an area type first"}
+              disabled={!selectedAreaType}
+            />
+            {selectedHierarchyType && (
+              <div>
+                <ShadcnSelect
+                  label={
+                    hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.label ||
+                    "Local Body"
+                  }
+                  value={selectedHierarchyId}
+                  onChange={(v) => setHierarchyValue(selectedHierarchyType as HierarchyLevel, v)}
+                  options={destinationOptions}
+                  placeholder="Select"
+                />
+              </div>
+            )}
             {isIndividual && (
               <>
                 {showField("building_no") && (
@@ -1409,34 +1773,74 @@ function CustomerEditor({
                 step="0.01"
               />
             )}
-            {showField("is_bulkwaste_generator") && (
-              <ShadcnSelect
-                label={tOrFallback(
-                  "admin.customer_creation.bulk_waste_generator",
-                  "Bulk Waste Generator",
-                )}
-                value={formData.is_bulkwaste_generator ? "true" : "false"}
-                onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
-                options={[
-                  { value: "true", label: tOrFallback("common.yes", "Yes") },
-                  { value: "false", label: tOrFallback("common.no", "No") },
-                ]}
-                placeholder={tOrFallback(
-                  "admin.customer_creation.bulk_waste_generator_placeholder",
-                  "Select option",
-                )}
+            {showField("water_consumption_lpd") && (
+              <FormInput
+                label={
+                  tOrFallback(
+                    "admin.customer_creation.water_consumption",
+                    "Water Consumption (Liters/day)",
+                  )
+                }
+                value={formData.water_consumption_lpd}
+                onChange={(e) => update("water_consumption_lpd", e.target.value)}
+                placeholder="e.g., 500"
+                type="number"
+                step="0.01"
                 isRequired={false}
               />
+            )}
+            {showField("waste_collection_kg_per_day") && (
+              <FormInput
+                label={
+                  tOrFallback(
+                    "admin.customer_creation.waste_collection",
+                    "Waste Collection (kg/day)",
+                  )
+                }
+                value={formData.waste_collection_kg_per_day}
+                onChange={(e) => update("waste_collection_kg_per_day", e.target.value)}
+                placeholder="e.g., 10"
+                type="number"
+                step="0.01"
+                isRequired={false}
+              />
+            )}
+            {showField("is_bulkwaste_generator") && (
+              <div className="space-y-2">
+                <ShadcnSelect
+                  label={tOrFallback(
+                    "admin.customer_creation.bulk_waste_generator",
+                    "Bulk Waste Generator",
+                  )}
+                  value={formData.is_bulkwaste_generator ? "true" : "false"}
+                  onChange={(v: string) => update("is_bulkwaste_generator", v === "true")}
+                  options={[
+                    { value: "true", label: tOrFallback("common.yes", "Yes") },
+                    { value: "false", label: tOrFallback("common.no", "No") },
+                  ]}
+                  placeholder={tOrFallback(
+                    "admin.customer_creation.bulk_waste_generator_placeholder",
+                    "Select option",
+                  )}
+                  isRequired={false}
+                  disabled={autoBulkWasteGenerator}
+                />
+                {autoBulkWasteGenerator && (
+                  <p className="text-xs text-amber-600">
+                    {tOrFallback(
+                      "admin.customer_creation.bulk_waste_auto_detected",
+                      "Auto-detected as Bulk Waste Generator (sqft > 20,000 sq ft, water consumption > 40,000 L/day, or waste collection > 100 kg/day).",
+                    )}
+                  </p>
+                )}
+              </div>
             )}
             {showField("waste_type_ids") && (
               <MultiSelectCheckboxes
                 label={tOrFallback("common.waste_type", "Waste Type")}
                 values={formData.waste_type_ids}
                 onChange={(values) => update("waste_type_ids", values)}
-                options={dropdowns.wasteTypes.map((wasteType: any) => ({
-                  value: resolveId(wasteType),
-                  label: wasteType.waste_type_name || wasteType.name || resolveId(wasteType),
-                }))}
+                options={wasteTypeOptions}
               />
             )}
           </FormSection>
@@ -1450,28 +1854,7 @@ function CustomerEditor({
                 label={t("admin.customer_creation.id_proof_type") || "ID Proof Type"}
                 value={formData.id_proof_type}
                 onChange={(v: string) => update("id_proof_type", v)}
-                options={[
-                  {
-                    value: "AADHAAR",
-                    label: t("admin.customer_creation.id_proof_aadhaar") || "Aadhaar",
-                  },
-                  {
-                    value: "VOTER_ID",
-                    label: t("admin.customer_creation.id_proof_voter") || "Voter ID",
-                  },
-                  {
-                    value: "PAN_CARD",
-                    label: t("admin.customer_creation.id_proof_pan") || "PAN Card",
-                  },
-                  {
-                    value: "DL",
-                    label: t("admin.customer_creation.id_proof_dl") || "Driving License",
-                  },
-                  {
-                    value: "PASSPORT",
-                    label: t("admin.customer_creation.id_proof_passport") || "Passport",
-                  },
-                ]}
+                options={idProofTypeOptions}
                 placeholder={
                   t("admin.customer_creation.id_proof_placeholder") ||
                   "Select ID proof type"
@@ -1488,123 +1871,35 @@ function CustomerEditor({
                 />
               </div>
             )}
-          </FormSection>
-
-          {/* LOCATION DETAILS */}
-          <FormSection
-            title={t("admin.customer_creation.location_details") || "Location Details"}
-          >
-            <ShadcnSelect
-              label="State"
-              value={formData.state_id}
-              onChange={(v) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  state_id: v,
-                  district_id: "",
-                  area_type_id: "",
-                  location_node_id: "",
-                  corporation_id: "",
-                  municipality_id: "",
-                  town_panchayat_id: "",
-                  panchayat_union_id: "",
-                  panchayat_id: "",
-                }));
-                setSelectedAreaType("");
-                setSelectedHierarchyType("");
-              }}
-              options={filteredStates.map((s: any) => ({
-                value: resolveId(s),
-                label: s.name || s.state_name || resolveId(s),
-              }))}
-              placeholder="Select state"
-            />
-            <ShadcnSelect
-              label="District"
-              value={formData.district_id}
-              onChange={(v) => {
-                setFormData((prev) => ({
-                  ...prev,
-                  district_id: v,
-                  area_type_id: "",
-                  location_node_id: "",
-                  corporation_id: "",
-                  municipality_id: "",
-                  town_panchayat_id: "",
-                  panchayat_union_id: "",
-                  panchayat_id: "",
-                }));
-                setSelectedAreaType("");
-                setSelectedHierarchyType("");
-              }}
-              options={filteredDistricts.map((d: any) => ({
-                value: resolveId(d),
-                label: d.name || d.district_name || resolveId(d),
-              }))}
-              placeholder={formData.state_id ? "Select district" : "Select a state first"}
-              disabled={!formData.state_id}
-            />
-            <ShadcnSelect
-              label="Area Type"
-              value={formData.area_type_id}
-              onChange={(v) => {
-                update("area_type_id", v);
-                const selected = filteredAreaTypes.find(
-                  (areaType: any) => resolveId(areaType) === v,
-                );
-                const areaName = String(
-                  selected?.name ?? selected?.area_type_name ?? "",
-                ).toLowerCase();
-                setSelectedAreaType(
-                  areaName.includes("urban")
-                    ? "urban"
-                    : areaName.includes("rural")
-                      ? "rural"
-                      : "",
-                );
-                setSelectedHierarchyType("");
-                setFormData((prev) => ({
-                  ...prev,
-                  area_type_id: v,
-                  location_node_id: "",
-                  corporation_id: "",
-                  municipality_id: "",
-                  town_panchayat_id: "",
-                  panchayat_union_id: "",
-                  panchayat_id: "",
-                }));
-              }}
-              options={filteredAreaTypes.map((areaType: any) => ({
-                value: resolveId(areaType),
-                label: areaType.name || areaType.area_type_name || resolveId(areaType),
-              }))}
-              placeholder={formData.district_id ? "Select area type" : "Select a district first"}
-              disabled={!formData.district_id}
-            />
-            <ShadcnSelect
-              label="Local Body"
-              value={selectedHierarchyType}
-              onChange={(v) => setHierarchyValue(v as HierarchyLevel, "")}
-              options={availableHierarchyLevels.map((level) => ({
-                value: level.value,
-                label: level.label,
-              }))}
-              placeholder={selectedAreaType ? "Select local body type" : "Select an area type first"}
-              disabled={!selectedAreaType}
-            />
-            {selectedHierarchyType && (
-              <div>
-                <ShadcnSelect
-                  label={
-                    hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.label ||
-                    "Local Body"
-                  }
-                  value={selectedHierarchyId}
-                  onChange={(v) => setHierarchyValue(selectedHierarchyType as HierarchyLevel, v)}
-                  options={destinationOptions}
-                  placeholder="Select"
-                />
-              </div>
+            {showField("member_count") && (
+              <FormInput
+                label={tOrFallback("admin.customer_creation.member_count", "Member Count")}
+                value={formData.member_count}
+                onChange={(e) => {
+                  const numericValue = e.target.value.replace(/[^0-9]/g, "");
+                  update("member_count", numericValue);
+                }}
+                placeholder="e.g., 4"
+                type="number"
+                inputMode="numeric"
+                isRequired={false}
+              />
+            )}
+            {showField("family_members") && (
+              <FamilyMembersRepeater
+                label={tOrFallback(
+                  "admin.customer_creation.family_members",
+                  "Family Members ID Proof (Optional)",
+                )}
+                members={formData.family_members}
+                onChange={(members) => update("family_members", members)}
+                idProofTypeOptions={idProofTypeOptions}
+                maxCount={
+                  formData.member_count && !isNaN(parseInt(formData.member_count, 10))
+                    ? parseInt(formData.member_count, 10)
+                    : null
+                }
+              />
             )}
           </FormSection>
 
@@ -2029,10 +2324,20 @@ export default function CustomerCreationForm() {
       latitude: String(d.latitude ?? ""),
       longitude: String(d.longitude ?? ""),
       sqft: String(d.sqft ?? ""),
+      water_consumption_lpd: String(d.water_consumption_lpd ?? ""),
+      waste_collection_kg_per_day: String(d.waste_collection_kg_per_day ?? ""),
       property_id: propertyId,
       sub_property_id: subPropertyId,
       id_proof_type: String(d.id_proof_type ?? ""),
       id_no: String(d.id_no ?? ""),
+      member_count: String(d.member_count ?? ""),
+      family_members: Array.isArray(d.family_members)
+        ? d.family_members.map((m: any) => ({
+            member_name: String(m?.member_name ?? ""),
+            id_proof_type: String(m?.id_proof_type ?? ""),
+            id_no: String(m?.id_no ?? ""),
+          }))
+        : [],
       country_id: countryId,
       state_id: stateId,
       district_id: districtId,
@@ -2074,10 +2379,14 @@ export default function CustomerCreationForm() {
       latitude: "",
       longitude: "",
       sqft: "",
+      water_consumption_lpd: "",
+      waste_collection_kg_per_day: "",
       property_id: "",
       sub_property_id: "",
       id_proof_type: "",
       id_no: "",
+      member_count: "",
+      family_members: [],
       country_id: "",
       state_id: "",
       district_id: "",
