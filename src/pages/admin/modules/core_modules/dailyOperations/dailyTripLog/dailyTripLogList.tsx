@@ -715,53 +715,48 @@ export default function DailyTripLogList() {
       placeholder: "Search trip logs...",
     });
 
-  /* ── download the currently filtered set (hierarchy + waste type + date +
-     global search) as a detailed, per-collection-point/customer itemized
-     Excel report — same shape as the trip report page ── */
+  const exportSourceRows = data.filter((row) => {
+    const search = globalFilterValue.trim().toLowerCase();
+    const matchesGlobalSearch = !search || [
+        row.unique_id,
+        row._assignment,
+        row._location,
+        row._waste,
+        row._base_template,
+        row._alt_template,
+        row._driver,
+        row._operator,
+        row._vehicle,
+        row.log_status,
+        row.collection_status,
+        row.trip_date,
+      ].some((value) => String(value ?? "").toLowerCase().includes(search));
+    if (!matchesGlobalSearch) return false;
+
+    return Object.entries(filters).every(([field, filterMeta]) => {
+      if (field === "global" || !("value" in filterMeta)) return true;
+      const filterValue = String(filterMeta.value ?? "").trim().toLowerCase();
+      if (!filterValue) return true;
+      const cellValue = String((row as Record<string, unknown>)[field] ?? "").toLowerCase();
+      if (filterMeta.matchMode === FilterMatchMode.STARTS_WITH) return cellValue.startsWith(filterValue);
+      if (filterMeta.matchMode === FilterMatchMode.ENDS_WITH) return cellValue.endsWith(filterValue);
+      if (filterMeta.matchMode === FilterMatchMode.EQUALS) return cellValue === filterValue;
+      if (filterMeta.matchMode === FilterMatchMode.NOT_EQUALS) return cellValue !== filterValue;
+      return cellValue.includes(filterValue);
+    });
+  });
+
+  /* ── download the same hierarchy/date/waste/collection/search-filtered rows
+     currently backing the list as a detailed, per-point/customer report. ── */
   const handleDownload = async (format: "excel" | "pdf") => {
     setIsExporting(true);
     try {
-      const exportSource = (await dailyTripLogApi.readAllForExport({
-        params: buildParams(),
-      })) as DailyTripLogRecord[];
-
-      const search = globalFilterValue.trim().toLowerCase();
-      const filteredSource = search
-        ? exportSource.filter((rec) => {
-            const haystack = [
-              rec.unique_id,
-              rec.trip_assignment?.display_code ?? rec.trip_assignment_id,
-              rec.location?.local_body_name ?? rec.location_name,
-              rec.driver?.employee_name,
-              rec.operator?.employee_name,
-              (rec.vehicle as any)?.vehicle_no,
-              rec.log_status,
-              rec.collection_status,
-              rec.trip_date,
-            ]
-              .filter(Boolean)
-              .join(" ")
-              .toLowerCase();
-            return haystack.includes(search);
-          })
-        : exportSource;
-
-      const byCollectionType = filteredSource.filter((rec) => {
-        if (collectionType === "bin") {
-          const hasBinWeight =
-            (rec.collection_points ?? []).some(
-              (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
-            ) || (rec.collected_weight_kg != null && Number(rec.collected_weight_kg) > 0);
-          return hasBinWeight;
-        }
-        if (collectionType === "household") {
-          return rec.household_collected_weight_kg != null && Number(rec.household_collected_weight_kg) > 0;
-        }
-        return true;
-      });
+      if (exportSourceRows.length === 0) {
+        throw new Error("No filtered trip log records to export.");
+      }
 
       const exportRows: Record<string, unknown>[] = [];
-      byCollectionType.forEach((rec) => {
+      exportSourceRows.forEach((rec) => {
         const baseRow = {
           "Trip ID": rec.unique_id,
           "Trip Assignment": rec.trip_assignment?.display_code ?? rec.trip_assignment_id ?? "-",
@@ -838,7 +833,7 @@ export default function DailyTripLogList() {
         });
       }
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to download trip log data.", "error");
+      Swal.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -858,14 +853,7 @@ export default function DailyTripLogList() {
     setFilterResetKey((key) => key + 1);
   };
 
-  const summaryRows = data.filter((row) => {
-    const search = globalFilterValue.trim().toLowerCase();
-    if (!search) return true;
-    return [
-      row.unique_id, row._assignment, row._location, row._waste, row._driver,
-      row._operator, row._vehicle, row.log_status, row.collection_status, row.trip_date,
-    ].some((value) => String(value ?? "").toLowerCase().includes(search));
-  });
+  const summaryRows = exportSourceRows;
   const today = new Date().toISOString().slice(0, 10);
   const totalWeightFor = (row: (typeof summaryRows)[number]) =>
     Number(row._has_point_weights ? row._computed_weight : row.collected_weight_kg ?? 0)
@@ -903,14 +891,14 @@ export default function DailyTripLogList() {
             label={isExporting ? "Downloading…" : "Download Excel"}
             icon="pi pi-file-excel"
             className="p-button-outlined"
-            disabled={isExporting || data.length === 0}
+            disabled={isExporting || exportSourceRows.length === 0}
             onClick={() => handleDownload("excel")}
           />
           <Button
             label={isExporting ? "Generating…" : "Download PDF"}
             icon="pi pi-file-pdf"
             className="p-button-outlined"
-            disabled={isExporting || data.length === 0}
+            disabled={isExporting || exportSourceRows.length === 0}
             onClick={() => handleDownload("pdf")}
           />
         </div>

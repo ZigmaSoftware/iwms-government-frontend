@@ -17,13 +17,12 @@ import { jsPDF } from "jspdf";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { dailyTripAssignmentApi } from "@/helpers/admin";
+import { binApi, customerCreationApi, dailyTripAssignmentApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { drawQrCode } from "@/utils/exportPdf";
-
 type SchedulerStatus = {
   enabled?: boolean;
   is_enabled?: boolean;
@@ -210,6 +209,7 @@ export default function DailyTripAssignmentList() {
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
   const [filterResetKey, setFilterResetKey] = useState(0);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
@@ -225,7 +225,6 @@ export default function DailyTripAssignmentList() {
     trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     scheduled_time: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
   });
-
   /* ── load assignments ── */
   const loadAssignments = useCallback(async () => {
     setIsLoading(true);
@@ -369,44 +368,214 @@ export default function DailyTripAssignmentList() {
   const handleExcelDownload = () =>
     exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
 
-  const handlePdfDownload = () => {
+  const handlePdfDownload = async () => {
     if (!exportSource.length) return;
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    exportSource.forEach((row, index) => {
-      if (index > 0) pdf.addPage();
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(18);
-      pdf.text("Daily Trip Plan", 18, 20);
-      pdf.setFontSize(10);
-      pdf.text(row.unique_id ?? "-", 18, 29);
-      drawQrCode(pdf, JSON.stringify({ daily_trip_assignment_id: row.unique_id }), 158, 18, 34);
-      const details: Array<[string, unknown]> = [
-        ["Trip Plan", row._trip_plan],
-        ["Local Body", row._location],
-        ["Collection Type", row._collection_type_label],
-        ["Effective Staff", row._staff],
-        ["Operator / Driver", row._staff_names],
-        ["Vehicle", row._vehicle],
-        ["Collection Points", row._collection_point_count],
-        ["Trip Date", row.trip_date],
-        ["Start Time", formatTime12Hour(row.scheduled_time)],
-        ["Status", row.status],
-      ];
-      let y = 58;
-      pdf.setFontSize(10);
-      details.forEach(([label, value]) => {
+    setIsExportingPdf(true);
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      let hasPage = false;
+
+      const addPage = () => {
+        if (hasPage) pdf.addPage();
+        hasPage = true;
+      };
+      const drawDetails = (
+        title: string,
+        subtitle: string,
+        details: Array<[string, unknown]>,
+        qrValue?: string,
+      ) => {
+        addPage();
+        const qrBottom = 18 + 34; // QR box spans y: 18 -> 52
+        const qrLeft = 158;
+        const labelX = 18;
+        const valueX = 62;
+        const fullValueWidth = 125; // 62 -> 187
+        const narrowValueWidth = qrLeft - valueX - 4; // keep clear of the QR column
+
         pdf.setFont("helvetica", "bold");
-        pdf.text(`${label}:`, 18, y);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(String(value ?? "-"), 60, y, { maxWidth: 125 });
-        y += 10;
-      });
-      pdf.setFontSize(8);
-      pdf.setTextColor(100, 116, 139);
-      pdf.text("Scan the QR code to identify this daily trip assignment.", 18, 180);
-      pdf.setTextColor(0, 0, 0);
-    });
-    pdf.save("daily_trip_plans.pdf");
+        pdf.setFontSize(18);
+        pdf.text(title, 18, 20);
+        pdf.setFontSize(10);
+        pdf.text(subtitle || "-", 18, 29, { maxWidth: qrValue ? 130 : 175 });
+        if (qrValue) drawQrCode(pdf, qrValue, qrLeft, 18, 34);
+        let y = Math.max(52, qrValue ? qrBottom + 6 : 52);
+        pdf.setFontSize(9.5);
+        const lineHeight = 4.2; // ~9.5pt font, mm per line
+        const labelWidth = valueX - labelX - 4; // keep the label clear of the value column
+        details.forEach(([label, rawValue]) => {
+          const value = rawValue === null || rawValue === undefined || rawValue === ""
+            ? "-"
+            : String(rawValue);
+          const wrapWidth = qrValue && y < qrBottom ? narrowValueWidth : fullValueWidth;
+          pdf.setFont("helvetica", "bold");
+          const labelLines = pdf.splitTextToSize(`${label}:`, labelWidth) as string[];
+          pdf.setFont("helvetica", "normal");
+          const valueLines = pdf.splitTextToSize(value, wrapWidth) as string[];
+          const rowHeight = Math.max(8, Math.max(labelLines.length, valueLines.length) * lineHeight + 3);
+          if (y + rowHeight > 282) {
+            pdf.addPage();
+            y = 20;
+          }
+          pdf.setFont("helvetica", "bold");
+          pdf.text(labelLines, labelX, y);
+          pdf.setFont("helvetica", "normal");
+          pdf.text(valueLines, valueX, y);
+          y += rowHeight;
+        });
+      };
+
+      for (const row of exportSource) {
+        const assignmentWasteTypes = (row.waste_types_detail ?? [])
+          .map((item) => item.waste_type_name)
+          .filter(Boolean)
+          .join(", ");
+        const householdWasteTypes = (row.household_waste_types ?? [])
+          .map((item) => item.waste_type_name)
+          .filter(Boolean)
+          .join(", ");
+
+        drawDetails(
+          "Daily Trip Plan — Route Summary",
+          row.unique_id,
+          [
+            ["Trip Plan", row._trip_plan],
+            ["Local Body", row._location],
+            ["Collection Type", row._collection_type_label],
+            ["Waste Types", assignmentWasteTypes || householdWasteTypes],
+            ["Household Waste Types", householdWasteTypes],
+            ["Effective Staff", row._staff],
+            ["Operator / Driver", row._staff_names],
+            ["Vehicle", row._vehicle],
+            ["Total Route Stops", row._collection_point_count],
+            ["Bin Stops", row.collection_points?.length ?? 0],
+            ["Household / Bulk Stops", row.household_collection_points?.length ?? 0],
+            ["Trip Date", row.trip_date],
+            ["Scheduled Time", formatTime12Hour(row.scheduled_time)],
+            ["Actual Start", row.actual_start_time],
+            ["Actual End", row.actual_end_time],
+            ["Status", row.status],
+            ["Approval", row.approval_status],
+            ["Remarks", row.remarks],
+          ],
+          JSON.stringify({ daily_trip_assignment_id: row.unique_id }),
+        );
+
+        for (const stop of row.household_collection_points ?? []) {
+          let customer: Record<string, any> = stop.customer ?? {};
+          const customerId = stop.customer_id ?? stop.customer?.unique_id;
+          if (customerId) {
+            try {
+              customer = await customerCreationApi.read(customerId) as Record<string, any>;
+            } catch {
+              // The inline assignment payload still provides the essential fallback details.
+            }
+          }
+          const address = [
+            customer.building_no,
+            customer.street,
+            customer.area,
+            customer.pincode,
+          ].filter(Boolean).join(", ");
+          const localBody = customer.corporation_name
+            ?? customer.municipality_name
+            ?? customer.town_panchayat_name
+            ?? customer.panchayat_union_name
+            ?? customer.panchayat_name
+            ?? "-";
+          const familyMembers = Array.isArray(customer.family_members)
+            ? customer.family_members
+                .map((member: Record<string, unknown>) => member.member_name ?? member.name)
+                .filter(Boolean)
+                .join(", ")
+            : "-";
+          const customerWasteTypes = Array.isArray(customer.waste_types)
+            ? customer.waste_types
+                .map((wasteType: Record<string, unknown>) => wasteType.waste_type_name ?? wasteType.name)
+                .filter(Boolean)
+                .join(", ")
+            : "-";
+
+          drawDetails(
+            stop.collection_type === "bulk_waste_collection"
+              ? "Bulk-Waste Customer Stop"
+              : "Household Customer Stop",
+            `${stop.sequence ?? "-"}. ${customer.customer_name ?? customerId ?? "Customer"}`,
+            [
+              ["Customer ID", customer.unique_id ?? customerId],
+              ["Customer Name", customer.customer_name],
+              ["Contact Number", customer.contact_no],
+              ["Property", customer.property_name],
+              ["Sub Property", customer.sub_property_name],
+              ["Address", address],
+              ["Apartment / Block / Flat", [customer.apartment_name, customer.block_no, customer.flat_no].filter(Boolean).join(" / ")],
+              ["Local Body", localBody],
+              ["District", customer.district_name],
+              ["Latitude / Longitude", [customer.latitude, customer.longitude].filter(Boolean).join(", ")],
+              ["ID Proof Type", customer.id_proof_type],
+              ["ID Number", customer.id_no],
+              ["Property Area (sq. ft.)", customer.sqft],
+              ["Water Consumption (LPD)", customer.water_consumption_lpd],
+              ["Expected Waste (kg/day)", customer.waste_collection_kg_per_day],
+              ["Waste Types", customerWasteTypes],
+              ["Member Count", customer.member_count],
+              ["Family Members", familyMembers],
+              ["Bulk-Waste Generator", customer.is_bulkwaste_generator ? "Yes" : "No"],
+              ["Sequence", stop.sequence],
+              ["Collection Status", stop.status],
+              ["Collected", stop.is_collected ? "Yes" : "No"],
+              ["Collected Weight (kg)", stop.collected_weight_kg],
+              ["Wet / Dry / Mixed / Sanitary (kg)", [stop.wet_waste, stop.dry_waste, stop.mixed_waste, stop.sanitary_waste].map((value) => value ?? 0).join(" / ")],
+            ],
+            JSON.stringify({ id: customer.unique_id ?? customerId }),
+          );
+        }
+
+        for (const stop of row.collection_points ?? []) {
+          let bin: Record<string, any> = stop.bin ?? {};
+          const binId = stop.bin_id ?? stop.bin?.unique_id;
+          if (binId) {
+            try {
+              bin = await binApi.read(binId) as Record<string, any>;
+            } catch {
+              // Fall back to the assignment's inline bin and collection-point details.
+            }
+          }
+          const collectionPoint = stop.collection_point ?? {};
+          drawDetails(
+            "Secondary Bin Collection Stop",
+            `${stop.sequence ?? "-"}. ${collectionPoint.cp_name ?? bin.collection_point_name ?? "Collection Point"}`,
+            [
+              ["Collection Point ID", collectionPoint.unique_id ?? stop.collection_point_id],
+              ["Collection Point", collectionPoint.cp_name ?? bin.collection_point_name],
+              ["Bin ID", bin.unique_id ?? binId],
+              ["Bin Name", bin.bin_name ?? stop.bin?.bin_name],
+              ["Bin Type", bin.bin_type],
+              ["Bin Capacity", bin.bin_capacity],
+              ["Waste Type", bin.wastetype_name ?? stop.waste_type_name],
+              ["Local Body", bin.location_name ?? row._location],
+              ["Latitude / Longitude", [collectionPoint.latitude ?? bin.latitude, collectionPoint.longitude ?? bin.longitude].filter(Boolean).join(", ")],
+              ["Sequence", stop.sequence],
+              ["Collection Status", stop.status],
+              ["Collected", stop.is_collected ? "Yes" : "No"],
+              ["Collected Weight (kg)", stop.collected_weight_kg],
+              ["Collected At", stop.collected_at],
+              ["Status Reason", stop.status_reason],
+            ],
+            String(bin.unique_id ?? binId ?? collectionPoint.unique_id ?? stop.collection_point_id),
+          );
+        }
+      }
+      pdf.save("daily_trip_plans_detailed.pdf");
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        error instanceof Error ? error.message : "Failed to generate the detailed trip-plan PDF.",
+        "error",
+      );
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const hasActiveFilters =
@@ -468,7 +637,7 @@ export default function DailyTripAssignmentList() {
         </div>
         <div className="flex items-center gap-3">
           <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined" disabled={!excelRows.length} onClick={handleExcelDownload} />
-          <Button label="Download PDF" icon="pi pi-file-pdf" className="p-button-outlined" disabled={!exportSource.length} onClick={handlePdfDownload} />
+          <Button label={isExportingPdf ? "Generating PDF…" : "Download PDF"} icon="pi pi-file-pdf" className="p-button-outlined" disabled={isExportingPdf || !exportSource.length} onClick={handlePdfDownload} />
 
           <Button
             label={isSchedulerRunning ? "Running..." : "Run Scheduler"}

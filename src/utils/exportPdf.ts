@@ -33,6 +33,8 @@ export const downloadRecordsPdf = ({
   const rowHeight = 8;
   let y = 18;
 
+  pdf.setLineWidth(0.1);
+
   const drawHeader = () => {
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(14);
@@ -42,7 +44,9 @@ export const downloadRecordsPdf = ({
     pdf.setTextColor(255, 255, 255);
     columns.forEach((column, index) => {
       const x = margin + index * columnWidth;
+      pdf.setFillColor(30, 64, 175);
       pdf.rect(x, y, columnWidth, rowHeight, "F");
+      pdf.setTextColor(255, 255, 255);
       pdf.text(column.label, x + 1.5, y + 5, { maxWidth: columnWidth - 3 });
     });
     pdf.setTextColor(30, 41, 59);
@@ -57,10 +61,15 @@ export const downloadRecordsPdf = ({
       y = 18;
       drawHeader();
     }
-    pdf.setFillColor(rowIndex % 2 === 0 ? 248 : 255, 250, 252);
     columns.forEach((column, index) => {
       const x = margin + index * columnWidth;
-      pdf.rect(x, y, columnWidth, rowHeight, "FD");
+      const fill = rowIndex % 2 === 0 ? 248 : 255;
+      pdf.setFillColor(fill, fill, fill);
+      pdf.rect(x, y, columnWidth, rowHeight, "F");
+      pdf.setDrawColor(203, 213, 225);
+      pdf.rect(x, y, columnWidth, rowHeight, "S");
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFont("helvetica", "normal");
       pdf.setFontSize(6.5);
       pdf.text(display(row[column.key]), x + 1.5, y + 5, {
         maxWidth: columnWidth - 3,
