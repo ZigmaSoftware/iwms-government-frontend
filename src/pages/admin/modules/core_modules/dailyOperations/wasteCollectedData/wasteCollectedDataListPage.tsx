@@ -100,7 +100,6 @@ export default function WasteCollectedDataList() {
     panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     location_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
-
   /* ── load data ── */
   useEffect(() => {
     let mounted = true;

@@ -104,6 +104,9 @@ export type DailyTripAssignmentRecord = {
   trip_date?: string;
   scheduled_time?: string;
   status?: string;
+  approval_status?: string;
+  actual_start_time?: string | null;
+  actual_end_time?: string | null;
   remarks?: string | null;
   [key: string]: unknown;
 };

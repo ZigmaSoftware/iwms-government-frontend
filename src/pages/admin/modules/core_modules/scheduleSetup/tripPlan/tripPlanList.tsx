@@ -18,7 +18,6 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 
-
 // Local body can live on any one of these fields depending on the plan's
 // area type (urban → corporation/municipality/town panchayat, rural →
 // panchayat union/panchayat) — show whichever one is actually set.
@@ -85,7 +84,6 @@ export default function TripPlanList() {
     _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
     status: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
-
   useEffect(() => {
     let mounted = true;
     setLoading(true);

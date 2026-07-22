@@ -337,8 +337,9 @@ function BinCollectionEventEditor({
     }
     let cancelled = false;
     const params = { [localBodyLevel]: panchayatId };
+    const assignmentParams = collectionDate ? { ...params, date: collectionDate } : params;
     Promise.all([
-      dailyTripAssignmentApi.readAll({ params }),
+      dailyTripAssignmentApi.readAll({ params: assignmentParams }),
       dailyTripCollectionPointApi.readAll({ params }),
       adminApi.bins.readAll({ params }),
     ]).then(([assignmentRes, cpRes, binRes]) => {
@@ -350,7 +351,7 @@ function BinCollectionEventEditor({
       console.error("Failed to load trip assignments/collection points/bins", err);
     });
     return () => { cancelled = true; };
-  }, [localBodyLevel, panchayatId]);
+  }, [localBodyLevel, panchayatId, collectionDate]);
 
   // Keep the area-type category in sync when the area type changes or its
   // master list finishes loading.
@@ -629,16 +630,16 @@ function BinCollectionEventEditor({
           />
         </div>
         <div>
+          <Label>Collection Date *</Label>
+          <Input type="date" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
+        </div>
+        <div>
           <Label>Trip Assignment *</Label>
           <Select value={tripAssignmentId} onChange={handleAssignmentChange} options={visibleAssignments} placeholder="Select Assignment" />
         </div>
         <div>
           <Label>Collection Point *</Label>
           <Select value={tripCollectionPointId} onChange={handleCollectionPointChange} options={visibleCollectionPoints} placeholder="Select Collection Point" />
-        </div>
-        <div>
-          <Label>Collection Date *</Label>
-          <Input type="date" value={collectionDate} onChange={(e) => setCollectionDate(e.target.value)} />
         </div>
         <div>
           <Label>Status *</Label>
