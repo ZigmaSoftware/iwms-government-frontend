@@ -39,10 +39,6 @@ const {
   encCustomerMaster,
   encCustomerCreation,
   encApartmentList,
-  encReport,
-  encMonthlyDistance,
-  encTripSummary,
-  encWasteCollectedSummary,
   encMonthlyWasteComparison,
   encComplaintTicket,
   encComplaint,
@@ -59,12 +55,8 @@ const {
   encScheduleMasters,
   encFuel,
   encVehicleCreation,
-  encVehicleHistory,
-  encVehicleTrack,
-  encVehicleTracking,
   encVehicleType,
   encWasteCollectedData,
-  encWorkforceManagement,
   encStaffUserType,
   encMainScreenType,
   encUserScreenAction,
@@ -77,7 +69,6 @@ const {
   encStaffAudit,
   encTripPlans,
   encVehicleBreakdown,
-  encSchedulerConfig,
   encCommonMasters,
   encContinents,
   encCountries,
@@ -140,9 +131,6 @@ type SidebarSectionKey =
   | "fleetReports"
   | "leaderLogin";
 
-// Top-level "module" grouping — mirrors the Module → Main Screen → User Screen
-// hierarchy: each group here is a "module", its sections are "main screens",
-// and each section's subItems are the "user screens".
 const MODULE_GROUPS: {
   key: string;
   titleKey: string;

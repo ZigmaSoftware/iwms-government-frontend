@@ -3,6 +3,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -10,7 +12,12 @@ import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
+import { FieldError } from "@/components/form/FieldError";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import {
+  newPasswordSchema,
+  type NewPasswordFormValues,
+} from "@/schemas/newPassword.schema";
 import { staffCreationApi, governmentUserTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
@@ -60,22 +67,27 @@ function PasswordPriorityBadge({ ageDays }: { ageDays: number | null }) {
 
 
 function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: ChangePasswordModalProps) {
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<NewPasswordFormValues>({
+    resolver: zodResolver(newPasswordSchema),
+    defaultValues: { newPassword: "", confirmPassword: "" },
+  });
+
+  const onValid = async (values: NewPasswordFormValues) => {
     setError(null);
     setLoading(true);
     try {
       await api.post("/auth/admin-change-password/", {
         target_type: targetType,
         target_id: targetId,
-        new_password: newPassword,
-        confirm_new_password: confirmPassword,
+        new_password: values.newPassword,
+        confirm_new_password: values.confirmPassword,
       });
       Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
       onSuccess(new Date().toISOString());
@@ -97,30 +109,44 @@ function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: Chang
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit(onValid)} className="space-y-4">
           <div>
             <Label htmlFor="cp_new">New Password</Label>
-            <PasswordInput
-              id="cp_new"
-              label=""
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Min 6 chars, upper + lower + number"
+            <Controller
+              control={control}
+              name="newPassword"
+              render={({ field }) => (
+                <PasswordInput
+                  id="cp_new"
+                  label=""
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  placeholder="Min 8 chars, upper + lower + number + symbol"
+                />
+              )}
             />
+            <FieldError message={errors.newPassword?.message} />
           </div>
           <div>
             <Label htmlFor="cp_confirm">Confirm New Password</Label>
-            <PasswordInput
-              id="cp_confirm"
-              label=""
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repeat new password"
+            <Controller
+              control={control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <PasswordInput
+                  id="cp_confirm"
+                  label=""
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  placeholder="Repeat new password"
+                />
+              )}
             />
+            <FieldError message={errors.confirmPassword?.message} />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <p className="text-xs text-gray-500">
-            Password must be at least 6 characters with uppercase, lowercase, and a number.
+            Password must be at least 8 characters with uppercase, lowercase, a number, and a special character.
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <button

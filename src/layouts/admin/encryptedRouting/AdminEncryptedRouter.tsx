@@ -65,10 +65,7 @@ import ApartmentListPage from "@/pages/admin/modules/masters/customerMasters/cus
 import HouseholdPickupEventList from "@/pages/admin/modules/masters/customerMasters/householdPickupEvent/householdPickupEventList";
 import HouseholdPickupEventForm from "@/pages/admin/modules/masters/customerMasters/householdPickupEvent/householdPickupEventForm";
 
-// Reports (Single components)
-import TripSummary from "@/pages/admin/modules/reports/tripsummary/tripsummary";
-import MonthlyDistance from "@/pages/admin/modules/reports/monthlydistance/monthlydistance";
-import WasteSummary from "@/pages/admin/modules/reports/wasteCollectedSummary/wastesummary";
+
 import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
 import TicketList from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketList";
 import TicketForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketForm";
@@ -88,11 +85,7 @@ import VehicleTripAuditList from "@/pages/admin/modules/masters/transportMasters
 import VehicleTripAuditForm from "@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditForm";
 import TripExceptionLogList from "@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogList";
 import TripExceptionLogForm from "@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogForm";
-import VehicleTracking from "@/pages/admin/modules/vehicletracking/vehicletrack/vehicletracking";
-import VehicleHistory from "@/pages/admin/modules/vehicletracking/vehiclehistory/vehiclehistory";
 import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
-import DateReport from "@/pages/admin/modules/workforcemanagement/datereport";
-import DayReport from "@/pages/admin/modules/workforcemanagement/dayreport";
 import DailyTripAssignmentList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentList"
 import DailyTripAssignmentForm from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripTracking from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripTracking/DailyTripTracking";
@@ -242,18 +235,10 @@ const ROUTES: RouteMap = {
     "apartment-list": { list: ApartmentListPage },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
-  "vehicle-tracking": {
-    "vehicle-track": { component: VehicleTracking },
-    "vehicle-history": { component: VehicleHistory },
-  },
+
   "waste-management": {
     // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
-  },
-  "workforce-management": {
-    "workforce-management": { component: WorkforceManagement },
-    "date-report": { component: DateReport },
-    "day-report": { component: DayReport },
   },
   "complaint-ticket": {
     complaint: { list: TicketList, form: TicketForm, editForm: TicketDetail },
@@ -275,9 +260,6 @@ const ROUTES: RouteMap = {
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
   },
   reports: {
-    "trip-summary": { component: TripSummary },
-    "monthly-distance": { component: MonthlyDistance },
-    "waste-collected-summary": { component: WasteSummary },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
   },
   "leader-login": {

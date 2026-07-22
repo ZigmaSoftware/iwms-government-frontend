@@ -2,6 +2,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +11,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/form/FieldError";
 import {
   Select,
   SelectContent,
@@ -29,6 +32,8 @@ import {
   mergeWithScopeOptionExtra,
   scopeOption,
 } from "../shared/dataScopeOptions";
+import { corporationSchema, type CorporationFormValues } from "@/schemas/corporation.schema";
+import { requireWhenVisible } from "@/schemas/visibility";
 
 type Option = {
   value: string;
@@ -134,15 +139,35 @@ function CorporationEditor({
   areaTypes,
 }: CorporationEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "corporations", CORPORATION_FIELDS);
+  const { showField, filterPayload } = useFieldVisibility(
+    "masters",
+    "corporations",
+    CORPORATION_FIELDS
+  );
 
-  const [name, setName] = useState(initialPayload.name);
-  const [stateId, setStateId] = useState(initialPayload.state_id);
-  const [districtId, setDistrictId] = useState(initialPayload.district_id);
-  const [areaTypeId, setAreaTypeId] = useState(initialPayload.area_type_id);
-  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
-  const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const schema = useMemo(() => requireWhenVisible(corporationSchema, showField), [showField]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<CorporationFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      corporation_name: initialPayload.name,
+      state_id: initialPayload.state_id,
+      district_id: initialPayload.district_id,
+      area_type_id: initialPayload.area_type_id,
+      coordinates: initialPayload.coordinates,
+      is_active: initialPayload.is_active,
+    },
+  });
+
+  const stateId = watch("state_id");
+  const districtId = watch("district_id");
 
   const filteredDistricts = useMemo(
     () =>
@@ -163,71 +188,54 @@ function CorporationEditor({
     [areaTypes, stateId, districtId]
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const fieldValues: Record<string, unknown> = {
-      corporation_name: name.trim(),
-      state_id: stateId,
-      district_id: districtId,
-      area_type_id: areaTypeId,
-    };
-
-    if (
-      getMissingRequiredFields(
-        ["corporation_name", "state_id", "district_id", "area_type_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.missing_fields"),
-        confirmButtonColor: "#3085d6",
-      });
-      return;
-    }
-
+  const onValid = async (values: CorporationFormValues) => {
     const rawPayload: CorporationPayload = {
-      corporation_name: name.trim(),
-      state_id: stateId,
-      district_id: districtId,
-      area_type_id: areaTypeId,
-      coordinates: serializeCoordinateDrafts(coordinates),
-      is_active: isActive,
+      corporation_name: values.corporation_name.trim(),
+      state_id: values.state_id,
+      district_id: values.district_id,
+      area_type_id: values.area_type_id,
+      coordinates: serializeCoordinateDrafts(values.coordinates ?? []),
+      is_active: values.is_active,
     };
 
     await onSubmit(filterPayload(rawPayload) as CorporationPayload);
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={handleSubmit(onValid)} noValidate>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {showField("state_id") && (
           <div>
             <Label htmlFor="stateId">
               State <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={stateId}
-              onValueChange={(value) => {
-                setStateId(value);
-                setDistrictId("");
-                setAreaTypeId("");
-              }}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="stateId">
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="state_id"
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? ""}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    setValue("district_id", "");
+                    setValue("area_type_id", "");
+                  }}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger className="input-validate w-full" id="stateId">
+                    <SelectValue placeholder="Select State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {states.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <FieldError message={errors.state_id?.message} />
           </div>
         )}
 
@@ -236,25 +244,32 @@ function CorporationEditor({
             <Label htmlFor="districtId">
               District <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={districtId}
-              onValueChange={(value) => {
-                setDistrictId(value);
-                setAreaTypeId("");
-              }}
-              disabled={isSubmitting || !stateId}
-            >
-              <SelectTrigger className="input-validate w-full" id="districtId">
-                <SelectValue placeholder="Select District" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredDistricts.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="district_id"
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? ""}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    setValue("area_type_id", "");
+                  }}
+                  disabled={isSubmitting || !stateId}
+                >
+                  <SelectTrigger className="input-validate w-full" id="districtId">
+                    <SelectValue placeholder="Select District" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredDistricts.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <FieldError message={errors.district_id?.message} />
           </div>
         )}
 
@@ -263,22 +278,29 @@ function CorporationEditor({
             <Label htmlFor="areaTypeId">
               Area Type <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={areaTypeId}
-              onValueChange={setAreaTypeId}
-              disabled={isSubmitting || !districtId}
-            >
-              <SelectTrigger className="input-validate w-full" id="areaTypeId">
-                <SelectValue placeholder="Select Area Type" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredAreaTypes.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="area_type_id"
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? ""}
+                  onValueChange={field.onChange}
+                  disabled={isSubmitting || !districtId}
+                >
+                  <SelectTrigger className="input-validate w-full" id="areaTypeId">
+                    <SelectValue placeholder="Select Area Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredAreaTypes.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <FieldError message={errors.area_type_id?.message} />
           </div>
         )}
 
@@ -290,18 +312,32 @@ function CorporationEditor({
             <Input
               id="corporationName"
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
               placeholder="Enter Corporation Name"
               className="input-validate w-full"
               disabled={isSubmitting}
-              required
+              {...register("corporation_name")}
             />
+            <FieldError message={errors.corporation_name?.message} />
           </div>
         )}
 
         {showField("coordinates") && (
-          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
+          <Controller
+            control={control}
+            name="coordinates"
+            render={({ field }) => (
+              <GeoFenceCoordinates
+                coordinates={field.value ?? []}
+                onChange={field.onChange}
+                errors={(Array.isArray(errors.coordinates) ? errors.coordinates : []).map(
+                  (entry) => ({
+                    latitude: entry?.latitude?.message,
+                    longitude: entry?.longitude?.message,
+                  })
+                )}
+              />
+            )}
+          />
         )}
 
         {showField("is_active") && (
@@ -309,19 +345,25 @@ function CorporationEditor({
             <Label htmlFor="isActive">
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="is_active"
+              render={({ field }) => (
+                <Select
+                  value={field.value ? "true" : "false"}
+                  onValueChange={(value) => field.onChange(value === "true")}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger className="input-validate w-full" id="isActive">
+                    <SelectValue placeholder={t("common.select_status")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">{t("common.active")}</SelectItem>
+                    <SelectItem value="false">{t("common.inactive")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </div>
         )}
       </div>

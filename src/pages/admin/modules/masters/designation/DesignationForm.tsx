@@ -1,14 +1,18 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import { Input } from "@/components/ui/input";
 import Select from "@/components/form/Select";
+import { FieldError } from "@/components/form/FieldError";
 import { departmentApi, designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { designationSchema, type DesignationFormValues } from "@/schemas/designation.schema";
 
 const { encMasters, encDesignations } = getEncryptedRoute();
 const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDesignations);
@@ -20,16 +24,27 @@ export default function DesignationForm() {
   const isEdit = Boolean(id);
   const [saving, setSaving] = useState(false);
   const [departmentOptions, setDepartmentOptions] = useState<{ value: string; label: string }[]>([]);
-  const [form, setForm] = useState({
-    designation_name: "",
-    department_id: "",
-    description: "",
-    status: "active",
-  });
 
   /* pendingDepartmentId holds the ID from the edit record while the
      department list is still loading; applied once options are ready */
   const [pendingDepartmentId, setPendingDepartmentId] = useState("");
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<DesignationFormValues>({
+    resolver: zodResolver(designationSchema),
+    defaultValues: {
+      designation_name: "",
+      department_id: "",
+      description: "",
+      status: "active",
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -54,10 +69,10 @@ export default function DesignationForm() {
   useEffect(() => {
     if (!pendingDepartmentId || departmentOptions.length === 0) return;
     if (departmentOptions.some((d) => d.value === pendingDepartmentId)) {
-      setForm((prev) => ({ ...prev, department_id: pendingDepartmentId }));
+      setValue("department_id", pendingDepartmentId);
       setPendingDepartmentId("");
     }
-  }, [pendingDepartmentId, departmentOptions]);
+  }, [pendingDepartmentId, departmentOptions, setValue]);
 
   useEffect(() => {
     if (!id) return;
@@ -65,7 +80,7 @@ export default function DesignationForm() {
     designationApi.read(id).then((record: any) => {
       if (cancelled) return;
       const deptId = record.department_id ? String(record.department_id) : "";
-      setForm({
+      reset({
         designation_name: record.designation_name ?? "",
         department_id: deptId,
         description: record.description ?? "",
@@ -75,26 +90,16 @@ export default function DesignationForm() {
       if (deptId) setPendingDepartmentId(deptId);
     });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, reset]);
 
-  const save = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!form.designation_name.trim()) {
-      Swal.fire(t("common.error"), "Designation name is required", "error");
-      return;
-    }
-    if (!form.department_id) {
-      Swal.fire(t("common.error"), "Department is required", "error");
-      return;
-    }
-
+  const onValid = async (values: DesignationFormValues) => {
     setSaving(true);
     try {
       const payload: Record<string, any> = {
-        designation_name: form.designation_name,
-        department_id: form.department_id,
-        description: form.description,
-        status: form.status,
+        designation_name: values.designation_name,
+        department_id: values.department_id,
+        description: values.description,
+        status: values.status,
       };
       if (isEdit && id) {
         await designationApi.update(id, payload);
@@ -119,49 +124,62 @@ export default function DesignationForm() {
       title={isEdit ? "Edit Designation" : "Add Designation"}
       desc="Designation Master"
     >
-      <form onSubmit={save} className="grid grid-cols-1 gap-5 md:grid-cols-2">
+      <form onSubmit={handleSubmit(onValid)} noValidate className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
           <Label htmlFor="designation_name">Designation Name</Label>
           <Input
             id="designation_name"
-            value={form.designation_name}
-            onChange={(e) => setForm((prev) => ({ ...prev, designation_name: e.target.value }))}
-            required
+            {...register("designation_name")}
           />
+          <FieldError message={errors.designation_name?.message} />
         </div>
         <div>
           <Label htmlFor="department_id">
             Department <span className="text-red-500 ml-1">*</span>
           </Label>
-          <Select
-            id="department_id"
-            value={form.department_id}
-            onChange={(value) => setForm((prev) => ({ ...prev, department_id: value }))}
-            options={departmentOptions}
-            placeholder="Select Department"
+          <Controller
+            control={control}
+            name="department_id"
+            render={({ field }) => (
+              <Select
+                id="department_id"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                options={departmentOptions}
+                placeholder="Select Department"
+              />
+            )}
           />
+          <FieldError message={errors.department_id?.message} />
         </div>
         <div>
           <Label htmlFor="status">Status</Label>
-          <Select
-            id="status"
-            value={form.status}
-            onChange={(value) => setForm((prev) => ({ ...prev, status: value }))}
-            options={[
-              { value: "active", label: t("common.active") },
-              { value: "inactive", label: t("common.inactive") },
-            ]}
+          <Controller
+            control={control}
+            name="status"
+            render={({ field }) => (
+              <Select
+                id="status"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                options={[
+                  { value: "active", label: t("common.active") },
+                  { value: "inactive", label: t("common.inactive") },
+                ]}
+              />
+            )}
           />
+          <FieldError message={errors.status?.message} />
         </div>
         <div className="md:col-span-2">
           <Label htmlFor="description">Description</Label>
           <textarea
             id="description"
-            value={form.description}
-            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
             rows={3}
             className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+            {...register("description")}
           />
+          <FieldError message={errors.description?.message} />
         </div>
         <div className="md:col-span-2 flex justify-end gap-3">
           <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(LIST_PATH)}>
