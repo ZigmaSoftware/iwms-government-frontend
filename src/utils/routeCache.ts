@@ -124,6 +124,7 @@ export type EncryptedRoutes = {
   encMunicipalities: string;
   encTownPanchayats: string;
   encPanchayatUnions: string;
+  encWards: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -238,6 +239,7 @@ const plainRoutes: EncryptedRoutes = {
   encMunicipalities: "municipalities",
   encTownPanchayats: "town-panchayats",
   encPanchayatUnions: "panchayat-unions",
+  encWards: "wards",
 
   //dashboard
 

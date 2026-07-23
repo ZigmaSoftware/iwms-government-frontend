@@ -41,6 +41,8 @@ import CorporationListPage from "@/pages/admin/modules/masters/corporation/Corpo
 import CorporationForm from "@/pages/admin/modules/masters/corporation/CorporationForm";
 import PanchayatUnionListPage from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionListPage";
 import PanchayatUnionForm from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionForm";
+import WardListPage from "@/pages/admin/modules/masters/ward/WardListPage";
+import WardForm from "@/pages/admin/modules/masters/ward/WardForm";
 import PropertyList from "@/pages/admin/modules/masters/wasteMasters/property/PropertyListPage";
 import PropertyForm from "@/pages/admin/modules/masters/wasteMasters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/wasteMasters/subproperty/SubPropertyListPage";
@@ -173,6 +175,7 @@ const ROUTES: RouteMap = {
     municipalities: { list: MunicipalityListPage, form: MunicipalityForm },
     "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
     "panchayat-unions": { list: PanchayatUnionListPage, form: PanchayatUnionForm },
+    wards: { list: WardListPage, form: WardForm },
   },
   "waste-types": {
     wastetypes: { list: WasteTypeListPage, form: WasteTypeForm },
@@ -315,6 +318,7 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "panchayat-unions": ["panchayat-unions"],
   panchayats: ["panchayats", "panchayat"],
   panchayat: ["panchayats"],
+  wards: ["wards"],
 
   // Waste/assets — the "waste-types" ROUTES bucket's WasteType entry is keyed
   // "wastetypes" (matching the renamed backend subgroup); bridge the page's

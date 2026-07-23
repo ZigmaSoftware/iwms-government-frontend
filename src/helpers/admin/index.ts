@@ -31,6 +31,7 @@ export const corporationApi = adminApi.corporations;
 export const municipalityApi = adminApi.municipalities;
 export const townPanchayatApi = adminApi.townPanchayats;
 export const panchayatUnionApi = adminApi.panchayatUnions;
+export const wardApi = adminApi.wards;
 
 /* =========================
    WASTE TYPES

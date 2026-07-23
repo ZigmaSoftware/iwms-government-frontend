@@ -23,6 +23,7 @@ import {
   townPanchayatApi,
   tripPlanApi,
   vehicleCreationApi,
+  wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
@@ -218,12 +219,14 @@ export default function TripPlanForm() {
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [status, setStatus] = useState("ACTIVE");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
+  const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
 
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [supervisors, setSupervisors] = useState<Option[]>([]);
   const [supervisorStaffRecords, setSupervisorStaffRecords] = useState<ApiRecord[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
+  const [wardRecords, setWardRecords] = useState<ApiRecord[]>([]);
   const [saving, setSaving] = useState(false);
 
   // Collection point stops — merged in from the former Trip Plan Collection Point form.
@@ -262,9 +265,11 @@ export default function TripPlanForm() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
+      wardApi.readAll(),
     ]).then(([
       wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
+      wardRes,
     ]) => {
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
       setStates(normalizeList(stateRes));
@@ -277,6 +282,7 @@ export default function TripPlanForm() {
         panchayat_union_id: normalizeList(panchayatUnionRes),
         panchayat_id: normalizeList(panchayatRes),
       });
+      setWardRecords(normalizeList(wardRes));
     });
   }, []);
 
@@ -422,6 +428,12 @@ export default function TripPlanForm() {
   const filteredAreaTypes = areaTypes.filter(
     (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
   );
+  const filteredWards = wardRecords.filter(
+    (w) =>
+      (!districtId || String(w.district_id ?? "") === districtId) &&
+      (!hierarchyId || String(w[hierarchyLevel] ?? "") === hierarchyId),
+  );
+  const wardOptions = toOptions(filteredWards, "ward_name");
 
   const ensureOption = <T extends Option>(items: T[], value: string, label?: string): T[] => {
     if (!value || items.some((item) => item.value === value)) return items;
@@ -593,6 +605,11 @@ useEffect(() => {
         setSelectedWasteTypes(record.waste_types_detail.map((wt: any) => String(wt.unique_id)));
       }
 
+      // Multiple wards
+      if (Array.isArray(record.wards_detail) && record.wards_detail.length > 0) {
+        setSelectedWardIds(record.wards_detail.map((w: any) => String(w.unique_id)));
+      }
+
       const timeStr = String(record.scheduled_time ?? "");
       if (timeStr) setScheduledTime(timeStr.slice(0, 5));
 
@@ -731,6 +748,7 @@ useEffect(() => {
       supervisorId,
       collectionType,
       selectedWasteTypes,
+      ward_ids: selectedWardIds,
       scheduledTime,
       tripTriggerWeightKg,
       maxVehicleCapacityKg,
@@ -771,6 +789,7 @@ useEffect(() => {
       supervisor_id: supervisorId || null,
       collection_type: collectionType,
       waste_type_ids: selectedWasteTypes,
+      ward_ids: selectedWardIds,
       scheduled_time: scheduledTime,
       trip_trigger_weight_kg: tripTriggerWeightKg ? Number(tripTriggerWeightKg) : null,
       max_vehicle_capacity_kg: maxVehicleCapacityKg ? Number(maxVehicleCapacityKg) : null,
@@ -957,6 +976,36 @@ useEffect(() => {
           {selectedWasteTypes.length === 0 && (
             <p className="mt-1 text-xs text-red-500">Select at least one waste type</p>
           )}
+        </div>
+
+        {/* Multiple Wards */}
+        <div>
+          <Label>Wards</Label>
+          <MultiSelect
+            value={selectedWardIds}
+            onChange={(event) => {
+              const raw = Array.isArray(event.value) ? event.value : [];
+              // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setSelectedWardIds(values);
+            }}
+            options={wardOptions}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={3}
+            placeholder="Select wards"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+            pt={{
+              labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+              label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+              trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+              dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+              panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+            }}
+            filter
+          />
         </div>
 
         <div>

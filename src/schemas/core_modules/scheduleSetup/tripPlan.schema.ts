@@ -41,6 +41,7 @@ export const tripPlanSchema = z
     supervisorId: z.string(),
     collectionType: z.string(),
     selectedWasteTypes: z.array(z.string()),
+    ward_ids: z.array(z.string()).optional(),
     scheduledTime: z.string(),
     tripTriggerWeightKg: z.string(),
     maxVehicleCapacityKg: z.string(),

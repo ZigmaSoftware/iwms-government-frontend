@@ -15,6 +15,7 @@ export const dailyTripAssignmentSchema = z.object({
   staffTemplateId: requiredString("Staff Template"),
   hierarchyId: requiredString("Local Body"),
   selectedWasteTypes: z.array(z.string()).min(1, "Waste Type is required"),
+  ward_ids: z.array(z.string()).optional(),
   tripDate: requiredString("Trip Date"),
   scheduledTime: requiredString("Start Time"),
 });
