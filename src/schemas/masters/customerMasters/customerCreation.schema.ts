@@ -76,6 +76,7 @@ export const customerCreationSchema = z
     town_panchayat_id: optionalString,
     panchayat_union_id: optionalString,
     panchayat_id: optionalString,
+    ward_id: requiredString("Ward"),
     is_active: z.boolean(),
     is_bulkwaste_generator: z.boolean(),
     apartment_name: optionalString,
@@ -86,18 +87,21 @@ export const customerCreationSchema = z
     industry_type: optionalString,
   })
   .superRefine((data, ctx) => {
-    const hasLocalBody = [
+    const selectedLocalBodies = [
       data.corporation_id,
       data.municipality_id,
       data.town_panchayat_id,
       data.panchayat_union_id,
       data.panchayat_id,
-    ].some((value) => value.trim());
-    if (!hasLocalBody) {
+    ].filter((value) => value.trim());
+    if (selectedLocalBodies.length !== 1) {
       ctx.addIssue({
         code: "custom",
         path: ["corporation_id"],
-        message: "Local body is required",
+        message:
+          selectedLocalBodies.length === 0
+            ? "Local body is required"
+            : "Select only one local body",
       });
     }
 

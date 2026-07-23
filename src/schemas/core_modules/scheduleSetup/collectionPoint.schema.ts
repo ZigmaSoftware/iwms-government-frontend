@@ -13,7 +13,13 @@ const geoLocationSchema = z.object({
   stateId: requiredString("State"),
   districtId: requiredString("District"),
   areaTypeId: requiredString("Area Type"),
-  localBodyLevel: requiredString("Local Body Level"),
+  localBodyLevel: z.enum([
+    "corporation_id",
+    "municipality_id",
+    "town_panchayat_id",
+    "panchayat_union_id",
+    "panchayat_id",
+  ], { error: "Local Body Level is required" }),
   localBodyId: requiredString("Local Body"),
 });
 
@@ -36,6 +42,7 @@ const binRowSchema = z.object({
     { message: "Bin Capacity must be greater than 0" },
   ),
   bin_type: requiredString("Bin Type"),
+  ward_id: requiredString("Bin Ward"),
   is_active: z.boolean(),
 });
 
@@ -57,7 +64,7 @@ export const collectionPointSchema = z.object({
   coordinates: z.array(coordinateDraftSchema).optional(),
   is_active: z.boolean(),
   bins: z.array(binRowSchema).optional(),
-  ward_ids: z.array(z.string()).optional(),
+  ward_ids: z.array(z.string()).min(1, "Select at least one ward"),
 });
 
 export type CollectionPointFormValues = z.infer<typeof collectionPointSchema>;

@@ -21,6 +21,7 @@ import {
   stateApi,
   subPropertiesApi,
   townPanchayatApi,
+  wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
 
@@ -143,6 +144,7 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
   panchayat_union_id: ["panchayat_union_id", "panchayat_union"],
   panchayat_id: ["panchayat_id", "panchayat"],
+  ward_id: ["ward_id", "ward"],
   is_active: ["is_active"],
   is_bulkwaste_generator: ["is_bulkwaste_generator"],
   apartment_name: ["apartment_name"],
@@ -753,6 +755,7 @@ function CustomerEditor({
     town_panchayat_id: initialPayload.town_panchayat_id,
     panchayat_union_id: initialPayload.panchayat_union_id,
     panchayat_id: initialPayload.panchayat_id,
+    ward_id: initialPayload.ward_id,
     waste_type_ids: initialPayload.waste_type_ids,
     is_active: initialPayload.is_active,
     is_bulkwaste_generator: initialPayload.is_bulkwaste_generator,
@@ -853,6 +856,48 @@ function CustomerEditor({
   const selectedHierarchyId =
     (selectedHierarchyType && formData[selectedHierarchyType]) || "";
 
+  const [wardOptions, setWardOptions] = useState<Option[]>([]);
+
+  useEffect(() => {
+    if (!formData.district_id || !selectedHierarchyType || !selectedHierarchyId) {
+      return;
+    }
+    let cancelled = false;
+    wardApi
+      .readAll({
+        params: {
+          district_id: formData.district_id,
+          [selectedHierarchyType]: selectedHierarchyId,
+        },
+      })
+      .then((response: unknown) => {
+        if (cancelled) return;
+        const records = (
+          Array.isArray(response)
+            ? response
+            : ((response as { results?: unknown[] })?.results ?? [])
+        ) as Array<Record<string, unknown>>;
+        const options = records
+          .filter((ward) => ward.is_active !== false && ward.is_deleted !== true)
+          .map((ward) => ({
+            value: resolveId(ward),
+            label: String(ward.ward_name ?? ward.unique_id ?? ""),
+          }))
+          .filter((option) => option.value);
+        setWardOptions(options);
+        setFormData((current) => ({
+          ...current,
+          ward_id:
+            current.ward_id && options.some((option) => option.value === current.ward_id)
+              ? current.ward_id
+              : "",
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [formData.district_id, selectedHierarchyId, selectedHierarchyType]);
+
   const resolvedAreaTypeId = useMemo(() => {
     const selectedById = filteredAreaTypes.find(
       (areaType: any) => resolveId(areaType) === formData.area_type_id,
@@ -915,6 +960,7 @@ function CustomerEditor({
       town_panchayat_id: "",
       panchayat_union_id: "",
       panchayat_id: "",
+      ward_id: "",
       [level]: value,
     }));
   };
@@ -930,6 +976,7 @@ function CustomerEditor({
       town_panchayat_id: "",
       panchayat_union_id: "",
       panchayat_id: "",
+      ward_id: "",
     }));
   };
 
@@ -943,6 +990,7 @@ function CustomerEditor({
       town_panchayat_id: "",
       panchayat_union_id: "",
       panchayat_id: "",
+      ward_id: "",
     }));
   };
 
@@ -1062,6 +1110,7 @@ function CustomerEditor({
       "id_no",
       "state_id",
       "district_id",
+      "ward_id",
       "property_id",
       "sub_property_id",
       "waste_type_ids",
@@ -1234,6 +1283,7 @@ function CustomerEditor({
         "town_panchayat_id",
         "panchayat_union_id",
         "panchayat_id",
+        "ward_id",
       ]),
     );
   };
@@ -1437,6 +1487,7 @@ function CustomerEditor({
                   town_panchayat_id: "",
                   panchayat_union_id: "",
                   panchayat_id: "",
+                  ward_id: "",
                 }));
                 setSelectedAreaType("");
                 setSelectedHierarchyType("");
@@ -1461,6 +1512,7 @@ function CustomerEditor({
                   town_panchayat_id: "",
                   panchayat_union_id: "",
                   panchayat_id: "",
+                  ward_id: "",
                 }));
                 setSelectedAreaType("");
                 setSelectedHierarchyType("");
@@ -1500,6 +1552,7 @@ function CustomerEditor({
                   town_panchayat_id: "",
                   panchayat_union_id: "",
                   panchayat_id: "",
+                  ward_id: "",
                 }));
               }}
               options={filteredAreaTypes.map((areaType: any) => ({
@@ -1534,6 +1587,14 @@ function CustomerEditor({
                 />
               </div>
             )}
+            <ShadcnSelect
+              label="Ward"
+              value={formData.ward_id}
+              onChange={(v) => update("ward_id", v)}
+              options={wardOptions}
+              placeholder={selectedHierarchyId ? "Select ward" : "Select a local body first"}
+              disabled={!selectedHierarchyId}
+            />
             {isIndividual && (
               <>
                 {showField("building_no") && (
@@ -2355,6 +2416,7 @@ export default function CustomerCreationForm() {
       town_panchayat_id: townPanchayatId,
       panchayat_union_id: panchayatUnionId,
       panchayat_id: panchayatId,
+      ward_id: normalizeEntityId(d.ward_id ?? d.ward),
       waste_type_ids: wasteTypeIds,
       is_active: Boolean(d.is_active),
       is_bulkwaste_generator: Boolean(d.is_bulkwaste_generator),
@@ -2404,6 +2466,7 @@ export default function CustomerCreationForm() {
       town_panchayat_id: "",
       panchayat_union_id: "",
       panchayat_id: "",
+      ward_id: "",
       waste_type_ids: [],
       is_active: true,
       is_bulkwaste_generator: false,
