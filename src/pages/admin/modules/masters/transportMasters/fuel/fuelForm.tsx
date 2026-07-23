@@ -11,6 +11,9 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { fuelSchema } from "@/schemas/masters/transportMasters/fuel.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 
 
 const { encTransportMaster, encFuel } = getEncryptedRoute();
@@ -32,6 +35,7 @@ function FuelForm() {
     "fuel",
     FUEL_FIELDS
   );
+  const schema = requireWhenVisible(fuelSchema, showField);
 
   // ── Record fetch ──────────────────────────────────────────────────────────
   const [recordData, setRecordData] = useState<any>(null);
@@ -77,23 +81,23 @@ function FuelForm() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (showField("fuel_type") && !fuelType) {
+    const rawPayload = {
+      fuel_type: fuelType.trim(),
+      description,
+      is_active: isActive,
+    };
+    const validation = schema.safeParse(rawPayload);
+    if (!validation.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(validation.error),
         confirmButtonColor: "#3085d6",
       });
       return;
     }
 
-    const rawPayload = {
-      fuel_type: fuelType,
-      description,
-      is_active: isActive,
-    };
-    const payload = filterPayload(rawPayload) as unknown as FuelPayload;
+    const payload = filterPayload(validation.data) as unknown as FuelPayload;
 
     setIsSubmitting(true);
     try {

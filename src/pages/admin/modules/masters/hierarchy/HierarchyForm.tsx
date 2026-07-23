@@ -21,8 +21,8 @@ import { FieldError } from "@/components/form/FieldError";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
-import { hierarchySchema, type HierarchyFormValues } from "@/schemas/hierarchy.schema";
-import { requireWhenVisible } from "@/schemas/visibility";
+import { hierarchySchema, type HierarchyFormValues } from "@/schemas/masters/hierarchy.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 import type { ApiError } from "./types";
 
 

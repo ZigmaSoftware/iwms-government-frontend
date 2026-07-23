@@ -5,6 +5,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import PasswordInput from "@/components/form/input/PasswordInput";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { customerCreationSchema } from "@/schemas/masters/customerMasters/customerCreation.schema";
 
 import {
   areaTypeApi,
@@ -1195,6 +1197,11 @@ function CustomerEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
+    const validation = customerCreationSchema.safeParse(formData);
+    if (!validation.success) {
+      Swal.fire(t("common.warning") || "Warning", toSwalMessage(validation.error), "warning");
+      return;
+    }
     const rawPayload = {
       ...formData,
       area_type_id: resolvedAreaTypeId,

@@ -19,6 +19,9 @@ import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
 
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { countrySchema } from "@/schemas/superadmin/commonMasters/country.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import { continentApi, countryApi } from "@/helpers/admin";
 
 const { encCommonMasters, encCountries } = getEncryptedRoute();
@@ -53,7 +56,7 @@ const resolveId = (
 
 export default function CountryForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("common-masters", "countries", COUNTRY_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -145,9 +148,15 @@ export default function CountryForm() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
 
-    const fieldValues: Record<string, unknown> = { name: name.trim(), continent_id: continentId };
-    if (getMissingRequiredFields(["name", "continent_id"], (k) => fieldValues[k]).length > 0) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: t("common.missing_fields") });
+    const result = requireWhenVisible(countrySchema, showField).safeParse({
+      name,
+      continent_id: continentId,
+      mob_code: mobCode,
+      currency,
+      is_active: isActive,
+    });
+    if (!result.success) {
+      Swal.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(result.error) });
       return;
     }
 

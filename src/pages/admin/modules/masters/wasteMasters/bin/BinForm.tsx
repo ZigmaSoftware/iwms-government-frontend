@@ -12,6 +12,8 @@ import {
   wasteTypeApi,
 } from "@/helpers/admin";
 import Swal from "@/lib/notify";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { binSchema } from "@/schemas/masters/wasteMasters/bin.schema";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import LocationFields, {
@@ -139,23 +141,28 @@ export default function BinForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!geo.countryId || !geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId || !collectionPointId || !wasteTypeId || !binName.trim()) {
-      Swal.fire("Missing details", "Location, Collection Point, Waste Type and Bin Name are required.", "warning");
-      return;
-    }
-    if ((latitude && !longitude) || (!latitude && longitude)) {
-      Swal.fire("Missing details", "Latitude and Longitude must be provided together.", "warning");
+    const validation = binSchema.safeParse({
+      countryId: geo.countryId,
+      stateId: geo.stateId,
+      districtId: geo.districtId,
+      areaTypeId: geo.areaTypeId,
+      localBodyLevel: geo.localBodyLevel,
+      localBodyId: geo.localBodyId,
+      collectionPointId,
+      wasteTypeId,
+      binName: binName.trim(),
+      binCapacity,
+      binType,
+      latitude,
+      longitude,
+      isActive,
+    });
+    if (!validation.success) {
+      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
     const latitudeNumber = latitude ? Number(latitude) : null;
     const longitudeNumber = longitude ? Number(longitude) : null;
-    if (
-      (latitudeNumber !== null && (!Number.isFinite(latitudeNumber) || latitudeNumber < -90 || latitudeNumber > 90)) ||
-      (longitudeNumber !== null && (!Number.isFinite(longitudeNumber) || longitudeNumber < -180 || longitudeNumber > 180))
-    ) {
-      Swal.fire("Invalid coordinates", "Latitude must be between -90 and 90, and Longitude between -180 and 180.", "warning");
-      return;
-    }
     setSubmitting(true);
     const payload = {
       district_id: geo.districtId,

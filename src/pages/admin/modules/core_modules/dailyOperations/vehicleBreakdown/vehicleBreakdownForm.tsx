@@ -14,6 +14,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { api } from "@/api";
+import { vehicleBreakdownSchema } from "@/schemas/core_modules/dailyOperations/vehicleBreakdown.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type SelectOption = { value: string; label: string };
 
@@ -356,37 +358,19 @@ export default function VehicleBreakdownForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!form.trip_assignment_id) {
-      Swal.fire(t("common.error"), "Please select a trip assignment.", "error"); return;
-    }
-    if (!form.breakdown_vehicle_id) {
-      Swal.fire(t("common.error"), "Broken vehicle could not be determined. Select a valid trip.", "error"); return;
-    }
-    if (!form.breakdown_reason) {
-      Swal.fire(t("common.error"), "Please select a breakdown reason.", "error"); return;
-    }
-    if (!form.replacement_vehicle_id) {
-      Swal.fire(t("common.error"), "Please select a replacement vehicle.", "error"); return;
-    }
-    if (!form.replacement_driver_id) {
-      Swal.fire(t("common.error"), "Please select a replacement driver.", "error"); return;
-    }
-    if (!form.replacement_operator_id) {
-      Swal.fire(t("common.error"), "Please select a replacement operator.", "error"); return;
-    }
-    if (!form.breakdown_lat.trim()) {
-      Swal.fire(t("common.error"), "Please enter the breakdown latitude.", "error"); return;
-    }
-    if (!form.breakdown_lng.trim()) {
-      Swal.fire(t("common.error"), "Please enter the breakdown longitude.", "error"); return;
-    }
-    const lat = parseFloat(form.breakdown_lat);
-    const lng = parseFloat(form.breakdown_lng);
-    if (isNaN(lat) || lat < -90 || lat > 90) {
-      Swal.fire(t("common.error"), "Latitude must be a number between -90 and 90.", "error"); return;
-    }
-    if (isNaN(lng) || lng < -180 || lng > 180) {
-      Swal.fire(t("common.error"), "Longitude must be a number between -180 and 180.", "error"); return;
+    const validation = vehicleBreakdownSchema.safeParse({
+      trip_assignment_id: form.trip_assignment_id,
+      breakdown_vehicle_id: form.breakdown_vehicle_id,
+      replacement_vehicle_id: form.replacement_vehicle_id,
+      replacement_driver_id: form.replacement_driver_id,
+      replacement_operator_id: form.replacement_operator_id,
+      breakdown_reason: form.breakdown_reason,
+      breakdown_lat: form.breakdown_lat,
+      breakdown_lng: form.breakdown_lng,
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.error"), toSwalMessage(validation.error), "error");
+      return;
     }
 
     setSaving(true);

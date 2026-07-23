@@ -26,6 +26,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import LocalBodySelector, { LOCAL_BODY_TYPES, type LocalBodyValue } from "./LocalBodySelector";
 import DashboardWidgetSection from "./DashboardWidgetSection";
 import PermissionSection, { type PermissionSectionData } from "./PermissionSection";
+import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagement/userScreenPermission.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -376,8 +378,13 @@ export default function UserScreenPermissionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!hasLocalBody || mainScreenIds.length === 0) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const validation = userScreenPermissionSchema.safeParse({
+      localBodyType: localBody.localBodyType,
+      localBodyId: localBody.localBodyId,
+      mainScreenIds,
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 

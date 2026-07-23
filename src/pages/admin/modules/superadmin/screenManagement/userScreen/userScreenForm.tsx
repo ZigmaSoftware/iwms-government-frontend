@@ -19,6 +19,8 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { userScreenSchema } from "@/schemas/superadmin/screenManagement/userScreen.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 /* -----------------------------------------
    ROUTES
@@ -130,8 +132,16 @@ export default function UserScreenForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!mainscreenId || !userScreenName.trim() || !folderName.trim()) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const result = userScreenSchema.safeParse({
+      mainscreenId,
+      userScreenName,
+      folderName,
+      orderNo,
+      description,
+      isActive,
+    });
+    if (!result.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(result.error), "warning");
       return;
     }
 

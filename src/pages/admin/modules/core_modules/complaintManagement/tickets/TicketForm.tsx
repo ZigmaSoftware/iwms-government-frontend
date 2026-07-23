@@ -21,6 +21,8 @@ import {
 } from "@/features/complaintTicketing/api";
 import type { GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { asArray, errorText } from "../utils";
+import { ticketSchema } from "@/schemas/core_modules/complaintManagement/ticket.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 const LOCAL_BODY_TYPES: LocalBodyType[] = [
   "corporation",
@@ -309,8 +311,9 @@ export default function TicketWizardForm() {
       goNext();
       return;
     }
-    if (!form.category || !form.priority || !form.status || !form.title.trim()) {
-      Swal.fire("Missing fields", "Title, category, priority, and status are required.", "warning");
+    const validation = ticketSchema.safeParse(form);
+    if (!validation.success) {
+      Swal.fire("Missing fields", toSwalMessage(validation.error), "warning");
       return;
     }
     const confirmCreate = await Swal.fire({

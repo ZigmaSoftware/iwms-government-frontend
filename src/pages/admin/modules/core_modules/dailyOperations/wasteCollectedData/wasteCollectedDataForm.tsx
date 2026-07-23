@@ -25,6 +25,8 @@ import {
   panchayatApi,
 } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -472,12 +474,16 @@ function WasteCollectedEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customerId) {
-      Swal.fire(t("common.warning"), t("admin.household_collection_event.customer_required"), "warning");
-      return;
-    }
-    if (!collectionDate) {
-      Swal.fire(t("common.warning"), t("admin.household_collection_event.collection_date_required"), "warning");
+    const validation = wasteCollectedDataSchema.safeParse({
+      customerId,
+      collectionDate,
+      wetWaste,
+      dryWaste,
+      mixedWaste,
+      sanitaryWaste,
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 

@@ -3,6 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -21,6 +22,8 @@ import {
 
 import { adminApi } from "@/helpers/admin/registry";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { subPropertySchema } from "@/schemas/masters/wasteMasters/subProperty.schema";
 import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecord } from "./types";
 
 const { encWasteMasters, encSubProperties } = getEncryptedRoute();
@@ -64,7 +67,7 @@ function SubPropertyEditor({
   onSubmit,
 }: SubPropertyEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "sub-properties", SUB_PROPERTY_FIELDS);
   const [subPropertyName, setSubPropertyName] = useState(initialPayload.sub_property_name ?? "");
   const [propertyId, setPropertyId] = useState<string>(String(initialPayload.property_id ?? ""));
@@ -72,6 +75,7 @@ function SubPropertyEditor({
     initialPayload.property_id ? String(initialPayload.property_id) : ""
   );
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const schema = requireWhenVisible(subPropertySchema, showField);
 
   // Apply pending property id once the list has loaded and the option exists
   useEffect(() => {
@@ -88,33 +92,22 @@ function SubPropertyEditor({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedName = subPropertyName.trim();
-    const fieldValues: Record<string, unknown> = {
-      sub_property_name: trimmedName,
+    const rawPayload = {
+      sub_property_name: subPropertyName.trim(),
       property_id: propertyId,
+      is_active: isActive,
     };
-
-    if (
-      getMissingRequiredFields(
-        ["sub_property_name", "property_id"],
-        (fieldKey) => fieldValues[fieldKey],
-      ).length > 0
-    ) {
+    const validation = schema.safeParse(rawPayload);
+    if (!validation.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.all_fields_required"),
+        text: toSwalMessage(validation.error),
       });
       return;
     }
 
-    const rawPayload = {
-      sub_property_name: trimmedName,
-      property_id: propertyId,
-      is_active: isActive,
-    };
-
-    await onSubmit(filterPayload(rawPayload) as SubPropertyPayload);
+    await onSubmit(filterPayload(validation.data) as SubPropertyPayload);
   };
 
   return (

@@ -16,7 +16,7 @@ import { normalizeList } from "@/utils/forms";
 import {
   householdPickupEventSchema,
   type HouseholdPickupEventFormValues,
-} from "@/schemas/householdPickupEvent.schema";
+} from "@/schemas/masters/customerMasters/householdPickupEvent.schema";
 
 type Option = { value: string; label: string };
 type RecordRow = Record<string, any>;

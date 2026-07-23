@@ -17,6 +17,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { continentSchema } from "@/schemas/superadmin/commonMasters/continent.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
@@ -65,7 +68,7 @@ function ContinentEditor({
   onSubmit,
 }: ContinentEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("common-masters", "continents", CONTINENT_FIELDS);
   const [name, setName] = useState(initialPayload.name);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
@@ -73,16 +76,16 @@ function ContinentEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(continentSchema, showField).safeParse({
       name: trimmedName,
       is_active: isActive,
-    };
+    });
 
-    if (getMissingRequiredFields(["name"], (fieldKey) => fieldValues[fieldKey]).length > 0) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

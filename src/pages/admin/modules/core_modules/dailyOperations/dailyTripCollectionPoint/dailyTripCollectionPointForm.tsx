@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { dailyTripAssignmentApi, dailyTripCollectionPointApi, binApi, staffCreationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
+import { dailyTripCollectionPointSchema } from "@/schemas/core_modules/dailyOperations/dailyTripCollectionPoint.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 
 const STATUS_OPTIONS: SelectOption[] = [
@@ -259,15 +261,16 @@ export default function DailyTripCollectionPointForm() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!tripAssignmentId || !collectionPointId || !binId) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const validation = dailyTripCollectionPointSchema.safeParse({ tripAssignmentId, collectionPointId, binId });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
     const payload = {
-      trip_assignment_id: tripAssignmentId,
-      collection_point_id: collectionPointId,
-      bin_id: binId,
+      trip_assignment_id: validation.data.tripAssignmentId,
+      collection_point_id: validation.data.collectionPointId,
+      bin_id: validation.data.binId,
       sequence: Number(sequence || 1),
       is_collected: isCollected,
       collected_at: collectedAt || null,

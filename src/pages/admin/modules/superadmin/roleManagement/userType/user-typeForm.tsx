@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import { userTypeSchema } from "@/schemas/superadmin/roleManagement/userType.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 const { encAdmins, encUserType } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encUserType);
@@ -58,6 +60,20 @@ export default function UserTypeForm() {
   ----------------------------------------------------------- */
   const handleSubmit = async (e: any) => {
     e.preventDefault();
+
+    const validation = userTypeSchema.safeParse({
+      name,
+      is_active: isActive,
+    });
+
+    if (!validation.success) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: toSwalMessage(validation.error),
+      });
+      return;
+    }
 
     const payload = {
       name,

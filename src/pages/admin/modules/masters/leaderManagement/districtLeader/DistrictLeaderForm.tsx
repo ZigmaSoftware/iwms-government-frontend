@@ -23,6 +23,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import { districtApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { mergeWithScopeOption } from "../../shared/dataScopeOptions";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { buildDistrictLeaderSchema } from "@/schemas/masters/leaderManagement/districtLeader.schema";
 
 type RecordRow = Record<string, any>;
 
@@ -144,11 +146,6 @@ function DistrictLeaderEditor({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
-    if (!formData.district_id) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: "Please select a District." });
-      return;
-    }
     if (districtTakenBy) {
       Swal.fire({
         icon: "warning",
@@ -157,25 +154,30 @@ function DistrictLeaderEditor({
       });
       return;
     }
-    if (!formData.username.trim()) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: "Username is required." });
-      return;
-    }
-    if (!isEdit && !formData.password.trim()) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: "Password is required when creating a new leader." });
+
+    const validation = buildDistrictLeaderSchema(isEdit).safeParse({
+      username: formData.username.trim(),
+      password: formData.password.trim(),
+      email: formData.email.trim(),
+      leader_name: formData.leader_name.trim(),
+      district_id: formData.district_id,
+      is_active: formData.is_active === "1",
+    });
+    if (!validation.success) {
+      Swal.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(validation.error) });
       return;
     }
 
     const payload: Record<string, unknown> = {
-      username: formData.username.trim(),
-      email: formData.email.trim() || null,
-      leader_name: formData.leader_name.trim() || null,
-      district_id: formData.district_id,
-      is_active: formData.is_active === "1",
+      username: validation.data.username,
+      email: validation.data.email || null,
+      leader_name: validation.data.leader_name || null,
+      district_id: validation.data.district_id,
+      is_active: validation.data.is_active,
     };
 
-    if (formData.password.trim()) {
-      payload.password = formData.password.trim();
+    if (validation.data.password.trim()) {
+      payload.password = validation.data.password.trim();
     }
 
     await onSubmit(payload);

@@ -32,8 +32,8 @@ import {
   mergeWithScopeOptionExtra,
   scopeOption,
 } from "../shared/dataScopeOptions";
-import { corporationSchema, type CorporationFormValues } from "@/schemas/corporation.schema";
-import { requireWhenVisible } from "@/schemas/visibility";
+import { corporationSchema, type CorporationFormValues } from "@/schemas/masters/corporation.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 
 type Option = {
   value: string;

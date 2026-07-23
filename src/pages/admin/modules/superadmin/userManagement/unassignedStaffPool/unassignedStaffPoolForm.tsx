@@ -10,6 +10,8 @@ import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+import { unassignedStaffPoolSchema } from "@/schemas/superadmin/userManagement/unassignedStaffPool.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type Option = { value: string; label: string };
 
@@ -60,10 +62,19 @@ export default function UnassignedStaffPoolForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!role || (role === "operator" && !operatorId) || (role === "driver" && !driverId)) {
-      Swal.fire("Missing details", "Select a role and staff member.", "warning");
+
+    const validation = unassignedStaffPoolSchema.safeParse({
+      role,
+      operatorId,
+      driverId,
+      dailyTripAssignmentId,
+      status,
+    });
+    if (!validation.success) {
+      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
+
     setSaving(true);
     const payload = {
       operator_id: role === "operator" ? operatorId : null,

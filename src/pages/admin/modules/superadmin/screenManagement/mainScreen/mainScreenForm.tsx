@@ -19,6 +19,8 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { mainScreenSchema } from "@/schemas/superadmin/screenManagement/mainScreen.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 /* ------------------------------
     ROUTES
@@ -129,8 +131,15 @@ export default function MainScreenForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!mainscreenName.trim() || !mainscreenTypeId) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const result = mainScreenSchema.safeParse({
+      mainscreenTypeId,
+      mainscreenName,
+      orderNo: String(orderNo),
+      description,
+      isActive,
+    });
+    if (!result.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(result.error), "warning");
       return;
     }
 

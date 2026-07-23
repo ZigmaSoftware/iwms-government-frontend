@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { collectionPointApi, wasteTypeApi } from "@/helpers/admin";
 import Swal from "@/lib/notify";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { collectionPointSchema } from "@/schemas/core_modules/scheduleSetup/collectionPoint.schema";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { decryptSegment } from "@/utils/routeCrypto";
@@ -167,12 +169,16 @@ export default function CollectionPointForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!geo.countryId || !geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId || !cpName.trim()) {
-      Swal.fire("Missing details", "Location and Collection Point Name are required.", "warning");
-      return;
-    }
-    if (bins.some((bin) => !bin.wastetype_id || !bin.bin_name.trim() || !bin.bin_capacity || !bin.bin_type)) {
-      Swal.fire("Missing details", "Every bin needs a Waste Type, Name, Capacity and Type.", "warning");
+    const result = collectionPointSchema.safeParse({
+      geo,
+      cp_name: cpName,
+      collection_type: collectionType,
+      coordinates,
+      is_active: isActive,
+      bins,
+    });
+    if (!result.success) {
+      Swal.fire("Invalid details", toSwalMessage(result.error), "warning");
       return;
     }
     setSubmitting(true);

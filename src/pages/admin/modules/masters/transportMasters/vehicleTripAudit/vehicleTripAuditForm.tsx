@@ -6,6 +6,8 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { vehicleTripAuditSchema } from "@/schemas/masters/transportMasters/vehicleTripAudit.schema";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -335,26 +337,21 @@ export default function VehicleTripAuditForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      !formData.daily_trip_assignment_id ||
-      !formData.vehicle_id ||
-      !formData.gps_lat ||
-      !formData.gps_lon ||
-      !formData.avg_speed
-    ) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const validation = vehicleTripAuditSchema.safeParse(formData);
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
     let latValues: number[];
     let lonValues: number[];
     try {
-      latValues = parseGpsArray(formData.gps_lat);
-      lonValues = parseGpsArray(formData.gps_lon);
-    } catch (error: any) {
+      latValues = parseGpsArray(validation.data.gps_lat);
+      lonValues = parseGpsArray(validation.data.gps_lon);
+    } catch (error: unknown) {
       Swal.fire(
         t("common.warning"),
-        String(error?.message ?? t("common.invalid_data")),
+        String(error instanceof Error ? error.message : t("common.invalid_data")),
         "warning"
       );
       return;
@@ -369,7 +366,7 @@ export default function VehicleTripAuditForm() {
       return;
     }
 
-    const avgSpeed = Number(formData.avg_speed);
+    const avgSpeed = Number(validation.data.avg_speed);
     if (!Number.isFinite(avgSpeed)) {
       Swal.fire(t("common.warning"), t("common.invalid_data"), "warning");
       return;
@@ -386,8 +383,8 @@ export default function VehicleTripAuditForm() {
         await adminApi.vehicleTripAudits.update(id, payload);
       } else {
         const payload: VehicleTripAuditPayload = {
-          daily_trip_assignment_id: formData.daily_trip_assignment_id,
-          vehicle_id: formData.vehicle_id,
+          daily_trip_assignment_id: validation.data.daily_trip_assignment_id,
+          vehicle_id: validation.data.vehicle_id,
           gps_lat: latValues,
           gps_lon: lonValues,
           avg_speed: avgSpeed,

@@ -14,6 +14,8 @@ import { filterActiveRecords } from "@/utils/customerUtils";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { vehicleCreationSchema } from "@/schemas/masters/transportMasters/vehicleCreation.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
@@ -381,18 +383,17 @@ export default function VehicleCreationForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const missingFields: string[] = [];
-    if (showField("vehicle_no") && !form.vehicleNo.trim())
-      missingFields.push(t("admin.vehicle_creation.vehicle_no"));
-    if (!geo.countryId || !geo.stateId || !geo.districtId || !geo.areaTypeId || !geo.localBodyLevel || !geo.localBodyId)
-      missingFields.push(t("common.location"));
-
-    if (missingFields.length > 0) {
-      Swal.fire(
-        t("common.warning"),
-        `${t("common.please_fill")}: ${missingFields.join(", ")}`,
-        "warning"
-      );
+    const validation = vehicleCreationSchema(showField).safeParse({
+      vehicle_no: form.vehicleNo.trim(),
+      country_id: geo.countryId,
+      state_id: geo.stateId,
+      district_id: geo.districtId,
+      area_type_id: geo.areaTypeId,
+      local_body_level: geo.localBodyLevel,
+      local_body_id: geo.localBodyId,
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 

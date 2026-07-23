@@ -18,6 +18,8 @@ import {
   complaintTeamApi,
 } from "@/features/complaintTicketing/api";
 import { asArray, errorText, idOf } from "../utils";
+import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type MasterKind = "module" | "category" | "subcategory" | "priority" | "status" | "source" | "team" | "slaRule";
 
@@ -151,8 +153,9 @@ export default function MasterForm({ kind }: Props) {
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (kind !== "slaRule" && (!form.code.trim() || !form.name.trim())) {
-      Swal.fire("Missing fields", "Code and name are required.", "warning");
+    const result = buildComplaintMasterSchema(kind).safeParse(form);
+    if (!result.success) {
+      Swal.fire("Invalid fields", toSwalMessage(result.error), "warning");
       return;
     }
 
@@ -216,15 +219,6 @@ export default function MasterForm({ kind }: Props) {
                     escalation_after_minutes: form.escalation_after_minutes ? Number(form.escalation_after_minutes) : null,
                     escalation_team: form.escalation_team || null,
                   };
-
-    if (kind === "subcategory" && !payload.category) {
-      Swal.fire("Missing fields", "Category is required.", "warning");
-      return;
-    }
-    if (kind === "slaRule" && (!payload.category || !payload.priority)) {
-      Swal.fire("Missing fields", "Category and priority are required.", "warning");
-      return;
-    }
 
     setSaving(true);
     try {

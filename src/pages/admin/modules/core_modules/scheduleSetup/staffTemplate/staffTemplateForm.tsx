@@ -17,6 +17,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useGeoHierarchy, type HierarchyLevel } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
+import { staffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/staffTemplate.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 const GEO_PAYLOAD_KEYS = [
   "state_id",
@@ -473,6 +475,12 @@ export default function StaffTemplateForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    const validation = staffTemplateSchema.safeParse(formData);
+    if (!validation.success) {
+      Swal.fire(t("common.error"), toSwalMessage(validation.error), "warning");
+      return;
+    }
 
     if (
       showField("driver_id") &&

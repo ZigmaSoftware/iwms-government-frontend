@@ -23,6 +23,8 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { loginSchema } from "@/schemas/auth.schema";
 import {
   Eye,
   EyeOff,
@@ -109,12 +111,21 @@ export default function Auth() {
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const validation = loginSchema.safeParse({ username, password });
+    if (!validation.success) {
+      toast({
+        title: t("login.title"),
+        description: toSwalMessage(validation.error),
+        variant: "destructive",
+      });
+      return;
+    }
     setLoading(true);
 
     try {
       const res = await api.post<LoginResponse>("/login/", {
-        username,
-        password,
+        username: validation.data.username,
+        password: validation.data.password,
       });
 
       console.log("[Auth] Login response received:", res.data);
