@@ -20,6 +20,7 @@ import {
   stateApi,
   townPanchayatApi,
   tripPlanApi,
+  wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
 import Swal from "@/lib/notify";
@@ -121,6 +122,7 @@ export default function DailyTripAssignmentForm() {
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [altStaffTemplateId, setAltStaffTemplateId] = useState("");
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
+  const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
   const [vehicleId, setVehicleId] = useState("");
   const [tripDate, setTripDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -134,6 +136,7 @@ export default function DailyTripAssignmentForm() {
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<ApiRecord[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
+  const [wardRecords, setWardRecords] = useState<ApiRecord[]>([]);
   const [saving, setSaving] = useState(false);
 
   // The record's own nested labels for the selected Trip Plan / Staff Template
@@ -188,9 +191,11 @@ export default function DailyTripAssignmentForm() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
+      wardApi.readAll(),
     ]).then(([
       wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,
+      wardRes,
     ]) => {
       setWasteTypes(toOptions(normalizeList(wasteTypeRes), "waste_type_name"));
       setStates(normalizeList(stateRes));
@@ -203,6 +208,7 @@ export default function DailyTripAssignmentForm() {
         panchayat_union_id: normalizeList(panchayatUnionRes),
         panchayat_id: normalizeList(panchayatRes),
       });
+      setWardRecords(normalizeList(wardRes));
     });
   }, []);
 
@@ -253,6 +259,9 @@ export default function DailyTripAssignmentForm() {
       setAltStaffTemplateId(String(record.alt_staff_template?.unique_id ?? record.alt_staff_template_id ?? ""));
       if (Array.isArray(record.waste_types_detail) && record.waste_types_detail.length > 0) {
         setSelectedWasteTypes(record.waste_types_detail.map((wt: any) => String(wt.unique_id)));
+      }
+      if (Array.isArray(record.wards_detail) && record.wards_detail.length > 0) {
+        setSelectedWardIds(record.wards_detail.map((w: any) => String(w.unique_id)));
       }
       setWasteTypeBreakdown(Array.isArray(record.waste_type_breakdown) ? record.waste_type_breakdown : []);
       setVehicleId(String(record.vehicle?.unique_id ?? record.vehicle_id ?? ""));
@@ -443,6 +452,12 @@ export default function DailyTripAssignmentForm() {
     "area_type",
     {},
   );
+  const filteredWards = wardRecords.filter(
+    (w) =>
+      (!districtId || String(w.district_id ?? "") === districtId) &&
+      (!hierarchyId || String(w[hierarchyLevel] ?? "") === hierarchyId),
+  );
+  const wardOptions = toOptions(filteredWards, "ward_name");
 
   // Trip Plan options — ensures the record's/plan's own selected value is
   // always visibly labeled, even before the (unfiltered but still
@@ -544,6 +559,7 @@ export default function DailyTripAssignmentForm() {
       staffTemplateId,
       hierarchyId,
       selectedWasteTypes,
+      ward_ids: selectedWardIds,
       tripDate,
       scheduledTime,
     });
@@ -566,6 +582,7 @@ export default function DailyTripAssignmentForm() {
       panchayat_id: null,
       [hierarchyLevel]: hierarchyId,
       waste_type_ids: selectedWasteTypes,
+      ward_ids: selectedWardIds,
       vehicle_id: vehicleId || null,
       trip_date: tripDate,
       scheduled_time: scheduledTime,
@@ -780,6 +797,35 @@ export default function DailyTripAssignmentForm() {
                   </button>
                 </div>
               )}
+            </div>
+
+            <div>
+              <Label>Wards</Label>
+              <MultiSelect
+                value={selectedWardIds}
+                onChange={(event) => {
+                  const raw = Array.isArray(event.value) ? event.value : [];
+                  // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
+                  const values = raw.map((v: any) =>
+                    v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+                  );
+                  setSelectedWardIds(values);
+                }}
+                options={wardOptions}
+                optionLabel="label"
+                optionValue="value"
+                maxSelectedLabels={3}
+                placeholder="Select wards"
+                className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+                pt={{
+                  labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+                  label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+                  trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+                  dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+                  panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+                }}
+                filter
+              />
             </div>
 
             {isEdit && (

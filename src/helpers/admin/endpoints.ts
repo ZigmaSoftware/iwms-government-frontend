@@ -38,6 +38,7 @@ export const adminEndpoints = {
   municipalities: "masters/municipalities",
   townPanchayats: "masters/town-panchayats",
   panchayatUnions: "masters/panchayat-unions",
+  wards: "masters/wards",
 
   /* =========================
      WASTE TYPES

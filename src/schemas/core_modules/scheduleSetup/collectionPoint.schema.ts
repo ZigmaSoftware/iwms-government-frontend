@@ -57,6 +57,7 @@ export const collectionPointSchema = z.object({
   coordinates: z.array(coordinateDraftSchema).optional(),
   is_active: z.boolean(),
   bins: z.array(binRowSchema).optional(),
+  ward_ids: z.array(z.string()).optional(),
 });
 
 export type CollectionPointFormValues = z.infer<typeof collectionPointSchema>;
