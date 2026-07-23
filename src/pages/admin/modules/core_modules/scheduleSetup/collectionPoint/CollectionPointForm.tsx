@@ -1,11 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { MultiSelect } from "primereact/multiselect";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { collectionPointApi, wasteTypeApi } from "@/helpers/admin";
+import { collectionPointApi, wardApi, wasteTypeApi } from "@/helpers/admin";
 import Swal from "@/lib/notify";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { collectionPointSchema } from "@/schemas/core_modules/scheduleSetup/collectionPoint.schema";
@@ -110,6 +111,8 @@ export default function CollectionPointForm() {
   // Bins — merged in from the standalone Bin form; created/edited inline here.
   const [bins, setBins] = useState<BinRow[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
+  const [wardRecords, setWardRecords] = useState<ApiRecord[]>([]);
+  const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
 
   useEffect(() => {
     wasteTypeApi.readAll().then((res: unknown) => {
@@ -118,6 +121,12 @@ export default function CollectionPointForm() {
           .map((item) => ({ value: idOf(item.unique_id), label: String(item.waste_type_name ?? item.unique_id ?? "") }))
           .filter((option) => option.value),
       );
+    });
+  }, []);
+
+  useEffect(() => {
+    wardApi.readAll().then((res: unknown) => {
+      setWardRecords(normalizeList(res));
     });
   }, []);
 
@@ -146,6 +155,10 @@ export default function CollectionPointForm() {
       );
       setIsActive(record.is_active !== false);
 
+      if (Array.isArray(record.wards_detail) && (record.wards_detail as ApiRecord[]).length > 0) {
+        setSelectedWardIds((record.wards_detail as ApiRecord[]).map((w) => String(w.unique_id)));
+      }
+
       if (Array.isArray(record.bins_detail)) {
         setBins(
           (record.bins_detail as ApiRecord[]).map((bin) => ({
@@ -162,6 +175,15 @@ export default function CollectionPointForm() {
     });
   }, [id]);
 
+  const filteredWards = wardRecords.filter(
+    (w) =>
+      (!geo.districtId || String(w.district_id ?? "") === geo.districtId) &&
+      (!geo.localBodyId || !geo.localBodyLevel || String(w[geo.localBodyLevel] ?? "") === geo.localBodyId),
+  );
+  const wardOptions: Option[] = filteredWards
+    .map((w) => ({ value: idOf(w.unique_id), label: String(w.ward_name ?? w.unique_id ?? "") }))
+    .filter((option) => option.value);
+
   const addBin = () => setBins((prev) => [...prev, emptyBinRow()]);
   const removeBin = (key: string) => setBins((prev) => prev.filter((bin) => bin.key !== key));
   const updateBin = (key: string, patch: Partial<BinRow>) =>
@@ -176,6 +198,7 @@ export default function CollectionPointForm() {
       coordinates,
       is_active: isActive,
       bins,
+      ward_ids: selectedWardIds,
     });
     if (!result.success) {
       Swal.fire("Invalid details", toSwalMessage(result.error), "warning");
@@ -200,6 +223,7 @@ export default function CollectionPointForm() {
       longitude: firstCoordinate?.longitude ?? (longitude || null),
       coordinates: coordinatePayload,
       is_active: isActive,
+      ward_ids: selectedWardIds,
       bins: bins.map((bin) => ({
         ...(bin.unique_id ? { unique_id: bin.unique_id } : {}),
         wastetype_id: bin.wastetype_id,
@@ -222,6 +246,34 @@ export default function CollectionPointForm() {
     <ComponentCard title={isEdit ? "Edit Collection Point" : "Create Collection Point"}>
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <LocationFields value={geo} onChange={setGeo} />
+        <div>
+          <Label>Wards</Label>
+          <MultiSelect
+            value={selectedWardIds}
+            onChange={(event) => {
+              const raw = Array.isArray(event.value) ? event.value : [];
+              // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setSelectedWardIds(values);
+            }}
+            options={wardOptions}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={3}
+            placeholder="Select wards"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+            pt={{
+              labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+              label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+              trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+              dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+              panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+            }}
+            filter
+          />
+        </div>
         <div>
           <Label>Collection Point Name *</Label>
           <Input value={cpName} onChange={(e) => setCpName(e.target.value)} />
