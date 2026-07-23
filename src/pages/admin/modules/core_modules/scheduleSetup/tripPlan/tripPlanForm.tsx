@@ -208,6 +208,9 @@ export default function TripPlanForm() {
   // Single primary waste type (legacy)
   // Multiple waste types
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
+  // Household customers only ever segregate into these 4 streams — auto-select
+  // them below whenever Collection Mode is switched to Household.
+  const HOUSEHOLD_WASTE_TYPE_NAMES = ["Wet Waste", "Dry Waste", "Mixed Waste", "Sanitary Waste"];
   const [scheduledTime, setScheduledTime] = useState("07:00");
   const [tripTriggerWeightKg, setTripTriggerWeightKg] = useState("");
   const [maxVehicleCapacityKg, setMaxVehicleCapacityKg] = useState("");
@@ -276,6 +279,17 @@ export default function TripPlanForm() {
       });
     });
   }, []);
+
+  // Residential customers only ever segregate into the 4 household streams —
+  // once Collection Mode is Household the waste type dropdown is restricted to
+  // just those 4 (all pre-selected); switching to any other mode restores the
+  // full master list. Applied from the Collection Mode `onChange` below (not a
+  // useEffect on `collectionType`) so loading an existing household trip plan
+  // in edit mode doesn't clobber its saved waste type selection.
+  const wasteTypeOptions =
+    collectionType === "household_collection"
+      ? wasteTypes.filter((wt) => HOUSEHOLD_WASTE_TYPE_NAMES.includes(wt.label))
+      : wasteTypes;
 
   // Heavy/large lists — Staff Templates, Vehicles, Staff (for Supervisors),
   // Collection Points, Bins and Customers can each run into the hundreds or
@@ -925,7 +939,7 @@ useEffect(() => {
               setSelectedWasteTypes(values);
               setStops((current) => current.map((stop) => ({ ...stop, bin_id: "" })));
             }}
-            options={wasteTypes}
+            options={wasteTypeOptions}
             optionLabel="label"
             optionValue="value"
             maxSelectedLabels={3}
@@ -999,6 +1013,17 @@ useEffect(() => {
                           ? prev
                           : [emptyStop("bin_collection")],
                       );
+                    }
+                    // Restrict + pre-select the 4 residential waste types for
+                    // Household; switching away restores the full list and
+                    // clears the (now out-of-scope) selection.
+                    if (next === "household_collection") {
+                      const householdIds = wasteTypes
+                        .filter((wt) => HOUSEHOLD_WASTE_TYPE_NAMES.includes(wt.label))
+                        .map((wt) => wt.value);
+                      setSelectedWasteTypes(householdIds);
+                    } else if (collectionType === "household_collection") {
+                      setSelectedWasteTypes([]);
                     }
                   }}
                   options={[
