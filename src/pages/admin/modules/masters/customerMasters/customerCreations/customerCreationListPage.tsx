@@ -44,6 +44,7 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   property_name: ["property_id", "property_name"],
   sub_property_name: ["sub_property_id", "sub_property_name"],
   location_name: ["location_node_id", "location_node", "location_name"],
+  ward_name: ["ward_id", "ward_name"],
   waste_types: ["waste_type_ids", "waste_types", "waste_type"],
   qr_code: ["qr_code"],
   is_active: ["is_active"],
@@ -69,10 +70,12 @@ const CUSTOMER_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
   { field: "pincode", header: "pincode", sample: "600040" },
   { field: "latitude", header: "latitude", sample: "13.0827" },
   { field: "longitude", header: "longitude", sample: "80.2707" },
-  // Geography for import: district + panchayat names are resolved to the
-  // customer's single hierarchy node server-side (must already exist in the tree).
+  // Geography for import: one ULB/RLB and one ward under that local body.
+  { field: "state_name", header: "state_name", required: true, sample: "Tamil Nadu" },
   { field: "district_name", header: "district_name", required: true, sample: "Erode" },
-  { field: "panchayat_name", header: "panchayat_name", required: true, sample: "Sample Panchayat" },
+  { field: "local_body_type", header: "local_body_type", required: true, sample: "panchayat" },
+  { field: "local_body_name", header: "local_body_name", required: true, sample: "Sample Panchayat" },
+  { field: "ward_name", header: "ward_name", required: true, sample: "Ward 1" },
   { field: "property_name", header: "property_name", required: true, sample: "Residential" },
   { field: "sub_property_name", header: "sub_property_name", required: true, sample: "Apartment" },
   { field: "waste_type_ids", header: "waste_type_ids", required: true, sample: "wst-2026abcd01,wst-2026efgh02" },
@@ -535,6 +538,7 @@ export default function CustomerCreationListPage() {
           globalFilterFields={[
             "customer_name", "contact_no", "property_name",
             "sub_property_name", "waste_types",
+            "ward_name",
           ]}
           header={header}
           emptyMessage={t("admin.customer_creation.empty_message")}
@@ -570,6 +574,14 @@ export default function CustomerCreationListPage() {
               field="location_name"
               header={t("common.location") || "Location"}
               body={(row: Customer) => localBodyLabel(row)}
+              sortable
+            />
+          )}
+          {showCol("ward_name") && (
+            <Column
+              field="ward_name"
+              header="Ward"
+              body={(row: Customer) => row.ward_name || "-"}
               sortable
             />
           )}

@@ -45,6 +45,7 @@ type BinRow = {
   bin_name: string;
   bin_capacity: string;
   bin_type: string;
+  ward_id: string;
   is_active: boolean;
 };
 
@@ -60,6 +61,7 @@ const emptyBinRow = (): BinRow => ({
   bin_name: "",
   bin_capacity: "",
   bin_type: "",
+  ward_id: "",
   is_active: true,
 });
 const { encMasters, encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
@@ -125,10 +127,30 @@ export default function CollectionPointForm() {
   }, []);
 
   useEffect(() => {
-    wardApi.readAll().then((res: unknown) => {
-      setWardRecords(normalizeList(res));
-    });
-  }, []);
+    if (!geo.districtId || !geo.localBodyLevel || !geo.localBodyId) {
+      setWardRecords([]);
+      setSelectedWardIds([]);
+      return;
+    }
+    let cancelled = false;
+    wardApi
+      .readAll({
+        params: {
+          district_id: geo.districtId,
+          [geo.localBodyLevel]: geo.localBodyId,
+        },
+      })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const records = normalizeList(res);
+        setWardRecords(records);
+        const allowed = new Set(records.map((ward) => idOf(ward.unique_id)));
+        setSelectedWardIds((current) => current.filter((wardId) => allowed.has(wardId)));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [geo.districtId, geo.localBodyId, geo.localBodyLevel]);
 
   useEffect(() => {
     if (!id) return;
@@ -168,6 +190,7 @@ export default function CollectionPointForm() {
             bin_name: String(bin.bin_name ?? ""),
             bin_capacity: String(bin.bin_capacity ?? ""),
             bin_type: String(bin.bin_type ?? ""),
+            ward_id: idOf(bin.ward_id ?? bin.ward),
             is_active: bin.is_active !== false,
           })),
         );
@@ -175,12 +198,7 @@ export default function CollectionPointForm() {
     });
   }, [id]);
 
-  const filteredWards = wardRecords.filter(
-    (w) =>
-      (!geo.districtId || String(w.district_id ?? "") === geo.districtId) &&
-      (!geo.localBodyId || !geo.localBodyLevel || String(w[geo.localBodyLevel] ?? "") === geo.localBodyId),
-  );
-  const wardOptions: Option[] = filteredWards
+  const wardOptions: Option[] = wardRecords
     .map((w) => ({ value: idOf(w.unique_id), label: String(w.ward_name ?? w.unique_id ?? "") }))
     .filter((option) => option.value);
 
@@ -230,6 +248,7 @@ export default function CollectionPointForm() {
         bin_name: bin.bin_name.trim(),
         bin_capacity: Number(bin.bin_capacity),
         bin_type: bin.bin_type,
+        ward_id: bin.ward_id,
         is_active: bin.is_active,
       })),
     };
@@ -245,17 +264,26 @@ export default function CollectionPointForm() {
   return (
     <ComponentCard title={isEdit ? "Edit Collection Point" : "Create Collection Point"}>
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <LocationFields value={geo} onChange={setGeo} />
+        <LocationFields
+          value={geo}
+          onChange={(next) => {
+            setGeo(next);
+            setSelectedWardIds([]);
+            setBins((current) => current.map((bin) => ({ ...bin, ward_id: "" })));
+          }}
+        />
         <div>
-          <Label>Wards</Label>
+            <Label>Wards *</Label>
           <MultiSelect
             value={selectedWardIds}
             onChange={(event) => {
               const raw = Array.isArray(event.value) ? event.value : [];
               // PrimeReact MultiSelect sometimes returns objects instead of the optionValue string
-              const values = raw.map((v: any) =>
-                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
-              );
+              const values = raw.map((value: unknown) => {
+                if (!value || typeof value !== "object") return String(value);
+                const record = value as ApiRecord;
+                return String(record.value ?? record.unique_id ?? record.id ?? "");
+              });
               setSelectedWardIds(values);
             }}
             options={wardOptions}
@@ -272,6 +300,7 @@ export default function CollectionPointForm() {
               panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
             }}
             filter
+            disabled={!geo.localBodyId}
           />
         </div>
         <div>
@@ -313,7 +342,7 @@ export default function CollectionPointForm() {
           )}
           <div className="space-y-3">
             {bins.map((bin) => (
-              <div key={bin.key} className="grid gap-3 md:grid-cols-[2fr_2fr_1fr_1fr_auto_auto]">
+              <div key={bin.key} className="grid gap-3 md:grid-cols-[2fr_2fr_1fr_1fr_1.5fr_auto_auto]">
                 <select
                   className="h-10 w-full rounded-md border px-3 text-sm"
                   value={bin.wastetype_id}
@@ -323,6 +352,19 @@ export default function CollectionPointForm() {
                   {wasteTypes.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
+                </select>
+                <select
+                  className="h-10 w-full rounded-md border px-3 text-sm"
+                  value={bin.ward_id}
+                  onChange={(e) => updateBin(bin.key, { ward_id: e.target.value })}
+                  disabled={selectedWardIds.length === 0}
+                >
+                  <option value="">Bin Ward</option>
+                  {wardOptions
+                    .filter((option) => selectedWardIds.includes(option.value))
+                    .map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                 </select>
                 <Input
                   placeholder="Bin Name"

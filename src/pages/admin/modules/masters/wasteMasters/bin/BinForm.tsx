@@ -80,6 +80,7 @@ export default function BinForm() {
   const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
   const [collectionPointId, setCollectionPointId] = useState("");
   const [wasteTypeId, setWasteTypeId] = useState("");
+  const [wardId, setWardId] = useState("");
   const [binName, setBinName] = useState("");
   const [binCapacity, setBinCapacity] = useState("");
   const [binType, setBinType] = useState("");
@@ -88,6 +89,7 @@ export default function BinForm() {
   const [isActive, setIsActive] = useState(true);
   const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
+  const [wards, setWards] = useState<Option[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -99,6 +101,31 @@ export default function BinForm() {
       setWasteTypes(normalizeList(wasteTypeRes).map((item) => optionOf(item, "waste_type_name")));
     });
   }, []);
+
+  useEffect(() => {
+    if (!collectionPointId) {
+      setWards([]);
+      setWardId("");
+      return;
+    }
+    let cancelled = false;
+    collectionPointApi.read(collectionPointId).then((record: ApiRecord) => {
+      if (cancelled) return;
+      const options = Array.isArray(record.wards_detail)
+        ? (record.wards_detail as ApiRecord[]).map((ward) => ({
+            value: idOf(ward.unique_id),
+            label: String(ward.ward_name ?? ward.unique_id ?? ""),
+          }))
+        : [];
+      setWards(options.filter((option) => option.value));
+      setWardId((current) =>
+        current && options.some((option) => option.value === current) ? current : "",
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionPointId]);
 
   useEffect(() => {
     if (!id) return;
@@ -119,6 +146,7 @@ export default function BinForm() {
       setGeo(nextGeo);
       setCollectionPointId(idOf(record.collection_point_id ?? record.collection_point));
       setWasteTypeId(idOf(record.wastetype_id ?? record.waste_type_id ?? record.waste_type));
+      setWardId(idOf(record.ward_id ?? record.ward));
       setBinName(String(record.bin_name ?? ""));
       setBinCapacity(String(record.bin_capacity ?? ""));
       setBinType(String(record.bin_type ?? ""));
@@ -149,6 +177,7 @@ export default function BinForm() {
       localBodyLevel: geo.localBodyLevel,
       localBodyId: geo.localBodyId,
       collectionPointId,
+      wardId,
       wasteTypeId,
       binName: binName.trim(),
       binCapacity,
@@ -167,6 +196,7 @@ export default function BinForm() {
     const payload = {
       district_id: geo.districtId,
       collection_point_id: collectionPointId,
+      ward_id: wardId,
       wastetype_id: wasteTypeId,
       bin_name: binName.trim(),
       bin_capacity: binCapacity || null,
@@ -187,13 +217,16 @@ export default function BinForm() {
   return (
     <ComponentCard title={isEdit ? "Edit Bin" : "Create Bin"}>
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <LocationFields value={geo} onChange={(next) => { setGeo(next); setCollectionPointId(""); }} />
+        <LocationFields value={geo} onChange={(next) => { setGeo(next); setCollectionPointId(""); setWardId(""); }} />
         <div>
           <Label>Collection Point *</Label>
           <select
             className="h-10 w-full rounded-md border px-3 text-sm"
             value={collectionPointId}
-            onChange={(e) => setCollectionPointId(e.target.value)}
+            onChange={(e) => {
+              setCollectionPointId(e.target.value);
+              setWardId("");
+            }}
             disabled={!geo.localBodyLevel || !geo.localBodyId}
           >
             <option value="">
@@ -202,6 +235,18 @@ export default function BinForm() {
                 : "Select local body first"}
             </option>
             {filteredCollectionPoints.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <Label>Ward *</Label>
+          <select
+            className="h-10 w-full rounded-md border px-3 text-sm"
+            value={wardId}
+            onChange={(e) => setWardId(e.target.value)}
+            disabled={!collectionPointId}
+          >
+            <option value="">{collectionPointId ? "Select Ward" : "Select collection point first"}</option>
+            {wards.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         </div>
         <div>

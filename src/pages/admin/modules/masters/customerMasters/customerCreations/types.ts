@@ -70,6 +70,7 @@ export interface FormDataType {
   town_panchayat_id: string;
   panchayat_union_id: string;
   panchayat_id: string;
+  ward_id: string;
   is_active: boolean;
   is_bulkwaste_generator: boolean;
 
@@ -110,6 +111,8 @@ export type Customer = {
   town_panchayat_name?: string;
   panchayat_union_name?: string;
   panchayat_name?: string;
+  ward_id?: string;
+  ward_name?: string;
   property_name: string;
   sub_property_name: string;
   waste_types?: Array<{ unique_id: string; waste_type_name: string }>;
