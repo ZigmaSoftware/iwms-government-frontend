@@ -1,9 +1,12 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { wasteTypeSchema } from "@/schemas/masters/wasteMasters/wasteType.schema";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -42,7 +45,7 @@ const WASTE_TYPE_FIELDS: Record<string, string[]> = {
 
 export default function WasteTypeForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "waste-types", WASTE_TYPE_FIELDS);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -60,6 +63,10 @@ export default function WasteTypeForm() {
   const [assignWithinMinutes, setAssignWithinMinutes] = useState("");
   const [resolveWithinMinutes, setResolveWithinMinutes] = useState("");
   const [workingHoursOnly, setWorkingHoursOnly] = useState(false);
+  const schema = useMemo(
+    () => requireWhenVisible(wasteTypeSchema, showField),
+    [showField],
+  );
 
   useEffect(() => {
     complaintTeamApi.readAll().then((res) => setTeams(asArray(res))).catch(() => {});
@@ -111,23 +118,6 @@ export default function WasteTypeForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
-    const missingFields: string[] = [];
-    if (
-      getMissingRequiredFields(
-        ["waste_type_name"],
-        (k) => ({ waste_type_name: wasteTypeName.trim() })[k as "waste_type_name"],
-      ).length > 0
-    ) {
-      missingFields.push(t("common.item_name", { item: t("common.waste_type") }));
-    }
-
-    if (missingFields.length > 0) {
-      Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: missingFields.join(", ") }), "warning");
-      return;
-    }
-
-    setIsSubmitting(true);
     const rawPayload = {
       waste_type_name: wasteTypeName.trim(),
       is_active: isActive,
@@ -137,7 +127,14 @@ export default function WasteTypeForm() {
       resolve_within_minutes: resolveWithinMinutes ? Number(resolveWithinMinutes) : null,
       working_hours_only: workingHoursOnly,
     };
-    const payload = filterPayload(rawPayload) as typeof rawPayload;
+    const validation = schema.safeParse(rawPayload);
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      return;
+    }
+
+    setIsSubmitting(true);
+    const payload = filterPayload(validation.data) as typeof validation.data;
 
     try {
       if (isEdit && id) {

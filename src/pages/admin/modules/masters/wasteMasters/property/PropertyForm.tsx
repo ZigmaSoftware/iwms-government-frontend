@@ -2,6 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
+import { toSwalMessage } from "@/lib/zodErrors";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -10,6 +11,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/helpers/admin/registry";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { propertySchema } from "@/schemas/masters/wasteMasters/property.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 import type { PropertyEditorProps, PropertyPayload } from "./types";
 
 const { encWasteMasters, encProperties } = getEncryptedRoute();
@@ -51,38 +54,30 @@ function PropertyEditor({
   onSubmit,
 }: PropertyEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
   const [propertyName, setPropertyName] = useState(initialPayload.property_name ?? "");
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const schema = requireWhenVisible(propertySchema, showField);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedName = propertyName.trim();
-    const fieldValues: Record<string, unknown> = {
-      property_name: trimmedName,
+    const rawPayload = {
+      property_name: propertyName.trim(),
       is_active: isActive,
     };
-
-    if (
-      getMissingRequiredFields(["property_name"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
+    const validation = schema.safeParse(rawPayload);
+    if (!validation.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(validation.error),
         confirmButtonColor: "#3085d6",
       });
       return;
     }
 
-    const rawPayload = {
-      property_name: trimmedName,
-      is_active: isActive,
-    };
-
-    await onSubmit(filterPayload(rawPayload) as PropertyPayload);
+    await onSubmit(filterPayload(validation.data) as PropertyPayload);
   };
 
   return (

@@ -5,6 +5,8 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { tripExceptionLogSchema } from "@/schemas/masters/transportMasters/tripExceptionLog.schema";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -151,18 +153,24 @@ export default function TripExceptionLogForm() {
       return;
     }
 
-    if (!formData.daily_trip_assignment_id || !formData.exception_type || !formData.detected_by) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const validation = tripExceptionLogSchema.safeParse({
+      daily_trip_assignment_id: formData.daily_trip_assignment_id,
+      exception_type: formData.exception_type,
+      remarks: formData.remarks || null,
+      detected_by: formData.detected_by,
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
     setLoading(true);
     try {
       const payload = {
-        daily_trip_assignment_id: formData.daily_trip_assignment_id,
-        exception_type: formData.exception_type,
-        remarks: formData.remarks || null,
-        detected_by: formData.detected_by,
+        daily_trip_assignment_id: validation.data.daily_trip_assignment_id,
+        exception_type: validation.data.exception_type,
+        remarks: validation.data.remarks || null,
+        detected_by: validation.data.detected_by,
       };
 
       await tripExceptionLogApi.create(payload);

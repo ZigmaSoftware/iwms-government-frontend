@@ -20,6 +20,8 @@ import {
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
+import { vehicleTypeCreationSchema } from "@/schemas/masters/transportMasters/vehicleTypeCreation.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -100,17 +102,11 @@ export default function VehicleTypeCreationForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    // Validate required fields
-    const missingFields: string[] = [];
-    if (showField("vehicleType") && !vehicleTypeName.trim())
-      missingFields.push(t("admin.vehicle_type.label"));
-
-    if (missingFields.length > 0) {
-      Swal.fire(
-        t("common.warning"),
-        `${t("common.please_fill")}: ${missingFields.join(", ")}`,
-        "warning"
-      );
+    const validation = vehicleTypeCreationSchema(showField).safeParse({
+      vehicleType: vehicleTypeName.trim(),
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 

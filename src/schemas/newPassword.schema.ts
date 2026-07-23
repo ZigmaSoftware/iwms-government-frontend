@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CONFIRM_PASSWORD_MESSAGE, passwordField } from "./fields";
+import { CONFIRM_PASSWORD_MESSAGE, passwordField } from "./shared/fields";
 
 /** Shared by every "set/change/reset password" form: one password field plus a
  * confirmation that must match, enforcing the canonical password policy. */

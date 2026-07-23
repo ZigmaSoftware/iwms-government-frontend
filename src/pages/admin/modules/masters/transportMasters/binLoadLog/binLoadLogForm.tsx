@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import Swal from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+import { binLoadLogSchema } from "@/schemas/masters/transportMasters/binLoadLog.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type Option = { value: string; label: string };
 
@@ -56,8 +59,13 @@ export default function BinLoadLogForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setSaving(true);
     const payload = { vehicle_id: vehicleId, property_id: propertyId, sub_property_id: subPropertyId, weight_kg: weightKg, source_type: sourceType, event_time: eventTime };
+    const validation = binLoadLogSchema.safeParse(payload);
+    if (!validation.success) {
+      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      return;
+    }
+    setSaving(true);
     try {
       if (isEdit && id) await adminApi.binLoadLogs.update(id, payload);
       else await adminApi.binLoadLogs.create(payload);

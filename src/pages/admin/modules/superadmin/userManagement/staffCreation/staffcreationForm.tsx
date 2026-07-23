@@ -26,6 +26,8 @@ import {
   scopeOption,
 } from "../../../masters/shared/dataScopeOptions";
 import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
+import { buildStaffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
 const PASSWORD_EXPIRY_DAYS = 90;
@@ -1380,6 +1382,16 @@ export default function StaffCreationForm() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
+
+    const validation = buildStaffCreationSchema(isEdit).safeParse(formData);
+    if (!validation.success) {
+      Swal.fire({
+        icon: "warning",
+        title: t("common.warning"),
+        text: toSwalMessage(validation.error),
+      });
+      return;
+    }
 
     if (
       showField("photo") &&

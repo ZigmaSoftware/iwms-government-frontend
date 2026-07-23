@@ -29,8 +29,8 @@ import GeoFenceCoordinates, {
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
 import { mergeWithScopeOption } from "../shared/dataScopeOptions";
-import { districtSchema, type DistrictFormValues } from "@/schemas/district.schema";
-import { requireWhenVisible } from "@/schemas/visibility";
+import { districtSchema, type DistrictFormValues } from "@/schemas/masters/district.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 
 type StateOption = {
   value: string;

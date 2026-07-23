@@ -19,6 +19,9 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { areaTypeSchema } from "@/schemas/masters/areaType.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
@@ -122,7 +125,7 @@ function AreaTypeEditor({
   districts,
 }: AreaTypeEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "areatypes", AREA_TYPE_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
@@ -142,22 +145,19 @@ function AreaTypeEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(areaTypeSchema, showField).safeParse({
       name: name.trim(),
       state_id: stateId,
       district_id: districtId,
-    };
+      coordinates,
+      is_active: isActive,
+    });
 
-    if (
-      getMissingRequiredFields(
-        ["name", "state_id", "district_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

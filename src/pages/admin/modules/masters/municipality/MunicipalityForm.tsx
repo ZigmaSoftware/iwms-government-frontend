@@ -32,8 +32,8 @@ import {
   mergeWithScopeOptionExtra,
   scopeOption,
 } from "../shared/dataScopeOptions";
-import { municipalitySchema, type MunicipalityFormValues } from "@/schemas/municipality.schema";
-import { requireWhenVisible } from "@/schemas/visibility";
+import { municipalitySchema, type MunicipalityFormValues } from "@/schemas/masters/municipality.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 
 type Option = {
   value: string;

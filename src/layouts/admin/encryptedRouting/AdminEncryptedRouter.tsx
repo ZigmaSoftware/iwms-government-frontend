@@ -3,8 +3,6 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
 
-
-// Import your actual page components
 import ContinentList from "@/pages/admin/modules/superadmin/commonMasters/continent/ContinentListPage";
 import ContinentForm from "@/pages/admin/modules/superadmin/commonMasters/continent/ContinentForm";
 import CountryList from "@/pages/admin/modules/superadmin/commonMasters/country/CountryListPage";
@@ -23,8 +21,6 @@ import WasteTypeListPage from "@/pages/admin/modules/masters/wasteMasters/wasteT
 import WasteTypeForm from "@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeForm";
 import BinListPage from "@/pages/admin/modules/masters/wasteMasters/bin/BinListPage";
 import BinForm from "@/pages/admin/modules/masters/wasteMasters/bin/BinForm";
-
-
 import PanchayatListPage from "@/pages/admin/modules/masters/panchayat/PanchayatListPage";
 import PanchayatForm from "@/pages/admin/modules/masters/panchayat/PanchayatForm";
 import PanchayatLeaderListPage from "@/pages/admin/modules/masters/leaderManagement/panchayatLeader/PanchayatLeaderListPage";
@@ -45,8 +41,6 @@ import CorporationListPage from "@/pages/admin/modules/masters/corporation/Corpo
 import CorporationForm from "@/pages/admin/modules/masters/corporation/CorporationForm";
 import PanchayatUnionListPage from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionListPage";
 import PanchayatUnionForm from "@/pages/admin/modules/masters/panchayatUnion/PanchayatUnionForm";
-
-
 import PropertyList from "@/pages/admin/modules/masters/wasteMasters/property/PropertyListPage";
 import PropertyForm from "@/pages/admin/modules/masters/wasteMasters/property/PropertyForm";
 import SubPropertyList from "@/pages/admin/modules/masters/wasteMasters/subproperty/SubPropertyListPage";
@@ -55,17 +49,13 @@ import StaffCreationList from "@/pages/admin/modules/superadmin/userManagement/s
 import StaffCreationForm from "@/pages/admin/modules/superadmin/userManagement/staffCreation/staffcreationForm";
 import StaffAccessConfigList from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigList";
 import StaffAccessConfigPage from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigPage";
-// Admin
 import UserTypeList from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeForm";
-// Customer Master
 import CustomerCreationList from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerCreationListPage";
 import CustomerCreationForm from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerCreationForm";
 import ApartmentListPage from "@/pages/admin/modules/masters/customerMasters/customerCreations/apartmentListpage";
 import HouseholdPickupEventList from "@/pages/admin/modules/masters/customerMasters/householdPickupEvent/householdPickupEventList";
 import HouseholdPickupEventForm from "@/pages/admin/modules/masters/customerMasters/householdPickupEvent/householdPickupEventForm";
-
-
 import MonthlyWasteComparisonListPage from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/MonthlyWasteComparisonListPage";
 import TicketList from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketList";
 import TicketForm from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketForm";
@@ -85,18 +75,15 @@ import VehicleTripAuditList from "@/pages/admin/modules/masters/transportMasters
 import VehicleTripAuditForm from "@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditForm";
 import TripExceptionLogList from "@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogList";
 import TripExceptionLogForm from "@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogForm";
-import WorkforceManagement from "@/pages/admin/modules/workforcemanagement/workforcemanagement";
 import DailyTripAssignmentList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentList"
 import DailyTripAssignmentForm from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentForm";
 import DailyTripTracking from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripTracking/DailyTripTracking";
 import DailyTripLogList from "@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/dailyTripLogList";
-
 import PanchayatBaseCollectionListPage from "@/pages/admin/modules/wasteManagementMasters/panchayatbasecollection/PanchayatBaseCollectionListPage";
 import WasteCollectedDataList from "@/pages/admin/modules/core_modules/dailyOperations/wasteCollectedData/wasteCollectedDataListPage";
 import WasteCollectedForm from "@/pages/admin/modules/core_modules/dailyOperations/wasteCollectedData/wasteCollectedDataForm";
 import StaffUserTypeForm from "@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeForm";
 import StaffUserTypeList from "@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeList";
-
 import CategoryList from "@/pages/admin/modules/core_modules/complaintManagement/category/CategoryList";
 import CategoryForm from "@/pages/admin/modules/core_modules/complaintManagement/category/CategoryForm";
 import SubcategoryList from "@/pages/admin/modules/core_modules/complaintManagement/subcategory/SubcategoryList";
@@ -176,7 +163,6 @@ const ROUTES: RouteMap = {
     districts: { list: DistrictList, form: DistrictForm },
     departments: { list: DepartmentList, form: DepartmentForm },
     designations: { list: DesignationList, form: DesignationForm },
-
     panchayats: { list: PanchayatListPage, form: PanchayatForm },
     "panchayat-leaders": { list: PanchayatLeaderListPage, form: PanchayatLeaderForm },
     "district-leaders": { list: DistrictLeaderListPage, form: DistrictLeaderForm },
@@ -188,7 +174,6 @@ const ROUTES: RouteMap = {
     "town-panchayats": { list: TownPanchayatListPage, form: TownPanchayatForm },
     "panchayat-unions": { list: PanchayatUnionListPage, form: PanchayatUnionForm },
   },
-  // Waste Masters (sidebar: Masters -> Waste Masters). Backend group "waste-types".
   "waste-types": {
     wastetypes: { list: WasteTypeListPage, form: WasteTypeForm },
     bins: { list: BinListPage, form: BinForm },
@@ -208,14 +193,12 @@ const ROUTES: RouteMap = {
     "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
     "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
   },
-  // Core Modules -> Schedule Setup. Backend group "schedule-setup".
   "schedule-setup": {
     "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
     "alternative-staff-template": {list: AlternativeStaffTemplateList, form: AlternativeStaffTemplateForm},
     "collection-points": { list: CollectionPointListPage, form: CollectionPointForm },
     "trip-plans": { list: TripPlanList, form: TripPlanForm },
   },
-  // Core Modules -> Daily Operations. Backend group "schedule-operations".
   "schedule-operations": {
     "daily-trip-assignment": { list: DailyTripAssignmentList, form: DailyTripAssignmentForm },
     "daily-trip-tracking": { component: DailyTripTracking },
@@ -225,7 +208,6 @@ const ROUTES: RouteMap = {
     "daily-trip-log": { list: DailyTripLogList },
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },
   },
-  // Reports -> Waste Reports ONLY. Backend group stays "schedule-masters".
   "schedule-masters": {
     "daily-waste-comparisons": { list: DailyWasteComparisonList },
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
@@ -235,9 +217,7 @@ const ROUTES: RouteMap = {
     "apartment-list": { list: ApartmentListPage },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
-
   "waste-management": {
-    // "collection-monitoring": { list: CollectionMonitoringListPage, form: CollectionMonitoringForm },
     "panchayat-base-collection": { list: PanchayatBaseCollectionListPage },
   },
   "complaint-ticket": {

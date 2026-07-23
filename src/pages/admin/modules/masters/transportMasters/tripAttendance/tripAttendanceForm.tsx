@@ -16,6 +16,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { tripAttendanceSchema } from "@/schemas/masters/transportMasters/tripAttendance.schema";
 
 
 const sourceOptions: SelectOption[] = [
@@ -312,22 +314,14 @@ export default function TripAttendanceForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (
-      (!isEdit && (
-        (showField("daily_trip_assignment_id") && !formData.daily_trip_assignment_id) ||
-        (showField("staff_id") && !formData.staff_id) ||
-        (showField("vehicle_id") && !formData.vehicle_id)
-      )) ||
-      (showField("latitude") && formData.latitude === "") ||
-      (showField("longitude") && formData.longitude === "") ||
-      (showField("source") && !formData.source)
-    ) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const validation = tripAttendanceSchema(isEdit, showField).safeParse(formData);
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
-    const latitude = showField("latitude") ? Number(formData.latitude) : null;
-    const longitude = showField("longitude") ? Number(formData.longitude) : null;
+    const latitude = showField("latitude") ? Number(validation.data.latitude) : null;
+    const longitude = showField("longitude") ? Number(validation.data.longitude) : null;
 
     if (
       (showField("latitude") && !Number.isFinite(latitude)) ||
@@ -348,7 +342,7 @@ export default function TripAttendanceForm() {
         const updatePayload = filterPayload({
           latitude,
           longitude,
-          source: formData.source,
+          source: validation.data.source,
         });
         Object.entries(updatePayload).forEach(([key, value]) => {
           if (value !== null && value !== undefined) {
@@ -368,7 +362,7 @@ export default function TripAttendanceForm() {
           vehicle_id: formData.vehicle_id,
           latitude,
           longitude,
-          source: formData.source,
+          source: validation.data.source,
         });
         Object.entries(createPayload).forEach(([key, value]) => {
           if (value !== null && value !== undefined) {

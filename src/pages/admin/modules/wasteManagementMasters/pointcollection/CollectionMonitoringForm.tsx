@@ -18,6 +18,8 @@ import { binCollectionEventApi, dailyTripCollectionPointApi } from "@/helpers/ad
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { collectionMonitoringSchema } from "@/schemas/wasteManagementMasters/pointcollection/collectionMonitoring.schema";
 
 
 const ShadcnSelect = ({
@@ -270,20 +272,22 @@ function CollectionMonitoringForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-
-    const missingFields: string[] = [];
-    if (!tripCollectionPointId) missingFields.push("Trip Collection Point");
-    if (!weight.trim()) missingFields.push("Collected Weight");
-
-    if (missingFields.length > 0) {
-      Swal.fire(t("common.warning"), t("admin.bin.missing_fields", { fields: missingFields.join(", ") }), "warning");
+    const validation = collectionMonitoringSchema.safeParse({
+      tripCollectionPointId,
+      weight,
+      driverLatitude,
+      driverLongitude,
+      notes,
+    });
+    if (!validation.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
-    const parsedWeight = Number.parseFloat(weight || "0");
+    const parsedWeight = Number.parseFloat(validation.data.weight || "0");
     const payload = {
       trip_assignment_id: tripAssignmentId,
-      trip_collection_point_id: tripCollectionPointId,
+      trip_collection_point_id: validation.data.tripCollectionPointId,
       bin_id: binId,
       collected_weight_kg: Number.isFinite(parsedWeight) ? parsedWeight.toFixed(2) : weight,
       driver_latitude: driverLatitude.trim() || null,

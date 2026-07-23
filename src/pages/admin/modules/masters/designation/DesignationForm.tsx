@@ -12,7 +12,7 @@ import Select from "@/components/form/Select";
 import { FieldError } from "@/components/form/FieldError";
 import { departmentApi, designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { designationSchema, type DesignationFormValues } from "@/schemas/designation.schema";
+import { designationSchema, type DesignationFormValues } from "@/schemas/masters/designation.schema";
 
 const { encMasters, encDesignations } = getEncryptedRoute();
 const { listPath: LIST_PATH } = createCrudRoutePaths(encMasters, encDesignations);

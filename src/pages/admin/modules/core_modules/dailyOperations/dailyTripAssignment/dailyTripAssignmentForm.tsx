@@ -29,6 +29,8 @@ import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/util
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import { mergeWithScopeOptionExtra } from "../../../masters/shared/dataScopeOptions";
+import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
@@ -537,8 +539,16 @@ export default function DailyTripAssignmentForm() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!tripPlanId || !staffTemplateId || !hierarchyId || selectedWasteTypes.length === 0 || !tripDate || !scheduledTime) {
-      Swal.fire("Missing details", "Trip Plan, Staff Template, Local Body, Waste Type, Date and Time are required.", "warning");
+    const validation = dailyTripAssignmentSchema.safeParse({
+      tripPlanId,
+      staffTemplateId,
+      hierarchyId,
+      selectedWasteTypes,
+      tripDate,
+      scheduledTime,
+    });
+    if (!validation.success) {
+      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
     setSaving(true);

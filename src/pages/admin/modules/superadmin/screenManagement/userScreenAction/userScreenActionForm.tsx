@@ -18,6 +18,8 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
+import { userScreenActionSchema } from "@/schemas/superadmin/screenManagement/userScreenAction.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 /* ------------------------------
     ROUTES
@@ -83,8 +85,9 @@ export default function UserScreenActionForm() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
-    if (!actionName.trim() || !variableName.trim()) {
-      Swal.fire(t("common.warning"), t("common.missing_fields"), "warning");
+    const result = userScreenActionSchema.safeParse({ actionName, variableName, isActive });
+    if (!result.success) {
+      Swal.fire(t("common.warning"), toSwalMessage(result.error), "warning");
       return;
     }
 

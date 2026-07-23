@@ -26,6 +26,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { mergeWithScopeOptionExtra } from "../../../masters/shared/dataScopeOptions";
+import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations/binCollectionEvent.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
@@ -512,16 +514,17 @@ function BinCollectionEventEditor({
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!tripAssignmentId || !tripCollectionPointId || !binId || !collectionDate) {
-      Swal.fire("Missing details", "Trip Assignment, Collection Point, Bin and Collection Date are required.", "warning");
-      return;
-    }
-    if (collectionStatus === "Collected" && !collectedWeightKg) {
-      Swal.fire("Missing weight", "Collected Weight Kg is required when status is Collected.", "warning");
-      return;
-    }
-    if (collectionStatus !== "Collected" && !statusReason.trim()) {
-      Swal.fire("Missing reason", "Reason is required for Not Collected and Collect Later.", "warning");
+    const validation = binCollectionEventSchema.safeParse({
+      tripAssignmentId,
+      tripCollectionPointId,
+      binId,
+      collectionDate,
+      collectionStatus,
+      collectedWeightKg,
+      statusReason,
+    });
+    if (!validation.success) {
+      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
     setSaving(true);

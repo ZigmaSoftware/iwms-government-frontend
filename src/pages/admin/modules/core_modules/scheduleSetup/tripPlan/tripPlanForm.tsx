@@ -31,6 +31,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel } from "@/utils/forms";
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
+import { tripPlanSchema } from "@/schemas/core_modules/scheduleSetup/tripPlan.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type Option = { value: string; label: string };
 type ApiRecord = Record<string, any>;
@@ -703,14 +705,32 @@ useEffect(() => {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!stateId || !districtId || !hierarchyId || !staffTemplateId || !vehicleId) {
-      Swal.fire("Missing details", "State, District, Local Body, Staff Template and Vehicle are required.", "warning");
+
+    const validation = tripPlanSchema.safeParse({
+      stateId,
+      districtId,
+      areaTypeId,
+      hierarchyLevel,
+      hierarchyId,
+      staffTemplateId,
+      vehicleId,
+      supervisorId,
+      collectionType,
+      selectedWasteTypes,
+      scheduledTime,
+      tripTriggerWeightKg,
+      maxVehicleCapacityKg,
+      isAutoAssign,
+      repeatDays,
+      status,
+      approvalStatus,
+      stops,
+    });
+    if (!validation.success) {
+      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
-    if (selectedWasteTypes.length === 0) {
-      Swal.fire("Missing details", "Select at least one Waste Type.", "warning");
-      return;
-    }
+
     const triggerWeight = Number(tripTriggerWeightKg);
     const maxCapacity = Number(maxVehicleCapacityKg);
     if (
@@ -720,19 +740,6 @@ useEffect(() => {
     ) {
       Swal.fire("Warning", "Trigger weight must be less than vehicle capacity.", "warning");
       return;
-    }
-    // Only Secondary Collection is a manual stop list. Household and Bulk are
-    // auto — the backend expands them to every matching customer in the local
-    // body, so they need no stop rows.
-    if (collectionType === "bin_collection") {
-      if (!stops.length) {
-        Swal.fire("Missing details", "Add at least one collection point stop.", "warning");
-        return;
-      }
-      if (stops.some((stop) => !stop.collection_point_id || !stop.bin_id)) {
-        Swal.fire("Missing details", "Every stop needs a Collection Point and a Bin.", "warning");
-        return;
-      }
     }
     setSaving(true);
     const payload: Record<string, any> = {

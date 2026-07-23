@@ -19,6 +19,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useGeoHierarchy, type HierarchyLevel } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
 import { staffTemplateLabel } from "@/utils/forms";
+import { alternativeStaffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/alternativeStaffTemplate.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 const GEO_PAYLOAD_KEYS = [
   "state_id",
@@ -443,6 +445,12 @@ export default function AlternativeStaffTemplateForm() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    const validation = alternativeStaffTemplateSchema.safeParse(formData);
+    if (!validation.success) {
+      Swal.fire("Invalid details", toSwalMessage(validation.error), "warning");
+      return;
+    }
 
     if (
       showField("approval_status") &&

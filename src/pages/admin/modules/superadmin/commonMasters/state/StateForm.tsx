@@ -20,6 +20,9 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { continentApi, countryApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { stateSchema } from "@/schemas/superadmin/commonMasters/state.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 type ContinentOption = {
   value: string;
@@ -122,7 +125,7 @@ function StateEditor({
   countries,
 }: StateEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("common-masters", "states", STATE_FIELDS);
 
   const [name, setName] = useState(initialPayload.state_name);
@@ -152,22 +155,19 @@ function StateEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(stateSchema, showField).safeParse({
       state_name: name.trim(),
       continent_id: continentId,
       country_id: countryId,
-    };
+      state_code: code,
+      is_active: isActive,
+    });
 
-    if (
-      getMissingRequiredFields(
-        ["state_name", "continent_id", "country_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

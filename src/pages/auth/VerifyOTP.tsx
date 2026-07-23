@@ -6,8 +6,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import ZigmaLogo from "@/images/logo.png";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { forgotPasswordSchema, otpVerificationSchema } from "@/schemas/auth.schema";
 
 const OTP_LENGTH = 4;
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (error && typeof error === "object" && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response?.data;
+    if (response && typeof response === "object") {
+      const data = response as Record<string, unknown>;
+      if (typeof data.message === "string") return data.message;
+      if (typeof data.detail === "string") return data.detail;
+    }
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+};
 
 export default function VerifyOTP() {
   const navigate = useNavigate();
@@ -62,25 +77,25 @@ export default function VerifyOTP() {
     setError("");
     setInfo("");
 
-    if (otp.length < OTP_LENGTH) {
-      setError(`Please enter all ${OTP_LENGTH} digits.`);
-      return;
-    }
-    if (!sessionToken) {
-      setError("Invalid session. Please go back and request a new OTP.");
+    const validation = otpVerificationSchema.safeParse({
+      sessionToken,
+      otpCode: otp,
+    });
+    if (!validation.success) {
+      setError(toSwalMessage(validation.error));
       return;
     }
 
     setLoading(true);
     try {
       const res = await api.post("/auth/verify-otp/", {
-        session_token: sessionToken,
-        otp_code: otp,
+        session_token: validation.data.sessionToken,
+        otp_code: validation.data.otpCode,
       });
       const resetToken: string = res.data?.reset_token;
       navigate("/auth/reset-password", { state: { resetToken } });
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "OTP verification failed.");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "OTP verification failed."));
       setDigits(Array(OTP_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
     } finally {
@@ -89,8 +104,12 @@ export default function VerifyOTP() {
   };
 
   const handleResend = async () => {
-    if (!state?.username || !state?.email) {
-      setError("Session expired. Please go back and try again.");
+    const validation = forgotPasswordSchema.safeParse({
+      username: state?.username ?? "",
+      email: state?.email ?? "",
+    });
+    if (!validation.success) {
+      setError(toSwalMessage(validation.error));
       return;
     }
     setResending(true);
@@ -98,18 +117,24 @@ export default function VerifyOTP() {
     setInfo("");
     try {
       const res = await api.post("/auth/forgot-password/", {
-        username: state.username,
-        email: state.email,
+        username: validation.data.username,
+        email: validation.data.email,
       });
       const newSessionToken: string = res.data?.session_token;
       navigate("/auth/verify-otp", {
         replace: true,
-        state: { sessionToken: newSessionToken, email: state.email, username: state.username },
+        state: {
+          sessionToken: newSessionToken,
+          email: validation.data.email,
+          username: validation.data.username,
+        },
       });
       setInfo("A new OTP has been sent to your email.");
       setDigits(Array(OTP_LENGTH).fill(""));
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Could not resend OTP. Please wait before trying again.");
+    } catch (err: unknown) {
+      setError(
+        getApiErrorMessage(err, "Could not resend OTP. Please wait before trying again."),
+      );
     } finally {
       setResending(false);
     }

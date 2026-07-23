@@ -20,6 +20,9 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { townPanchayatSchema } from "@/schemas/masters/townPanchayat.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
@@ -134,7 +137,7 @@ function TownPanchayatEditor({
   areaTypes,
 }: TownPanchayatEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "townpanchayats", TOWN_PANCHAYAT_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
@@ -166,23 +169,20 @@ function TownPanchayatEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(townPanchayatSchema, showField).safeParse({
       town_panchayat_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
-    };
+      coordinates,
+      is_active: isActive,
+    });
 
-    if (
-      getMissingRequiredFields(
-        ["town_panchayat_name", "state_id", "district_id", "area_type_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

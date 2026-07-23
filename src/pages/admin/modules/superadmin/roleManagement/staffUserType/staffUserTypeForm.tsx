@@ -26,6 +26,8 @@ import {
   staffUserTypeApi,
   userTypeApi,
 } from "@/helpers/admin";
+import { staffUserTypeSchema } from "@/schemas/superadmin/roleManagement/staffUserType.schema";
+import { toSwalMessage } from "@/lib/zodErrors";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,12 +201,19 @@ function StaffUserTypeEditor({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedUserType || !name) {
-      Swal.fire(t("common.error"), t("common.all_fields_required"), "error");
-      return;
-    }
-    if (isGovernment && !selectedLevel) {
-      Swal.fire(t("common.error"), "Please select a government level.", "error");
+
+    const category: Category = isGovernment ? "government" : isContractor ? "contractor" : "staff";
+
+    const validation = staffUserTypeSchema.safeParse({
+      usertype_id: selectedUserType,
+      name,
+      level: selectedLevel,
+      is_active: isActive,
+      category,
+    });
+
+    if (!validation.success) {
+      Swal.fire(t("common.error"), toSwalMessage(validation.error), "error");
       return;
     }
 
@@ -215,7 +224,6 @@ function StaffUserTypeEditor({
     };
     if (isGovernment) payload.level = selectedLevel;
 
-    const category: Category = isGovernment ? "government" : isContractor ? "contractor" : "staff";
     await onSubmit(payload, category);
   };
 
