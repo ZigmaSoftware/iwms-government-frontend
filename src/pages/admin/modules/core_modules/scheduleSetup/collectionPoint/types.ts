@@ -15,10 +15,12 @@ export type TableFilters = {
   district_name: { value: string | null; matchMode: FilterMatchMode };
   ulb_name: { value: string | null; matchMode: FilterMatchMode };
   rlb_name: { value: string | null; matchMode: FilterMatchMode };
+  ward_names: { value: string | null; matchMode: FilterMatchMode };
 };
 
 export type CollectionPointRecord = {
   unique_id: string | number;
   is_active: boolean;
+  wards_detail?: Array<{ unique_id: string; ward_name: string }>;
   [key: string]: unknown;
 };

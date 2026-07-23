@@ -22,6 +22,8 @@ export type Bin = {
   project_name?: string | null;
   panchayat_name?: string;
   panchayat?: string;
+  ward_id?: string;
+  ward_name?: string;
   bin_type?: string;
   waste_type_name?: string;
   wastetype_name?: string;
@@ -44,6 +46,7 @@ export type TableFilters = {
   bin_name: { value: string | null; matchMode: FilterMatchMode };
   bin_capacity: { value: string | null; matchMode: FilterMatchMode };
   panchayat_name: { value: string | null; matchMode: FilterMatchMode };
+  ward_name: { value: string | null; matchMode: FilterMatchMode };
   waste_type_name: { value: string | null; matchMode: FilterMatchMode };
   company_name?: { value: string | null; matchMode: FilterMatchMode };
   project_name?: { value: string | null; matchMode: FilterMatchMode };

@@ -31,6 +31,7 @@ const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   district_name: ["district_id", "district_name"],
   ulb_name: ["corporation_id", "corporation_name", "municipality_id", "municipality_name", "town_panchayat_id", "town_panchayat_name"],
   rlb_name: ["panchayat_union_id", "panchayat_union_name", "panchayat_id", "panchayat_name"],
+  ward_names: ["ward_ids", "wards_detail"],
   latitude: ["latitude"],
   longitude: ["longitude"],
   coordinates: ["coordinates"],
@@ -77,6 +78,7 @@ export default function CollectionPointListPage() {
     district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     ulb_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
     rlb_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
+    ward_names: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
   });
 
   const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
@@ -122,6 +124,7 @@ export default function CollectionPointListPage() {
       _ulb_level: ulb?.level ?? "",
       _rlb_name: rlb?.name ?? "",
       _rlb_level: rlb?.level ?? "",
+      _ward_names: (row.wards_detail ?? []).map((ward) => ward.ward_name).join(", "),
     };
   });
 
@@ -234,6 +237,7 @@ export default function CollectionPointListPage() {
           "district_name",
           "_ulb_name",
           "_rlb_name",
+          "_ward_names",
         ]}
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
@@ -304,6 +308,16 @@ export default function CollectionPointListPage() {
                 "-"
               )
             }
+          />
+        )}
+        {showCol("ward_names") && (
+          <Column
+            field="_ward_names"
+            header="Wards"
+            sortable
+            filter
+            showFilterMatchModes={false}
+            body={(row: CollectionPointRecord) => toDisplay(row._ward_names)}
           />
         )}
         {showCol("latitude") && (
