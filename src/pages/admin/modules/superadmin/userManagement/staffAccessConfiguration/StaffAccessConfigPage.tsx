@@ -15,6 +15,7 @@ import Swal from "@/lib/notify";
 import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { getStoredDataScope } from "@/utils/authStorage";
 
 const MULTISELECT_PT = {
   labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
@@ -93,6 +94,7 @@ type ApiOptionRecord = {
   designation_name?: string;
   vehicle_no?: string;
   registration_number?: string;
+  ward_name?: string;
   usertype_id?: string | { unique_id?: string };
   user_type_id?: string;
   state_id?: string | { unique_id?: string };
@@ -273,6 +275,7 @@ const optionLabel = (record: ApiOptionRecord) =>
   record.employee_name ??
   record.department_name ??
   record.designation_name ??
+  record.ward_name ??
   record.corporation_name ??
   record.municipality_name ??
   record.town_panchayat_name ??
@@ -902,13 +905,36 @@ export default function StaffAccessConfigPage() {
     return record ? areaTypeCategoryFromName(String(record.name ?? "")) : null;
   }, [areaTypeRecords, values.areaTypeId]);
 
+  // Map from LocalBodyLevel value to the plural Data Scope key holding
+  // every local body of that level the acting admin is scoped to.
+  const LEVEL_SCOPE_KEY: Record<LocalBodyLevel, string> = {
+    corporation_id: "corporations",
+    municipality_id: "municipalities",
+    town_panchayat_id: "town_panchayats",
+    panchayat_union_id: "panchayat_unions",
+    panchayat_id: "panchayats",
+  };
+
   // Local Body Type options: filtered to the selected Area Type's category
   // (urban/rural) once one is chosen; otherwise all five stay available —
   // Area Type is an optional narrowing now, not a prerequisite.
+  // Additionally filtered to only show levels present in the acting admin's
+  // own Data Scope.
   const availableLocalBodyLevels = useMemo(() => {
-    if (!selectedAreaTypeCategory) return LOCAL_BODY_LEVELS;
-    const levels = AREA_TYPE_LEVELS[selectedAreaTypeCategory];
-    return LOCAL_BODY_LEVELS.filter((level) => levels.includes(level.value));
+    let levels = LOCAL_BODY_LEVELS;
+    if (selectedAreaTypeCategory) {
+      const allowed = AREA_TYPE_LEVELS[selectedAreaTypeCategory];
+      levels = levels.filter((level) => allowed.includes(level.value));
+    }
+    const scope = getStoredDataScope() as Record<string, unknown> | null;
+    if (scope) {
+      levels = levels.filter((level) => {
+        const key = LEVEL_SCOPE_KEY[level.value];
+        const entries = scope[key];
+        return Array.isArray(entries) && entries.length > 0;
+      });
+    }
+    return levels;
   }, [selectedAreaTypeCategory]);
 
   const localBodyLevelOptions = useMemo(

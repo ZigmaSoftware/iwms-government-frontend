@@ -10,15 +10,19 @@ import { MultiSelect } from "primereact/multiselect";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
-import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
 import ExpiryBadge from "@/components/common/ExpiryBadge";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useGeoHierarchy, type HierarchyLevel } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
 import { staffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/staffTemplate.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import LocationFields, {
+  emptyGeo,
+  LOCAL_BODY_LEVELS,
+  type GeoLocationValue,
+  type LocalBodyLevel,
+} from "@/pages/admin/modules/masters/shared/LocationHierarchyFields";
 
 const GEO_PAYLOAD_KEYS = [
   "state_id",
@@ -64,7 +68,7 @@ export default function StaffTemplateForm() {
     STAFF_TEMPLATE_FIELDS
   );
 
-  const geo = useGeoHierarchy();
+  const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
 
   const [formData, setFormData] = useState<StaffTemplateFormData>(initialFormData);
 
@@ -164,14 +168,14 @@ export default function StaffTemplateForm() {
   const matchesSelectedGeo = (
     staff: StaffRecord,
     districtId: string,
-    hierarchyLevel: HierarchyLevel,
-    hierarchyId: string
+    localBodyLevel: LocalBodyLevel | "",
+    localBodyId: string,
   ): boolean => {
     if (!isGovernmentStaff(staff)) return true;
-    if (!districtId || !hierarchyId) return false;
+    if (!districtId || !localBodyId || !localBodyLevel) return false;
     return (
       toEntityId(staff.district_id) === districtId &&
-      toEntityId(staff[hierarchyLevel]) === hierarchyId
+      toEntityId(staff[localBodyLevel]) === localBodyId
     );
   };
 
@@ -211,17 +215,17 @@ export default function StaffTemplateForm() {
   /* ================= LOAD STAFF (SCOPED TO SELECTED LOCAL BODY) ================= */
 
   useEffect(() => {
-    if (!geo.hierarchyId) {
+    if (!geo.localBodyId) {
       setStaffRecords([]);
       return;
     }
 
-    const geoPayload = geo.buildPayload();
-    const geoParams: Record<string, string> = {};
-    GEO_PAYLOAD_KEYS.forEach((key) => {
-      const value = geoPayload[key];
-      if (value) geoParams[key] = String(value);
-    });
+    const geoParams: Record<string, string> = {
+      state_id: geo.stateId,
+      district_id: geo.districtId,
+      area_type_id: geo.areaTypeId,
+    };
+    if (geo.localBodyLevel) geoParams[geo.localBodyLevel] = geo.localBodyId;
 
     staffCreationApi.readAll({ params: { active_status: 1, ...geoParams } })
       .then((staffRes: any) => {
@@ -252,13 +256,13 @@ export default function StaffTemplateForm() {
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
-  }, [geo.stateId, geo.districtId, geo.hierarchyLevel, geo.hierarchyId, t]);
+  }, [geo.stateId, geo.districtId, geo.localBodyLevel, geo.localBodyId, t]);
 
   /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY ROLE ================= */
 
   useEffect(() => {
     const inGeo = (s: StaffRecord) =>
-      matchesSelectedGeo(s, geo.districtId, geo.hierarchyLevel, geo.hierarchyId);
+      matchesSelectedGeo(s, geo.districtId, geo.localBodyLevel, geo.localBodyId);
 
     setDriverOptions(staffRecords.filter((s) => isDriverRole(s) && inGeo(s)).map(toStaffOption));
     setOperatorOptions(staffRecords.filter((s) => isOperatorRole(s) && inGeo(s)).map(toStaffOption));
@@ -269,7 +273,7 @@ export default function StaffTemplateForm() {
       staffRecords.filter((s) => getStaffRole(s).includes("supervisor") && inGeo(s)).map(toStaffOption)
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffRecords, geo.districtId, geo.hierarchyLevel, geo.hierarchyId]);
+  }, [staffRecords, geo.districtId, geo.localBodyLevel, geo.localBodyId]);
 
   /* ================= LOAD TEMPLATE (EDIT) ================= */
 
@@ -293,7 +297,18 @@ export default function StaffTemplateForm() {
           approval_status: tpl.approval_status ?? "PENDING",
         }));
 
-        geo.hydrate(tpl);
+        const nextGeo: GeoLocationValue = {
+          ...emptyGeo,
+          stateId: toEntityId(tpl.state_id ?? tpl.state),
+          districtId: toEntityId(tpl.district_id ?? tpl.district),
+          areaTypeId: toEntityId(tpl.area_type_id ?? tpl.area_type),
+        };
+        const detectedLevel = LOCAL_BODY_LEVELS.find((item) => toEntityId(tpl[item.value]));
+        if (detectedLevel) {
+          nextGeo.localBodyLevel = detectedLevel.value;
+          nextGeo.localBodyId = toEntityId(tpl[detectedLevel.value]);
+        }
+        setGeo(nextGeo);
 
         const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
         const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
@@ -492,7 +507,7 @@ export default function StaffTemplateForm() {
       return;
     }
 
-    if (!geo.stateId || !geo.districtId || !geo.hierarchyId) {
+    if (!geo.stateId || !geo.districtId || !geo.localBodyId) {
       Swal.fire(
         t("common.error"),
         "State, District and Local Body are required.",
@@ -504,6 +519,17 @@ export default function StaffTemplateForm() {
     setSubmitting(true);
 
     try {
+      const buildPayload = () => ({
+        state_id: geo.stateId || null,
+        district_id: geo.districtId || null,
+        area_type_id: geo.areaTypeId || null,
+        corporation_id: null,
+        municipality_id: null,
+        town_panchayat_id: null,
+        panchayat_union_id: null,
+        panchayat_id: null,
+        ...(geo.localBodyLevel ? { [geo.localBodyLevel]: geo.localBodyId || null } : {}),
+      });
       const payload = filterPayload(
         {
           driver_id: formData.driver_id,
@@ -512,9 +538,9 @@ export default function StaffTemplateForm() {
           status: formData.status,
           approval_status: formData.approval_status,
           approved_by: formData.approved_by || null,
-          ...geo.buildPayload(),
+          ...buildPayload(),
         },
-        GEO_PAYLOAD_KEYS,
+        GEO_PAYLOAD_KEYS as unknown as string[],
       );
 
       if (isEdit && id) {
@@ -563,7 +589,7 @@ export default function StaffTemplateForm() {
           ) : null}
 
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-            <GeoHierarchyFields geo={geo} required disabled={fetching} />
+            <LocationFields value={geo} onChange={setGeo} />
 
             {showField("driver_id") && (
               <div>
