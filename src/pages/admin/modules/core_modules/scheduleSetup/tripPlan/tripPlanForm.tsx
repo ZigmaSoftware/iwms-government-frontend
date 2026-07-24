@@ -39,6 +39,7 @@ import {
 } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 import { tripPlanSchema } from "@/schemas/core_modules/scheduleSetup/tripPlan.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 type Option = { value: string; label: string; disabled?: boolean };
 type ApiRecord = Record<string, any>;
@@ -1275,8 +1276,8 @@ useEffect(() => {
                         {householdCustomers.map((cust, index) => (
                           <tr key={cust.value} className="text-gray-700">
                             <td className="px-4 py-2 text-gray-400">{index + 1}</td>
-                            <td className="px-4 py-2 font-medium">{cust.label}</td>
-                            <td className="px-4 py-2 text-gray-500">{cust.address || "—"}</td>
+                            <td className="px-4 py-2 font-medium">{capitalize(cust.label)}</td>
+                            <td className="px-4 py-2 text-gray-500">{capitalize(cust.address) || "—"}</td>
                           </tr>
                         ))}
                       </tbody>

@@ -1,5 +1,6 @@
 import type { WasteKpis } from "./types";
 import { useEffect, useState } from "react";
+import { capitalize } from "@/utils/capitalize";
 import {
   AlertTriangle,
   MapPin,
@@ -504,10 +505,10 @@ export default function Home() {
           <div className="grid gap-4">
             {capacitySummary.map((item) => (
               <div
-                key={item.label}
+                key={capitalize(item.label)}
                 className="rounded-2xl border border-border/60 bg-muted/30 p-4"
               >
-                <p className="text-sm text-muted-foreground">{item.label}</p>
+                <p className="text-sm text-muted-foreground">{capitalize(item.label)}</p>
                 <p className="text-3xl font-semibold text-foreground">
                   {item.value}
                 </p>

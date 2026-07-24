@@ -36,6 +36,7 @@ import HierarchyFilterBar, {
 } from "@/components/filters/HierarchyFilterBar";
 import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
+import { capitalize } from "@/utils/capitalize";
 
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
@@ -183,8 +184,6 @@ export default function CustomerCreationListPage() {
     setFilterResetKey((key) => key + 1);
   };
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -557,7 +556,7 @@ export default function CustomerCreationListPage() {
             <Column
               field="property_name"
               header={t("admin.customer_creation.property") || "Property"}
-              body={(row: Customer) => (row.property_name ? cap(row.property_name) : "-")}
+              body={(row: Customer) => (row.property_name ? capitalize(row.property_name) : "-")}
               sortable
             />
           )}
@@ -565,7 +564,7 @@ export default function CustomerCreationListPage() {
             <Column
               field="sub_property_name"
               header={t("admin.customer_creation.sub_property") || "Sub Property"}
-              body={(row: Customer) => (row.sub_property_name ? cap(row.sub_property_name) : "-")}
+              body={(row: Customer) => (row.sub_property_name ? capitalize(row.sub_property_name) : "-")}
               sortable
             />
           )}

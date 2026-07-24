@@ -29,6 +29,7 @@ import { normalizeList } from "@/utils/forms";
 import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations/binCollectionEvent.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
@@ -440,12 +441,12 @@ function BinCollectionEventEditor({
     () =>
       ensureOption(
         mergeWithScopeOptionExtra(
-          states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.state_name, item.name, item.unique_id) })).filter((item) => item.value),
+          states.map((item) => ({ value: idOf(item.unique_id ?? item.id), label: capitalize(textOf(item.state_name, item.name, item.unique_id)) })).filter((item) => item.value),
           "state",
           {},
         ),
         stateId,
-        stateId === initial.stateId ? initial.stateLabel : undefined,
+        stateId === initial.stateId ? capitalize(initial.stateLabel) : undefined,
       ),
     [states, stateId, initial.stateId, initial.stateLabel],
   );
@@ -456,13 +457,13 @@ function BinCollectionEventEditor({
         mergeWithScopeOptionExtra(
           districts
             .filter((item) => !stateId || String(item.state_id ?? item.state ?? "") === stateId)
-            .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.district_name, item.name, item.unique_id) }))
+            .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: capitalize(textOf(item.district_name, item.name, item.unique_id)) }))
             .filter((item) => item.value),
           "district",
           {},
         ),
         districtId,
-        districtId === initial.districtId ? initial.districtLabel : undefined,
+        districtId === initial.districtId ? capitalize(initial.districtLabel) : undefined,
       ),
     [districts, stateId, districtId, initial.districtId, initial.districtLabel],
   );
@@ -473,13 +474,13 @@ function BinCollectionEventEditor({
         mergeWithScopeOptionExtra(
           areaTypes
             .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
-            .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: textOf(item.area_type_name, item.name, item.unique_id) }))
+            .map((item) => ({ value: idOf(item.unique_id ?? item.id), label: capitalize(textOf(item.area_type_name, item.name, item.unique_id)) }))
             .filter((item) => item.value),
           "area_type",
           {},
         ),
         areaTypeId,
-        areaTypeId === initial.areaTypeId ? initial.areaTypeLabel : undefined,
+        areaTypeId === initial.areaTypeId ? capitalize(initial.areaTypeLabel) : undefined,
       ),
     [areaTypes, districtId, areaTypeId, initial.areaTypeId, initial.areaTypeLabel],
   );
@@ -498,7 +499,7 @@ function BinCollectionEventEditor({
       .filter((item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId)
       .map((item) => ({
         value: idOf(item.unique_id ?? item.id),
-        label: textOf(item.name, item.corporation_name, item.municipality_name, item.town_panchayat_name, item.union_name, item.panchayat_name, item.unique_id),
+        label: capitalize(textOf(item.name, item.corporation_name, item.municipality_name, item.town_panchayat_name, item.union_name, item.panchayat_name, item.unique_id)),
       }))
       .filter((item) => item.value);
     const scoped = mergeWithScopeOptionExtra(
@@ -508,7 +509,7 @@ function BinCollectionEventEditor({
     );
     const selectedLabel =
       scoped.find((item) => item.value === panchayatId)?.label ??
-      (panchayatId === initial.panchayatId ? initial.localBodyLabel : undefined);
+      (panchayatId === initial.panchayatId ? capitalize(initial.localBodyLabel) : undefined);
     return ensureOption(scoped, panchayatId, selectedLabel);
   }, [hierarchyRecords, localBodyLevel, districtId, panchayatId, initial.panchayatId, initial.localBodyLabel]);
 
@@ -518,7 +519,7 @@ function BinCollectionEventEditor({
         String(ward.local_body_type ?? "") === localBodyLevel.replace("_id", "") &&
         idOf(ward.local_body_id) === panchayatId
       )))
-      .map((ward) => ({ value: idOf(ward), label: textOf(ward.ward_name, ward.name, ward.unique_id) })),
+      .map((ward) => ({ value: idOf(ward), label: capitalize(textOf(ward.ward_name, ward.name, ward.unique_id)) })),
     wardId,
   ), [wards, districtId, panchayatId, localBodyLevel, wardId]);
 
@@ -535,7 +536,7 @@ function BinCollectionEventEditor({
     const label =
       wardFiltered.find((item) => item.value === tripAssignmentId)?.label ??
       assignments.find((item) => item.value === tripAssignmentId)?.label ??
-      (tripAssignmentId === initial.tripAssignmentId ? initial.assignmentLabel : undefined);
+      (tripAssignmentId === initial.tripAssignmentId ? capitalize(initial.assignmentLabel) : undefined);
     return ensureOption(wardFiltered, tripAssignmentId, label);
   }, [assignments, tripAssignmentId, localBodyLevel, panchayatId, wardId, initial.tripAssignmentId, initial.assignmentLabel]);
 
@@ -545,7 +546,7 @@ function BinCollectionEventEditor({
       : collectionPoints;
     const label =
       selectedCollectionPoint?.label ??
-      (tripCollectionPointId === initial.tripCollectionPointId ? initial.collectionPointLabel : undefined);
+      (tripCollectionPointId === initial.tripCollectionPointId ? capitalize(initial.collectionPointLabel) : undefined);
     return ensureOption(filtered, tripCollectionPointId, label);
   }, [collectionPoints, selectedCollectionPoint?.label, tripAssignmentId, tripCollectionPointId, initial.tripCollectionPointId, initial.collectionPointLabel]);
 

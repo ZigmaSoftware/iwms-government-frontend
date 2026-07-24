@@ -30,7 +30,9 @@ export type EncryptedRoutes = {
   encFeedback: string;
   encFuel: string;
   encMasters: string;
+  encLocationMasters: string;
   encWasteMasters: string;
+  encSuperAdmin: string;
   encStaffMasters: string;
   encUserManagement: string;
   encScheduleMasters: string;
@@ -164,7 +166,9 @@ const plainRoutes: EncryptedRoutes = {
   encFeedback: "feedback",
   encFuel: "fuel",
   encMasters: "masters",
+  encLocationMasters: "masters",
   encWasteMasters: "waste-types",
+  encSuperAdmin: "admins",
   encStaffMasters: "staff-masters",
   encUserManagement: "user-creations",
   encScheduleMasters: "schedule-masters",

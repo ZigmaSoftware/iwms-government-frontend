@@ -28,14 +28,13 @@ import { adminApi } from "@/helpers/admin/registry";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
+import { capitalize } from "@/utils/capitalize";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const cap = (str?: string) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
 const formatDate = (val?: string) => {
   if (!val) return "-";
@@ -275,7 +274,7 @@ export default function WasteCollectedDataList() {
         <Column
           field="customer_name"
           header={t("admin.household_collection_event.customer_name")}
-          body={(row: WasteCollection) => cap(row.customer_name) || "-"}
+          body={(row: WasteCollection) => capitalize(row.customer_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
@@ -325,7 +324,7 @@ export default function WasteCollectedDataList() {
         <Column
           field="district_name"
           header={t("common.district")}
-          body={(row: WasteCollection) => cap(row.district_name) || "-"}
+          body={(row: WasteCollection) => capitalize(row.district_name) || "-"}
           sortable filter showFilterMatchModes={false}
         />
         <Column
@@ -339,7 +338,7 @@ export default function WasteCollectedDataList() {
           header={t("common.location")}
           body={(row: WasteCollection) =>
             row.location_name
-              ? `${cap(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
+              ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
               : "-"
           }
           sortable filter showFilterMatchModes={false}
@@ -372,7 +371,7 @@ export default function WasteCollectedDataList() {
           <DialogHeader>
             <DialogTitle>
               {t("admin.waste_collected_data.captured_images", "Captured images")}
-              {imageRow?.customer_name ? ` — ${cap(imageRow.customer_name)}` : ""}
+              {imageRow?.customer_name ? ` — ${capitalize(imageRow.customer_name)}` : ""}
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-3 p-1 max-h-[70vh] overflow-y-auto sm:grid-cols-3">

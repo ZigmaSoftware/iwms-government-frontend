@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { adminApi } from "@/helpers/admin/registry";
 import { userScreenSchema } from "@/schemas/superadmin/screenManagement/userScreen.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 /* -----------------------------------------
    ROUTES
@@ -211,7 +212,7 @@ export default function UserScreenForm() {
               <SelectContent>
                 {mainScreens.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {capitalize(opt.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

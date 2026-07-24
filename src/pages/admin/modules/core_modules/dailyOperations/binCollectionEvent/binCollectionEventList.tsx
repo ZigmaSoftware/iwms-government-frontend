@@ -17,9 +17,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
-
-const cap = (str?: string | null) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
+import { capitalize } from "@/utils/capitalize";
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -300,7 +298,7 @@ export default function BinCollectionEventList() {
           header="Local Body"
           body={(row: BinCERecord) =>
             row.location_name
-              ? `${cap(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
+              ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
               : "-"
           }
           filter

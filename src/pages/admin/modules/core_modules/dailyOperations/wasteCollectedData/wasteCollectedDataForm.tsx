@@ -28,6 +28,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -289,7 +290,7 @@ function WasteCollectedEditor({
         String(ward.local_body_type ?? "") === localBodyType.replace("_id", "") &&
         normId(ward.local_body_id) === localBodyId
       )))
-      .map((ward) => ({ value: idOf(ward), label: String(ward.ward_name ?? ward.name ?? idOf(ward)) })),
+      .map((ward) => ({ value: idOf(ward), label: capitalize(String(ward.ward_name ?? ward.name ?? idOf(ward))) })),
     wardId,
   ), [wards, districtId, localBodyType, localBodyId, wardId]);
 
@@ -383,8 +384,8 @@ function WasteCollectedEditor({
         if (districtId) return normId(row.district_id) === districtId;
         return true;
       })
-      .map((row) => ({ value: idOf(row), label: String(row[nameKey] ?? row.name ?? idOf(row)) }));
-    const label = localBodyId === initial.localBodyId ? initial.localBodyLabel : undefined;
+      .map((row) => ({ value: idOf(row), label: capitalize(String(row[nameKey] ?? row.name ?? idOf(row))) }));
+    const label = localBodyId === initial.localBodyId ? capitalize(initial.localBodyLabel) : undefined;
     return ensureOption(mapped, localBodyId, label);
   }, [localBodyType, localBodyRowsByLevel, areaTypeId, districtId, localBodyId, initial.localBodyId, initial.localBodyLabel]);
 
@@ -399,7 +400,7 @@ function WasteCollectedEditor({
     if (selected && !matches.some((a) => a.value === tripAssignmentId)) {
       return [selected, ...matches];
     }
-    const label = tripAssignmentId === initial.tripAssignmentId ? initial.tripAssignmentLabel : undefined;
+    const label = tripAssignmentId === initial.tripAssignmentId ? capitalize(initial.tripAssignmentLabel) : undefined;
     return ensureOption(matches, tripAssignmentId, label);
   }, [tripAssignments, localBodyType, localBodyId, tripAssignmentId, initial.tripAssignmentId, initial.tripAssignmentLabel]);
 
@@ -424,17 +425,17 @@ function WasteCollectedEditor({
   const customerOptions = useMemo(() => {
     const mapped: Option[] = filteredCustomers.map((c) => ({
       value: resolveCustomerId(c),
-      label: c.customer_name,
+      label: capitalize(c.customer_name),
     }));
-    const label = customerId === initial.customerId ? initial.customerLabel : undefined;
+    const label = customerId === initial.customerId ? capitalize(initial.customerLabel) : undefined;
     return ensureOption(mapped, customerId, label);
   }, [filteredCustomers, customerId, initial.customerId, initial.customerLabel]);
 
   const customerAddress = useMemo(() => {
     if (selectedCustomer) {
-      return [selectedCustomer.building_no, selectedCustomer.street, selectedCustomer.area]
+      return capitalize([selectedCustomer.building_no, selectedCustomer.street, selectedCustomer.area]
         .filter(Boolean)
-        .join(", ");
+        .join(", "));
     }
     return "";
   }, [selectedCustomer]);
@@ -565,9 +566,9 @@ function WasteCollectedEditor({
                 value={stateId}
                 onChange={onStateChange}
                 options={ensureOption(
-                  states.map((s) => ({ value: idOf(s), label: String(s.name ?? s.state_name ?? idOf(s)) })),
+                  states.map((s) => ({ value: idOf(s), label: capitalize(String(s.name ?? s.state_name ?? idOf(s))) })),
                   stateId,
-                  stateId === initial.stateId ? initial.stateLabel : undefined,
+                  stateId === initial.stateId ? capitalize(initial.stateLabel) : undefined,
                 )}
                 placeholder={t("common.state")}
               />
@@ -580,9 +581,9 @@ function WasteCollectedEditor({
                 value={districtId}
                 onChange={onDistrictChange}
                 options={ensureOption(
-                  filteredDistricts.map((d) => ({ value: idOf(d), label: String(d.district_name ?? d.name ?? idOf(d)) })),
+                  filteredDistricts.map((d) => ({ value: idOf(d), label: capitalize(String(d.district_name ?? d.name ?? idOf(d))) })),
                   districtId,
-                  districtId === initial.districtId ? initial.districtLabel : undefined,
+                  districtId === initial.districtId ? capitalize(initial.districtLabel) : undefined,
                 )}
                 placeholder={t("common.district")}
                 disabled={!stateId}
@@ -596,9 +597,9 @@ function WasteCollectedEditor({
                 value={areaTypeId}
                 onChange={onAreaTypeChange}
                 options={ensureOption(
-                  filteredAreaTypes.map((a) => ({ value: idOf(a), label: String(a.area_type_name ?? a.name ?? idOf(a)) })),
+                  filteredAreaTypes.map((a) => ({ value: idOf(a), label: capitalize(String(a.area_type_name ?? a.name ?? idOf(a))) })),
                   areaTypeId,
-                  areaTypeId === initial.areaTypeId ? initial.areaTypeLabel : undefined,
+                  areaTypeId === initial.areaTypeId ? capitalize(initial.areaTypeLabel) : undefined,
                 )}
                 placeholder={t("common.area_type")}
                 disabled={!districtId}

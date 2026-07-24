@@ -46,10 +46,10 @@ const AdminBreadcrumb: React.FC = () => {
 
     items.push({ label: t(matched.nameKey), isActive: true });
 
-    if (isScheduleMaster && location.pathname.endsWith("/new")) {
+    if (location.pathname.endsWith("/new")) {
       items[items.length - 1].isActive = false;
       items.push({ label: t("common.add"), isActive: true });
-    } else if (isScheduleMaster && location.pathname.endsWith("/edit")) {
+    } else if (location.pathname.endsWith("/edit")) {
       items[items.length - 1].isActive = false;
       items.push({ label: t("common.edit"), isActive: true });
     }

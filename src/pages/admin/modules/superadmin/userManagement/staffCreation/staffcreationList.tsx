@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { capitalize } from "@/utils/capitalize";
 
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -32,18 +33,13 @@ const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
 };
 
 
-const cap = (val?: string | number | null) => {
-  if (val === undefined || val === null || val === "") return "";
-  const s = String(val);
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-};
 
 const humanizeGovUserType = (val?: string | null) => {
   if (!val) return "";
   return String(val)
     .replace(/^govt_/, "")
     .split("_")
-    .map((word) => cap(word))
+    .map((word) => capitalize(word))
     .join(" ");
 };
 
@@ -313,7 +309,7 @@ export default function StaffCreationList() {
               field="unique_id"
               header={t("admin.staff_creation.zigma_id")}
               sortable
-              body={(row: Staff) => cap(row.unique_id)}
+              body={(row: Staff) => capitalize(row.unique_id)}
             />
           )}
 
@@ -324,7 +320,7 @@ export default function StaffCreationList() {
               sortable
               filter
               showFilterMatchModes={false}
-              body={(row: Staff) => cap(row.employee_name)}
+              body={(row: Staff) => capitalize(row.employee_name)}
             />
           )}
 
@@ -332,14 +328,14 @@ export default function StaffCreationList() {
             field="emp_id"
             header="Employee ID"
             sortable
-            body={(row: Staff) => cap(String(row.emp_id ?? "")) || "-"}
+            body={(row: Staff) => capitalize(String(row.emp_id ?? "")) || "-"}
           />
 
           <Column
             field="user_type_name"
             header="User Type"
             sortable
-            body={(row: Staff) => cap(row.user_type_name) || "-"}
+            body={(row: Staff) => capitalize(row.user_type_name) || "-"}
           />
 
           <Column

@@ -45,6 +45,7 @@ import {
   scopeOption,
 } from "../../shared/dataScopeOptions";
 import type { ScopeLevel } from "../../shared/dataScopeOptions";
+import { capitalize } from "@/utils/capitalize";
 
 /* ===============================
    MODULE-LEVEL HELPERS
@@ -388,7 +389,7 @@ const ShadcnSelect = ({
           {options.length > 0 ? (
             options.map((o) => (
               <SelectItem key={o.value} value={o.value}>
-                {o.label}
+                {capitalize(o.label)}
               </SelectItem>
             ))
           ) : (
@@ -491,7 +492,7 @@ const MultiSelectCheckboxes = ({
                 checked={selected.has(option.value)}
                 onChange={() => toggle(option.value)}
               />
-              <span>{option.label}</span>
+              <span>{capitalize(option.label)}</span>
             </label>
           ))
         ) : (
@@ -573,7 +574,7 @@ const FamilyMembersRepeater = ({
                 <SelectContent>
                   {idProofTypeOptions.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      {o.label}
+                      {capitalize(o.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -653,7 +654,7 @@ const PropertySelectionStep = ({
               onChange={onPropertyChange}
               options={properties.map((p: any) => ({
                 value: String(p?.unique_id ?? p?.id ?? ""),
-                label: p.property_name,
+                label: capitalize(p.property_name),
               }))}
               placeholder={
                 t("admin.customer_creation.property_placeholder") ||
@@ -668,7 +669,7 @@ const PropertySelectionStep = ({
               onChange={onSubPropertyChange}
               options={filteredSubProps.map((sp: any) => ({
                 value: String(sp?.unique_id ?? sp?.id ?? ""),
-                label: sp.sub_property_name,
+                label: capitalize(sp.sub_property_name),
               }))}
               placeholder={
                 t("admin.customer_creation.sub_property_placeholder") ||
@@ -961,7 +962,7 @@ function CustomerEditor({
           .filter((ward) => ward.is_active !== false && ward.is_deleted !== true)
           .map((ward) => ({
             value: resolveId(ward),
-            label: String(ward.ward_name ?? ward.unique_id ?? ""),
+            label: capitalize(String(ward.ward_name ?? ward.unique_id ?? "")),
           }))
           .filter((option) => option.value);
         const merged = mergeWithScopeOptionExtra(options, "ward", {});
@@ -1011,13 +1012,13 @@ function CustomerEditor({
         const optKey =
           hierarchyLevels.find((l) => l.value === selectedHierarchyType)?.optionLabel ||
           "name";
-        acc.push({ value: id, label: item[optKey] || item.name || id });
+        acc.push({ value: id, label: capitalize(item[optKey] || item.name || id) });
         return acc;
       },
       [],
     );
     if (selectedHierarchyId && !base.find((o) => o.value === selectedHierarchyId)) {
-      base.push({ value: selectedHierarchyId, label: hierarchyItemLabel || selectedHierarchyId });
+      base.push({ value: selectedHierarchyId, label: capitalize(hierarchyItemLabel || selectedHierarchyId) });
     }
     return base;
   }, [
@@ -1104,7 +1105,7 @@ function CustomerEditor({
   const wasteTypeOptions = useMemo(() => {
     const all = dropdowns.wasteTypes.map((wasteType: any) => ({
       value: resolveId(wasteType),
-      label: wasteType.waste_type_name || wasteType.name || resolveId(wasteType),
+      label: capitalize(wasteType.waste_type_name || wasteType.name || resolveId(wasteType)),
     }));
     if (!isResidentialProperty) return all;
     return all.filter((option) =>
@@ -1575,7 +1576,7 @@ function CustomerEditor({
               }}
               options={filteredStates.map((s: any) => ({
                 value: resolveId(s),
-                label: s.name || s.state_name || resolveId(s),
+                label: capitalize(s.name || s.state_name || resolveId(s)),
               }))}
               placeholder="Select state"
               disabled={stateScope.mode === "locked"}
@@ -1601,7 +1602,7 @@ function CustomerEditor({
               }}
               options={filteredDistricts.map((d: any) => ({
                 value: resolveId(d),
-                label: d.name || d.district_name || resolveId(d),
+                label: capitalize(d.name || d.district_name || resolveId(d)),
               }))}
               placeholder={formData.state_id ? "Select district" : "Select a state first"}
               disabled={!formData.state_id || districtScope.mode === "locked"}
@@ -1639,7 +1640,7 @@ function CustomerEditor({
               }}
               options={filteredAreaTypes.map((areaType: any) => ({
                 value: resolveId(areaType),
-                label: areaType.name || areaType.area_type_name || resolveId(areaType),
+                label: capitalize(areaType.name || areaType.area_type_name || resolveId(areaType)),
               }))}
               placeholder={formData.district_id ? "Select area type" : "Select a district first"}
               disabled={!formData.district_id || areaTypeScope.mode === "locked"}
@@ -1845,9 +1846,9 @@ function CustomerEditor({
                           "Selected Property"}
                         :{" "}
                         <span className="font-semibold text-gray-800">
-                          {dropdowns.properties.find(
+                          {capitalize(dropdowns.properties.find(
                             (p: any) => resolveId(p) === formData.property_id,
-                          )?.property_name || "-"}
+                          )?.property_name) || "-"}
                         </span>
                       </p>
                     )}
@@ -1857,9 +1858,9 @@ function CustomerEditor({
                           "Selected Sub-Property"}
                         :{" "}
                         <span className="font-semibold text-gray-800">
-                          {dropdowns.subProperties.find(
+                          {capitalize(dropdowns.subProperties.find(
                             (sp: any) => resolveId(sp) === formData.sub_property_id,
-                          )?.sub_property_name || "-"}
+                          )?.sub_property_name) || "-"}
                         </span>
                       </p>
                     )}
@@ -1884,7 +1885,7 @@ function CustomerEditor({
                 }}
                 options={dropdowns.properties.map((p: any) => ({
                   value: resolveId(p),
-                  label: p.property_name,
+                  label: capitalize(p.property_name),
                 }))}
                 placeholder={
                   t("admin.customer_creation.property_placeholder") || "Select property"
@@ -1906,7 +1907,7 @@ function CustomerEditor({
                   )
                   .map((sp: any) => ({
                     value: resolveId(sp),
-                    label: sp.sub_property_name,
+                    label: capitalize(sp.sub_property_name),
                   }))}
                 placeholder={
                   t("admin.customer_creation.sub_property_placeholder") ||

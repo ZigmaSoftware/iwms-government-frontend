@@ -24,6 +24,7 @@ import LocationFields, {
   type GeoLocationValue,
 } from "../../../masters/shared/LocationHierarchyFields";
 import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
+import { capitalize } from "@/utils/capitalize";
 
 type ApiRecord = Record<string, unknown>;
 type Option = { value: string; label: string };
@@ -383,7 +384,7 @@ export default function CollectionPointForm() {
                 >
                   <option value="">Select Waste Type</option>
                   {wasteTypes.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                    <option key={option.value} value={option.value}>{capitalize(option.label)}</option>
                   ))}
                 </select>
                 <select
@@ -396,7 +397,7 @@ export default function CollectionPointForm() {
                   {wardOptions
                     .filter((option) => selectedWardIds.includes(option.value))
                     .map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
+                      <option key={option.value} value={option.value}>{capitalize(option.label)}</option>
                     ))}
                 </select>
                 <Input

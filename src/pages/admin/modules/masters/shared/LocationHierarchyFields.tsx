@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { capitalize } from "@/utils/capitalize";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -375,35 +376,35 @@ export default function LocationFields({
         <Label>Country *</Label>
         <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.countryId} onChange={(event) => emit({ countryId: event.target.value, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })}>
           <option value="">Select Country</option>
-          {ensureOption(countries, value.countryId).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {ensureOption(countries, value.countryId).map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>State *</Label>
         <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId || stateScope.mode === "locked"}>
           <option value="">Select State</option>
-          {filteredStates.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredStates.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>District *</Label>
         <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId || districtScope.mode === "locked"}>
           <option value="">Select District</option>
-          {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>Area Type *</Label>
         <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId || areaTypeScope.mode === "locked"}>
           <option value="">Select Area Type</option>
-          {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>Local Body *</Label>
         <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyLevel} onChange={(event) => emit({ localBodyLevel: event.target.value as LocalBodyLevel, localBodyId: "" })} disabled={!value.areaTypeId}>
           <option value="">Select Local Body</option>
-          {allowedLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {allowedLevels.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       {value.localBodyLevel && (
@@ -411,7 +412,7 @@ export default function LocationFields({
           <Label>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label} *</Label>
           <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })} disabled={localBodyScope?.mode === "locked"}>
             <option value="">Select</option>
-            {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
           </select>
         </div>
       )}

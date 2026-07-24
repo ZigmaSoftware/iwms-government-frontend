@@ -21,6 +21,7 @@ import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { PencilIcon } from "@/icons";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
+import { capitalize } from "@/utils/capitalize";
 
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
@@ -209,8 +210,6 @@ export default function BinList() {
   const wasteTypeTemplate = (row: Bin) =>
     row.waste_type_name ?? row.wastetype_name ?? row.waste_type ?? "-";
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
@@ -265,7 +264,7 @@ export default function BinList() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: Bin) => cap(row.bin_name)}
+            body={(row: Bin) => capitalize(row.bin_name)}
             style={{ minWidth: "200px" }}
           />
         )}
@@ -283,7 +282,7 @@ export default function BinList() {
           <Column
             field="panchayat_name"
             header={t("admin.nav.panchayat")}
-            body={(row: Bin) => cap(row.panchayat_name || row.panchayat || "-")}
+            body={(row: Bin) => capitalize(row.panchayat_name || row.panchayat || "-")}
             sortable
             filter
             showFilterMatchModes={false}
@@ -294,7 +293,7 @@ export default function BinList() {
           <Column
             field="ward_name"
             header="Ward"
-            body={(row: Bin) => cap(row.ward_name || "-")}
+            body={(row: Bin) => capitalize(row.ward_name || "-")}
             sortable
             filter
             showFilterMatchModes={false}
@@ -305,7 +304,7 @@ export default function BinList() {
           <Column
             field="waste_type_name"
             header={t("common.waste_type")}
-            body={(row: Bin) => cap(wasteTypeTemplate(row))}
+            body={(row: Bin) => capitalize(wasteTypeTemplate(row))}
             sortable
             filter
             showFilterMatchModes={false}

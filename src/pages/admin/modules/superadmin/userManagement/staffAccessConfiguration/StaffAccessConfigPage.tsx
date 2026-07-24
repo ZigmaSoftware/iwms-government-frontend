@@ -12,6 +12,7 @@ import Select, { type SelectOption } from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { Input } from "@/components/ui/input";
 import Swal from "@/lib/notify";
+import { capitalize } from "@/utils/capitalize";
 import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -928,7 +929,7 @@ export default function StaffAccessConfigPage() {
       );
       return toOptions(records).map((option) => ({
         value: `${level}::${option.value}`,
-        label: `${levelLabel}: ${option.label}`,
+        label: `${levelLabel}: ${capitalize(option.label)}`,
       }));
     });
   }, [localBodyRecords, values.districtId, values.localBodyLevels]);

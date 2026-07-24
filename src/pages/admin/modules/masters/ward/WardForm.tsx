@@ -1,5 +1,6 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
@@ -361,7 +362,7 @@ function WardEditor({
                   <SelectContent>
                     {states.map((item) => (
                       <SelectItem key={item.value} value={item.value}>
-                        {item.label}
+                        {capitalize(item.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -396,7 +397,7 @@ function WardEditor({
                   <SelectContent>
                     {filteredDistricts.map((item) => (
                       <SelectItem key={item.value} value={item.value}>
-                        {item.label}
+                        {capitalize(item.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -431,7 +432,7 @@ function WardEditor({
                   <SelectContent>
                     {filteredAreaTypes.map((item) => (
                       <SelectItem key={item.value} value={item.value}>
-                        {item.label}
+                        {capitalize(item.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -504,7 +505,7 @@ function WardEditor({
                   <SelectContent>
                     {filteredLocalBodies.map((item) => (
                       <SelectItem key={item.value} value={item.value}>
-                        {item.label}
+                        {capitalize(item.label)}
                       </SelectItem>
                     ))}
                   </SelectContent>

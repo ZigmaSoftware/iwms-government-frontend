@@ -20,6 +20,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { capitalize } from "@/utils/capitalize";
 import type { SubPropertyRecord } from "./types";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -124,8 +125,6 @@ export default function SubPropertyList() {
       }),
     });
 
-  const cap = (s?: string | null) =>
-    s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "";
 
   const statusTemplate = (row: SubPropertyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -230,7 +229,7 @@ export default function SubPropertyList() {
               sortable
               filter
               showFilterMatchModes={false}
-              body={(row: SubPropertyRecord) => cap(row.property_name)}
+              body={(row: SubPropertyRecord) => capitalize(row.property_name)}
             />
           )}
 
@@ -241,7 +240,7 @@ export default function SubPropertyList() {
               sortable
               filter
               showFilterMatchModes={false}
-              body={(row: SubPropertyRecord) => cap(row.sub_property_name)}
+              body={(row: SubPropertyRecord) => capitalize(row.sub_property_name)}
             />
           )}
 
