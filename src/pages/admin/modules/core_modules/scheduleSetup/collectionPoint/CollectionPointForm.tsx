@@ -123,6 +123,7 @@ export default function CollectionPointForm() {
   // allowed to place this collection point outside their own scope. Several
   // scoped values (or none) leave the field editable as before.
   const wardScope = scopeFieldState("ward");
+  const wardScopeKey = wardScope.options.map((option) => `${option.value}:${option.label}`).join("|");
 
   useEffect(() => {
     wasteTypeApi.readAll().then((res: unknown) => {
@@ -136,8 +137,16 @@ export default function CollectionPointForm() {
 
   useEffect(() => {
     if (!geo.districtId || !geo.localBodyLevel || !geo.localBodyId) {
-      setWardRecords([]);
-      setSelectedWardIds([]);
+      // Keep the user's scoped wards visible even before the location
+      // hierarchy has finished loading (or when the ward endpoint is not
+      // available to the current role).
+      setWardRecords(wardScope.options.map((option) => ({
+        unique_id: option.value,
+        ward_name: option.label,
+      })));
+      setSelectedWardIds((current) =>
+        current.length ? current : wardScope.options.map((option) => option.value),
+      );
       return;
     }
     let cancelled = false;
@@ -152,13 +161,19 @@ export default function CollectionPointForm() {
         if (cancelled) return;
         const records = normalizeList(res);
         setWardRecords(records);
-        const allowed = new Set(records.map((ward) => idOf(ward.unique_id)));
+        const allowed = new Set([
+          ...records.map((ward) => idOf(ward.unique_id)),
+          ...wardScope.options.map((option) => option.value),
+        ]);
         setSelectedWardIds((current) => current.filter((wardId) => allowed.has(wardId)));
       });
     return () => {
       cancelled = true;
     };
-  }, [geo.districtId, geo.localBodyId, geo.localBodyLevel]);
+    // wardScopeKey tracks the scoped values without re-running this effect
+    // for the new array returned by scopeFieldState on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geo.districtId, geo.localBodyId, geo.localBodyLevel, wardScopeKey]);
 
   useEffect(() => {
     if (!id) return;
@@ -206,20 +221,25 @@ export default function CollectionPointForm() {
     });
   }, [id]);
 
-  const wardOptions: Option[] = mergeWithScopeOptionExtra(
+  const fetchedWardOptions = mergeWithScopeOptionExtra(
     wardRecords
       .map((w) => ({ value: idOf(w.unique_id), label: String(w.ward_name ?? w.unique_id ?? "") }))
       .filter((option) => option.value),
     "ward",
     {},
   );
+  // A ward data scope is authoritative: with one ward the field is locked;
+  // with several wards the user may choose only from the assigned wards.
+  const wardOptions: Option[] = wardScope.mode === "unrestricted"
+    ? fetchedWardOptions
+    : wardScope.options;
 
   useEffect(() => {
-    if (wardScope.mode === "locked" && selectedWardIds.length === 0) {
-      setSelectedWardIds([wardScope.options[0].value]);
+    if (wardScope.mode === "locked" && selectedWardIds[0] !== wardScope.options[0]?.value) {
+      setSelectedWardIds(wardScope.options[0] ? [wardScope.options[0].value] : []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wardScope.mode, selectedWardIds.length]);
+  }, [wardScope.mode, wardScopeKey, selectedWardIds]);
 
   const addBin = () => setBins((prev) => [
     ...prev,
@@ -278,13 +298,17 @@ export default function CollectionPointForm() {
       if (isEdit && id) await collectionPointApi.update(id, payload);
       else await collectionPointApi.create(payload);
       navigate(LIST_PATH);
-    } catch (error: any) {
-      const responseData = error?.response?.data;
+    } catch (error: unknown) {
+      const responseData = error && typeof error === "object" && "response" in error
+        ? (error as { response?: { data?: unknown } }).response?.data
+        : undefined;
       const message = typeof responseData === "string"
         ? responseData
-        : responseData?.detail
-          ?? Object.values(responseData ?? {}).flat().join(" ")
-          ?? "Could not save the collection point.";
+        : responseData && typeof responseData === "object" && "detail" in responseData
+          ? String((responseData as { detail?: unknown }).detail)
+          : responseData && typeof responseData === "object"
+            ? Object.values(responseData as Record<string, unknown>).flat().join(" ")
+            : "Could not save the collection point.";
       Swal.fire("Save failed", String(message), "error");
     } finally {
       setSubmitting(false);
@@ -334,7 +358,7 @@ export default function CollectionPointForm() {
               panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
             }}
             filter
-            disabled={!geo.localBodyId}
+            disabled={!geo.localBodyId || wardScope.mode === "locked"}
           />
         </div>
         <div>
@@ -391,7 +415,7 @@ export default function CollectionPointForm() {
                   className="h-10 w-full rounded-md border px-3 text-sm"
                   value={bin.ward_id}
                   onChange={(e) => updateBin(bin.key, { ward_id: e.target.value })}
-                  disabled={selectedWardIds.length === 0}
+                  disabled={selectedWardIds.length === 0 || wardScope.mode === "locked"}
                 >
                   <option value="">Bin Ward</option>
                   {wardOptions

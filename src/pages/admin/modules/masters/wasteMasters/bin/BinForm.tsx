@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   binApi,
   collectionPointApi,
+  wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
 import Swal from "@/lib/notify";
@@ -16,6 +17,7 @@ import { toSwalMessage } from "@/lib/zodErrors";
 import { binSchema } from "@/schemas/masters/wasteMasters/bin.schema";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { mergeWithScopeOptionExtra, scopeFieldState } from "../../shared/dataScopeOptions";
 import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
@@ -88,6 +90,8 @@ export default function BinForm() {
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const wardScope = scopeFieldState("ward");
+
   const [collectionPoints, setCollectionPoints] = useState<Option[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
   const [wards, setWards] = useState<Option[]>([]);
@@ -104,29 +108,55 @@ export default function BinForm() {
   }, []);
 
   useEffect(() => {
-    if (!collectionPointId) {
+    if (!geo.districtId || !geo.localBodyLevel || !geo.localBodyId) {
       setWards([]);
       setWardId("");
       return;
     }
     let cancelled = false;
-    collectionPointApi.read(collectionPointId).then((record: ApiRecord) => {
-      if (cancelled) return;
-      const options = Array.isArray(record.wards_detail)
-        ? (record.wards_detail as ApiRecord[]).map((ward) => ({
-            value: idOf(ward.unique_id),
+    wardApi
+      .readAll({
+        params: {
+          district_id: geo.districtId,
+          [geo.localBodyLevel]: geo.localBodyId,
+        },
+      })
+      .then((response: unknown) => {
+        if (cancelled) return;
+        const records = (
+          Array.isArray(response)
+            ? response
+            : ((response as { results?: unknown[] })?.results ?? [])
+        ) as Array<Record<string, unknown>>;
+        const options = records
+          .filter((ward) => ward.is_active !== false && ward.is_deleted !== true)
+          .map((ward) => ({
+            value: idOf(ward.unique_id ?? ward.id),
             label: String(ward.ward_name ?? ward.unique_id ?? ""),
           }))
-        : [];
-      setWards(options.filter((option) => option.value));
-      setWardId((current) =>
-        current && options.some((option) => option.value === current) ? current : "",
-      );
-    });
+          .filter((option) => option.value);
+        const merged = mergeWithScopeOptionExtra(options, "ward", {});
+        setWards(merged);
+        setWardId((current) =>
+          current && merged.some((option) => option.value === current) ? current : "",
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const merged = mergeWithScopeOptionExtra([], "ward", {});
+        setWards(merged);
+      });
     return () => {
       cancelled = true;
     };
-  }, [collectionPointId]);
+  }, [geo.districtId, geo.localBodyLevel, geo.localBodyId]);
+
+  // Auto-select ward when scope has exactly one value.
+  useEffect(() => {
+    if (wardScope.mode === "locked" && !wardId && wards.some((option) => option.value === wardScope.options[0].value)) {
+      setWardId(wardScope.options[0].value);
+    }
+  }, [wardScope.mode, wardId, wards]);
 
   useEffect(() => {
     if (!id) return;
@@ -220,14 +250,27 @@ export default function BinForm() {
       <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <LocationFields value={geo} onChange={(next) => { setGeo(next); setCollectionPointId(""); setWardId(""); }} />
         <div>
+          <Label>Ward *</Label>
+          <select
+            className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+            value={wardId}
+            onChange={(e) => setWardId(e.target.value)}
+            disabled={!geo.localBodyLevel || !geo.localBodyId || wardScope.mode === "locked"}
+          >
+            <option value="">
+              {geo.localBodyLevel && geo.localBodyId
+                ? "Select Ward"
+                : "Select local body first"}
+            </option>
+            {wards.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+        </div>
+        <div>
           <Label>Collection Point *</Label>
           <select
-            className="h-10 w-full rounded-md border px-3 text-sm"
+            className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             value={collectionPointId}
-            onChange={(e) => {
-              setCollectionPointId(e.target.value);
-              setWardId("");
-            }}
+            onChange={(e) => setCollectionPointId(e.target.value)}
             disabled={!geo.localBodyLevel || !geo.localBodyId}
           >
             <option value="">
@@ -239,20 +282,8 @@ export default function BinForm() {
           </select>
         </div>
         <div>
-          <Label>Ward *</Label>
-          <select
-            className="h-10 w-full rounded-md border px-3 text-sm"
-            value={wardId}
-            onChange={(e) => setWardId(e.target.value)}
-            disabled={!collectionPointId}
-          >
-            <option value="">{collectionPointId ? "Select Ward" : "Select collection point first"}</option>
-            {wards.map((item) => <option key={item.value} value={item.value}>{capitalize(item.label)}</option>)}
-          </select>
-        </div>
-        <div>
           <Label>Waste Type *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={wasteTypeId} onChange={(e) => setWasteTypeId(e.target.value)}>
+          <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={wasteTypeId} onChange={(e) => setWasteTypeId(e.target.value)}>
             <option value="">Select Waste Type</option>
             {wasteTypes.map((item) => <option key={item.value} value={item.value}>{capitalize(item.label)}</option>)}
           </select>
@@ -267,7 +298,7 @@ export default function BinForm() {
         </div>
         <div>
           <Label>Bin Type</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={binType} onChange={(e) => setBinType(e.target.value)}>
+          <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={binType} onChange={(e) => setBinType(e.target.value)}>
             <option value="">Select Bin Type</option>
             {BIN_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>

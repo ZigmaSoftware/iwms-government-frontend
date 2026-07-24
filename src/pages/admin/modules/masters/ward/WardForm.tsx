@@ -29,6 +29,7 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
+import { getStoredDataScope } from "@/utils/authStorage";
 import {
   mergeWithScopeOptionExtra,
   scopeFieldState,
@@ -227,14 +228,71 @@ function WardEditor({
   // (corporation/municipality/.../panchayat) has exactly one scoped value.
   const localBodyScope = localBodyType ? scopeFieldState(localBodyType) : null;
 
+  const filteredDistricts = useMemo(() => {
+    let result = districts.filter(
+      (item) => !stateId || !item.stateId || item.stateId === stateId
+    );
+    if (districtScope.mode !== "unrestricted") {
+      const allowed = new Set(districtScope.options.map((o) => o.value));
+      result = result.filter((item) => allowed.has(item.value));
+    }
+    return result;
+  }, [districts, stateId, districtScope]);
+
+  const filteredAreaTypes = useMemo(() => {
+    let result = areaTypes.filter(
+      (item) =>
+        (!stateId || !item.stateId || item.stateId === stateId) &&
+        (!districtId || !item.districtId || item.districtId === districtId)
+    );
+    if (areaTypeScope.mode !== "unrestricted") {
+      const allowed = new Set(areaTypeScope.options.map((o) => o.value));
+      result = result.filter((item) => allowed.has(item.value));
+    }
+    return result;
+  }, [areaTypes, stateId, districtId, areaTypeScope]);
+
+  const selectedAreaTypeGroup = useMemo(() => {
+    const match = filteredAreaTypes.find((item) => item.value === areaTypeId);
+    return match ? AREA_TYPE_GROUP[match.label] : undefined;
+  }, [filteredAreaTypes, areaTypeId]);
+
+  // Map from local body type name (e.g. "corporation") to the plural Data
+  // Scope key that holds every local body of that level the user is scoped to.
+  const LOCAL_BODY_TYPE_SCOPE_KEY: Record<string, string> = {
+    corporation: "corporations",
+    municipality: "municipalities",
+    town_panchayat: "town_panchayats",
+    panchayat_union: "panchayat_unions",
+    panchayat: "panchayats",
+  };
+
+  const availableLocalBodyTypes = useMemo(() => {
+    let types = selectedAreaTypeGroup
+      ? LOCAL_BODY_TYPES_BY_GROUP[selectedAreaTypeGroup]
+      : WARD_LOCAL_BODY_TYPES.slice();
+    const scope = getStoredDataScope() as Record<string, unknown> | null;
+    if (scope) {
+      types = types.filter((type) => {
+        const key = LOCAL_BODY_TYPE_SCOPE_KEY[type];
+        const entries = scope[key];
+        return Array.isArray(entries) && entries.length > 0;
+      });
+    }
+    return types;
+  }, [selectedAreaTypeGroup]);
+
   useEffect(() => {
-    if (stateScope.mode === "locked" && !stateId) setValue("state_id", stateScope.options[0].value);
-    if (districtScope.mode === "locked" && !districtId) setValue("district_id", districtScope.options[0].value);
-    if (areaTypeScope.mode === "locked" && !areaTypeId) setValue("area_type_id", areaTypeScope.options[0].value);
-    if (localBodyScope?.mode === "locked" && !localBodyId) {
+    if (stateScope.mode === "locked" && !stateId && !stateId &&
+      states.some((item) => item.value === stateScope.options[0].value)) setValue("state_id", stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId && districts.some((item) => item.value === districtScope.options[0].value)) setValue("district_id", districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId && areaTypes.some((item) => item.value === areaTypeScope.options[0].value)) setValue("area_type_id", areaTypeScope.options[0].value);
+    if (availableLocalBodyTypes.length === 1 && !localBodyType) {
+      setValue("local_body_type", availableLocalBodyTypes[0]);
+    }
+    if (localBodyScope?.mode === "locked" && !localBodyId && localBodyOptions.some((item) => item.value === localBodyScope.options[0].value)) {
       setValue("local_body_id", localBodyScope.options[0].value);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     stateScope.mode,
     districtScope.mode,
@@ -244,35 +302,13 @@ function WardEditor({
     districtId,
     areaTypeId,
     localBodyId,
+    localBodyType,
+    states,
+    districts,
+    areaTypes,
+    localBodyOptions,
+    availableLocalBodyTypes,
   ]);
-
-  const filteredDistricts = useMemo(
-    () =>
-      districts.filter(
-        (item) => !stateId || !item.stateId || item.stateId === stateId
-      ),
-    [districts, stateId]
-  );
-
-  const filteredAreaTypes = useMemo(
-    () =>
-      areaTypes.filter(
-        (item) =>
-          (!stateId || !item.stateId || item.stateId === stateId) &&
-          (!districtId || !item.districtId || item.districtId === districtId)
-      ),
-    [areaTypes, stateId, districtId]
-  );
-
-  const selectedAreaTypeGroup = useMemo(() => {
-    const match = filteredAreaTypes.find((item) => item.value === areaTypeId);
-    return match ? AREA_TYPE_GROUP[match.label] : undefined;
-  }, [filteredAreaTypes, areaTypeId]);
-
-  const availableLocalBodyTypes = useMemo(
-    () => (selectedAreaTypeGroup ? LOCAL_BODY_TYPES_BY_GROUP[selectedAreaTypeGroup] : WARD_LOCAL_BODY_TYPES.slice()),
-    [selectedAreaTypeGroup]
-  );
 
   useEffect(() => {
     if (!localBodyType) return;
@@ -458,7 +494,7 @@ function WardEditor({
                     field.onChange(value as WardLocalBodyType);
                     setValue("local_body_id", "");
                   }}
-                  disabled={isSubmitting || !areaTypeId}
+                  disabled={isSubmitting || !areaTypeId || availableLocalBodyTypes.length === 1}
                 >
                   <SelectTrigger className="input-validate w-full" id="localBodyType">
                     <SelectValue placeholder="Select Local Body Type" />

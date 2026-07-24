@@ -34,6 +34,7 @@ import { normalizeList, staffTemplateLabel } from "@/utils/forms";
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import {
   mergeWithScopeOptionExtra,
+  filterLocalBodyLevelsByScope,
   scopeFieldState,
   type ScopeLevel,
 } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
@@ -504,18 +505,30 @@ export default function TripPlanForm() {
         String(w.local_body_id ?? "") === hierarchyId
       )),
   );
-  const wardOptions = toOptions(filteredWards, "ward_name");
+  const wardScope = scopeFieldState("ward");
+  const wardOptions = wardScope.mode === "unrestricted" ? toOptions(filteredWards, "ward_name") : wardScope.options;
 
   const ensureOption = <T extends Option>(items: T[], value: string, label?: string): T[] => {
     if (!value || items.some((item) => item.value === value)) return items;
     return [{ value, label: label || value } as T, ...items];
   };
 
-  const availableHierarchyLevels = areaTypeCategory
+  const availableHierarchyLevels = filterLocalBodyLevelsByScope(areaTypeCategory
     ? hierarchyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
     : hierarchyLevel
       ? [{ value: hierarchyLevel, label: hierarchyLevels.find((item) => item.value === hierarchyLevel)?.label ?? "Local Body" }]
-      : [];
+      : []);
+
+  useEffect(() => {
+    if (availableHierarchyLevels.length === 1 && hierarchyLevel !== availableHierarchyLevels[0].value) {
+      setHierarchyLevel(availableHierarchyLevels[0].value);
+      setHierarchyId("");
+    }
+    if (wardScope.mode === "locked" && selectedWardIds[0] !== wardScope.options[0]?.value) {
+      setSelectedWardIds(wardScope.options[0] ? [wardScope.options[0].value] : []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableHierarchyLevels.map((level) => level.value).join("|"), wardScope.mode, wardScope.options.map((option) => option.value).join("|")]);
 
   const hierarchyOptions = ensureOption(
     mergeWithScopeOptionExtra(
@@ -1034,6 +1047,7 @@ useEffect(() => {
             }}
             options={availableHierarchyLevels}
             placeholder={areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}
+            disabled={availableHierarchyLevels.length === 1}
           />
         </div>
 
@@ -1114,6 +1128,7 @@ useEffect(() => {
               panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
             }}
             filter
+            disabled={wardScope.mode === "locked" || !hierarchyId}
           />
           {selectedWasteTypes.length === 0 && (
             <p className="mt-1 text-xs text-red-500">Select at least one waste type</p>

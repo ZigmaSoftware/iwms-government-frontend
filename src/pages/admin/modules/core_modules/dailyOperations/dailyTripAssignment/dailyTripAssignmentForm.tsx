@@ -30,7 +30,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
-import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
+import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
@@ -490,9 +490,9 @@ export default function DailyTripAssignmentForm() {
 
   // Local Body Type options — fall back to the detected level when the area
   // type category is unknown, so the prefilled value is always visible.
-  const availableHierarchyLevels = areaTypeCategory
+  const availableHierarchyLevels = filterLocalBodyLevelsByScope(areaTypeCategory
     ? hierarchyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
-    : [{ value: hierarchyLevel, label: hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body" }];
+    : [{ value: hierarchyLevel, label: hierarchyLevels.find((l) => l.value === hierarchyLevel)?.label ?? "Local Body" }]);
 
   // Local Body options — keep the prefilled value present even when the
   // district filter would hide it. Also fall back to the logged-in user's
@@ -539,14 +539,19 @@ export default function DailyTripAssignmentForm() {
   const districtScope = scopeFieldState("district");
   const areaTypeScope = scopeFieldState("area_type");
   const hierarchyScope = scopeFieldState(SCOPE_LEVEL_BY_HIERARCHY[hierarchyLevel]);
+  const wardScope = scopeFieldState("ward");
 
   useEffect(() => {
     if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
     if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
     if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
     if (hierarchyScope.mode === "locked" && !hierarchyId) setHierarchyId(hierarchyScope.options[0].value);
+    if (availableHierarchyLevels.length === 1 && hierarchyLevel !== availableHierarchyLevels[0].value) setHierarchyLevel(availableHierarchyLevels[0].value);
+    if (wardScope.mode === "locked" && selectedWardIds[0] !== wardScope.options[0]?.value) {
+      setSelectedWardIds(wardScope.options[0] ? [wardScope.options[0].value] : []);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, hierarchyScope.mode, stateId, districtId, areaTypeId, hierarchyId]);
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, hierarchyScope.mode, stateId, districtId, areaTypeId, hierarchyId, wardScope.mode, availableHierarchyLevels.length]);
 
   const filteredWards = wardRecords.filter(
     (w) =>
@@ -556,7 +561,7 @@ export default function DailyTripAssignmentForm() {
         String(w.local_body_id ?? "") === hierarchyId
       )),
   );
-  const wardOptions = toOptions(filteredWards, "ward_name");
+  const wardOptions = wardScope.mode === "unrestricted" ? toOptions(filteredWards, "ward_name") : wardScope.options;
 
   // Trip Plan options — ensures the record's/plan's own selected value is
   // always visibly labeled, even before the (unfiltered but still
@@ -887,6 +892,7 @@ export default function DailyTripAssignmentForm() {
                 onChange={(v) => { setHierarchyLevel(v as HierarchyLevel); setHierarchyId(""); }}
                 options={availableHierarchyLevels}
                 placeholder="Select Local Body Type"
+                disabled={availableHierarchyLevels.length === 1}
               />
             </div>
             <div>
@@ -896,6 +902,7 @@ export default function DailyTripAssignmentForm() {
                 onChange={(v) => setHierarchyId(String(v))}
                 options={localBodyOptions}
                 placeholder="Select"
+                disabled={hierarchyScope.mode === "locked"}
               />
             </div>
 
@@ -976,6 +983,7 @@ export default function DailyTripAssignmentForm() {
                   panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
                 }}
                 filter
+                disabled={wardScope.mode === "locked" || !hierarchyId}
               />
             </div>
 

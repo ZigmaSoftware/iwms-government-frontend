@@ -26,7 +26,7 @@ import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
-import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
+import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations/binCollectionEvent.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
@@ -352,14 +352,16 @@ function BinCollectionEventEditor({
   const districtScope = scopeFieldState("district");
   const areaTypeScope = scopeFieldState("area_type");
   const localBodyScope = scopeFieldState(SCOPE_LEVEL_BY_HIERARCHY[localBodyLevel]);
+  const wardScope = scopeFieldState("ward");
 
   useEffect(() => {
     if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
     if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
     if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
     if (localBodyScope.mode === "locked" && !panchayatId) setPanchayatId(localBodyScope.options[0].value);
+    if (wardScope.mode === "locked" && wardId !== wardScope.options[0]?.value) setWardId(wardScope.options[0]?.value ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope.mode, stateId, districtId, areaTypeId, panchayatId]);
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope.mode, stateId, districtId, areaTypeId, panchayatId, wardScope.mode, wardId]);
 
   // Trip Assignments / Collection Points / Bins — fetched here (not in the
   // parent) scoped to the selected Local Body, since these tables are large
@@ -492,6 +494,14 @@ function BinCollectionEventEditor({
         : [{ value: localBodyLevel, label: hierarchyLevels.find((item) => item.value === localBodyLevel)?.label ?? "Local Body" }],
     [areaTypeCategory, localBodyLevel],
   );
+  const scopedHierarchyLevels = filterLocalBodyLevelsByScope(availableHierarchyLevels);
+  useEffect(() => {
+    if (scopedHierarchyLevels.length === 1 && localBodyLevel !== scopedHierarchyLevels[0].value) {
+      setLocalBodyLevel(scopedHierarchyLevels[0].value);
+      setPanchayatId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopedHierarchyLevels.map((level) => level.value).join("|")]);
 
   const localBodyOptions = useMemo(() => {
     const records = hierarchyRecords[localBodyLevel] ?? [];
@@ -698,9 +708,9 @@ function BinCollectionEventEditor({
               setPanchayatId("");
               setWardId("");
             }}
-            options={availableHierarchyLevels}
+            options={scopedHierarchyLevels}
             placeholder={areaTypeId ? "Select Local Body Type" : "Select an Area Type first"}
-            disabled={!areaTypeId}
+            disabled={!areaTypeId || scopedHierarchyLevels.length === 1}
           />
         </div>
         <div>
@@ -715,7 +725,7 @@ function BinCollectionEventEditor({
         </div>
         <div>
           <Label>Ward</Label>
-          <Select value={wardId} onChange={(value) => { setWardId(String(value)); setTripAssignmentId(""); }} options={wardOptions} placeholder="Select Ward" disabled={!panchayatId} />
+          <Select value={wardId} onChange={(value) => { setWardId(String(value)); setTripAssignmentId(""); }} options={wardScope.mode === "unrestricted" ? wardOptions : wardScope.options} placeholder="Select Ward" disabled={!panchayatId || wardScope.mode === "locked"} />
         </div>
         <div>
           <Label>Collection Date *</Label>

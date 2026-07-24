@@ -13,6 +13,7 @@ import {
   stateApi,
   townPanchayatApi,
 } from "@/helpers/admin";
+import { getStoredDataScope } from "@/utils/authStorage";
 import { mergeWithScopeOptionExtra, scopeFieldState, scopeOption } from "./dataScopeOptions";
 
 type ApiRecord = Record<string, unknown>;
@@ -50,7 +51,6 @@ export const LOCAL_BODY_LEVELS: Array<{ value: LocalBodyLevel; label: string; so
   { value: "panchayat_id", label: "Panchayat", sourceType: "panchayat" },
 ];
 
-// Maps each local-body level to the `readAll` fetcher for its master table.
 const LOCAL_BODY_API: Record<LocalBodyLevel, { readAll: (config?: { params?: Record<string, string> }) => Promise<unknown> }> = {
   corporation_id: corporationApi,
   municipality_id: municipalityApi,
@@ -118,27 +118,11 @@ const emptyLocalBodies: Record<LocalBodyLevel, Option[]> = {
   panchayat_id: [],
 };
 
-// If a selected id isn't in the list yet (its scoped fetch is still in
-// flight — e.g. right after an edit-mode record loads), keep it selected
-// with a placeholder label rather than letting the <select> silently revert
-// to blank; the real label swaps in the moment the fetch resolves.
 const ensureOption = (items: Option[], selectedValue: string): Option[] => {
   if (!selectedValue || items.some((item) => item.value === selectedValue)) return items;
   return [{ value: selectedValue, label: selectedValue }, ...items];
 };
 
-// Cascading Country -> State -> District -> Area Type -> Local Body (Corporation /
-// Municipality / Town Panchayat for urban, Panchayat Union / Panchayat for
-// rural) selector, shared by any master that needs to place a record within
-// the government hierarchy (Collection Point, Vehicle, ...).
-//
-// Fetching is cascaded rather than downloading every geo-master table in
-// full on mount: States are cheap (top-level, ~a handful of rows) and stay
-// eager, but Districts/Area Types are only fetched once a State is chosen
-// (scoped by state_id), and the local-body-level tables — which at
-// Tamil-Nadu scale run from ~120 (municipalities) to ~12,500+ rows
-// (panchayats) — are only fetched for the one level actually selected, once
-// its prerequisite District + Area Type are chosen, scoped by those ids.
 export default function LocationFields({
   value,
   onChange,
@@ -155,10 +139,6 @@ export default function LocationFields({
   const scopedStateId = scopeOption("state")?.value;
   const scopedDistrictId = scopeOption("district")?.value;
 
-  // When the logged-in user's own Data Scope pins a level to exactly one
-  // value, that field shows pre-filled and disabled rather than an editable
-  // dropdown — they aren't allowed to place this record outside their own
-  // scope. Several scoped values (or none) leave the field editable as before.
   const stateScope = scopeFieldState("state");
   const districtScope = scopeFieldState("district");
   const areaTypeScope = scopeFieldState("area_type");
@@ -173,11 +153,48 @@ export default function LocationFields({
     | undefined;
   const localBodyScope = localBodyScopeLevel ? scopeFieldState(localBodyScopeLevel) : null;
 
+  // When state is scoped (locked), the country is derived from it and should
+  // also be locked — the user cannot place a record outside their state's
+  // country.
+  const countryLocked = stateScope.mode === "locked";
+
+  const selectedArea = areaTypes.find((item) => item.value === value.areaTypeId);
+  const selectedAreaKind = areaKind(selectedArea?.label ?? "");
+  const allowedLevels = LOCAL_BODY_LEVELS.filter((level) =>
+    selectedAreaKind === "urban"
+      ? ["corporation_id", "municipality_id", "town_panchayat_id"].includes(level.value)
+      : selectedAreaKind === "rural"
+        ? ["panchayat_union_id", "panchayat_id"].includes(level.value)
+        : false,
+  );
+
+  // Filter local body types by data scope: only show levels that have at
+  // least one entry in the user's stored data scope.
+  const LOCAL_BODY_LEVEL_SCOPE_KEY: Record<string, string> = {
+    corporation_id: "corporations",
+    municipality_id: "municipalities",
+    town_panchayat_id: "town_panchayats",
+    panchayat_union_id: "panchayat_unions",
+    panchayat_id: "panchayats",
+  };
+  const scopedLocalBodyLevels = useMemo(() => {
+    const scope = getStoredDataScope() as Record<string, unknown> | null;
+    if (!scope) return allowedLevels;
+    return allowedLevels.filter((level) => {
+      const key = LOCAL_BODY_LEVEL_SCOPE_KEY[level.value];
+      const entries = scope[key];
+      return Array.isArray(entries) && entries.length > 0;
+    });
+  }, [allowedLevels]);
+
   useEffect(() => {
     const patch: Partial<GeoLocationValue> = {};
     if (stateScope.mode === "locked" && !value.stateId) patch.stateId = stateScope.options[0].value;
     if (districtScope.mode === "locked" && !value.districtId) patch.districtId = districtScope.options[0].value;
     if (areaTypeScope.mode === "locked" && !value.areaTypeId) patch.areaTypeId = areaTypeScope.options[0].value;
+    if (scopedLocalBodyLevels.length === 1 && !value.localBodyLevel) {
+      patch.localBodyLevel = scopedLocalBodyLevels[0].value;
+    }
     if (localBodyScope?.mode === "locked" && !value.localBodyId) {
       patch.localBodyId = localBodyScope.options[0].value;
     }
@@ -191,8 +208,38 @@ export default function LocationFields({
     value.stateId,
     value.districtId,
     value.areaTypeId,
+    value.localBodyLevel,
     value.localBodyId,
+    scopedLocalBodyLevels,
+    states,
+    districts,
+    areaTypes,
   ]);
+
+  // When a state is selected (by scope lock or manually) and no country is
+  // set yet, derive the country from the state's record.
+  useEffect(() => {
+    if (!value.stateId || value.countryId) return;
+    let cancelled = false;
+    const matched = states.find((s) => s.value === value.stateId);
+    if (matched?.countryId) {
+      onChange({ ...value, countryId: matched.countryId });
+      return;
+    }
+    stateApi
+      .read(value.stateId)
+      .then((record: unknown) => {
+        if (cancelled) return;
+        const rec = record as Record<string, unknown>;
+        const countryId = idOf(rec.country_id ?? rec.country);
+        if (countryId) onChange({ ...value, countryId });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.stateId, value.countryId]);
 
   // Countries are the root of the hierarchy and can be loaded eagerly.
   useEffect(() => {
@@ -337,15 +384,6 @@ export default function LocationFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.localBodyLevel, value.districtId, value.areaTypeId, scopedDistrictId]);
 
-  const selectedArea = areaTypes.find((item) => item.value === value.areaTypeId);
-  const selectedAreaKind = areaKind(selectedArea?.label ?? "");
-  const allowedLevels = LOCAL_BODY_LEVELS.filter((level) =>
-    selectedAreaKind === "urban"
-      ? ["corporation_id", "municipality_id", "town_panchayat_id"].includes(level.value)
-      : selectedAreaKind === "rural"
-        ? ["panchayat_union_id", "panchayat_id"].includes(level.value)
-        : false,
-  );
   const filteredDistricts = useMemo(
     () => ensureOption(districts.filter((item) => !value.stateId || item.stateId === value.stateId), value.districtId),
     [districts, value.stateId, value.districtId],
@@ -374,43 +412,43 @@ export default function LocationFields({
     <>
       <div>
         <Label>Country *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.countryId} onChange={(event) => emit({ countryId: event.target.value, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.countryId} onChange={(event) => emit({ countryId: event.target.value, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={countryLocked}>
           <option value="">Select Country</option>
           {ensureOption(countries, value.countryId).map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>State *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId || stateScope.mode === "locked"}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId || stateScope.mode === "locked"}>
           <option value="">Select State</option>
           {filteredStates.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>District *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId || districtScope.mode === "locked"}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId || districtScope.mode === "locked"}>
           <option value="">Select District</option>
           {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>Area Type *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId || areaTypeScope.mode === "locked"}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId || areaTypeScope.mode === "locked"}>
           <option value="">Select Area Type</option>
           {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>Local Body *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyLevel} onChange={(event) => emit({ localBodyLevel: event.target.value as LocalBodyLevel, localBodyId: "" })} disabled={!value.areaTypeId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.localBodyLevel} onChange={(event) => emit({ localBodyLevel: event.target.value as LocalBodyLevel, localBodyId: "" })} disabled={!value.areaTypeId || scopedLocalBodyLevels.length === 1}>
           <option value="">Select Local Body</option>
-          {allowedLevels.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
+          {scopedLocalBodyLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
       {value.localBodyLevel && (
         <div>
           <Label>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label} *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })} disabled={localBodyScope?.mode === "locked"}>
+          <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })} disabled={localBodyScope?.mode === "locked"}>
             <option value="">Select</option>
             {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
           </select>

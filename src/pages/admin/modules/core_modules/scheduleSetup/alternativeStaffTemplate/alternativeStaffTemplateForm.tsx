@@ -11,16 +11,20 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import InputField from "@/components/form/input/InputField";
-import GeoHierarchyFields from "@/components/form/GeoHierarchyFields";
 import ExpiryBadge from "@/components/common/ExpiryBadge";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { useGeoHierarchy, type HierarchyLevel } from "@/hooks/useGeoHierarchy";
 import { staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
 import { staffTemplateLabel } from "@/utils/forms";
 import { alternativeStaffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/alternativeStaffTemplate.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import LocationFields, {
+  emptyGeo,
+  LOCAL_BODY_LEVELS,
+  type GeoLocationValue,
+  type LocalBodyLevel,
+} from "@/pages/admin/modules/masters/shared/LocationHierarchyFields";
 
 const GEO_PAYLOAD_KEYS = [
   "state_id",
@@ -74,7 +78,7 @@ export default function AlternativeStaffTemplateForm() {
     ALTERNATIVE_STAFF_TEMPLATE_FIELDS
   );
 
-  const geo = useGeoHierarchy();
+  const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
 
   const [formData, setFormData] = useState<FormState>(initialFormState);
   const [loading, setLoading] = useState(false);
@@ -143,14 +147,14 @@ export default function AlternativeStaffTemplateForm() {
   const matchesSelectedGeo = (
     staff: StaffRecord,
     districtId: string,
-    hierarchyLevel: HierarchyLevel,
-    hierarchyId: string
+    localBodyLevel: LocalBodyLevel | "",
+    localBodyId: string,
   ): boolean => {
     if (!isGovernmentStaff(staff)) return true;
-    if (!districtId || !hierarchyId) return false;
+    if (!districtId || !localBodyId || !localBodyLevel) return false;
     return (
       toEntityId(staff.district_id) === districtId &&
-      toEntityId((staff as any)[hierarchyLevel]) === hierarchyId
+      toEntityId((staff as any)[localBodyLevel]) === localBodyId
     );
   };
 
@@ -196,7 +200,7 @@ export default function AlternativeStaffTemplateForm() {
 
   /* ============================
      LOAD RAW STAFF TEMPLATES (for the Staff Template dropdown)
-     — intentionally NOT gated on `geo.hierarchyId`: in create mode the geo
+      — intentionally NOT gated on `geo.localBodyId`: in create mode the geo
        hierarchy is only known AFTER the user picks a staff template (see the
        hydrate effect below), so gating this fetch on geo would leave the
        dropdown empty at the exact moment the user needs it. The backend
@@ -234,21 +238,21 @@ export default function AlternativeStaffTemplateForm() {
   /* ============================
      LOAD STAFF (SCOPED TO THE INHERITED/SELECTED LOCAL BODY)
      — geo is populated either by picking a Staff Template (create mode)
-       or by geo.hydrate(rec) when an existing record loads (edit mode).
+        or by the edit hydration when an existing record loads (edit mode).
   ============================ */
 
   useEffect(() => {
-    if (!geo.hierarchyId) {
+    if (!geo.localBodyId) {
       setStaffRecords([]);
       return;
     }
 
-    const geoPayload = geo.buildPayload();
-    const geoParams: Record<string, string> = {};
-    GEO_PAYLOAD_KEYS.forEach((key) => {
-      const value = (geoPayload as Record<string, any>)[key];
-      if (value) geoParams[key] = String(value);
-    });
+    const geoParams: Record<string, string> = {
+      state_id: geo.stateId,
+      district_id: geo.districtId,
+      area_type_id: geo.areaTypeId,
+    };
+    if (geo.localBodyLevel) geoParams[geo.localBodyLevel] = geo.localBodyId;
 
     staffCreationApi.readAll({ params: { active_status: 1, ...geoParams } })
       .then((staffRes: any) => {
@@ -270,7 +274,7 @@ export default function AlternativeStaffTemplateForm() {
       .catch(() => {
         Swal.fire(t("common.error"), t("common.load_failed"), "error");
       });
-  }, [geo.stateId, geo.districtId, geo.hierarchyLevel, geo.hierarchyId, t]);
+  }, [geo.stateId, geo.districtId, geo.localBodyLevel, geo.localBodyId, t]);
 
   /* ============================
      POPULATE DROPDOWNS FROM STAFF RECORDS (scoped by role only)
@@ -285,7 +289,7 @@ export default function AlternativeStaffTemplateForm() {
     );
 
     const inGeo = (s: StaffRecord) =>
-      matchesSelectedGeo(s, geo.districtId, geo.hierarchyLevel, geo.hierarchyId);
+      matchesSelectedGeo(s, geo.districtId, geo.localBodyLevel, geo.localBodyId);
 
     setDriverOptions(
       staffRecords.filter((staff) => isDriverRole(staff) && inGeo(staff)).map((staff) => toStaffOption(staff))
@@ -295,7 +299,7 @@ export default function AlternativeStaffTemplateForm() {
       staffRecords.filter((staff) => isOperatorRole(staff) && inGeo(staff)).map((staff) => toStaffOption(staff))
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allStaffTemplates, staffRecords, geo.districtId, geo.hierarchyLevel, geo.hierarchyId]);
+  }, [allStaffTemplates, staffRecords, geo.districtId, geo.localBodyLevel, geo.localBodyId]);
 
   /* ============================
      EDIT MODE — load saved values
@@ -339,7 +343,18 @@ export default function AlternativeStaffTemplateForm() {
         setDriverOptions((items) => ensureOption(items, driverId, rec.driver_name));
         setOperatorOptions((items) => ensureOption(items, operatorId, rec.operator_name));
 
-        geo.hydrate(rec);
+        const nextGeo: GeoLocationValue = {
+          ...emptyGeo,
+          stateId: toEntityId(rec.state_id ?? rec.state),
+          districtId: toEntityId(rec.district_id ?? rec.district),
+          areaTypeId: toEntityId(rec.area_type_id ?? rec.area_type),
+        };
+        const detectedLevel = LOCAL_BODY_LEVELS.find((item) => toEntityId(rec[item.value]));
+        if (detectedLevel) {
+          nextGeo.localBodyLevel = detectedLevel.value;
+          nextGeo.localBodyId = toEntityId(rec[detectedLevel.value]);
+        }
+        setGeo(nextGeo);
 
         editDataLoaded.current = true;
         setLoading(false);
@@ -379,7 +394,18 @@ export default function AlternativeStaffTemplateForm() {
             : [],
         }));
         // Inherit the parent staff template's geo hierarchy (editable afterward).
-        geo.hydrate(tpl);
+        const nextGeo: GeoLocationValue = {
+          ...emptyGeo,
+          stateId: toEntityId(tpl.state_id ?? tpl.state),
+          districtId: toEntityId(tpl.district_id ?? tpl.district),
+          areaTypeId: toEntityId(tpl.area_type_id ?? tpl.area_type),
+        };
+        const detectedLevel = LOCAL_BODY_LEVELS.find((item) => toEntityId(tpl[item.value]));
+        if (detectedLevel) {
+          nextGeo.localBodyLevel = detectedLevel.value;
+          nextGeo.localBodyId = toEntityId(tpl[detectedLevel.value]);
+        }
+        setGeo(nextGeo);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -514,6 +540,17 @@ export default function AlternativeStaffTemplateForm() {
       }
     }
 
+    const buildGeoPayload = () => ({
+      state_id: geo.stateId || null,
+      district_id: geo.districtId || null,
+      area_type_id: geo.areaTypeId || null,
+      corporation_id: null,
+      municipality_id: null,
+      town_panchayat_id: null,
+      panchayat_union_id: null,
+      panchayat_id: null,
+      ...(geo.localBodyLevel ? { [geo.localBodyLevel]: geo.localBodyId || null } : {}),
+    });
     const rawPayload = {
       staff_template: formData.staff_template,
       effective_date: formData.effective_date,
@@ -524,7 +561,7 @@ export default function AlternativeStaffTemplateForm() {
       extra_operator: formData.extra_operator,
       change_reason: formData.change_reason,
       change_remarks: formData.change_remarks || null,
-      ...geo.buildPayload(),
+      ...buildGeoPayload(),
     };
     const payload = filterPayload(rawPayload, GEO_PAYLOAD_KEYS);
 
@@ -658,7 +695,7 @@ export default function AlternativeStaffTemplateForm() {
             )}
 
             {/* GEO HIERARCHY — inherited from the staff template, editable */}
-            <GeoHierarchyFields geo={geo} disabled={loading} />
+            <LocationFields value={geo} onChange={setGeo} />
 
             {/* FROM DATE */}
             {showField("from_date") && (
