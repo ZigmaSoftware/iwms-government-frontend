@@ -25,6 +25,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 import { subPropertySchema } from "@/schemas/masters/wasteMasters/subProperty.schema";
 import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecord } from "./types";
+import { capitalize } from "@/utils/capitalize";
 
 const { encWasteMasters, encSubProperties } = getEncryptedRoute();
 
@@ -137,7 +138,7 @@ function SubPropertyEditor({
                   ?.filter((p) => p.is_active === true)
                   .map((p) => (
                     <SelectItem key={p.unique_id} value={String(p.unique_id)}>
-                      {p.property_name}
+                      {capitalize(p.property_name)}
                     </SelectItem>
                   ))}
               </SelectContent>

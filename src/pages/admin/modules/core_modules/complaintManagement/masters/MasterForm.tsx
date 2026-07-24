@@ -20,6 +20,7 @@ import {
 import { asArray, errorText, idOf } from "../utils";
 import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 type MasterKind = "module" | "category" | "subcategory" | "priority" | "status" | "source" | "team" | "slaRule";
 
@@ -242,14 +243,14 @@ export default function MasterForm({ kind }: Props) {
               <Label>Category</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
                 <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.category_name}</option>)}
+                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Priority</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
                 <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.priority_name}</option>)}
+                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
               </select>
             </div>
           </>
@@ -259,7 +260,7 @@ export default function MasterForm({ kind }: Props) {
             <Label>Category</Label>
             <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
               <option value="">Select category</option>
-              {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.category_name}</option>)}
+              {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
             </select>
           </div>
         )}
@@ -276,7 +277,7 @@ export default function MasterForm({ kind }: Props) {
             <Label>Module</Label>
             <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.module} onChange={(e) => setValue("module", e.target.value)}>
               <option value="">None</option>
-              {modules.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.module_name}</option>)}
+              {modules.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.module_name)}</option>)}
             </select>
           </div>
         )}
@@ -285,7 +286,7 @@ export default function MasterForm({ kind }: Props) {
             <Label>Default Priority</Label>
             <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_priority} onChange={(e) => setValue("default_priority", e.target.value)}>
               <option value="">None</option>
-              {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.priority_name}</option>)}
+              {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
             </select>
           </div>
         )}
@@ -294,7 +295,7 @@ export default function MasterForm({ kind }: Props) {
             <Label>Default Team</Label>
             <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_team} onChange={(e) => setValue("default_team", e.target.value)}>
               <option value="">None</option>
-              {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.team_name}</option>)}
+              {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
             </select>
           </div>
         )}
@@ -304,14 +305,14 @@ export default function MasterForm({ kind }: Props) {
               <Label>Subcategory</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
                 <option value="">Any</option>
-                {subcategories.filter((item) => !form.category || idOf(item.category) === form.category).map((item) => <option key={item.unique_id} value={item.unique_id}>{item.subcategory_name}</option>)}
+                {subcategories.filter((item) => !form.category || idOf(item.category) === form.category).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Source</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
                 <option value="">Any</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.source_name}</option>)}
+                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
               </select>
             </div>
             <div>
@@ -330,7 +331,7 @@ export default function MasterForm({ kind }: Props) {
               <Label>Escalation Team</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalation_team} onChange={(e) => setValue("escalation_team", e.target.value)}>
                 <option value="">None</option>
-                {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.team_name}</option>)}
+                {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
               </select>
             </div>
           </>
@@ -341,7 +342,7 @@ export default function MasterForm({ kind }: Props) {
               <Label>Escalates To</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalates_to} onChange={(e) => setValue("escalates_to", e.target.value)}>
                 <option value="">None</option>
-                {teams.filter((team) => team.unique_id !== id).map((item) => <option key={item.unique_id} value={item.unique_id}>{item.team_name}</option>)}
+                {teams.filter((team) => team.unique_id !== id).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
               </select>
             </div>
             <div>

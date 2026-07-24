@@ -317,7 +317,7 @@ function WasteCollectedEditor({
         String(ward.local_body_type ?? "") === localBodyType.replace("_id", "") &&
         normId(ward.local_body_id) === localBodyId
       )))
-      .map((ward) => ({ value: idOf(ward), label: String(ward.ward_name ?? ward.name ?? idOf(ward)) })),
+      .map((ward) => ({ value: idOf(ward), label: capitalize(String(ward.ward_name ?? ward.name ?? idOf(ward))) })),
     wardId,
   ), [wards, districtId, localBodyType, localBodyId, wardId]);
 
@@ -475,7 +475,7 @@ function WasteCollectedEditor({
     if (selected && !matches.some((a) => a.value === tripAssignmentId)) {
       return [selected, ...matches];
     }
-    const label = tripAssignmentId === initial.tripAssignmentId ? initial.tripAssignmentLabel : undefined;
+    const label = tripAssignmentId === initial.tripAssignmentId ? capitalize(initial.tripAssignmentLabel) : undefined;
     return ensureOption(matches, tripAssignmentId, label);
   }, [tripAssignments, localBodyType, localBodyId, tripAssignmentId, initial.tripAssignmentId, initial.tripAssignmentLabel]);
 
@@ -500,17 +500,17 @@ function WasteCollectedEditor({
   const customerOptions = useMemo(() => {
     const mapped: Option[] = filteredCustomers.map((c) => ({
       value: resolveCustomerId(c),
-      label: c.customer_name,
+      label: capitalize(c.customer_name),
     }));
-    const label = customerId === initial.customerId ? initial.customerLabel : undefined;
+    const label = customerId === initial.customerId ? capitalize(initial.customerLabel) : undefined;
     return ensureOption(mapped, customerId, label);
   }, [filteredCustomers, customerId, initial.customerId, initial.customerLabel]);
 
   const customerAddress = useMemo(() => {
     if (selectedCustomer) {
-      return [selectedCustomer.building_no, selectedCustomer.street, selectedCustomer.area]
+      return capitalize([selectedCustomer.building_no, selectedCustomer.street, selectedCustomer.area]
         .filter(Boolean)
-        .join(", ");
+        .join(", "));
     }
     return "";
   }, [selectedCustomer]);

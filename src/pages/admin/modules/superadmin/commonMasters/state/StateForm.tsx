@@ -1,5 +1,6 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -203,7 +204,7 @@ function StateEditor({
               <SelectContent>
                 {continents.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -229,7 +230,7 @@ function StateEditor({
               <SelectContent>
                 {filteredCountries.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

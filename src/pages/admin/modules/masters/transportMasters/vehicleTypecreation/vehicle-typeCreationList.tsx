@@ -22,6 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleTypeApi } from "@/helpers/admin";
+import { capitalize } from "@/utils/capitalize";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,8 +37,6 @@ const VEHICLE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
 const normalizeId = (value: unknown): string =>
   value === null || value === undefined ? "" : String(value).trim();
 
-const cap = (str?: string | null) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -218,7 +217,7 @@ export default function VehicleTypeCreationList() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: VehicleTypeRecord) => cap(row.vehicleType)}
+            body={(row: VehicleTypeRecord) => capitalize(row.vehicleType)}
             style={{ minWidth: "200px" }}
           />
         )}

@@ -16,6 +16,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
+import { capitalize } from "@/utils/capitalize";
 import type { WasteTypeListRecord } from "./types";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
@@ -147,8 +148,6 @@ export default function WasteTypeListPage() {
     );
   };
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
@@ -210,7 +209,7 @@ export default function WasteTypeListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: WasteTypeListRecord) => cap(row.waste_type_name)}
+            body={(row: WasteTypeListRecord) => capitalize(row.waste_type_name)}
           />
         )}
         {showCol("default_team") && (

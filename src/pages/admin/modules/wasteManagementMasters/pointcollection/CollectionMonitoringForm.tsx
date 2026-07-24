@@ -1,6 +1,7 @@
 import type { BinCollectionEventRecord } from "./types";
 import type { ApiObject, TripCollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -54,7 +55,7 @@ const ShadcnSelect = ({
         {options.length > 0 ? (
           options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.label}
+              {capitalize(option.label)}
             </SelectItem>
           ))
         ) : (

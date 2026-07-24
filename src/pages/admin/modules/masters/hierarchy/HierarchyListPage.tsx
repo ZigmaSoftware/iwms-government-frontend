@@ -16,6 +16,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
+import { capitalize } from "@/utils/capitalize";
 
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -175,8 +176,6 @@ export default function HierarchyListPage() {
     { rowIndex }: { rowIndex: number }
   ) => rowIndex + 1;
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
@@ -232,7 +231,7 @@ export default function HierarchyListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: HierarchyRecord) => cap(row.level_name)}
+            body={(row: HierarchyRecord) => capitalize(row.level_name)}
           />
         )}
         {showCol("is_active") && (

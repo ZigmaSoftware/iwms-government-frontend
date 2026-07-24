@@ -23,6 +23,7 @@ import type { GeoOption, LocalBodyOption, LocalBodyType } from "@/features/compl
 import { asArray, errorText } from "../utils";
 import { ticketSchema } from "@/schemas/core_modules/complaintManagement/ticket.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 
 const LOCAL_BODY_TYPES: LocalBodyType[] = [
@@ -430,7 +431,7 @@ export default function TicketWizardForm() {
     }
   };
 
-  const customerLabel = customers.find((item) => String(item.unique_id ?? item.id) === form.customer)?.customer_name;
+  const customerLabel = capitalize(customers.find((item) => String(item.unique_id ?? item.id) === form.customer)?.customer_name);
 
   const renderReview = () => (
     <div className="space-y-6">
@@ -441,8 +442,8 @@ export default function TicketWizardForm() {
           {reviewRow("Customer", customerLabel ?? (form.customer ? undefined : "Walk-in / unknown"))}
           {reviewRow("Phone", form.wa_phone)}
           {reviewRow("Profile name", form.profile_name)}
-          {reviewRow("Source", findLabel(sources, form.source, "source_name"))}
-          {reviewRow("Language", findLabel(languages, form.language, "language_name"))}
+          {reviewRow("Source", capitalize(findLabel(sources, form.source, "source_name")))}
+          {reviewRow("Language", capitalize(findLabel(languages, form.language, "language_name")))}
         </>,
       )}
 
@@ -450,17 +451,17 @@ export default function TicketWizardForm() {
         "Complaint",
         <ClipboardList className="h-4 w-4 text-gray-500" />,
         <>
-          {reviewRow("Category", findLabel(categories, form.category, "category_name"))}
+          {reviewRow("Category", capitalize(findLabel(categories, form.category, "category_name")))}
           {reviewRow(
             "Waste type",
             wasteTypes
               .filter((item) => form.waste_types.includes(item.unique_id))
-              .map((item) => item.waste_type_name)
+              .map((item) => capitalize(item.waste_type_name))
               .join(", "),
           )}
-          {reviewRow("Subcategory", findLabel(subcategories, form.subcategory, "subcategory_name"))}
-          {reviewRow("Priority", findLabel(priorities, form.priority, "priority_name"))}
-          {reviewRow("Status", findLabel(statuses, form.status, "status_name"))}
+          {reviewRow("Subcategory", capitalize(findLabel(subcategories, form.subcategory, "subcategory_name")))}
+          {reviewRow("Priority", capitalize(findLabel(priorities, form.priority, "priority_name")))}
+          {reviewRow("Status", capitalize(findLabel(statuses, form.status, "status_name")))}
           {reviewRow("Title", form.title)}
           {reviewRow("Description", form.description)}
         </>,
@@ -470,11 +471,11 @@ export default function TicketWizardForm() {
         "Location",
         <MapPinned className="h-4 w-4 text-gray-500" />,
         <>
-          {reviewRow("State", findLabel(states, form.state, "name"))}
-          {reviewRow("District", findLabel(districts, form.district, "name"))}
-          {reviewRow("Area type", findLabel(areaTypes, form.area_type, "name"))}
+          {reviewRow("State", capitalize(findLabel(states, form.state, "name")))}
+          {reviewRow("District", capitalize(findLabel(districts, form.district, "name")))}
+          {reviewRow("Area type", capitalize(findLabel(areaTypes, form.area_type, "name")))}
           {reviewRow("Local body type", form.city_type ? LOCAL_BODY_TYPE_LABELS[form.city_type] : undefined)}
-          {reviewRow("Local body", findLabel(cities, form.city, "name"))}
+          {reviewRow("Local body", capitalize(findLabel(cities, form.city, "name")))}
           {reviewRow("Location", form.location_text)}
           {reviewRow("Latitude", form.latitude)}
           {reviewRow("Longitude", form.longitude)}
@@ -537,7 +538,7 @@ export default function TicketWizardForm() {
               <Label>Customer</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.customer} onChange={(e) => onCustomer(e.target.value)}>
                 <option value="">Walk-in / unknown</option>
-                {customers.map((item) => <option key={item.unique_id ?? item.id} value={item.unique_id ?? item.id}>{item.customer_name}</option>)}
+                {customers.map((item) => <option key={item.unique_id ?? item.id} value={item.unique_id ?? item.id}>{capitalize(item.customer_name)}</option>)}
               </select>
             </div>
             <div><Label>Phone</Label><Input value={form.wa_phone} onChange={(e) => setValue("wa_phone", e.target.value)} /></div>
@@ -546,14 +547,14 @@ export default function TicketWizardForm() {
               <Label>Source</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
                 <option value="">None</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.source_name}</option>)}
+                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Language</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.language} onChange={(e) => setValue("language", e.target.value)}>
                 <option value="">None</option>
-                {languages.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.language_name}</option>)}
+                {languages.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.language_name)}</option>)}
               </select>
             </div>
           </div>
@@ -565,28 +566,28 @@ export default function TicketWizardForm() {
               <Label>Category</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value, subcategory: "" }))} required>
                 <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.category_name}</option>)}
+                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Subcategory</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
                 <option value="">None</option>
-                {filteredSubcategories.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.subcategory_name}</option>)}
+                {filteredSubcategories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Priority</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
                 <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.priority_name}</option>)}
+                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Status</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.status} onChange={(e) => setValue("status", e.target.value)} required>
                 <option value="">Select status</option>
-                {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.status_name}</option>)}
+                {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.status_name)}</option>)}
               </select>
             </div>
             <div className="md:col-span-3">
@@ -607,7 +608,7 @@ export default function TicketWizardForm() {
                           : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50 dark:bg-transparent dark:text-gray-300"
                       }`}
                     >
-                      {item.waste_type_name}
+                      {capitalize(item.waste_type_name)}
                     </button>
                   );
                 })}
@@ -624,21 +625,21 @@ export default function TicketWizardForm() {
               <Label>State</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.state} onChange={(e) => onStateChange(e.target.value)}>
                 <option value="">Select state</option>
-                {states.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+                {states.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
               </select>
             </div>
             <div>
               <Label>District</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.district} onChange={(e) => onDistrictChange(e.target.value)} disabled={!form.state}>
                 <option value="">{form.state ? "Select district" : "Select a state first"}</option>
-                {filteredDistricts.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+                {filteredDistricts.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
               </select>
             </div>
             <div>
               <Label>Area Type</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.area_type} onChange={(e) => onAreaTypeChange(e.target.value)} disabled={!form.district}>
                 <option value="">{form.district ? "Select area type" : "Select a district first"}</option>
-                {filteredAreaTypes.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+                {filteredAreaTypes.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
               </select>
             </div>
             <div>
@@ -652,7 +653,7 @@ export default function TicketWizardForm() {
               <Label>Local Body</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.city} onChange={(e) => onCityChange(e.target.value)} disabled={!form.district || !form.area_type || !form.city_type}>
                 <option value="">{form.city_type ? "Select local body" : "Select local body type first"}</option>
-                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{item.name}</option>)}
+                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
               </select>
             </div>
             <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>

@@ -29,6 +29,7 @@ import {
 import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
 import { buildStaffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
 const PASSWORD_EXPIRY_DAYS = 90;
@@ -1760,7 +1761,7 @@ export default function StaffCreationForm() {
               {formData.local_body_level && (
                 <div>
                   <Label htmlFor="local_body_id">
-                    {LOCAL_BODY_LEVELS.find((level) => level.value === formData.local_body_level)?.label}
+                    {capitalize(LOCAL_BODY_LEVELS.find((level) => level.value === formData.local_body_level)?.label ?? "")}
                   </Label>
                   <Select
                     id="local_body_id"

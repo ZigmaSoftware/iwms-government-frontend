@@ -28,6 +28,7 @@ import DashboardWidgetSection from "./DashboardWidgetSection";
 import PermissionSection, { type PermissionSectionData } from "./PermissionSection";
 import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagement/userScreenPermission.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
@@ -582,7 +583,7 @@ export default function UserScreenPermissionForm() {
             <SelectContent>
               {PERMISSION_TYPE_OPTIONS.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {capitalize(opt.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -631,7 +632,7 @@ export default function UserScreenPermissionForm() {
                 <SelectContent>
                   {mainScreens.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {capitalize(opt.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -645,7 +646,9 @@ export default function UserScreenPermissionForm() {
             key={id}
             mainScreenId={id}
             mainScreenLabel={
-              mainScreens.find((opt) => opt.value === id)?.label ?? id
+              mainScreens.find((opt) => opt.value === id)?.label
+                ? capitalize(mainScreens.find((opt) => opt.value === id)!.label)
+                : id
             }
             permissionType={permissionType}
             localBody={localBody}
@@ -682,7 +685,7 @@ export default function UserScreenPermissionForm() {
                 <SelectContent>
                   {availableMainScreens.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {capitalize(opt.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>

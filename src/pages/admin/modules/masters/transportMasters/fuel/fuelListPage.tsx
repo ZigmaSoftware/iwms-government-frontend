@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { fuelApi } from "@/helpers/admin";
+import { capitalize } from "@/utils/capitalize";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,8 +33,6 @@ const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const cap = (str?: string) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -203,7 +202,7 @@ export default function FuelList() {
             field="fuel_type"
             header={t("admin.fuel.fuel_type")}
             sortable
-            body={(row: Fuel) => cap(row.fuel_type)}
+            body={(row: Fuel) => capitalize(row.fuel_type)}
             style={{ minWidth: "200px" }}
             filter
             showFilterMatchModes={false}

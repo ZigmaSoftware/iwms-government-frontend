@@ -1,5 +1,6 @@
 import type { PanchayatOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -227,7 +228,7 @@ function PanchayatLeaderEditor({
               <SelectContent>
                 {panchayatOptions.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

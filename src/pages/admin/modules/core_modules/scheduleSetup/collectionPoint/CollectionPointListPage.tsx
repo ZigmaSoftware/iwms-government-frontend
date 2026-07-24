@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
 import { formatCoordinates } from "../../../masters/shared/formatCoordinates";
+import { capitalize } from "@/utils/capitalize";
 
 
 const toDisplay = (value: unknown): string =>
@@ -193,8 +194,6 @@ export default function CollectionPointListPage() {
     );
   };
 
-  const cap = (str?: string | null) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
@@ -249,7 +248,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(toOptionalString(row.cp_name ?? row.collection_point_name))}
+            body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.cp_name ?? row.collection_point_name))}
           />
         )}
         {showCol("state_name") && (
@@ -259,7 +258,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(toOptionalString(row.state_name))}
+            body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.state_name))}
           />
         )}
         {showCol("district_name") && (
@@ -269,7 +268,7 @@ export default function CollectionPointListPage() {
             sortable
             filter
             showFilterMatchModes={false}
-            body={(row: CollectionPointRecord) => cap(toOptionalString(row.district_name))}
+            body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.district_name))}
           />
         )}
         {showCol("ulb_name") && (
@@ -282,7 +281,7 @@ export default function CollectionPointListPage() {
             body={(row: CollectionPointRecord) =>
               row._ulb_name ? (
                 <span>
-                  {cap(String(row._ulb_name))}{" "}
+                  {capitalize(String(row._ulb_name))}{" "}
                   <span className="text-xs text-gray-400">({String(row._ulb_level)})</span>
                 </span>
               ) : (
@@ -301,7 +300,7 @@ export default function CollectionPointListPage() {
             body={(row: CollectionPointRecord) =>
               row._rlb_name ? (
                 <span>
-                  {cap(String(row._rlb_name))}{" "}
+                  {capitalize(String(row._rlb_name))}{" "}
                   <span className="text-xs text-gray-400">({String(row._rlb_level)})</span>
                 </span>
               ) : (

@@ -8,6 +8,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import {
   Select,
   SelectContent,
@@ -272,7 +273,7 @@ function StaffUserTypeEditor({
               <SelectContent>
                 {levelOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {capitalize(opt.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

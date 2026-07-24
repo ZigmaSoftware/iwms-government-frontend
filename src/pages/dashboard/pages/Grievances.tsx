@@ -35,6 +35,7 @@ import type { Grievance } from "@/features/complaintTicketing/types";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
+import { capitalize } from "@/utils/capitalize";
 import type { SummaryCard, SummaryFilter, SummaryTab } from "./types/Grievances/types";
 
 export default function Grievances() {
@@ -77,8 +78,6 @@ export default function Grievances() {
     return () => controller.abort();
   }, [loadComplaints]);
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   const formatDateTime = (d?: string | null) => {
     if (!d) return "-";
@@ -524,7 +523,7 @@ export default function Grievances() {
                 value={tab}
                 className="text-sm font-semibold rounded-lg data-[state=active]:bg-white data-[state=active]:text-slate-900 dark:data-[state=active]:bg-slate-950/70 dark:data-[state=active]:text-slate-100 transition"
               >
-                {tabLabels[tab] ?? cap(tab)}
+                {tabLabels[tab] ?? capitalize(tab)}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -558,7 +557,7 @@ export default function Grievances() {
                             <InfoField label={t("dashboard.grievances.fields.id")} value={g.unique_id} />
                             <InfoField
                               label={t("dashboard.grievances.fields.category")}
-                              value={`${cap(g.main_category)} / ${cap(g.sub_category)}`}
+                              value={`${capitalize(g.main_category)} / ${capitalize(g.sub_category)}`}
                             />
 
                             <InfoField label={t("dashboard.grievances.fields.zone")} value={g.zone_name || (g.zone_id ? g.zone_id.split('-').pop() : '-')} />
@@ -619,7 +618,7 @@ export default function Grievances() {
                   </div>
 
                   <div className="space-y-6">
-                    <InfoField label={t("dashboard.grievances.fields.category")} value={cap(selectedComplaint.category)} />
+                    <InfoField label={t("dashboard.grievances.fields.category")} value={capitalize(selectedComplaint.category)} />
                     <InfoField label={t("dashboard.grievances.fields.ward")} value={selectedComplaint.ward_name || (selectedComplaint.ward_id ? selectedComplaint.ward_id.split('-').pop() : '-')} />
                     <InfoField label={t("dashboard.grievances.detail.created")} value={formatDateTime(selectedComplaint.created)} />
 

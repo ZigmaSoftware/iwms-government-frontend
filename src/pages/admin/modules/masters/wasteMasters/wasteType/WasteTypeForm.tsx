@@ -26,6 +26,7 @@ import { wasteTypeApi } from "@/helpers/admin";
 import { complaintPriorityApi, complaintTeamApi } from "@/features/complaintTicketing/api";
 import { asArray } from "@/pages/admin/modules/core_modules/complaintManagement/utils";
 import type { ComplaintPriority, ComplaintTeam } from "@/features/complaintTicketing/types";
+import { capitalize } from "@/utils/capitalize";
 
 const { encWasteMasters, encWasteTypes } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encWasteMasters, encWasteTypes);
@@ -197,7 +198,7 @@ export default function WasteTypeForm() {
               <SelectContent>
                 <SelectItem value="__none__">None</SelectItem>
                 {teams.map((team) => (
-                  <SelectItem key={team.unique_id} value={team.unique_id}>{team.team_name}</SelectItem>
+                  <SelectItem key={team.unique_id} value={team.unique_id}>{capitalize(team.team_name)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -212,7 +213,7 @@ export default function WasteTypeForm() {
               <SelectContent>
                 <SelectItem value="__none__">None</SelectItem>
                 {priorities.map((priority) => (
-                  <SelectItem key={priority.unique_id} value={priority.unique_id}>{priority.priority_name}</SelectItem>
+                  <SelectItem key={priority.unique_id} value={priority.unique_id}>{capitalize(priority.priority_name)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

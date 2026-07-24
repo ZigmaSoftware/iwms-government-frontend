@@ -24,6 +24,7 @@ import LocationFields, {
   type GeoLocationValue,
   type LocalBodyLevel,
 } from "../../shared/LocationHierarchyFields";
+import { capitalize } from "@/utils/capitalize";
 
 type Option = {
   value: string;
@@ -277,14 +278,14 @@ export default function BinForm() {
                 ? "Select Collection Point"
                 : "Select local body first"}
             </option>
-            {filteredCollectionPoints.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            {filteredCollectionPoints.map((item) => <option key={item.value} value={item.value}>{capitalize(item.label)}</option>)}
           </select>
         </div>
         <div>
           <Label>Waste Type *</Label>
           <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={wasteTypeId} onChange={(e) => setWasteTypeId(e.target.value)}>
             <option value="">Select Waste Type</option>
-            {wasteTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            {wasteTypes.map((item) => <option key={item.value} value={item.value}>{capitalize(item.label)}</option>)}
           </select>
         </div>
         <div>

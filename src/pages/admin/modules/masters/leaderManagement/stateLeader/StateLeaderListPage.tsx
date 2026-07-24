@@ -24,6 +24,7 @@ import {
 } from "@/utils/exportExcel";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { capitalize } from "@/utils/capitalize";
 
 // ─── Template columns ──────────────────────────────────────────────────────────
 const STATE_LEADER_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
@@ -35,8 +36,6 @@ const STATE_LEADER_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const cap = (str?: string | null) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function StateLeaderListPage() {
@@ -276,7 +275,7 @@ export default function StateLeaderListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(r: StateLeader) => cap(r.username)}
+          body={(r: StateLeader) => capitalize(r.username)}
         />
 
         <Column
@@ -285,7 +284,7 @@ export default function StateLeaderListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(r: StateLeader) => cap(r.leader_name) || "-"}
+          body={(r: StateLeader) => capitalize(r.leader_name) || "-"}
         />
 
         <Column
@@ -294,7 +293,7 @@ export default function StateLeaderListPage() {
           sortable
           filter
           showFilterMatchModes={false}
-          body={(r: StateLeader) => cap(r.state_name) || "-"}
+          body={(r: StateLeader) => capitalize(r.state_name) || "-"}
         />
 
         <Column

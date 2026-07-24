@@ -21,6 +21,7 @@ import LocationFields, {
   LOCAL_BODY_LEVELS,
   type GeoLocationValue,
 } from "../../shared/LocationHierarchyFields";
+import { capitalize } from "@/utils/capitalize";
 
 
 const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -259,13 +260,13 @@ export default function VehicleCreationForm() {
   // ── Dropdown options ───────────────────────────────────────────────────────
   const vehicleTypeOptions = useMemo(() => {
     return filterActiveRecords(vehicleTypeData, form.vehicleTypeId ? [form.vehicleTypeId] : []).map(
-      (item) => ({ value: resolveId(item), label: item.vehicleType })
+      (item) => ({ value: resolveId(item), label: capitalize(item.vehicleType) })
     );
   }, [vehicleTypeData, form.vehicleTypeId]);
 
   const fuelTypeOptions = useMemo(() => {
     return filterActiveRecords(fuelTypeData, form.fuelTypeId ? [form.fuelTypeId] : []).map(
-      (item) => ({ value: resolveId(item), label: item.fuel_type })
+      (item) => ({ value: resolveId(item), label: capitalize(item.fuel_type) })
     );
   }, [fuelTypeData, form.fuelTypeId]);
 

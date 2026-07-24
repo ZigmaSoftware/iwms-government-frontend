@@ -33,6 +33,7 @@ import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 type Option = { value: string; label: string; disabled?: boolean };
 type ApiRecord = Record<string, any>;
@@ -938,7 +939,7 @@ export default function DailyTripAssignmentForm() {
                 <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <span>
                     Trip Plan also has:{" "}
-                    {missingPlanWasteTypes.map((wt) => wt.waste_type_name).join(", ")}
+                    {missingPlanWasteTypes.map((wt) => capitalize(wt.waste_type_name)).join(", ")}
                   </span>
                   <button
                     type="button"
@@ -1021,7 +1022,7 @@ export default function DailyTripAssignmentForm() {
               <div className="divide-y divide-gray-100">
                 {wasteTypeBreakdown.map((row, index) => (
                   <div key={index} className="flex items-center justify-between px-4 py-2 text-sm">
-                    <span className="text-gray-700">{row.waste_type_name ?? "—"}</span>
+                    <span className="text-gray-700">{capitalize(row.waste_type_name) ?? "—"}</span>
                     <span className="font-medium text-gray-900">
                       {row.collected_weight_kg != null ? `${row.collected_weight_kg} kg` : "—"}
                     </span>
@@ -1119,10 +1120,10 @@ export default function DailyTripAssignmentForm() {
                               className="h-9 w-20"
                             />
                           </td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{pointLabel(point)}</td>
-                          <td className="px-4 py-3 text-gray-700">{binLabel(point)}</td>
-                          <td className="px-4 py-3 text-gray-700">{wardLabel(point.wards)}</td>
-                          <td className="px-4 py-3 text-gray-700">{point.waste_type_name ?? "—"}</td>
+                          <td className="px-4 py-3 font-medium text-gray-800">{capitalize(pointLabel(point))}</td>
+                          <td className="px-4 py-3 text-gray-700">{capitalize(binLabel(point))}</td>
+                          <td className="px-4 py-3 text-gray-700">{capitalize(wardLabel(point.wards))}</td>
+                          <td className="px-4 py-3 text-gray-700">{capitalize(point.waste_type_name) ?? "—"}</td>
                           <td className="px-4 py-3">
                             <Input
                               type="number"
@@ -1199,8 +1200,8 @@ export default function DailyTripAssignmentForm() {
                       {previewHouseholdStops.map((stop, index) => (
                         <tr key={stop.unique_id ?? index} className="text-gray-500 italic">
                           <td className="px-4 py-3">{stop.sequence ?? index + 1}</td>
-                          <td className="px-4 py-3">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
-                          <td className="px-4 py-3">{stop.customer?.ward_name ?? "—"}</td>
+                          <td className="px-4 py-3">{capitalize(stop.customer?.customer_name) ?? stop.customer_id ?? "—"}</td>
+                          <td className="px-4 py-3">{capitalize(stop.customer?.ward_name) ?? "—"}</td>
                           <td className="px-4 py-3">{stop.collection_type === "bulk_waste_collection" ? "Bulk Waste Collection" : "Household Collection"}</td>
                           <td className="px-4 py-3"><span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Pending</span></td>
                         </tr>
@@ -1244,9 +1245,9 @@ export default function DailyTripAssignmentForm() {
                             <td className="px-4 py-3">
                               <Input type="number" min={1} value={String(stop.sequence ?? index + 1)} onChange={(e) => updateHouseholdStop(stopKey, { sequence: Number(e.target.value || 1) })} className="h-9 w-20" />
                             </td>
-                            <td className="px-4 py-3 font-medium text-gray-800">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
-                            <td className="px-4 py-3 text-gray-700">{stop.customer?.ward_name ?? "—"}</td>
-                            <td className="px-4 py-3 text-xs text-gray-600">{[stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ") || "—"}</td>
+                            <td className="px-4 py-3 font-medium text-gray-800">{capitalize(stop.customer?.customer_name) ?? stop.customer_id ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700">{capitalize(stop.customer?.ward_name) ?? "—"}</td>
+                            <td className="px-4 py-3 text-xs text-gray-600">{capitalize([stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ")) || "—"}</td>
                             <td className="px-4 py-3">
                               <Input type="number" min={0} step="0.01" value={String(stop.collected_weight_kg ?? "")} onChange={(e) => updateHouseholdStop(stopKey, { collected_weight_kg: e.target.value })} className="h-9 w-28" />
                             </td>

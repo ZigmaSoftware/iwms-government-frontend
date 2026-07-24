@@ -16,6 +16,7 @@ import { normalizeList } from "@/utils/forms";
 import { api } from "@/api";
 import { vehicleBreakdownSchema } from "@/schemas/core_modules/dailyOperations/vehicleBreakdown.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { capitalize } from "@/utils/capitalize";
 
 type SelectOption = { value: string; label: string };
 
@@ -461,21 +462,21 @@ export default function VehicleBreakdownForm() {
               disabled={fetchingDropdowns || isEdit}
             />
             {selectedTripDate && (
-              <p className="text-xs text-gray-400 mt-1">Trip date: <strong>{selectedTripDate}</strong></p>
+              <p className="text-xs text-gray-400 mt-1">Trip date: <strong>{capitalize(selectedTripDate)}</strong></p>
             )}
           </div>
 
           {/* Auto-filled: Broken Vehicle */}
           <InfoRow
             label="Broken Vehicle (auto-filled)"
-            value={autoVehicleNo || (form.breakdown_vehicle_id ? `ID: ${form.breakdown_vehicle_id}` : "")}
+            value={capitalize(autoVehicleNo) || (form.breakdown_vehicle_id ? `ID: ${form.breakdown_vehicle_id}` : "")}
           />
 
           {/* Auto-filled: Original Driver */}
-          <InfoRow label="Original Driver (auto-filled)" value={autoDriver} />
+          <InfoRow label="Original Driver (auto-filled)" value={capitalize(autoDriver)} />
 
           {/* Auto-filled: Original Operator */}
-          <InfoRow label="Original Operator (auto-filled)" value={autoOperator} />
+          <InfoRow label="Original Operator (auto-filled)" value={capitalize(autoOperator)} />
 
           {/* Breakdown Reason */}
           <div>
@@ -582,7 +583,7 @@ export default function VehicleBreakdownForm() {
               />
               {availableVehicleOptions.length === 0 && !fetchingVehicles && (
                 <p className="text-xs text-amber-600 mt-1">
-                  All vehicles are assigned on {selectedTripDate}. Please check vehicle availability.
+                  All vehicles are assigned on {capitalize(selectedTripDate)}. Please check vehicle availability.
                 </p>
               )}
             </div>
@@ -598,7 +599,7 @@ export default function VehicleBreakdownForm() {
                 disabled={fetchingStaff}
               />
               {!fetchingStaff && driverOptions.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">All drivers are already assigned on {selectedTripDate}.</p>
+                <p className="text-xs text-amber-600 mt-1">All drivers are already assigned on {capitalize(selectedTripDate)}.</p>
               )}
             </div>
 
@@ -613,7 +614,7 @@ export default function VehicleBreakdownForm() {
                 disabled={fetchingStaff}
               />
               {!fetchingStaff && operatorOptions.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">All operators are already assigned on {selectedTripDate}.</p>
+                <p className="text-xs text-amber-600 mt-1">All operators are already assigned on {capitalize(selectedTripDate)}.</p>
               )}
             </div>
 
