@@ -28,6 +28,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -59,6 +60,14 @@ type LocalBodyLevel =
   | "town_panchayat_id"
   | "panchayat_union_id"
   | "panchayat_id";
+
+const SCOPE_LEVEL_BY_LOCAL_BODY: Record<LocalBodyLevel, "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat"> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
 
 const LOCAL_BODY_META: Record<LocalBodyLevel, { label: string; nameKey: string }> = {
   corporation_id: { label: "Corporation", nameKey: "corporation_name" },
@@ -263,6 +272,25 @@ function WasteCollectedEditor({
   const [fetchingCustomers, setFetchingCustomers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // A single value in the logged-in user's Data Scope is shown pre-filled and
+  // locked. Multiple values remain selectable, restricted to those values.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScope = localBodyType
+    ? scopeFieldState(SCOPE_LEVEL_BY_LOCAL_BODY[localBodyType])
+    : { mode: "unrestricted" as const, options: [] };
+  const wardScope = scopeFieldState("ward");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    if (localBodyScope.mode === "locked" && !localBodyId) setLocalBodyId(localBodyScope.options[0].value);
+    if (wardScope.mode === "locked" && wardId !== wardScope.options[0]?.value) setWardId(wardScope.options[0]?.value ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope.mode, stateId, districtId, areaTypeId, localBodyId, wardScope.mode, wardId]);
+
   // Guards autofill so it only fires on user-initiated selections, not on record load.
   const userChangedCustomerRef = useRef(false);
 
@@ -337,13 +365,30 @@ function WasteCollectedEditor({
   return () => { cancelled = true; };
 }, [tripAssignmentParams]);
 
-  /* ── area type kind (urban/rural) drives which local-body levels apply ── */
-  const areaTypeKind = useMemo<"urban" | "rural" | "">(() => {
+  /* ── area type kind (urban/rural) drives which local-body levels apply.
+     `useState` + effect (not a cold useMemo) so the resolved kind sticks
+     across renders where `areaTypeId` is already set but `areaTypes` hasn't
+     finished loading yet — otherwise a transient miss briefly widens
+     `localBodyLevels` back to the full urban+rural union and lets an
+     out-of-scope level slip into the Local Body Type dropdown. ── */
+  const [areaTypeKind, setAreaTypeKind] = useState<"urban" | "rural" | "">(() => {
     const at = areaTypes.find((a) => idOf(a) === areaTypeId);
     const name = String(at?.area_type_name ?? at?.name ?? "").toLowerCase();
     if (name.includes("urban")) return "urban";
     if (name.includes("rural")) return "rural";
     return "";
+  });
+  useEffect(() => {
+    if (!areaTypeId) {
+      setAreaTypeKind("");
+      return;
+    }
+    const at = areaTypes.find((a) => idOf(a) === areaTypeId);
+    if (!at) return;
+    const name = String(at.area_type_name ?? at.name ?? "").toLowerCase();
+    if (name.includes("urban")) setAreaTypeKind("urban");
+    else if (name.includes("rural")) setAreaTypeKind("rural");
+    else setAreaTypeKind("");
   }, [areaTypes, areaTypeId]);
 
   const localBodyLevels = useMemo<LocalBodyLevel[]>(() => {
@@ -351,6 +396,16 @@ function WasteCollectedEditor({
     if (areaTypeKind === "rural") return RURAL_LEVELS;
     return [...URBAN_LEVELS, ...RURAL_LEVELS];
   }, [areaTypeKind]);
+  const scopedLocalBodyLevels = filterLocalBodyLevelsByScope(
+    localBodyLevels.map((lvl) => ({ value: lvl })),
+  ).map((lvl) => lvl.value);
+  useEffect(() => {
+    if (scopedLocalBodyLevels.length === 1 && localBodyType !== scopedLocalBodyLevels[0]) {
+      setLocalBodyType(scopedLocalBodyLevels[0]);
+      setLocalBodyId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopedLocalBodyLevels.map((level) => level).join("|")]);
 
   /* ── filtered dropdown options ── */
   const filteredDistricts = useMemo(
@@ -385,8 +440,29 @@ function WasteCollectedEditor({
       })
       .map((row) => ({ value: idOf(row), label: String(row[nameKey] ?? row.name ?? idOf(row)) }));
     const label = localBodyId === initial.localBodyId ? initial.localBodyLabel : undefined;
-    return ensureOption(mapped, localBodyId, label);
+    const scoped = mergeWithScopeOptionExtra(
+      mapped,
+      SCOPE_LEVEL_BY_LOCAL_BODY[localBodyType],
+      {},
+    );
+    return ensureOption(scoped, localBodyId, label);
   }, [localBodyType, localBodyRowsByLevel, areaTypeId, districtId, localBodyId, initial.localBodyId, initial.localBodyLabel]);
+
+  const stateOptions = useMemo(() => mergeWithScopeOptionExtra(
+    states.map((s) => ({ value: idOf(s), label: String(s.name ?? s.state_name ?? idOf(s)) })),
+    "state",
+    {},
+  ), [states]);
+  const districtOptions = useMemo(() => mergeWithScopeOptionExtra(
+    filteredDistricts.map((d) => ({ value: idOf(d), label: String(d.district_name ?? d.name ?? idOf(d)) })),
+    "district",
+    {},
+  ), [filteredDistricts]);
+  const areaTypeOptions = useMemo(() => mergeWithScopeOptionExtra(
+    filteredAreaTypes.map((a) => ({ value: idOf(a), label: String(a.area_type_name ?? a.name ?? idOf(a)) })),
+    "area_type",
+    {},
+  ), [filteredAreaTypes]);
 
   /* ── trip assignments scoped to household-collection trips, filtered by the
      chosen local body (selected one always kept) ── */
@@ -564,12 +640,9 @@ function WasteCollectedEditor({
               <Select
                 value={stateId}
                 onChange={onStateChange}
-                options={ensureOption(
-                  states.map((s) => ({ value: idOf(s), label: String(s.name ?? s.state_name ?? idOf(s)) })),
-                  stateId,
-                  stateId === initial.stateId ? initial.stateLabel : undefined,
-                )}
+                options={ensureOption(stateOptions, stateId, stateId === initial.stateId ? initial.stateLabel : undefined)}
                 placeholder={t("common.state")}
+                disabled={stateScope.mode === "locked"}
               />
             </div>
 
@@ -579,13 +652,9 @@ function WasteCollectedEditor({
               <Select
                 value={districtId}
                 onChange={onDistrictChange}
-                options={ensureOption(
-                  filteredDistricts.map((d) => ({ value: idOf(d), label: String(d.district_name ?? d.name ?? idOf(d)) })),
-                  districtId,
-                  districtId === initial.districtId ? initial.districtLabel : undefined,
-                )}
+                options={ensureOption(districtOptions, districtId, districtId === initial.districtId ? initial.districtLabel : undefined)}
                 placeholder={t("common.district")}
-                disabled={!stateId}
+                disabled={!stateId || districtScope.mode === "locked"}
               />
             </div>
 
@@ -595,13 +664,9 @@ function WasteCollectedEditor({
               <Select
                 value={areaTypeId}
                 onChange={onAreaTypeChange}
-                options={ensureOption(
-                  filteredAreaTypes.map((a) => ({ value: idOf(a), label: String(a.area_type_name ?? a.name ?? idOf(a)) })),
-                  areaTypeId,
-                  areaTypeId === initial.areaTypeId ? initial.areaTypeLabel : undefined,
-                )}
+                options={ensureOption(areaTypeOptions, areaTypeId, areaTypeId === initial.areaTypeId ? initial.areaTypeLabel : undefined)}
                 placeholder={t("common.area_type")}
-                disabled={!districtId}
+                disabled={!districtId || areaTypeScope.mode === "locked"}
               />
             </div>
 
@@ -611,9 +676,9 @@ function WasteCollectedEditor({
               <Select
                 value={localBodyType}
                 onChange={onLocalBodyTypeChange}
-                options={localBodyLevels.map((lvl) => ({ value: lvl, label: LOCAL_BODY_META[lvl].label }))}
+                options={scopedLocalBodyLevels.map((lvl) => ({ value: lvl, label: LOCAL_BODY_META[lvl].label }))}
                 placeholder={t("admin.household_collection_event.local_body_type")}
-                disabled={!areaTypeId}
+                disabled={!areaTypeId || scopedLocalBodyLevels.length === 1}
               />
             </div>
 
@@ -625,7 +690,7 @@ function WasteCollectedEditor({
                 onChange={onLocalBodyChange}
                 options={localBodyOptions}
                 placeholder={t("admin.household_collection_event.local_body")}
-                disabled={!localBodyType}
+                disabled={!localBodyType || localBodyScope.mode === "locked"}
               />
             </div>
 
@@ -635,9 +700,9 @@ function WasteCollectedEditor({
               <Select
                 value={wardId}
                 onChange={(v) => { setWardId(String(v)); setTripAssignmentId(""); }}
-                options={wardOptions}
+                options={wardScope.mode === "unrestricted" ? wardOptions : wardScope.options}
                 placeholder="Select Ward"
-                disabled={!localBodyId}
+                disabled={!localBodyId || wardScope.mode === "locked"}
               />
             </div>
 

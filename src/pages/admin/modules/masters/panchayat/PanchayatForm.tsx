@@ -157,11 +157,29 @@ function PanchayatEditor({
   const areaTypeScope = scopeFieldState("area_type");
 
   useEffect(() => {
-    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
-    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
-    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    if (
+      stateScope.mode === "locked" &&
+      !stateId &&
+      states.some((item) => item.value === stateScope.options[0].value)
+    ) {
+      setStateId(stateScope.options[0].value);
+    }
+    if (
+      districtScope.mode === "locked" &&
+      !districtId &&
+      districts.some((item) => item.value === districtScope.options[0].value)
+    ) {
+      setDistrictId(districtScope.options[0].value);
+    }
+    if (
+      areaTypeScope.mode === "locked" &&
+      !areaTypeId &&
+      areaTypes.some((item) => item.value === areaTypeScope.options[0].value)
+    ) {
+      setAreaTypeId(areaTypeScope.options[0].value);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, stateId, districtId, areaTypeId]);
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, stateId, districtId, areaTypeId, states, districts, areaTypes]);
 
   const filteredDistricts = useMemo(
     () =>

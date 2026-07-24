@@ -61,7 +61,7 @@ export type DataScopeRef = { unique_id?: string; name?: string } | null;
 
 /** The level a staff data scope was granted at. "local_body" covers any
  * number of selected local bodies across one or more levels at once. */
-export type ScopeGrantedLevel = "state" | "district" | "local_body";
+export type ScopeGrantedLevel = "state" | "district" | "local_body" | "ward";
 
 export type ScopeLocalBodyType =
   | "corporation"
@@ -83,6 +83,7 @@ export type ScopeLocalBody = {
   name: string | null;
   local_body_type: ScopeLocalBodyType;
   staff?: ScopeStaffSummary[];
+  wards?: Array<{ unique_id: string; name: string | null; ward_name?: string | null }>;
 };
 
 export type ScopeAreaType = {

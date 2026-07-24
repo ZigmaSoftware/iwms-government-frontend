@@ -142,22 +142,33 @@ function AreaTypeEditor({
   const districtScope = scopeFieldState("district");
 
   useEffect(() => {
-    if (stateScope.mode === "locked" && !stateId) {
+    if (
+      stateScope.mode === "locked" &&
+      !stateId &&
+      states.some((item) => item.value === stateScope.options[0].value)
+    ) {
       setStateId(stateScope.options[0].value);
     }
-    if (districtScope.mode === "locked" && !districtId) {
+    if (
+      districtScope.mode === "locked" &&
+      !districtId &&
+      districts.some((item) => item.value === districtScope.options[0].value)
+    ) {
       setDistrictId(districtScope.options[0].value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateScope.mode, districtScope.mode, stateId, districtId]);
+  }, [stateScope.mode, districtScope.mode, stateId, districtId, states, districts]);
 
-  const filteredDistricts = useMemo(
-    () =>
-      districts.filter(
-        (item) => !stateId || !item.stateId || item.stateId === stateId
-      ),
-    [districts, stateId]
-  );
+  const filteredDistricts = useMemo(() => {
+    let result = districts.filter(
+      (item) => !stateId || !item.stateId || item.stateId === stateId
+    );
+    if (districtScope.mode !== "unrestricted") {
+      const allowed = new Set(districtScope.options.map((o) => o.value));
+      result = result.filter((item) => allowed.has(item.value));
+    }
+    return result;
+  }, [districts, stateId, districtScope]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

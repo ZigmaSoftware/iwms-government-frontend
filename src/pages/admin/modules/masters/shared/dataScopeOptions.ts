@@ -40,8 +40,8 @@ const PLURAL_SCOPE_KEY: Partial<Record<ScopeLevel, keyof DataScope>> = {
 export const scopeOption = (level: ScopeLevel): ScopeOption | null => {
   const scope = getStoredDataScope() as Record<string, unknown> | null;
   const ref = (scope?.[level] as DataScopeRef) ?? null;
-  if (ref?.unique_id && ref?.name) {
-    return { value: ref.unique_id, label: ref.name };
+  if (ref?.unique_id) {
+    return { value: ref.unique_id, label: ref.name || ref.unique_id };
   }
   return null;
 };
@@ -59,8 +59,8 @@ export const scopeOptions = (level: ScopeLevel): ScopeOption[] => {
   const refs = pluralKey ? (scope?.[pluralKey as string] as DataScopeRef[] | undefined) : undefined;
   if (Array.isArray(refs) && refs.length) {
     return refs
-      .filter((ref): ref is { unique_id: string; name: string } => Boolean(ref?.unique_id && ref?.name))
-      .map((ref) => ({ value: ref.unique_id, label: ref.name }));
+      .filter((ref): ref is { unique_id: string; name?: string } => Boolean(ref?.unique_id))
+      .map((ref) => ({ value: ref.unique_id, label: ref.name || ref.unique_id }));
   }
   const single = scopeOption(level);
   return single ? [single] : [];
@@ -83,6 +83,22 @@ export const scopeFieldState = (
   if (options.length === 0) return { mode: "unrestricted", options };
   if (options.length === 1) return { mode: "locked", options };
   return { mode: "choices", options };
+};
+
+/** Restrict Local Body Type choices to levels present in the user's scope. */
+export const filterLocalBodyLevelsByScope = <T extends { value: string }>(levels: T[]): T[] => {
+  if (!getStoredDataScope()) return levels;
+  const scopeLevels: Record<string, ScopeLevel> = {
+    corporation_id: "corporation",
+    municipality_id: "municipality",
+    town_panchayat_id: "town_panchayat",
+    panchayat_union_id: "panchayat_union",
+    panchayat_id: "panchayat",
+  };
+  // Use scopeOptions() so both plural entries (e.g. `panchayats`) and a
+  // single-level scope reference are handled consistently.
+  const scoped = levels.filter((level) => scopeLevels[level.value] && scopeOptions(scopeLevels[level.value]).length > 0);
+  return scoped.length ? scoped : levels;
 };
 
 /**
