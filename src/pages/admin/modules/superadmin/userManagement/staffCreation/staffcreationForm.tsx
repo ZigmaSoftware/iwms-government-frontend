@@ -23,6 +23,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../../../masters/shared/dataScopeOptions";
 import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
@@ -645,6 +646,63 @@ export default function StaffCreationForm() {
     );
   }, [scopeLocalBodyRecords, formData.district_id, formData.local_body_level]);
 
+  // ── Data Scope field locking ──────────────────────────────────────────────
+  // When the logged-in staff's own Data Scope holds exactly one value at a
+  // level, that field shows pre-filled and non-editable instead of an
+  // editable dropdown. Several scoped values (or none) leave the field as
+  // it behaves today.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScopeByLevel: Record<LocalBodyLevel, ReturnType<typeof scopeFieldState>> = {
+    corporation_id: scopeFieldState("corporation"),
+    municipality_id: scopeFieldState("municipality"),
+    town_panchayat_id: scopeFieldState("town_panchayat"),
+    panchayat_union_id: scopeFieldState("panchayat_union"),
+    panchayat_id: scopeFieldState("panchayat"),
+  };
+  const lockedLocalBodyLevel = (Object.keys(localBodyScopeByLevel) as LocalBodyLevel[]).find(
+    (level) => localBodyScopeByLevel[level].mode === "locked",
+  );
+  const lockedLocalBodyScope = lockedLocalBodyLevel
+    ? localBodyScopeByLevel[lockedLocalBodyLevel]
+    : null;
+  const localBodyScope = formData.local_body_level
+    ? localBodyScopeByLevel[formData.local_body_level as LocalBodyLevel]
+    : null;
+
+  useEffect(() => {
+    const patch: Partial<typeof initialFormData> = {};
+    if (stateScope.mode === "locked" && !formData.state_id) {
+      patch.state_id = stateScope.options[0].value;
+    }
+    if (districtScope.mode === "locked" && !formData.district_id) {
+      patch.district_id = districtScope.options[0].value;
+    }
+    if (areaTypeScope.mode === "locked" && !formData.area_type_id) {
+      patch.area_type_id = areaTypeScope.options[0].value;
+    }
+    if (lockedLocalBodyLevel && lockedLocalBodyScope && !formData.local_body_level) {
+      patch.local_body_level = lockedLocalBodyLevel;
+    }
+    if (lockedLocalBodyLevel && lockedLocalBodyScope && !formData.local_body_id) {
+      patch.local_body_id = lockedLocalBodyScope.options[0].value;
+    }
+    if (Object.keys(patch).length) {
+      setFormData((prev) => ({ ...prev, ...patch }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stateScope.mode,
+    districtScope.mode,
+    areaTypeScope.mode,
+    lockedLocalBodyLevel,
+    formData.state_id,
+    formData.district_id,
+    formData.area_type_id,
+    formData.local_body_level,
+    formData.local_body_id,
+  ]);
 
   const MAX_DRIVER_FILE_SIZE_MB = 3;
 
@@ -1663,6 +1721,7 @@ export default function StaffCreationForm() {
                   onChange={(value) => handleSelectChange("state_id", value)}
                   options={scopeStateOptions}
                   placeholder="Select state"
+                  disabled={stateScope.mode === "locked"}
                 />
               </div>
               <div>
@@ -1673,7 +1732,7 @@ export default function StaffCreationForm() {
                   onChange={(value) => handleSelectChange("district_id", value)}
                   options={scopeDistrictOptions}
                   placeholder={formData.state_id ? "Select district" : "Select a state first"}
-                  disabled={!formData.state_id}
+                  disabled={!formData.state_id || districtScope.mode === "locked"}
                 />
               </div>
               <div>
@@ -1684,7 +1743,7 @@ export default function StaffCreationForm() {
                   onChange={(value) => handleSelectChange("area_type_id", value)}
                   options={scopeAreaTypeOptions}
                   placeholder={formData.district_id ? "Select area type" : "Select a district first"}
-                  disabled={!formData.district_id}
+                  disabled={!formData.district_id || areaTypeScope.mode === "locked"}
                 />
               </div>
               <div>
@@ -1695,7 +1754,7 @@ export default function StaffCreationForm() {
                   onChange={(value) => handleSelectChange("local_body_level", value)}
                   options={availableScopeLocalBodyLevels.map((level) => ({ value: level.value, label: level.label }))}
                   placeholder={formData.area_type_id ? "Select local body type" : "Select an area type first"}
-                  disabled={!formData.area_type_id}
+                  disabled={!formData.area_type_id || Boolean(lockedLocalBodyLevel)}
                 />
               </div>
               {formData.local_body_level && (
@@ -1709,6 +1768,7 @@ export default function StaffCreationForm() {
                     onChange={(value) => handleSelectChange("local_body_id", value)}
                     options={scopeLocalBodyOptions}
                     placeholder="Select"
+                    disabled={localBodyScope?.mode === "locked"}
                   />
                 </div>
               )}

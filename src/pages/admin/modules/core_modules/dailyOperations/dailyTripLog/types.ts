@@ -32,6 +32,7 @@ export type LocationDetail = {
 };
 
 export type DailyTripLogRecord = {
+  wards_detail?: { unique_id?: string; ward_name?: string }[];
   unique_id: string;
   location?: LocationDetail | null;
   location_name?: string | null;

@@ -52,14 +52,23 @@ export type LocalBodyLevel =
 
 export type AreaTypeCategory = "urban" | "rural";
 
+export type LocalBodySelection = {
+  level: LocalBodyLevel;
+  id: string;
+};
+
 export type DataScopeForm = {
   locationNodes?: string[];
   stateId: string | null;
   districtId: string | null;
   areaTypeId: string | null;
   areaTypeCategory: AreaTypeCategory | null;
-  localBodyLevel: LocalBodyLevel | null;
-  localBodyId: string | null;
+  /** Local Body Types chosen (Corporation/Municipality/... — can be several at once). */
+  localBodyLevels: LocalBodyLevel[];
+  /** Specific local bodies chosen, across any of `localBodyLevels`. */
+  localBodies: LocalBodySelection[];
+  /** Wards chosen, further narrowing `localBodies` (optional). */
+  wardIds: string[];
 };
 
 export type StaffAccessConfigPayload = {

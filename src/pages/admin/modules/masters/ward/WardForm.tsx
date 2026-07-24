@@ -30,6 +30,7 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../shared/dataScopeOptions";
 import {
@@ -210,6 +211,39 @@ function WardEditor({
   const districtId = watch("district_id");
   const areaTypeId = watch("area_type_id");
   const localBodyType = watch("local_body_type");
+  const localBodyId = watch("local_body_id");
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and disabled rather than an editable
+  // dropdown — they aren't allowed to place this record outside their own
+  // scope. Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  // The local-body-type field itself isn't locked (a scoped staff may still
+  // pick among urban/rural types their area type allows) — only the ID field
+  // for whichever type is currently selected locks, when that specific level
+  // (corporation/municipality/.../panchayat) has exactly one scoped value.
+  const localBodyScope = localBodyType ? scopeFieldState(localBodyType) : null;
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setValue("state_id", stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setValue("district_id", districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setValue("area_type_id", areaTypeScope.options[0].value);
+    if (localBodyScope?.mode === "locked" && !localBodyId) {
+      setValue("local_body_id", localBodyScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stateScope.mode,
+    districtScope.mode,
+    areaTypeScope.mode,
+    localBodyScope?.mode,
+    stateId,
+    districtId,
+    areaTypeId,
+    localBodyId,
+  ]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -256,9 +290,17 @@ function WardEditor({
             areaTypeId: normalizeNullable(row.area_type_id ?? row.area_type),
           }))
           .filter((item) => item.value && item.label);
-        setLocalBodyOptions(list);
+        const scopedDistrictId = scopeOption("district")?.value;
+        setLocalBodyOptions(
+          mergeWithScopeOptionExtra(list, localBodyType, scopedDistrictId ? { districtId: scopedDistrictId } : {})
+        );
       })
-      .catch(() => setLocalBodyOptions([]))
+      .catch(() => {
+        const scopedDistrictId = scopeOption("district")?.value;
+        setLocalBodyOptions((prev) =>
+          mergeWithScopeOptionExtra(prev, localBodyType, scopedDistrictId ? { districtId: scopedDistrictId } : {})
+        );
+      })
       .finally(() => setLoadingLocalBodies(false));
   }, [localBodyType]);
 
@@ -311,7 +353,7 @@ function WardEditor({
                     setValue("area_type_id", "");
                     setValue("local_body_id", "");
                   }}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || stateScope.mode === "locked"}
                 >
                   <SelectTrigger className="input-validate w-full" id="stateId">
                     <SelectValue placeholder="Select State" />
@@ -346,7 +388,7 @@ function WardEditor({
                     setValue("area_type_id", "");
                     setValue("local_body_id", "");
                   }}
-                  disabled={isSubmitting || !stateId}
+                  disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
                 >
                   <SelectTrigger className="input-validate w-full" id="districtId">
                     <SelectValue placeholder="Select District" />
@@ -381,7 +423,7 @@ function WardEditor({
                     setValue("local_body_type", undefined as unknown as WardLocalBodyType);
                     setValue("local_body_id", "");
                   }}
-                  disabled={isSubmitting || !districtId}
+                  disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
                 >
                   <SelectTrigger className="input-validate w-full" id="areaTypeId">
                     <SelectValue placeholder="Select Area Type" />
@@ -447,7 +489,12 @@ function WardEditor({
                 <Select
                   value={field.value ?? ""}
                   onValueChange={field.onChange}
-                  disabled={isSubmitting || !localBodyType || loadingLocalBodies}
+                  disabled={
+                    isSubmitting ||
+                    !localBodyType ||
+                    loadingLocalBodies ||
+                    localBodyScope?.mode === "locked"
+                  }
                 >
                   <SelectTrigger className="input-validate w-full" id="localBodyId">
                     <SelectValue
@@ -607,7 +654,12 @@ export default function WardForm() {
             scopedStateId ? { stateId: scopedStateId } : {}
           )
         );
-        setAreaTypes(fetchedAreaTypes);
+        setAreaTypes(
+          mergeWithScopeOptionExtra(fetchedAreaTypes, "area_type", {
+            ...(scopedStateId ? { stateId: scopedStateId } : {}),
+            ...(scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+          })
+        );
       })
       .catch(() => {
         if (cancelled) return;
@@ -619,7 +671,13 @@ export default function WardForm() {
             scopedStateId ? { stateId: scopedStateId } : {}
           )
         );
-        if (!scopeOption("state") && !scopeOption("district")) {
+        setAreaTypes((prev) =>
+          mergeWithScopeOptionExtra(prev, "area_type", {
+            ...(scopedStateId ? { stateId: scopedStateId } : {}),
+            ...(scopedDistrictId ? { districtId: scopedDistrictId } : {}),
+          })
+        );
+        if (!scopeOption("state") && !scopeOption("district") && !scopeOption("area_type")) {
           Swal.fire({
             icon: "error",
             title: t("common.error"),

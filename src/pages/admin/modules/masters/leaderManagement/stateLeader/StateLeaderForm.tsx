@@ -22,7 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { mergeWithScopeOption } from "../../shared/dataScopeOptions";
+import { mergeWithScopeOption, scopeFieldState } from "../../shared/dataScopeOptions";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { buildStateLeaderSchema } from "@/schemas/masters/leaderManagement/stateLeader.schema";
 
@@ -97,6 +97,18 @@ function StateLeaderEditor({
   );
   const [stateTakenBy, setStateTakenBy] = useState<string | null>(null);
   const [checkingState, setCheckingState] = useState(false);
+
+  // When the logged-in user's own Data Scope pins state to exactly one
+  // value, the State field shows pre-filled and disabled rather than an
+  // editable dropdown.
+  const stateScope = scopeFieldState("state");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !formData.state_id) {
+      setFormData((prev) => ({ ...prev, state_id: stateScope.options[0].value }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, formData.state_id]);
 
   // Apply pending state_id once options are loaded
   useEffect(() => {
@@ -199,7 +211,7 @@ function StateLeaderEditor({
                 setPendingStateId(null);
                 setStateTakenBy(null);
               }}
-              disabled={isSubmitting || loadingStates}
+              disabled={isSubmitting || loadingStates || stateScope.mode === "locked"}
             >
               <SelectTrigger className="w-full" id="state_id">
                 <SelectValue

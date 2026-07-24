@@ -23,6 +23,7 @@ import LocationFields, {
   LOCAL_BODY_LEVELS,
   type GeoLocationValue,
 } from "../../../masters/shared/LocationHierarchyFields";
+import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 
 type ApiRecord = Record<string, unknown>;
 type Option = { value: string; label: string };
@@ -116,6 +117,12 @@ export default function CollectionPointForm() {
   const [wardRecords, setWardRecords] = useState<ApiRecord[]>([]);
   const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
 
+  // When the logged-in user's own Data Scope pins Ward to exactly one value,
+  // the Wards field auto-selects it and becomes non-editable — they aren't
+  // allowed to place this collection point outside their own scope. Several
+  // scoped values (or none) leave the field editable as before.
+  const wardScope = scopeFieldState("ward");
+
   useEffect(() => {
     wasteTypeApi.readAll().then((res: unknown) => {
       setWasteTypes(
@@ -198,11 +205,25 @@ export default function CollectionPointForm() {
     });
   }, [id]);
 
-  const wardOptions: Option[] = wardRecords
-    .map((w) => ({ value: idOf(w.unique_id), label: String(w.ward_name ?? w.unique_id ?? "") }))
-    .filter((option) => option.value);
+  const wardOptions: Option[] = mergeWithScopeOptionExtra(
+    wardRecords
+      .map((w) => ({ value: idOf(w.unique_id), label: String(w.ward_name ?? w.unique_id ?? "") }))
+      .filter((option) => option.value),
+    "ward",
+    {},
+  );
 
-  const addBin = () => setBins((prev) => [...prev, emptyBinRow()]);
+  useEffect(() => {
+    if (wardScope.mode === "locked" && selectedWardIds.length === 0) {
+      setSelectedWardIds([wardScope.options[0].value]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wardScope.mode, selectedWardIds.length]);
+
+  const addBin = () => setBins((prev) => [
+    ...prev,
+    { ...emptyBinRow(), ward_id: selectedWardIds[0] ?? "" },
+  ]);
   const removeBin = (key: string) => setBins((prev) => prev.filter((bin) => bin.key !== key));
   const updateBin = (key: string, patch: Partial<BinRow>) =>
     setBins((prev) => prev.map((bin) => (bin.key === key ? { ...bin, ...patch } : bin)));
@@ -256,6 +277,14 @@ export default function CollectionPointForm() {
       if (isEdit && id) await collectionPointApi.update(id, payload);
       else await collectionPointApi.create(payload);
       navigate(LIST_PATH);
+    } catch (error: any) {
+      const responseData = error?.response?.data;
+      const message = typeof responseData === "string"
+        ? responseData
+        : responseData?.detail
+          ?? Object.values(responseData ?? {}).flat().join(" ")
+          ?? "Could not save the collection point.";
+      Swal.fire("Save failed", String(message), "error");
     } finally {
       setSubmitting(false);
     }
@@ -285,6 +314,10 @@ export default function CollectionPointForm() {
                 return String(record.value ?? record.unique_id ?? record.id ?? "");
               });
               setSelectedWardIds(values);
+              setBins((current) => current.map((bin) => ({
+                ...bin,
+                ward_id: values.includes(bin.ward_id) ? bin.ward_id : (values[0] ?? ""),
+              })));
             }}
             options={wardOptions}
             optionLabel="label"

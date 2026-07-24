@@ -11,6 +11,11 @@ import {
   townPanchayatApi,
 } from "@/helpers/admin";
 import { normalizeList } from "@/utils/forms";
+import {
+  mergeWithScopeOptionExtra,
+  scopeFieldState,
+  type ScopeLevel,
+} from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 
 export type Option = { value: string; label: string };
 
@@ -32,6 +37,14 @@ export const HIERARCHY_LEVELS: Array<{ value: HierarchyLevel; label: string }> =
 export const AREA_TYPE_LEVELS: Record<"urban" | "rural", HierarchyLevel[]> = {
   urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
   rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+const SCOPE_LEVEL_FOR_HIERARCHY_LEVEL: Record<HierarchyLevel, ScopeLevel> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
 };
 
 export const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
@@ -180,15 +193,53 @@ export function useGeoHierarchy() {
     setHierarchyId("");
   };
 
-  const stateOptions = useMemo(() => toGeoOptions(states), [states]);
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that level's field should show pre-filled and disabled rather
+  // than an editable dropdown. Several scoped values (or none) leave it
+  // editable as before — see `dataScopeOptions.ts`.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const hierarchyScope = scopeFieldState(SCOPE_LEVEL_FOR_HIERARCHY_LEVEL[hierarchyLevel]);
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, stateId]);
+  useEffect(() => {
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [districtScope.mode, districtId]);
+  useEffect(() => {
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaTypeScope.mode, areaTypeId]);
+  useEffect(() => {
+    if (hierarchyScope.mode === "locked" && !hierarchyId) setHierarchyId(hierarchyScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyScope.mode, hierarchyId]);
+
+  const stateOptions = useMemo(
+    () => mergeWithScopeOptionExtra(toGeoOptions(states), "state", {}),
+    [states],
+  );
   const districtOptions = useMemo(
-    () => toGeoOptions(districts.filter((d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId)),
+    () =>
+      mergeWithScopeOptionExtra(
+        toGeoOptions(districts.filter((d) => !stateId || String(d.state_id ?? d.state ?? "") === stateId)),
+        "district",
+        {},
+      ),
     [districts, stateId],
   );
   const areaTypeOptions = useMemo(
     () =>
-      toGeoOptions(
-        areaTypes.filter((a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId),
+      mergeWithScopeOptionExtra(
+        toGeoOptions(
+          areaTypes.filter((a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId),
+        ),
+        "area_type",
+        {},
       ),
     [areaTypes, districtId],
   );
@@ -206,10 +257,14 @@ export function useGeoHierarchy() {
   }, [areaTypeCategory, hierarchyLevel]);
 
   const hierarchyOptions = useMemo(() => {
-    const options = toGeoOptions(
-      (hierarchyRecords[hierarchyLevel] ?? []).filter(
-        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+    const options = mergeWithScopeOptionExtra(
+      toGeoOptions(
+        (hierarchyRecords[hierarchyLevel] ?? []).filter(
+          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+        ),
       ),
+      SCOPE_LEVEL_FOR_HIERARCHY_LEVEL[hierarchyLevel],
+      {},
     );
     if (hierarchyId && !options.some((o) => o.value === hierarchyId)) {
       const current = (hierarchyRecords[hierarchyLevel] ?? []).find((item) => resolveId(item) === hierarchyId);
@@ -291,6 +346,11 @@ export function useGeoHierarchy() {
     loading,
     hydrate,
     buildPayload,
+    /** `mode === "locked"` means the field should render disabled — see dataScopeOptions.ts. */
+    stateScope,
+    districtScope,
+    areaTypeScope,
+    hierarchyScope,
   };
 }
 

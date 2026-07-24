@@ -32,10 +32,15 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel } from "@/utils/forms";
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
+import {
+  mergeWithScopeOptionExtra,
+  scopeFieldState,
+  type ScopeLevel,
+} from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 import { tripPlanSchema } from "@/schemas/core_modules/scheduleSetup/tripPlan.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 
-type Option = { value: string; label: string };
+type Option = { value: string; label: string; disabled?: boolean };
 type ApiRecord = Record<string, any>;
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
@@ -53,12 +58,13 @@ type StopRow = {
   binLabel?: string;
 };
 
-type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string };
+type CollectionPointOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string; wardIds?: string[] };
 type VehicleOption = Option & { hierarchyField?: HierarchyLevel; hierarchyId?: string; isActive?: boolean; insuranceExpiryDate?: string | null };
-type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string };
+type BinOption = Option & { collectionPointId?: string; wasteTypeId?: string; wardId?: string };
 type CustomerOption = Option & {
   hierarchyField?: HierarchyLevel;
   hierarchyId?: string;
+  wardId?: string;
   address?: string;
   isBulk?: boolean;
 };
@@ -197,6 +203,31 @@ export default function TripPlanForm() {
   // records finish loading so the value survives the async option-list race.
   const [pendingHierarchy, setPendingHierarchy] =
     useState<{ level: HierarchyLevel; id: string; name: string } | null>(null);
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and disabled rather than an editable
+  // dropdown. Several scoped values (or none) leave it editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const hierarchyScope = scopeFieldState(hierarchyLevel.replace(/_id$/, "") as ScopeLevel);
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, stateId]);
+  useEffect(() => {
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [districtScope.mode, districtId]);
+  useEffect(() => {
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaTypeScope.mode, areaTypeId]);
+  useEffect(() => {
+    if (hierarchyScope.mode === "locked" && !hierarchyId) setHierarchyId(hierarchyScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyScope.mode, hierarchyId]);
   const [staffTemplateId, setStaffTemplateId] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   // Labels for already-selected values seeded straight from the loaded record,
@@ -209,7 +240,9 @@ export default function TripPlanForm() {
   // Single primary waste type (legacy)
   // Multiple waste types
   const [selectedWasteTypes, setSelectedWasteTypes] = useState<string[]>([]);
-  const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
+  // Household customers only ever segregate into these 4 streams — auto-select
+  // them below whenever Collection Mode is switched to Household.
+  const HOUSEHOLD_WASTE_TYPE_NAMES = ["Wet Waste", "Dry Waste", "Mixed Waste", "Sanitary Waste"];
   const [scheduledTime, setScheduledTime] = useState("07:00");
   const [tripTriggerWeightKg, setTripTriggerWeightKg] = useState("");
   const [maxVehicleCapacityKg, setMaxVehicleCapacityKg] = useState("");
@@ -217,6 +250,7 @@ export default function TripPlanForm() {
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [status, setStatus] = useState("ACTIVE");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
+  const [selectedWardIds, setSelectedWardIds] = useState<string[]>([]);
 
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
@@ -231,6 +265,9 @@ export default function TripPlanForm() {
   const [draggedStopIndex, setDraggedStopIndex] = useState<number | null>(null);
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [bins, setBins] = useState<BinOption[]>([]);
+  const [assignedBinIds, setAssignedBinIds] = useState<string[]>([]);
+  const [assignedStaffTemplateIds, setAssignedStaffTemplateIds] = useState<string[]>([]);
+  const [assignedVehicleIds, setAssignedVehicleIds] = useState<string[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
 
   // True once the user manually picks a staff template, so we only inherit its
@@ -283,6 +320,17 @@ export default function TripPlanForm() {
     });
   }, []);
 
+  // Residential customers only ever segregate into the 4 household streams —
+  // once Collection Mode is Household the waste type dropdown is restricted to
+  // just those 4 (all pre-selected); switching to any other mode restores the
+  // full master list. Applied from the Collection Mode `onChange` below (not a
+  // useEffect on `collectionType`) so loading an existing household trip plan
+  // in edit mode doesn't clobber its saved waste type selection.
+  const wasteTypeOptions =
+    collectionType === "household_collection"
+      ? wasteTypes.filter((wt) => HOUSEHOLD_WASTE_TYPE_NAMES.includes(wt.label))
+      : wasteTypes;
+
   // Heavy/large lists — Staff Templates, Vehicles, Staff (for Supervisors),
   // Collection Points, Bins and Customers can each run into the hundreds or
   // thousands of rows, so they're fetched scoped to the selected geo instead
@@ -304,7 +352,8 @@ export default function TripPlanForm() {
       staffCreationApi.readAll({ params: { active_status: 1, ...geoParams } }),
       collectionPointApi.readAll({ params: geoParams }),
       adminApi.bins.readAll({ params: geoParams }),
-    ]).then(([staffRes, vehicleRes, supervisorRes, collectionPointRes, binRes]) => {
+      tripPlanApi.readAll({ params: geoParams }),
+    ]).then(([staffRes, vehicleRes, supervisorRes, collectionPointRes, binRes, tripPlanRes]) => {
       if (cancelled) return;
 
       setStaffTemplatesRaw(normalizeList(staffRes));
@@ -344,12 +393,22 @@ export default function TripPlanForm() {
       });
       setCollectionPoints(
         normalizeList(collectionPointRes).map((item: any) => {
-          const field = hierarchyIdFields.find((key) => item?.[key] ?? item?.[key.replace("_id", "")]?.unique_id);
+          // Read the field that matches the Local Body Type currently selected in
+          // the form (hierarchyLevel) directly — don't guess by priority order
+          // across all 5 possible fields, since that can pick up an unrelated
+          // truthy id (or an id that collides with the selected one) and tag the
+          // point with the wrong local body.
+          const levelValue = String(
+            item?.[hierarchyLevel] ?? item?.[hierarchyLevel.replace("_id", "")]?.unique_id ?? "",
+          );
           return {
             value: String(item?.unique_id ?? ""),
             label: String(item?.cp_name ?? item?.unique_id ?? ""),
-            hierarchyField: field,
-            hierarchyId: field ? String(item?.[field] ?? item?.[field.replace("_id", "")]?.unique_id ?? "") : "",
+            hierarchyField: hierarchyLevel,
+            hierarchyId: levelValue,
+            wardIds: Array.isArray(item?.wards_detail)
+              ? item.wards_detail.map((w: any) => String(w?.unique_id ?? "")).filter(Boolean)
+              : [],
           };
         }).filter((o: Option) => o.value),
       );
@@ -359,8 +418,29 @@ export default function TripPlanForm() {
           label: String(item?.bin_name ?? item?.unique_id ?? ""),
           collectionPointId: String(item?.collection_point_id ?? item?.collection_point ?? ""),
           wasteTypeId: String(item?.wastetype_id ?? item?.waste_type_id ?? item?.waste_type ?? ""),
+          wardId: String(item?.ward_id ?? item?.ward?.unique_id ?? ""),
         })).filter((o: Option) => o.value),
       );
+      const reservedBins = new Set<string>();
+      normalizeList(tripPlanRes).forEach((plan: any) => {
+        if (String(plan?.unique_id ?? "") === String(id ?? "")) return;
+        normalizeList(plan?.plan_collection_points).forEach((stop: any) => {
+          const binId = String(stop?.bin_id ?? "");
+          if (binId) reservedBins.add(binId);
+        });
+      });
+      setAssignedBinIds(Array.from(reservedBins));
+      const reservedStaffTemplates = new Set<string>();
+      const reservedVehicles = new Set<string>();
+      normalizeList(tripPlanRes).forEach((plan: any) => {
+        if (String(plan?.unique_id ?? "") === String(id ?? "")) return;
+        const staffId = String(plan?.staff_template?.unique_id ?? plan?.staff_template_id ?? "");
+        const vehicleId = String(plan?.vehicle?.unique_id ?? plan?.vehicle_id ?? "");
+        if (staffId) reservedStaffTemplates.add(staffId);
+        if (vehicleId) reservedVehicles.add(vehicleId);
+      });
+      setAssignedStaffTemplateIds(Array.from(reservedStaffTemplates));
+      setAssignedVehicleIds(Array.from(reservedVehicles));
     });
 
     return () => { cancelled = true; };
@@ -392,6 +472,7 @@ export default function TripPlanForm() {
             label: String(item?.customer_name ?? item?.unique_id ?? ""),
             hierarchyField: field,
             hierarchyId: field ? String(item?.[field] ?? "") : "",
+            wardId: String(item?.ward_id ?? item?.ward?.unique_id ?? ""),
             address,
             isBulk: Boolean(item?.is_bulkwaste_generator),
           };
@@ -417,7 +498,10 @@ export default function TripPlanForm() {
   const filteredWards = wardRecords.filter(
     (w) =>
       (!districtId || String(w.district_id ?? "") === districtId) &&
-      (!hierarchyId || String(w[hierarchyLevel] ?? "") === hierarchyId),
+      (!hierarchyId || (
+        String(w.local_body_type ?? "") === hierarchyLevel.replace("_id", "") &&
+        String(w.local_body_id ?? "") === hierarchyId
+      )),
   );
   const wardOptions = toOptions(filteredWards, "ward_name");
 
@@ -433,10 +517,14 @@ export default function TripPlanForm() {
       : [];
 
   const hierarchyOptions = ensureOption(
-    toGeoOptions(
-      (hierarchyRecords[hierarchyLevel] ?? []).filter(
-        (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+    mergeWithScopeOptionExtra(
+      toGeoOptions(
+        (hierarchyRecords[hierarchyLevel] ?? []).filter(
+          (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
+        ),
       ),
+      hierarchyLevel.replace(/_id$/, "") as ScopeLevel,
+      {},
     ),
     hierarchyId,
     // Fall back to the saved local body's name so the selected value always
@@ -457,14 +545,20 @@ export default function TripPlanForm() {
             staffTemplateInHierarchy(tpl, hierarchyLevel, hierarchyId) ||
             String(tpl?.unique_id ?? "") === staffTemplateId,
         )
-        .map((tpl) => ({
-          value: String(tpl?.unique_id ?? tpl?.id ?? ""),
-          label: staffTemplateLabel(tpl),
-        }))
+          .map((tpl) => {
+            const value = String(tpl?.unique_id ?? tpl?.id ?? "");
+            return {
+              value,
+              label: assignedStaffTemplateIds.includes(value) && value !== staffTemplateId
+                ? staffTemplateLabel(tpl) + " (Assigned)"
+                : staffTemplateLabel(tpl),
+              disabled: assignedStaffTemplateIds.includes(value) && value !== staffTemplateId,
+            };
+          })
         .filter((o) => o.value);
       return ensureOption(options, staffTemplateId, initialStaffTemplateLabel || undefined);
     },
-    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId, initialStaffTemplateLabel],
+    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId, initialStaffTemplateLabel, assignedStaffTemplateIds],
   );
 
 useEffect(() => {
@@ -656,19 +750,49 @@ useEffect(() => {
     });
   };
 
-  // Collection points are scoped to the Trip Plan's own local body (hierarchyLevel/hierarchyId),
-  // excluding points already used by other stops.
-  const collectionPointsForLocalBody = (currentValue: string) => {
+  // Collection points are scoped to the Trip Plan's own local body
+  // (hierarchyLevel/hierarchyId) and, when any Wards are selected, further
+  // narrowed to points serving at least one of those Wards. A collection
+  // point may be reused for another stop when a different bin is selected;
+  // the form schema and backend reject only the same point + bin pair.
+  const collectionPointsForLocalBody = (currentValue: string, currentBinId = "") => {
     const filtered = (hierarchyId
       ? collectionPoints.filter((cp) => cp.hierarchyField === hierarchyLevel && cp.hierarchyId === hierarchyId)
       : collectionPoints
     ).filter(
       (cp) =>
         cp.value === currentValue ||
-        !stops.some(
-          (stop) => stop.collection_type === "bin_collection" && stop.collection_point_id === cp.value,
+        selectedWardIds.length === 0 ||
+        (cp.wardIds ?? []).some((w) => selectedWardIds.includes(w)),
+    ).filter(
+      (cp) =>
+        cp.value === currentValue ||
+        selectedWasteTypes.length === 0 ||
+        bins.some((bin) =>
+          bin.collectionPointId === cp.value &&
+          Boolean(bin.wasteTypeId) &&
+          selectedWasteTypes.includes(bin.wasteTypeId ?? ""),
         ),
-    );
+    ).map((cp) => {
+      const usedBinIds = new Set(
+        stops
+          .filter((stop) =>
+            stop.collection_type === "bin_collection" &&
+            stop.collection_point_id === cp.value &&
+            stop.bin_id !== currentBinId,
+          )
+          .map((stop) => stop.bin_id)
+          .filter(Boolean),
+      );
+      const eligibleBins = bins.filter((bin) =>
+        bin.collectionPointId === cp.value &&
+        (selectedWasteTypes.length === 0 || !bin.wasteTypeId || selectedWasteTypes.includes(bin.wasteTypeId)) &&
+        !usedBinIds.has(bin.value) &&
+        !assignedBinIds.includes(bin.value),
+      );
+      if (cp.value === currentValue || eligibleBins.length > 0) return cp;
+      return { ...cp, label: String(cp.label) + " (Assigned)", disabled: true };
+    });
     const current = collectionPoints.find((cp) => cp.value === currentValue);
     return ensureOption(filtered, currentValue, current?.label);
   };
@@ -680,7 +804,12 @@ useEffect(() => {
     const filtered = (hierarchyId
       ? vehicles.filter((v) => v.hierarchyField === hierarchyLevel && v.hierarchyId === hierarchyId)
       : vehicles
-    ).filter((v) => v.value === currentValue || v.isActive !== false);
+    ).filter((v) => v.value === currentValue || v.isActive !== false)
+      .map((vehicle) =>
+        assignedVehicleIds.includes(vehicle.value) && vehicle.value !== currentValue
+          ? { ...vehicle, label: vehicle.label + " (Assigned)", disabled: true }
+          : vehicle,
+      );
     const current = vehicles.find((v) => v.value === currentValue);
     return ensureOption(filtered, currentValue, current?.label || initialVehicleLabel || undefined);
   };
@@ -693,8 +822,9 @@ useEffect(() => {
 
   // Household stops are auto-assigned: a single household stop covers EVERY
   // non-bulk customer in the selected local body (the backend expands a stop
-  // with no customer_id to all matching customers). We list them here so the
-  // user can see exactly who the plan covers — no manual picking of 1000+.
+  // with no customer_id to all matching customers), narrowed to the selected
+  // Wards when any are chosen. We list them here so the user can see exactly
+  // who the plan covers — no manual picking of 1000+.
   const householdCustomers = useMemo<CustomerOption[]>(
     () =>
       hierarchyId
@@ -702,18 +832,32 @@ useEffect(() => {
             (cust) =>
               cust.hierarchyField === hierarchyLevel &&
               cust.hierarchyId === hierarchyId &&
-              !cust.isBulk,
+              !cust.isBulk &&
+              (selectedWardIds.length === 0 || (!!cust.wardId && selectedWardIds.includes(cust.wardId))),
           )
         : [],
-    [customers, hierarchyLevel, hierarchyId],
+    [customers, hierarchyLevel, hierarchyId, selectedWardIds],
   );
   const householdCustomerCount = householdCustomers.length;
 
   // Bins are scoped to the selected stop's Collection Point, and to the Trip Plan's selected Waste Types.
   const binsForStop = (collectionPointId: string, currentValue: string) => {
+    if (!collectionPointId) return [];
+    const usedBinIds = new Set(
+      stops
+        .filter((stop) =>
+          stop.collection_type === "bin_collection" &&
+          stop.collection_point_id === collectionPointId &&
+          stop.bin_id !== currentValue,
+        )
+        .map((stop) => stop.bin_id)
+        .filter(Boolean),
+    );
     const filtered = bins.filter((bin) => {
       if (collectionPointId && bin.collectionPointId && bin.collectionPointId !== collectionPointId) return false;
       if (selectedWasteTypes.length > 0 && bin.wasteTypeId && !selectedWasteTypes.includes(bin.wasteTypeId)) return false;
+      if (usedBinIds.has(bin.value)) return false;
+      if (assignedBinIds.includes(bin.value) && bin.value !== currentValue) return false;
       return true;
     });
     const current = bins.find((bin) => bin.value === currentValue);
@@ -836,9 +980,11 @@ useEffect(() => {
               setAreaTypeId("");
               setAreaTypeCategory("");
               setHierarchyId("");
+              setSelectedWardIds([]);
             }}
-            options={toGeoOptions(states)}
+            options={mergeWithScopeOptionExtra(toGeoOptions(states), "state", {})}
             placeholder="Select State"
+            disabled={stateScope.mode === "locked"}
           />
         </div>
 
@@ -851,9 +997,11 @@ useEffect(() => {
               setAreaTypeId("");
               setAreaTypeCategory("");
               setHierarchyId("");
+              setSelectedWardIds([]);
             }}
-            options={toGeoOptions(filteredDistricts)}
+            options={mergeWithScopeOptionExtra(toGeoOptions(filteredDistricts), "district", {})}
             placeholder={stateId ? "Select District" : "Select a State first"}
+            disabled={!stateId || districtScope.mode === "locked"}
           />
         </div>
 
@@ -866,9 +1014,11 @@ useEffect(() => {
               setAreaTypeId(String(v));
               setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
               setHierarchyId("");
+              setSelectedWardIds([]);
             }}
-            options={toGeoOptions(filteredAreaTypes)}
+            options={mergeWithScopeOptionExtra(toGeoOptions(filteredAreaTypes), "area_type", {})}
             placeholder={districtId ? "Select Area Type" : "Select a District first"}
+            disabled={!districtId || areaTypeScope.mode === "locked"}
           />
         </div>
 
@@ -879,6 +1029,7 @@ useEffect(() => {
             onChange={(v) => {
               setHierarchyLevel(v as HierarchyLevel);
               setHierarchyId("");
+              setSelectedWardIds([]);
             }}
             options={availableHierarchyLevels}
             placeholder={areaTypeCategory ? "Select Local Body Type" : "Select an Area Type first"}
@@ -891,9 +1042,13 @@ useEffect(() => {
           </Label>
           <Select
             value={hierarchyId}
-            onChange={(v) => setHierarchyId(String(v))}
+            onChange={(v) => {
+              setHierarchyId(String(v));
+              setSelectedWardIds([]);
+            }}
             options={hierarchyOptions}
             placeholder="Select"
+            disabled={hierarchyScope.mode === "locked"}
           />
         </div>
 
@@ -944,7 +1099,7 @@ useEffect(() => {
               setSelectedWasteTypes(values);
               setStops((current) => current.map((stop) => ({ ...stop, bin_id: "" })));
             }}
-            options={wasteTypes}
+            options={wasteTypeOptions}
             optionLabel="label"
             optionValue="value"
             maxSelectedLabels={3}
@@ -1049,6 +1204,17 @@ useEffect(() => {
                           : [emptyStop("bin_collection")],
                       );
                     }
+                    // Restrict + pre-select the 4 residential waste types for
+                    // Household; switching away restores the full list and
+                    // clears the (now out-of-scope) selection.
+                    if (next === "household_collection") {
+                      const householdIds = wasteTypes
+                        .filter((wt) => HOUSEHOLD_WASTE_TYPE_NAMES.includes(wt.label))
+                        .map((wt) => wt.value);
+                      setSelectedWasteTypes(householdIds);
+                    } else if (collectionType === "household_collection") {
+                      setSelectedWasteTypes([]);
+                    }
                   }}
                   options={[
                     { value: "bin_collection", label: "Secondary Stops (Manual)" },
@@ -1143,7 +1309,7 @@ useEffect(() => {
                     <Select
                       value={stop.collection_point_id}
                       onChange={(v) => updateStop(stop.key, { collection_point_id: String(v), bin_id: "" })}
-                      options={collectionPointsForLocalBody(stop.collection_point_id)}
+                      options={collectionPointsForLocalBody(stop.collection_point_id, stop.bin_id)}
                       placeholder={hierarchyId ? "Select an option" : "Select a Local Body first"}
                     />
                   </div>

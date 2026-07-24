@@ -19,13 +19,14 @@ import {
   panchayatUnionApi,
   stateApi,
   townPanchayatApi,
+  wardApi,
 } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
-import { mergeWithScopeOptionExtra } from "../../../masters/shared/dataScopeOptions";
+import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations/binCollectionEvent.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 
@@ -50,6 +51,11 @@ type Option = {
   // includes a bin-collection stop, used to scope the Trip Assignment dropdown
   // to bin-type trips only.
   assignmentHasBin?: boolean;
+  wardIds?: string[];
+  // Only populated on assignment options — used to filter the Trip Assignment
+  // dropdown by the form's selected Collection Date, alongside cancellation status.
+  tripDate?: string;
+  status?: string;
 };
 type ApiRecord = Record<string, any>;
 
@@ -135,7 +141,17 @@ const assignmentOption = (item: ApiRecord): Option => ({
     panchayat_union_id: idOf(item.panchayat_union?.unique_id ?? item.panchayat_union),
     panchayat_id: idOf(item.panchayat?.unique_id ?? item.panchayat),
   },
-  assignmentHasBin: Boolean(item.collection_types?.has_bin),
+  assignmentHasBin: Boolean(
+    item.collection_types?.has_bin ||
+    (Array.isArray(item.collection_points) && item.collection_points.length > 0),
+  ),
+  wardIds: Array.isArray(item.wards_detail)
+    ? item.wards_detail.map((ward: any) => idOf(ward)).filter(Boolean)
+    : Array.isArray(item.trip_plan?.wards_detail)
+      ? item.trip_plan.wards_detail.map((ward: any) => idOf(ward)).filter(Boolean)
+      : [],
+  tripDate: String(item.trip_date ?? ""),
+  status: String(item.status ?? ""),
 });
 
 const collectionPointOption = (item: ApiRecord): Option => {
@@ -193,6 +209,7 @@ type EditorInitial = {
   driverLatitude: string;
   driverLongitude: string;
   notes: string;
+  wardId: string;
   // Display labels for the selected geo values, taken straight from the record
   // so the selects show the right text before the master lists arrive.
   stateLabel: string;
@@ -209,6 +226,7 @@ type EditorData = {
   districts: any[];
   areaTypes: any[];
   hierarchyRecords: Record<HierarchyLevel, any[]>;
+  wards: any[];
 };
 
 const EMPTY_INITIAL: EditorInitial = {
@@ -227,6 +245,7 @@ const EMPTY_INITIAL: EditorInitial = {
   driverLatitude: "",
   driverLongitude: "",
   notes: "",
+  wardId: "",
   stateLabel: "",
   districtLabel: "",
   areaTypeLabel: "",
@@ -269,6 +288,7 @@ const initialFromRecord = (record: ApiRecord): EditorInitial => {
     driverLatitude: String(record.driver_latitude ?? ""),
     driverLongitude: String(record.driver_longitude ?? ""),
     notes: String(record.notes ?? ""),
+    wardId: idOf(record.ward_id ?? record.ward),
     stateLabel: textOf(record.state_name),
     districtLabel: textOf(record.district_name),
     areaTypeLabel: textOf(record.area_type_name),
@@ -299,11 +319,13 @@ function BinCollectionEventEditor({
   districts,
   areaTypes,
   hierarchyRecords,
+  wards,
 }: EditorProps) {
   const [tripAssignmentId, setTripAssignmentId] = useState(initial.tripAssignmentId);
   const [tripCollectionPointId, setTripCollectionPointId] = useState(initial.tripCollectionPointId);
   const [binId, setBinId] = useState(initial.binId);
   const [panchayatId, setPanchayatId] = useState(initial.panchayatId);
+  const [wardId, setWardId] = useState(initial.wardId);
   const [stateId, setStateId] = useState(initial.stateId);
   const [districtId, setDistrictId] = useState(initial.districtId);
   const [areaTypeId, setAreaTypeId] = useState(initial.areaTypeId);
@@ -320,6 +342,23 @@ function BinCollectionEventEditor({
   const [driverLongitude, setDriverLongitude] = useState(initial.driverLongitude);
   const [notes, setNotes] = useState(initial.notes);
   const [saving, setSaving] = useState(false);
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and disabled rather than an editable
+  // dropdown — they aren't allowed to place this event outside their own
+  // scope. Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScope = scopeFieldState(SCOPE_LEVEL_BY_HIERARCHY[localBodyLevel]);
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    if (localBodyScope.mode === "locked" && !panchayatId) setPanchayatId(localBodyScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope.mode, stateId, districtId, areaTypeId, panchayatId]);
 
   // Trip Assignments / Collection Points / Bins — fetched here (not in the
   // parent) scoped to the selected Local Body, since these tables are large
@@ -339,21 +378,45 @@ function BinCollectionEventEditor({
     }
     let cancelled = false;
     const params = { [localBodyLevel]: panchayatId };
-    const assignmentParams = collectionDate ? { ...params, date: collectionDate } : params;
+    const assignmentParams = {
+      ...params,
+      ...(collectionDate ? { trip_date: collectionDate } : {}),
+      ...(wardId ? { ward_id: wardId } : {}),
+    };
     Promise.all([
       dailyTripAssignmentApi.readAll({ params: assignmentParams }),
       dailyTripCollectionPointApi.readAll({ params }),
       adminApi.bins.readAll({ params }),
     ]).then(([assignmentRes, cpRes, binRes]) => {
       if (cancelled) return;
-      setAssignments(uniqueOptions(normalizeList(assignmentRes).map(assignmentOption)));
-      setCollectionPoints(uniqueOptions(normalizeList(cpRes).map(collectionPointOption)));
+      // The backend already scopes this response to the selected local body,
+      // date and ward via assignmentParams above — trust it and map every
+      // record through, the same way wasteCollectedDataForm does. Re-deriving
+      // and re-checking the local-body/ward match here duplicated backend
+      // logic and was fragile to API field-naming differences (e.g. `panchayat`
+      // vs `panchayat_id`), which silently dropped otherwise-matching rows.
+      const matchingAssignments = normalizeList(assignmentRes).filter(
+        (assignment: ApiRecord) => String(assignment.status ?? "") !== "Cancelled",
+      );
+      setAssignments(uniqueOptions(matchingAssignments.map(assignmentOption)));
+      const assignmentStops = matchingAssignments.flatMap((assignment: ApiRecord) =>
+        Array.isArray(assignment.collection_points)
+          ? assignment.collection_points.map((stop: ApiRecord) => ({
+              ...stop,
+              trip_assignment_id: assignment.unique_id,
+            }))
+          : [],
+      );
+      setCollectionPoints(uniqueOptions([
+        ...assignmentStops.map(collectionPointOption),
+        ...normalizeList(cpRes).map(collectionPointOption),
+      ]));
       setBins(uniqueOptions(normalizeList(binRes).map(binOption)));
     }).catch((err) => {
       console.error("Failed to load trip assignments/collection points/bins", err);
     });
     return () => { cancelled = true; };
-  }, [localBodyLevel, panchayatId, collectionDate]);
+  }, [localBodyLevel, panchayatId, collectionDate, wardId]);
 
   // Keep the area-type category in sync when the area type changes or its
   // master list finishes loading.
@@ -449,6 +512,16 @@ function BinCollectionEventEditor({
     return ensureOption(scoped, panchayatId, selectedLabel);
   }, [hierarchyRecords, localBodyLevel, districtId, panchayatId, initial.panchayatId, initial.localBodyLabel]);
 
+  const wardOptions = useMemo(() => ensureOption(
+    wards.filter((ward) => (!districtId || idOf(ward.district_id ?? ward.district) === districtId)
+      && (!panchayatId || (
+        String(ward.local_body_type ?? "") === localBodyLevel.replace("_id", "") &&
+        idOf(ward.local_body_id) === panchayatId
+      )))
+      .map((ward) => ({ value: idOf(ward), label: textOf(ward.ward_name, ward.name, ward.unique_id) })),
+    wardId,
+  ), [wards, districtId, panchayatId, localBodyLevel, wardId]);
+
   // Scoped to bin-collection trips, and once a Local Body is selected, only
   // Trip Assignments belonging to that exact local body — keeps the
   // (potentially long) assignment list scoped to where the operator is
@@ -458,12 +531,13 @@ function BinCollectionEventEditor({
     const filtered = panchayatId
       ? binOnly.filter((item) => item.assignmentLocalBodyByLevel?.[localBodyLevel] === panchayatId)
       : binOnly;
+    const wardFiltered = wardId ? filtered.filter((item) => (item.wardIds ?? []).includes(wardId)) : filtered;
     const label =
-      filtered.find((item) => item.value === tripAssignmentId)?.label ??
+      wardFiltered.find((item) => item.value === tripAssignmentId)?.label ??
       assignments.find((item) => item.value === tripAssignmentId)?.label ??
       (tripAssignmentId === initial.tripAssignmentId ? initial.assignmentLabel : undefined);
-    return ensureOption(filtered, tripAssignmentId, label);
-  }, [assignments, tripAssignmentId, localBodyLevel, panchayatId, initial.tripAssignmentId, initial.assignmentLabel]);
+    return ensureOption(wardFiltered, tripAssignmentId, label);
+  }, [assignments, tripAssignmentId, localBodyLevel, panchayatId, wardId, initial.tripAssignmentId, initial.assignmentLabel]);
 
   const visibleCollectionPoints = useMemo(() => {
     const filtered = tripAssignmentId
@@ -543,6 +617,7 @@ function BinCollectionEventEditor({
       town_panchayat_id: localBodyLevel === "town_panchayat_id" ? panchayatId || null : null,
       panchayat_union_id: localBodyLevel === "panchayat_union_id" ? panchayatId || null : null,
       panchayat_id: localBodyLevel === "panchayat_id" ? panchayatId || null : null,
+      ward_id: wardId || null,
       collection_date: collectionDate,
       collected_weight_kg: collectionStatus === "Collected" ? collectedWeightKg || null : null,
       status: collectionStatus,
@@ -574,9 +649,11 @@ function BinCollectionEventEditor({
               setAreaTypeCategory("");
               setLocalBodyLevel("corporation_id");
               setPanchayatId("");
+              setWardId("");
             }}
             options={stateOptions}
             placeholder="Select State"
+            disabled={stateScope.mode === "locked"}
           />
         </div>
         <div>
@@ -589,10 +666,11 @@ function BinCollectionEventEditor({
               setAreaTypeCategory("");
               setLocalBodyLevel("corporation_id");
               setPanchayatId("");
+              setWardId("");
             }}
             options={districtOptions}
             placeholder={stateId ? "Select District" : "Select a State first"}
-            disabled={!stateId}
+            disabled={!stateId || districtScope.mode === "locked"}
           />
         </div>
         <div>
@@ -603,10 +681,11 @@ function BinCollectionEventEditor({
               setAreaTypeId(String(value));
               setLocalBodyLevel("corporation_id");
               setPanchayatId("");
+              setWardId("");
             }}
             options={areaTypeOptions}
             placeholder={districtId ? "Select Area Type" : "Select a District first"}
-            disabled={!districtId}
+            disabled={!districtId || areaTypeScope.mode === "locked"}
           />
         </div>
         <div>
@@ -616,6 +695,7 @@ function BinCollectionEventEditor({
             onChange={(value) => {
               setLocalBodyLevel(value as HierarchyLevel);
               setPanchayatId("");
+              setWardId("");
             }}
             options={availableHierarchyLevels}
             placeholder={areaTypeId ? "Select Local Body Type" : "Select an Area Type first"}
@@ -626,11 +706,15 @@ function BinCollectionEventEditor({
           <Label>Local Body</Label>
           <Select
             value={panchayatId}
-            onChange={(value) => setPanchayatId(String(value))}
+            onChange={(value) => { setPanchayatId(String(value)); setWardId(""); }}
             options={localBodyOptions}
             placeholder={localBodyLevel ? "Select Local Body" : "Select a Local Body Type first"}
-            disabled={!areaTypeId || !localBodyLevel}
+            disabled={!areaTypeId || !localBodyLevel || localBodyScope.mode === "locked"}
           />
+        </div>
+        <div>
+          <Label>Ward</Label>
+          <Select value={wardId} onChange={(value) => { setWardId(String(value)); setTripAssignmentId(""); }} options={wardOptions} placeholder="Select Ward" disabled={!panchayatId} />
         </div>
         <div>
           <Label>Collection Date *</Label>
@@ -720,6 +804,7 @@ export default function BinCollectionEventForm() {
       panchayat_union_id: [],
       panchayat_id: [],
     },
+    wards: [],
   });
   const [record, setRecord] = useState<ApiRecord | null>(null);
   const [loadingRecord, setLoadingRecord] = useState(isEdit);
@@ -738,6 +823,7 @@ export default function BinCollectionEventForm() {
       municipalityApi.readAll(),
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
+      wardApi.readAll(),
     ]).then(([
       panchayatRes,
       stateRes,
@@ -747,6 +833,7 @@ export default function BinCollectionEventForm() {
       municipalityRes,
       townPanchayatRes,
       panchayatUnionRes,
+      wardRes,
     ]) => {
       setData({
         panchayats: uniqueOptions(normalizeList(panchayatRes).map(panchayatOption)),
@@ -760,6 +847,7 @@ export default function BinCollectionEventForm() {
           panchayat_union_id: normalizeList(panchayatUnionRes),
           panchayat_id: normalizeList(panchayatRes),
         },
+        wards: normalizeList(wardRes),
       });
     }).catch((err) => {
       console.error("Failed to load bin collection event options", err);

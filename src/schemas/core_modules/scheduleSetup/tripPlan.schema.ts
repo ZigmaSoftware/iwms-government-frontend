@@ -87,6 +87,18 @@ export const tripPlanSchema = z
           path: ["stops"],
           message: "Every stop needs a Collection Point and a Bin.",
         });
+      } else {
+        const collectionPointBins = value.stops
+          .filter((stop) => stop.collection_type === "bin_collection")
+          .map((stop) => String(stop.collection_point_id) + "::" + String(stop.bin_id));
+       const hasDuplicate = new Set(collectionPointBins).size !== collectionPointBins.length;
+        if (hasDuplicate) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["stops"],
+            message: "The same Bin cannot be added twice at the same Collection Point.",
+          });
+        }
       }
     }
   });

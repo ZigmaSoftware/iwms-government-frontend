@@ -22,7 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { panchayatApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { mergeWithScopeOption } from "../../shared/dataScopeOptions";
+import { mergeWithScopeOption, scopeFieldState } from "../../shared/dataScopeOptions";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { buildPanchayatLeaderSchema } from "@/schemas/masters/leaderManagement/panchayatLeader.schema";
 
@@ -97,6 +97,18 @@ function PanchayatLeaderEditor({
   );
   const [panchayatTakenBy, setPanchayatTakenBy] = useState<string | null>(null);
   const [checkingPanchayat, setCheckingPanchayat] = useState(false);
+
+  // When the logged-in user's own Data Scope pins panchayat to exactly one
+  // value, the PLB field shows pre-filled and disabled rather than an
+  // editable dropdown.
+  const panchayatScope = scopeFieldState("panchayat");
+
+  useEffect(() => {
+    if (panchayatScope.mode === "locked" && !formData.panchayat_id) {
+      setFormData((prev) => ({ ...prev, panchayat_id: panchayatScope.options[0].value }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panchayatScope.mode, formData.panchayat_id]);
 
   // Apply pending panchayat_id once options are loaded
   useEffect(() => {
@@ -199,7 +211,7 @@ function PanchayatLeaderEditor({
                 setPendingPanchayatId(null);
                 setPanchayatTakenBy(null);
               }}
-              disabled={isSubmitting || loadingPanchayats}
+              disabled={isSubmitting || loadingPanchayats || panchayatScope.mode === "locked"}
             >
               <SelectTrigger className="w-full" id="panchayat_id">
                 <SelectValue

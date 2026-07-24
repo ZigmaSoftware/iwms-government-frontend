@@ -43,7 +43,7 @@ import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
-import { scopeOption, type ScopeLevel } from "../../../masters/shared/dataScopeOptions";
+import { scopeOption, scopeFieldState, type ScopeLevel } from "../../../masters/shared/dataScopeOptions";
 
 /* ── Palette (fixed categorical order — never cycled/regenerated) ──── */
 const SERIES = [
@@ -91,6 +91,15 @@ const localBodyLevels: Array<{ value: LocalBodyLevel; label: string }> = [
 const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyLevel[]> = {
   urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
   rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+/** Maps each local-body filter level to the ScopeLevel that gates it. */
+const LOCAL_BODY_SCOPE_LEVEL: Record<LocalBodyLevel, ScopeLevel> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
 };
 
 const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
@@ -301,6 +310,23 @@ export default function MonthlyWasteComparisonListPage() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that filter field shows pre-filled and disabled rather than an
+  // editable dropdown — they can't see data outside their own scope anyway.
+  // Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScope = localBodyLevel ? scopeFieldState(LOCAL_BODY_SCOPE_LEVEL[localBodyLevel]) : null;
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    if (localBodyScope?.mode === "locked" && !localBodyId) setLocalBodyId(localBodyScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope?.mode, stateId, districtId, areaTypeId, localBodyId]);
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
@@ -587,9 +613,11 @@ export default function MonthlyWasteComparisonListPage() {
   };
 
   const clearLocalBodyFilter = () => {
-    setStateId("");
-    setDistrictId("");
-    setAreaTypeId("");
+    // A locked field can't be cleared to blank — it snaps back to the
+    // user's own scoped value instead of leaving a disabled, empty select.
+    setStateId(stateScope.mode === "locked" ? stateScope.options[0].value : "");
+    setDistrictId(districtScope.mode === "locked" ? districtScope.options[0].value : "");
+    setAreaTypeId(areaTypeScope.mode === "locked" ? areaTypeScope.options[0].value : "");
     setAreaTypeCategory("");
     setLocalBodyLevel("");
     setLocalBodyId("");
@@ -687,7 +715,8 @@ export default function MonthlyWasteComparisonListPage() {
               setLocalBodyLevel("");
               setLocalBodyId("");
             }}
-            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={stateScope.mode === "locked"}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
           >
             <option value="">Select State</option>
             {toGeoOptions(states).map((o) => (
@@ -703,7 +732,7 @@ export default function MonthlyWasteComparisonListPage() {
               setLocalBodyLevel("");
               setLocalBodyId("");
             }}
-            disabled={!stateId}
+            disabled={!stateId || districtScope.mode === "locked"}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
           >
             <option value="">{stateId ? "Select District" : "Select a State first"}</option>
@@ -721,7 +750,7 @@ export default function MonthlyWasteComparisonListPage() {
               setLocalBodyLevel("");
               setLocalBodyId("");
             }}
-            disabled={!districtId}
+            disabled={!districtId || areaTypeScope.mode === "locked"}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
           >
             <option value="">{districtId ? "Select Area Type" : "Select a District first"}</option>
@@ -746,7 +775,7 @@ export default function MonthlyWasteComparisonListPage() {
           <select
             value={localBodyId}
             onChange={(e) => setLocalBodyId(e.target.value)}
-            disabled={!localBodyLevel}
+            disabled={!localBodyLevel || localBodyScope?.mode === "locked"}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
           >
             <option value="">

@@ -10,6 +10,7 @@ import {
   alternativeStaffTemplateApi,
   areaTypeApi,
   corporationApi,
+  customerCreationApi,
   dailyTripAssignmentApi,
   dailyTripHouseholdCollectionApi,
   districtApi,
@@ -29,11 +30,11 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
 import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
-import { mergeWithScopeOptionExtra } from "../../../masters/shared/dataScopeOptions";
+import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 
-type Option = { value: string; label: string };
+type Option = { value: string; label: string; disabled?: boolean };
 type ApiRecord = Record<string, any>;
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
 
@@ -111,6 +112,9 @@ const pointLabel = (point: DailyTripCollectionPointInline): string =>
 const binLabel = (point: DailyTripCollectionPointInline): string =>
   String(point.bin?.bin_name ?? point.bin_id ?? "").trim() || "—";
 
+const wardLabel = (wards?: { ward_name?: string }[]): string =>
+  wards?.map((ward) => ward.ward_name).filter(Boolean).join(", ") || "—";
+
 export default function DailyTripAssignmentForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -133,6 +137,7 @@ export default function DailyTripAssignmentForm() {
     { waste_type_name?: string; collected_weight_kg?: number | string }[]
   >([]);
   const [tripPlans, setTripPlans] = useState<Option[]>([]);
+  const [assignedTripPlanIds, setAssignedTripPlanIds] = useState<string[]>([]);
   const [staffTemplatesRaw, setStaffTemplatesRaw] = useState<ApiRecord[]>([]);
   const [altStaffCache, setAltStaffCache] = useState<ApiRecord[]>([]);
   const [wasteTypes, setWasteTypes] = useState<Option[]>([]);
@@ -176,6 +181,7 @@ export default function DailyTripAssignmentForm() {
   // Generated stops — read from the assignment record, edited inline, saved on Update.
   const [cpStops, setCpStops] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdStops, setHouseholdStops] = useState<DailyTripHouseholdCollectionInline[]>([]);
+  const [previewCustomers, setPreviewCustomers] = useState<ApiRecord[]>([]);
 
   // Cheap, small master lists (5–10 rows each) needed immediately to populate
   // the geo cascade selects and the waste type multiselect. wasteTypeApi has
@@ -211,6 +217,31 @@ export default function DailyTripAssignmentForm() {
       setWardRecords(normalizeList(wardRes));
     });
   }, []);
+
+  // A Trip Plan may only have one active daily assignment per date.
+  useEffect(() => {
+    if (!tripDate) {
+      setAssignedTripPlanIds([]);
+      return;
+    }
+    let cancelled = false;
+    dailyTripAssignmentApi.readAll({ params: { date: tripDate } }).then((response) => {
+      if (cancelled) return;
+      const assigned = normalizeList(response)
+        .filter((assignment: ApiRecord) =>
+          String(assignment.status ?? "") !== "Cancelled" &&
+          String(assignment.unique_id ?? "") !== String(id ?? ""),
+        )
+        .map((assignment: ApiRecord) =>
+          String(assignment.trip_plan?.unique_id ?? assignment.trip_plan_id ?? ""),
+        )
+        .filter(Boolean);
+      setAssignedTripPlanIds(Array.from(new Set(assigned)));
+    }).catch(() => {
+      if (!cancelled) setAssignedTripPlanIds([]);
+    });
+    return () => { cancelled = true; };
+  }, [tripDate, id]);
 
   // Trip Plans — left unfiltered: its own backend viewset already auto-scopes
   // by the requester's StaffDataScope for non-superadmin users, and in create
@@ -330,6 +361,7 @@ export default function DailyTripAssignmentForm() {
             ? plan.waste_types_detail.map((wt: any) => String(wt.unique_id))
             : []
       );
+      setSelectedWardIds(Array.isArray(plan.wards_detail) ? plan.wards_detail.map((ward: any) => String(ward.unique_id)) : []);
       setScheduledTime((prev) => prev || String(plan.scheduled_time ?? "").slice(0, 5));
 
       setStateId(String(plan.state?.unique_id ?? ""));
@@ -352,6 +384,51 @@ export default function DailyTripAssignmentForm() {
       }
     }).finally(() => setTripPlanLoading(false));
   }, [tripPlanId]);
+
+  // Household stops are expanded from a geographic Trip Plan only when the
+  // daily assignment is saved. Fetch the same customers here for a pre-save
+  // preview, including the selected ward.
+  useEffect(() => {
+    if (!tripPlanId || isEdit || !selectedTripPlan) {
+      setPreviewCustomers([]);
+      return;
+    }
+    const sourceStops = Array.isArray(selectedTripPlan.plan_collection_points)
+      ? selectedTripPlan.plan_collection_points
+      : [];
+    const effectiveSourceStops = sourceStops.length > 0
+      ? sourceStops
+      : ["household_collection", "bulk_waste_collection"].includes(String(selectedTripPlan.collection_type))
+        ? [{ collection_type: selectedTripPlan.collection_type }]
+        : [];
+    const needsExpansion = effectiveSourceStops.some((stop: ApiRecord) =>
+      ["household_collection", "bulk_waste_collection"].includes(String(stop.collection_type)) && !stop.customer_id,
+    );
+    if (!needsExpansion && effectiveSourceStops.some((stop: ApiRecord) => stop.customer_id)) {
+      setPreviewCustomers([]);
+      return;
+    }
+    const baseParams: Record<string, string> = {};
+    if (stateId) baseParams.state_id = stateId;
+    if (districtId) baseParams.district_id = districtId;
+    if (hierarchyId) baseParams[hierarchyLevel] = hierarchyId;
+    const requests = selectedWardIds.length
+      ? selectedWardIds.map((wardId) => customerCreationApi.readAll({ params: { ...baseParams, ward_id: wardId } }))
+      : [customerCreationApi.readAll({ params: baseParams })];
+    let cancelled = false;
+    Promise.all(requests).then((responses) => {
+      if (cancelled) return;
+      const unique = new Map<string, ApiRecord>();
+      responses.flatMap((response) => normalizeList(response)).forEach((customer: ApiRecord) => {
+        const customerId = resolveId(customer);
+        if (customerId) unique.set(customerId, customer);
+      });
+      setPreviewCustomers(Array.from(unique.values()));
+    }).catch(() => {
+      if (!cancelled) setPreviewCustomers([]);
+    });
+    return () => { cancelled = true; };
+  }, [tripPlanId, isEdit, selectedTripPlan, stateId, districtId, hierarchyId, hierarchyLevel, selectedWardIds]);
 
   // When the user picks a Staff Template, inherit its saved geo hierarchy
   // (State → District → Area Type → Local Body Type → Local Body). Values stay
@@ -452,10 +529,31 @@ export default function DailyTripAssignmentForm() {
     "area_type",
     {},
   );
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and disabled rather than an editable
+  // dropdown — they aren't allowed to place this assignment outside their own
+  // scope. Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const hierarchyScope = scopeFieldState(SCOPE_LEVEL_BY_HIERARCHY[hierarchyLevel]);
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    if (hierarchyScope.mode === "locked" && !hierarchyId) setHierarchyId(hierarchyScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, hierarchyScope.mode, stateId, districtId, areaTypeId, hierarchyId]);
+
   const filteredWards = wardRecords.filter(
     (w) =>
       (!districtId || String(w.district_id ?? "") === districtId) &&
-      (!hierarchyId || String(w[hierarchyLevel] ?? "") === hierarchyId),
+      (!hierarchyId || (
+        String(w.local_body_type ?? "") === hierarchyLevel.replace("_id", "") &&
+        String(w.local_body_id ?? "") === hierarchyId
+      )),
   );
   const wardOptions = toOptions(filteredWards, "ward_name");
 
@@ -463,8 +561,16 @@ export default function DailyTripAssignmentForm() {
   // always visibly labeled, even before the (unfiltered but still
   // asynchronous) Trip Plan fetch resolves.
   const tripPlanOptions = useMemo<Option[]>(
-    () => ensureOption(tripPlans, tripPlanId, selectedTripPlanLabel),
-    [tripPlans, tripPlanId, selectedTripPlanLabel],
+    () => ensureOption(
+      tripPlans.map((plan) =>
+        assignedTripPlanIds.includes(plan.value) && plan.value !== tripPlanId
+          ? { ...plan, label: plan.label + " (Assigned)", disabled: true }
+          : plan,
+      ),
+      tripPlanId,
+      selectedTripPlanLabel,
+    ),
+    [tripPlans, tripPlanId, selectedTripPlanLabel, assignedTripPlanIds],
   );
 
   // Staff templates scoped to the selected local body — keeps the already
@@ -533,8 +639,36 @@ export default function DailyTripAssignmentForm() {
     : [];
   const hasHouseholdStops = isEdit
     ? householdStops.length > 0
-    : planStops.some((s) => ["household_collection", "bulk_waste_collection"].includes(String(s.collection_type)));
+    : planStops.some((s) => ["household_collection", "bulk_waste_collection"].includes(String(s.collection_type))) ||
+      ["household_collection", "bulk_waste_collection"].includes(String(selectedTripPlan?.collection_type));
   const previewStops = planStops.filter((s) => s.collection_type === "bin_collection" && s.bin_id);
+  const householdPreviewSources = planStops.length > 0
+    ? planStops
+    : ["household_collection", "bulk_waste_collection"].includes(String(selectedTripPlan?.collection_type))
+      ? [{ collection_type: selectedTripPlan?.collection_type }]
+      : [];
+  const previewHouseholdStops: ApiRecord[] = householdPreviewSources
+    .filter((stop) => ["household_collection", "bulk_waste_collection"].includes(String(stop.collection_type)))
+    .flatMap((stop) => {
+      if (stop.customer_id || stop.customer) return [stop];
+      const isBulk = stop.collection_type === "bulk_waste_collection";
+      return previewCustomers
+        .filter((customer) => Boolean(customer.is_bulkwaste_generator) === isBulk)
+        .map((customer, index) => ({
+          ...stop,
+          unique_id: String(stop.unique_id ?? "preview") + "-" + resolveId(customer),
+          customer_id: resolveId(customer),
+          customer: {
+            unique_id: resolveId(customer),
+            customer_name: customer.customer_name,
+            building_no: customer.building_no,
+            street: customer.street,
+            ward_id: customer.ward_id,
+            ward_name: customer.ward_name,
+          },
+          sequence: (stop.sequence ?? 1) + index,
+        }));
+    });
   // A plan generates exactly one category of daily work — only show the bin
   // collection points section for bin_collection plans, even if stale cpStops
   // data exists from before this constraint was enforced server-side.
@@ -621,6 +755,19 @@ export default function DailyTripAssignmentForm() {
         await dailyTripAssignmentApi.create(payload);
       }
       navigate(listPath);
+    } catch (error: any) {
+      const data = error?.response?.data;
+      const first = data && typeof data === "object" ? Object.values(data)[0] : null;
+      const message = typeof data === "string"
+        ? data
+        : typeof data?.detail === "string"
+          ? data.detail
+          : Array.isArray(first)
+            ? String(first[0])
+            : typeof first === "string"
+              ? first
+              : "Unable to save the daily trip plan.";
+      Swal.fire("Unable to save", message, "error");
     } finally {
       setSaving(false);
     }
@@ -703,6 +850,7 @@ export default function DailyTripAssignmentForm() {
                 onChange={(v) => { setStateId(String(v)); setDistrictId(""); setAreaTypeId(""); setAreaTypeCategory(""); setHierarchyId(""); }}
                 options={stateOptions}
                 placeholder="Select State"
+                disabled={stateScope.mode === "locked"}
               />
             </div>
             <div>
@@ -712,6 +860,7 @@ export default function DailyTripAssignmentForm() {
                 onChange={(v) => { setDistrictId(String(v)); setAreaTypeId(""); setAreaTypeCategory(""); setHierarchyId(""); }}
                 options={districtOptions}
                 placeholder={stateId ? "Select District" : "Select a State first"}
+                disabled={districtScope.mode === "locked"}
               />
             </div>
             <div>
@@ -727,6 +876,7 @@ export default function DailyTripAssignmentForm() {
                 }}
                 options={areaTypeOptions}
                 placeholder={districtId ? "Select Area Type" : "Select a District first"}
+                disabled={areaTypeScope.mode === "locked"}
               />
             </div>
             <div>
@@ -901,6 +1051,7 @@ export default function DailyTripAssignmentForm() {
                         <th className="px-4 py-3">Seq</th>
                         <th className="px-4 py-3">Collection Point</th>
                         <th className="px-4 py-3">Bin</th>
+                        <th className="px-4 py-3">Ward</th>
                         <th className="px-4 py-3">Status</th>
                       </tr>
                     </thead>
@@ -910,6 +1061,7 @@ export default function DailyTripAssignmentForm() {
                           <td className="px-4 py-3">{stop.sequence ?? i + 1}</td>
                           <td className="px-4 py-3">{stop.collection_point?.cp_name ?? stop.collection_point_id ?? "—"}</td>
                           <td className="px-4 py-3">{stop.bin?.bin_name ?? stop.bin_id ?? "—"}</td>
+                          <td className="px-4 py-3">{wardLabel(stop.collection_point_wards)}</td>
                           <td className="px-4 py-3">
                             <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Pending</span>
                           </td>
@@ -938,6 +1090,7 @@ export default function DailyTripAssignmentForm() {
                       <th className="px-4 py-3">Seq</th>
                       <th className="px-4 py-3">Collection Point</th>
                       <th className="px-4 py-3">Bin</th>
+                      <th className="px-4 py-3">Ward</th>
                       <th className="px-4 py-3">Waste Type</th>
                       <th className="px-4 py-3">Weight (kg)</th>
                       <th className="px-4 py-3">Collected</th>
@@ -960,6 +1113,7 @@ export default function DailyTripAssignmentForm() {
                           </td>
                           <td className="px-4 py-3 font-medium text-gray-800">{pointLabel(point)}</td>
                           <td className="px-4 py-3 text-gray-700">{binLabel(point)}</td>
+                          <td className="px-4 py-3 text-gray-700">{wardLabel(point.wards)}</td>
                           <td className="px-4 py-3 text-gray-700">{point.waste_type_name ?? "—"}</td>
                           <td className="px-4 py-3">
                             <Input
@@ -1021,11 +1175,39 @@ export default function DailyTripAssignmentForm() {
                 )}
               </div>
 
-              {householdStops.length === 0 ? (
+              {householdStops.length === 0 && !isEdit && previewHouseholdStops.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-purple-100 text-sm">
+                    <thead className="bg-purple-50 text-left text-xs font-semibold uppercase text-purple-600">
+                      <tr>
+                        <th className="px-4 py-3">Seq</th>
+                        <th className="px-4 py-3">Customer</th>
+                        <th className="px-4 py-3">Ward</th>
+                        <th className="px-4 py-3">Collection Type</th>
+                        <th className="px-4 py-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-purple-50 bg-white">
+                      {previewHouseholdStops.map((stop, index) => (
+                        <tr key={stop.unique_id ?? index} className="text-gray-500 italic">
+                          <td className="px-4 py-3">{stop.sequence ?? index + 1}</td>
+                          <td className="px-4 py-3">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
+                          <td className="px-4 py-3">{stop.customer?.ward_name ?? "—"}</td>
+                          <td className="px-4 py-3">{stop.collection_type === "bulk_waste_collection" ? "Bulk Waste Collection" : "Household Collection"}</td>
+                          <td className="px-4 py-3"><span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Pending</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="px-4 py-2 text-xs text-gray-400 italic">These household stops are previewed and will be created when you save.</p>
+                </div>
+              ) : householdStops.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-gray-500">
                   {isEdit
                     ? "No household collection stops are attached to this daily trip plan."
-                    : "Household stops will be created when you save."}
+                    : tripPlanLoading
+                      ? "Loading customers..."
+                      : "No household customers found for the selected wards and local body."}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -1034,6 +1216,7 @@ export default function DailyTripAssignmentForm() {
                       <tr>
                         <th className="px-4 py-3">Seq</th>
                         <th className="px-4 py-3">Customer</th>
+                        <th className="px-4 py-3">Ward</th>
                         <th className="px-4 py-3">Address</th>
                         <th className="px-4 py-3">Weight (kg)</th>
                         <th className="px-4 py-3">Wet (kg)</th>
@@ -1054,6 +1237,7 @@ export default function DailyTripAssignmentForm() {
                               <Input type="number" min={1} value={String(stop.sequence ?? index + 1)} onChange={(e) => updateHouseholdStop(stopKey, { sequence: Number(e.target.value || 1) })} className="h-9 w-20" />
                             </td>
                             <td className="px-4 py-3 font-medium text-gray-800">{stop.customer?.customer_name ?? stop.customer_id ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-700">{stop.customer?.ward_name ?? "—"}</td>
                             <td className="px-4 py-3 text-xs text-gray-600">{[stop.customer?.building_no, stop.customer?.street].filter(Boolean).join(", ") || "—"}</td>
                             <td className="px-4 py-3">
                               <Input type="number" min={0} step="0.01" value={String(stop.collected_weight_kg ?? "")} onChange={(e) => updateHouseholdStop(stopKey, { collected_weight_kg: e.target.value })} className="h-9 w-28" />

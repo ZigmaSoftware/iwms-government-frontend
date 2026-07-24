@@ -23,6 +23,7 @@ import {
   townPanchayatApi,
   panchayatUnionApi,
   panchayatApi,
+  wardApi,
 } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
@@ -105,6 +106,7 @@ type EditorInitial = {
   localBodyType: LocalBodyLevel | "";
   localBodyId: string;
   localBodyLabel: string;
+  wardId: string;
   wetWaste: number;
   dryWaste: number;
   mixedWaste: number;
@@ -136,6 +138,7 @@ const EMPTY_INITIAL: EditorInitial = {
   localBodyType: "",
   localBodyId: "",
   localBodyLabel: "",
+  wardId: "",
   wetWaste: 0,
   dryWaste: 0,
   mixedWaste: 0,
@@ -168,6 +171,7 @@ const initialFromRecord = (record: WasteCollection): EditorInitial => {
     localBodyType: level ?? "",
     localBodyId: level ? normId((record as any)[level]) : "",
     localBodyLabel: level ? textOf((record as any)[LOCAL_BODY_RECORD_NAME_KEY[level]], record.location_name) : "",
+    wardId: normId((record as any).ward_id ?? (record as any).ward),
     wetWaste: Number(record.wet_waste) || 0,
     dryWaste: Number(record.dry_waste) || 0,
     mixedWaste: Number(record.mixed_waste) || 0,
@@ -187,6 +191,7 @@ type MasterData = {
   townPanchayats: GeoRow[];
   panchayatUnions: GeoRow[];
   panchayats: GeoRow[];
+  wards: GeoRow[];
 };
 
 const EMPTY_MASTERS: MasterData = {
@@ -198,6 +203,7 @@ const EMPTY_MASTERS: MasterData = {
   townPanchayats: [],
   panchayatUnions: [],
   panchayats: [],
+  wards: [],
 };
 
 type EditorProps = MasterData & {
@@ -225,6 +231,7 @@ function WasteCollectedEditor({
   townPanchayats,
   panchayatUnions,
   panchayats,
+  wards,
 }: EditorProps) {
   const { t } = useTranslation();
 
@@ -237,6 +244,7 @@ function WasteCollectedEditor({
   const [areaTypeId, setAreaTypeId] = useState(initial.areaTypeId);
   const [localBodyType, setLocalBodyType] = useState<LocalBodyLevel | "">(initial.localBodyType);
   const [localBodyId, setLocalBodyId] = useState(initial.localBodyId);
+  const [wardId, setWardId] = useState(initial.wardId);
 
   const [wetWaste, setWetWaste] = useState(String(initial.wetWaste || ""));
   const [dryWaste, setDryWaste] = useState(String(initial.dryWaste || ""));
@@ -268,10 +276,22 @@ function WasteCollectedEditor({
   }, [stateId, districtId, areaTypeId, localBodyType, localBodyId]);
 
   const tripAssignmentParams = useMemo(() => {
-    const params: Record<string, string> = { ...geoParams };
+    const params: Record<string, string> = {};
+    if (localBodyType && localBodyId) params[localBodyType] = localBodyId;
     if (collectionDate) params.date = collectionDate;
+    if (wardId) params.ward_id = wardId;
     return params;
-  }, [geoParams, collectionDate]);
+  }, [localBodyType, localBodyId, collectionDate, wardId]);
+
+  const wardOptions = useMemo(() => ensureOption(
+    wards.filter((ward) => (!districtId || normId(ward.district_id) === districtId)
+      && (!localBodyType || !localBodyId || (
+        String(ward.local_body_type ?? "") === localBodyType.replace("_id", "") &&
+        normId(ward.local_body_id) === localBodyId
+      )))
+      .map((ward) => ({ value: idOf(ward), label: String(ward.ward_name ?? ward.name ?? idOf(ward)) })),
+    wardId,
+  ), [wards, districtId, localBodyType, localBodyId, wardId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -389,6 +409,7 @@ function WasteCollectedEditor({
       if (districtId && normId(c.district_id) !== districtId) return false;
       if (areaTypeId && normId(c.area_type_id) !== areaTypeId) return false;
       if (localBodyType && localBodyId && normId(c[localBodyType]) !== localBodyId) return false;
+      if (wardId && normId((c as any).ward_id ?? (c as any).ward) !== wardId) return false;
       return true;
     });
     const selected = customers.find((c) => resolveCustomerId(c) === customerId);
@@ -396,7 +417,7 @@ function WasteCollectedEditor({
       return [selected, ...matches];
     }
     return matches;
-  }, [customers, districtId, areaTypeId, localBodyType, localBodyId, customerId]);
+  }, [customers, districtId, areaTypeId, localBodyType, localBodyId, wardId, customerId]);
 
   const selectedCustomer = customers.find((c) => resolveCustomerId(c) === customerId);
 
@@ -431,6 +452,7 @@ function WasteCollectedEditor({
     const level = LOCAL_BODY_LEVELS.find((lvl) => normId((selectedCustomer as any)[lvl]));
     setLocalBodyType(level ?? "");
     setLocalBodyId(level ? normId((selectedCustomer as any)[level]) : "");
+    setWardId(normId((selectedCustomer as any).ward_id ?? (selectedCustomer as any).ward));
   }, [customerId, selectedCustomer]);
 
   /* ── handlers: changing an upper level resets the levels below it,
@@ -504,6 +526,7 @@ function WasteCollectedEditor({
       town_panchayat_id: localBodyType === "town_panchayat_id" ? localBodyId || null : null,
       panchayat_union_id: localBodyType === "panchayat_union_id" ? localBodyId || null : null,
       panchayat_id: localBodyType === "panchayat_id" ? localBodyId || null : null,
+      ward_id: wardId || null,
     };
 
     setIsSubmitting(true);
@@ -529,6 +552,10 @@ function WasteCollectedEditor({
         title={isEdit ? t("admin.household_collection_event.title_edit") : t("admin.household_collection_event.title_add")}
       >
         <form onSubmit={handleSubmit} className="space-y-6">
+
+
+
+          
           {/* ── Geography cascade ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* State */}
@@ -599,6 +626,18 @@ function WasteCollectedEditor({
                 options={localBodyOptions}
                 placeholder={t("admin.household_collection_event.local_body")}
                 disabled={!localBodyType}
+              />
+            </div>
+
+            {/* Ward */}
+            <div>
+              <Label>Ward</Label>
+              <Select
+                value={wardId}
+                onChange={(v) => { setWardId(String(v)); setTripAssignmentId(""); }}
+                options={wardOptions}
+                placeholder="Select Ward"
+                disabled={!localBodyId}
               />
             </div>
 
@@ -768,6 +807,7 @@ export default function WasteCollectedForm() {
     townPanchayatApi.readAll().then((r: any) => setMasters((m) => ({ ...m, townPanchayats: toList(r) }))).catch(() => {});
     panchayatUnionApi.readAll().then((r: any) => setMasters((m) => ({ ...m, panchayatUnions: toList(r) }))).catch(() => {});
     panchayatApi.readAll().then((r: any) => setMasters((m) => ({ ...m, panchayats: toList(r) }))).catch(() => {});
+    wardApi.readAll().then((r: any) => setMasters((m) => ({ ...m, wards: toList(r) }))).catch(() => {});
   }, []);
 
   /* ── edit mode: load the single record ── */

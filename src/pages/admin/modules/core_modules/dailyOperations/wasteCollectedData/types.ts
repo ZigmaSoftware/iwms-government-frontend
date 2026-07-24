@@ -40,6 +40,8 @@ export type Customer = {
   town_panchayat_id?: string;
   panchayat_union_id?: string;
   panchayat_id?: string;
+  ward_id?: string;
+  ward?: { unique_id?: string; ward_name?: string };
   // …and their display names
   district_name?: string;
   state_name?: string;
@@ -65,6 +67,8 @@ export type WasteCollection = {
   district_name?: string;
   area_type_name?: string;
   panchayat_name?: string;
+  ward_id?: string;
+  ward_name?: string;
   // Most-specific local body + its level (Corporation/Municipality/.../Panchayat)
   location_name?: string;
   location_level?: string;

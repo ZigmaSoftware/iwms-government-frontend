@@ -12,7 +12,7 @@ import {
   stateApi,
   townPanchayatApi,
 } from "@/helpers/admin";
-import { mergeWithScopeOptionExtra, scopeOption } from "./dataScopeOptions";
+import { mergeWithScopeOptionExtra, scopeFieldState, scopeOption } from "./dataScopeOptions";
 
 type ApiRecord = Record<string, unknown>;
 
@@ -153,6 +153,45 @@ export default function LocationFields({
 
   const scopedStateId = scopeOption("state")?.value;
   const scopedDistrictId = scopeOption("district")?.value;
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and disabled rather than an editable
+  // dropdown — they aren't allowed to place this record outside their own
+  // scope. Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScopeLevel = LOCAL_BODY_LEVELS.find(
+    (item) => item.value === value.localBodyLevel,
+  )?.sourceType as
+    | "corporation"
+    | "municipality"
+    | "town_panchayat"
+    | "panchayat_union"
+    | "panchayat"
+    | undefined;
+  const localBodyScope = localBodyScopeLevel ? scopeFieldState(localBodyScopeLevel) : null;
+
+  useEffect(() => {
+    const patch: Partial<GeoLocationValue> = {};
+    if (stateScope.mode === "locked" && !value.stateId) patch.stateId = stateScope.options[0].value;
+    if (districtScope.mode === "locked" && !value.districtId) patch.districtId = districtScope.options[0].value;
+    if (areaTypeScope.mode === "locked" && !value.areaTypeId) patch.areaTypeId = areaTypeScope.options[0].value;
+    if (localBodyScope?.mode === "locked" && !value.localBodyId) {
+      patch.localBodyId = localBodyScope.options[0].value;
+    }
+    if (Object.keys(patch).length) onChange({ ...value, ...patch });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stateScope.mode,
+    districtScope.mode,
+    areaTypeScope.mode,
+    localBodyScope?.mode,
+    value.stateId,
+    value.districtId,
+    value.areaTypeId,
+    value.localBodyId,
+  ]);
 
   // Countries are the root of the hierarchy and can be loaded eagerly.
   useEffect(() => {
@@ -341,21 +380,21 @@ export default function LocationFields({
       </div>
       <div>
         <Label>State *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId || stateScope.mode === "locked"}>
           <option value="">Select State</option>
           {filteredStates.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
       <div>
         <Label>District *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId || districtScope.mode === "locked"}>
           <option value="">Select District</option>
           {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
       <div>
         <Label>Area Type *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId || areaTypeScope.mode === "locked"}>
           <option value="">Select Area Type</option>
           {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
@@ -370,7 +409,7 @@ export default function LocationFields({
       {value.localBodyLevel && (
         <div>
           <Label>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label} *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })}>
+          <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })} disabled={localBodyScope?.mode === "locked"}>
             <option value="">Select</option>
             {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
