@@ -224,6 +224,7 @@ export default function DailyTripLogReportPage() {
                   : undefined
               }
             />
+            <InfoRow label="Ward" value={row.wards_detail?.map((ward) => ward.ward_name).filter(Boolean).join(", ")} />
           </div>
         </div>
 

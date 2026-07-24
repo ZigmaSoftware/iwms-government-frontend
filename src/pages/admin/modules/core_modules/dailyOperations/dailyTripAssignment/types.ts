@@ -38,6 +38,7 @@ export type DailyTripCollectionPointInline = {
   unique_id?: string;
   collection_point_id?: string;
   collection_point?: { unique_id?: string; cp_name?: string; latitude?: string; longitude?: string } | null;
+  wards?: { unique_id?: string; ward_name?: string }[];
   bin_id?: string;
   bin?: { unique_id?: string; bin_name?: string } | null;
   waste_type_name?: string | null;
@@ -52,7 +53,7 @@ export type DailyTripCollectionPointInline = {
 export type DailyTripHouseholdCollectionInline = {
   unique_id?: string;
   customer_id?: string;
-  customer?: { unique_id?: string; customer_name?: string; building_no?: string; street?: string } | null;
+  customer?: { unique_id?: string; customer_name?: string; building_no?: string; street?: string; ward_id?: string; ward_name?: string } | null;
   collection_type?: string;
   sequence?: number;
   is_collected?: boolean;

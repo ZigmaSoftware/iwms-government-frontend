@@ -59,16 +59,9 @@ export type AuthProfile = {
 
 export type DataScopeRef = { unique_id?: string; name?: string } | null;
 
-/** The level a staff data scope was granted at (most-specific field set). */
-export type ScopeGrantedLevel =
-  | "state"
-  | "district"
-  | "area_type"
-  | "corporation"
-  | "municipality"
-  | "town_panchayat"
-  | "panchayat_union"
-  | "panchayat";
+/** The level a staff data scope was granted at. "local_body" covers any
+ * number of selected local bodies across one or more levels at once. */
+export type ScopeGrantedLevel = "state" | "district" | "local_body";
 
 export type ScopeLocalBodyType =
   | "corporation"
@@ -114,11 +107,27 @@ export type DataScope = {
   state?: DataScopeRef;
   district?: DataScopeRef;
   area_type?: DataScopeRef;
+  /**
+   * Backward-compatible single value — the FIRST local body of that level
+   * the staff is scoped to. A staff can now be scoped to several local
+   * bodies at once (across one or more levels); see the plural `*s` lists
+   * below for the full set. This singular field stays populated (first
+   * match) so existing single-value consumers of scopeOption() keep
+   * working unchanged.
+   */
   corporation?: DataScopeRef;
   municipality?: DataScopeRef;
   town_panchayat?: DataScopeRef;
   panchayat_union?: DataScopeRef;
   panchayat?: DataScopeRef;
+  /** Every local body the staff is scoped to, per level. */
+  corporations?: DataScopeRef[];
+  municipalities?: DataScopeRef[];
+  town_panchayats?: DataScopeRef[];
+  panchayat_unions?: DataScopeRef[];
+  panchayats?: DataScopeRef[];
+  /** Wards the staff is scoped to (further narrows local body scope). */
+  wards?: DataScopeRef[];
   depot?: DataScopeRef;
   location_nodes?: Array<{ unique_id: string; name: string }>;
   /** Additive scope-expansion fields (login feature). */

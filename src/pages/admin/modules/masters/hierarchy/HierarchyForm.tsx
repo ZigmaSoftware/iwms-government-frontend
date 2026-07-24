@@ -23,6 +23,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { hierarchySchema, type HierarchyFormValues } from "@/schemas/masters/hierarchy.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { mergeWithScopeOption, scopeFieldState } from "../shared/dataScopeOptions";
 import type { ApiError } from "./types";
 
 
@@ -57,6 +58,7 @@ export default function HierarchyForm() {
     control,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<HierarchyFormValues>({
     resolver: zodResolver(schema),
@@ -67,6 +69,19 @@ export default function HierarchyForm() {
     },
   });
 
+  // When the logged-in user's own Data Scope pins Area Type to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave it editable.
+  const areaTypeScope = scopeFieldState("area_type");
+  const areaTypeValue = watch("area_type");
+
+  useEffect(() => {
+    if (areaTypeScope.mode === "locked" && !areaTypeValue) {
+      setValue("area_type", areaTypeScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaTypeScope.mode, areaTypeValue]);
+
   // Fetch area types list
   useEffect(() => {
     let cancelled = false;
@@ -74,18 +89,17 @@ export default function HierarchyForm() {
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : [];
-        setAreaTypes(
-          data
-            .filter((record) => record && record.is_active !== false)
-            .map((record) => ({
-              value: String(record.unique_id),
-              label: record.name ?? record.area_type_name ?? String(record.unique_id),
-            }))
-        );
+        const fetched = data
+          .filter((record) => record && record.is_active !== false)
+          .map((record) => ({
+            value: String(record.unique_id),
+            label: record.name ?? record.area_type_name ?? String(record.unique_id),
+          }));
+        setAreaTypes(mergeWithScopeOption(fetched, "area_type"));
       })
       .catch(() => {
         if (cancelled) return;
-        // silently ignore area types fetch error
+        setAreaTypes((prev) => mergeWithScopeOption(prev, "area_type"));
       });
     return () => { cancelled = true; };
   }, []);
@@ -208,7 +222,7 @@ export default function HierarchyForm() {
                 <Select
                   value={field.value ?? ""}
                   onValueChange={field.onChange}
-                  disabled={areaTypes.length === 0}
+                  disabled={areaTypes.length === 0 || areaTypeScope.mode === "locked"}
                 >
                   <SelectTrigger id="areaType">
                     <SelectValue placeholder="Select Area Type" />

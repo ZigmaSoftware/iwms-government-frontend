@@ -28,7 +28,7 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
-import { mergeWithScopeOption } from "../shared/dataScopeOptions";
+import { mergeWithScopeOption, scopeFieldState } from "../shared/dataScopeOptions";
 import { districtSchema, type DistrictFormValues } from "@/schemas/masters/district.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 
@@ -138,6 +138,8 @@ function DistrictEditor({
     register,
     control,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<DistrictFormValues>({
     resolver: zodResolver(schema),
@@ -149,6 +151,21 @@ function DistrictEditor({
       is_active: initialPayload.is_active,
     },
   });
+
+  const stateId = watch("state_id");
+
+  // When the logged-in user's own Data Scope pins state to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) {
+      setValue("state_id", stateScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, stateId]);
 
   const onValid = async (values: DistrictFormValues) => {
     const rawPayload: DistrictPayload = {
@@ -175,7 +192,11 @@ function DistrictEditor({
               control={control}
               name="state_id"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isSubmitting || stateScope.mode === "locked"}
+                >
                   <SelectTrigger className="input-validate w-full" id="stateId">
                     <SelectValue placeholder="Select State" />
                   </SelectTrigger>

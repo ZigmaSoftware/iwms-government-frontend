@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
+import { MultiSelect } from "primereact/multiselect";
+import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/primereact.min.css";
 import { CheckCircle2, KeyRound, Loader2, MapPinned, ShieldCheck, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -12,6 +15,16 @@ import Swal from "@/lib/notify";
 import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
+
+const MULTISELECT_PT = {
+  labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
+  label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
+  trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
+  dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
+  panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
+};
+const MULTISELECT_CLASS =
+  "flex! h-10! w-full! items-center rounded-md! border! border-gray-300! bg-white! px-3! text-sm! disabled:opacity-50! dark:border-gray-700! dark:bg-gray-900!";
 
 import DashboardWidgetPanel from "./DashboardWidgetPanel";
 import PermissionTree from "./PermissionTree";
@@ -33,6 +46,7 @@ import type {
   AreaTypeCategory,
   DashboardWidget,
   LocalBodyLevel,
+  LocalBodySelection,
   ModulePermission,
   StaffAccessConfigPayload,
   UserActionOption,
@@ -61,8 +75,12 @@ type FormValues = {
   stateId: string;
   districtId: string;
   areaTypeId: string;
-  localBodyLevel: LocalBodyLevel | "";
-  localBodyId: string;
+  /** Local Body Types chosen (can be several at once, e.g. Corporation + Municipality). */
+  localBodyLevels: LocalBodyLevel[];
+  /** Specific local bodies chosen, across any of `localBodyLevels`. */
+  localBodies: LocalBodySelection[];
+  /** Wards chosen, further narrowing `localBodies` (optional). */
+  wardIds: string[];
   locationNodeIds: string[];
 };
 
@@ -245,8 +263,9 @@ const defaultValues: FormValues = {
   stateId: "",
   districtId: "",
   areaTypeId: "",
-  localBodyLevel: "",
-  localBodyId: "",
+  localBodyLevels: [],
+  localBodies: [],
+  wardIds: [],
   locationNodeIds: [],
 };
 
@@ -282,6 +301,12 @@ const labelFromOptions = (options: SelectOption[], value: string | null | undefi
   const label = options.find((option) => option.value === value)?.label;
   return typeof label === "string" ? label : label ? String(label) : "";
 };
+
+const labelsFromOptions = (options: SelectOption[], values: string[]): string =>
+  values
+    .map((value) => labelFromOptions(options, value))
+    .filter(Boolean)
+    .join(", ");
 
 const extractErrorMap = (error: unknown) => {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -350,6 +375,26 @@ export default function StaffAccessConfigPage() {
     panchayat_union_id: [],
     panchayat_id: [],
   });
+  const [wardRecords, setWardRecords] = useState<ApiOptionRecord[]>([]);
+
+  // Wards aren't filterable server-side by an arbitrary SET of local bodies
+  // (the API only supports one parent id at a time), so load the full table
+  // once and filter client-side against whichever local bodies are selected
+  // — the same approach tripPlanForm.tsx uses for its ward multi-select.
+  useEffect(() => {
+    let mounted = true;
+    adminApi.wards
+      .readAll()
+      .then((res: unknown) => {
+        if (mounted) setWardRecords((Array.isArray(res) ? res : []) as ApiOptionRecord[]);
+      })
+      .catch(() => {
+        if (mounted) setWardRecords([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -502,10 +547,11 @@ export default function StaffAccessConfigPage() {
   }, []);
 
   // Departments belong to a corporation. Load them filtered by the corporation
-  // chosen in the data scope (when the selected local body is a corporation);
-  // otherwise load all so the field stays usable before the scope step.
+  // chosen in the data scope (when exactly one corporation is selected);
+  // otherwise load all so the field stays usable before/without a narrow scope.
+  const selectedCorporations = values.localBodies.filter((body) => body.level === "corporation_id");
   const selectedCorporationId =
-    values.localBodyLevel === "corporation_id" ? values.localBodyId : "";
+    selectedCorporations.length === 1 ? selectedCorporations[0].id : "";
   useEffect(() => {
     let active = true;
     const request = selectedCorporationId
@@ -545,16 +591,17 @@ export default function StaffAccessConfigPage() {
         );
         const role = governmentRoles.find((item) => normalizeEntityId(item.unique_id ?? item.id) === roleId);
         const roleLevel = String(role?.level ?? record.governmentusertype_level ?? "");
-        const localBodyLevel = String(dataScope.localBodyLevel ?? "") as FormValues["localBodyLevel"];
-        const localBodyId = String(
-          dataScope.localBodyId ??
-            dataScope.corporationId ??
-            dataScope.municipalityId ??
-            dataScope.townPanchayatId ??
-            dataScope.panchayatUnionId ??
-            dataScope.panchayatId ??
-            "",
-        );
+        const localBodies: LocalBodySelection[] = (
+          [
+            ["corporation_id", dataScope.corporationIds],
+            ["municipality_id", dataScope.municipalityIds],
+            ["town_panchayat_id", dataScope.townPanchayatIds],
+            ["panchayat_union_id", dataScope.panchayatUnionIds],
+            ["panchayat_id", dataScope.panchayatIds],
+          ] as Array<[LocalBodyLevel, string[] | undefined]>
+        ).flatMap(([level, ids]) => (ids ?? []).map((id) => ({ level, id: String(id) })));
+        const localBodyLevels = Array.from(new Set(localBodies.map((body) => body.level)));
+        const wardIds = Array.isArray(dataScope.wardIds) ? dataScope.wardIds.map((wardId) => String(wardId)) : [];
 
         setValue("employeeName", String(basicInfo.employeeName ?? record.employee_name ?? ""));
         setValue("staffConfigName", String(basicInfo.staffConfigName ?? record.staff_config_name ?? ""));
@@ -578,8 +625,9 @@ export default function StaffAccessConfigPage() {
         setValue("stateId", String(dataScope.stateId ?? ""));
         setValue("districtId", String(dataScope.districtId ?? ""));
         setValue("areaTypeId", String(dataScope.areaTypeId ?? ""));
-        setValue("localBodyLevel", localBodyLevel || "");
-        setValue("localBodyId", localBodyId);
+        setValue("localBodyLevels", localBodyLevels);
+        setValue("localBodies", localBodies);
+        setValue("wardIds", wardIds);
         setValue(
           "locationNodeIds",
           Array.isArray(dataScope.locationNodes)
@@ -673,7 +721,14 @@ export default function StaffAccessConfigPage() {
     );
   }, [governmentLevel, governmentRoles]);
 
-  const hasLocalBody = Boolean(values.localBodyLevel && values.localBodyId);
+  // "Any local body selected" — drives display/payload (the staff's data
+  // scope always includes exactly what was picked here). Permissions and
+  // Dashboard Widgets, however, only follow a SINGLE local body (see
+  // `singleLocalBody` below) — with zero or several selected they fall back
+  // to the broader District/State boundary, matching the backend's
+  // `_access_scope_payload` rule.
+  const hasLocalBody = values.localBodies.length > 0;
+  const singleLocalBody = values.localBodies.length === 1 ? values.localBodies[0] : null;
   const selectedGovernmentRole = useMemo(
     () =>
       governmentRoles.find(
@@ -688,25 +743,23 @@ export default function StaffAccessConfigPage() {
   const isLocalBodyScopeRequired =
     isLocalBodyRoleSelected ||
     (Boolean(selectedGovernmentLevel) && !isStateScopeSelected && !isDistrictScopeSelected);
-  const isLocalBodyScopeStarted = Boolean(values.areaTypeId || values.localBodyLevel || values.localBodyId);
-  const shouldShowLocalBodyScope = isLocalBodyScopeRequired || isDistrictScopeSelected;
   const dataScopeBoundaryLabel = isStateScopeSelected
     ? "State"
     : isDistrictScopeSelected && !hasLocalBody
       ? "District"
       : "Local Body";
   const hasNonLocalBodyBoundary =
-    (isStateScopeSelected && Boolean(values.stateId)) ||
-    (isDistrictScopeSelected && Boolean(values.districtId));
-  const canLoadPermissions = hasLocalBody || hasNonLocalBodyBoundary;
-  const permissionScopeKey = hasLocalBody
+    !singleLocalBody &&
+    ((isStateScopeSelected && Boolean(values.stateId)) || Boolean(values.districtId));
+  const canLoadPermissions = Boolean(singleLocalBody) || hasNonLocalBodyBoundary;
+  const permissionScopeKey = singleLocalBody
     ? [
         "local-body",
         values.stateId,
         values.districtId,
         values.areaTypeId,
-        values.localBodyLevel,
-        values.localBodyId,
+        singleLocalBody.level,
+        singleLocalBody.id,
       ].join("|")
     : hasNonLocalBodyBoundary
       ? [
@@ -722,17 +775,19 @@ export default function StaffAccessConfigPage() {
 
   useEffect(() => {
     if (!isStateScopeSelected) return;
-    if (!values.areaTypeId && !values.localBodyLevel && !values.localBodyId) return;
+    if (!values.areaTypeId && !values.localBodyLevels.length && !values.localBodies.length && !values.wardIds.length) return;
     setValue("areaTypeId", "");
-    setValue("localBodyLevel", "");
-    setValue("localBodyId", "");
+    setValue("localBodyLevels", []);
+    setValue("localBodies", []);
+    setValue("wardIds", []);
     setValue("locationNodeIds", []);
   }, [
     isStateScopeSelected,
     setValue,
     values.areaTypeId,
-    values.localBodyId,
-    values.localBodyLevel,
+    values.localBodies.length,
+    values.localBodyLevels.length,
+    values.wardIds.length,
   ]);
 
   useEffect(() => {
@@ -746,10 +801,10 @@ export default function StaffAccessConfigPage() {
           fetchUserScreenActions(),
           fetchRawUserScreenActions(),
         ]);
-        const localBodyScope = hasLocalBody
+        const localBodyScope = singleLocalBody
           ? {
-              localBodyType: values.localBodyLevel.replace(/_id$/, ""),
-              localBodyId: values.localBodyId,
+              localBodyType: singleLocalBody.level.replace(/_id$/, ""),
+              localBodyId: singleLocalBody.id,
               stateId: values.stateId,
               districtId: values.districtId,
               areaTypeId: values.areaTypeId,
@@ -818,8 +873,7 @@ export default function StaffAccessConfigPage() {
     loadedPermissionScopeKey,
     modules.length,
     permissionScopeKey,
-    values.localBodyLevel,
-    values.localBodyId,
+    values.localBodies,
     values.stateId,
     values.districtId,
     values.areaTypeId,
@@ -848,19 +902,83 @@ export default function StaffAccessConfigPage() {
     return record ? areaTypeCategoryFromName(String(record.name ?? "")) : null;
   }, [areaTypeRecords, values.areaTypeId]);
 
+  // Local Body Type options: filtered to the selected Area Type's category
+  // (urban/rural) once one is chosen; otherwise all five stay available —
+  // Area Type is an optional narrowing now, not a prerequisite.
   const availableLocalBodyLevels = useMemo(() => {
-    if (!selectedAreaTypeCategory) return [];
+    if (!selectedAreaTypeCategory) return LOCAL_BODY_LEVELS;
     const levels = AREA_TYPE_LEVELS[selectedAreaTypeCategory];
     return LOCAL_BODY_LEVELS.filter((level) => levels.includes(level.value));
   }, [selectedAreaTypeCategory]);
 
+  const localBodyLevelOptions = useMemo(
+    () => availableLocalBodyLevels.map((level) => ({ value: level.value, label: level.label })),
+    [availableLocalBodyLevels],
+  );
+
+  // Local Body options: every specific corporation/municipality/etc under
+  // any of the selected Local Body Types, scoped to the district — tagged
+  // with its level so selections across several types can be told apart.
   const localBodyOptions = useMemo(() => {
-    if (!values.localBodyLevel || !values.districtId) return [];
-    const records = localBodyRecords[values.localBodyLevel as LocalBodyLevel] ?? [];
-    return toOptions(
-      records.filter((record) => normalizeEntityId(record.district_id) === values.districtId),
-    );
-  }, [localBodyRecords, values.districtId, values.localBodyLevel]);
+    if (!values.localBodyLevels.length || !values.districtId) return [];
+    return values.localBodyLevels.flatMap((level) => {
+      const levelLabel = LOCAL_BODY_LEVELS.find((item) => item.value === level)?.label ?? level;
+      const records = (localBodyRecords[level] ?? []).filter(
+        (record) => normalizeEntityId(record.district_id) === values.districtId,
+      );
+      return toOptions(records).map((option) => ({
+        value: `${level}::${option.value}`,
+        label: `${levelLabel}: ${option.label}`,
+      }));
+    });
+  }, [localBodyRecords, values.districtId, values.localBodyLevels]);
+
+  const selectedLocalBodyValues = values.localBodies.map((body) => `${body.level}::${body.id}`);
+
+  // Ward options: every ward belonging to any of the selected local bodies
+  // (the API has no multi-parent filter, so this filters client-side —
+  // mirrors tripPlanForm.tsx's ward multi-select).
+  const wardsForLocalBodies = useCallback(
+    (localBodies: LocalBodySelection[]): ApiOptionRecord[] => {
+      if (!localBodies.length) return [];
+      const selectedKeys = new Set(localBodies.map((body) => `${body.level.replace(/_id$/, "")}:${body.id}`));
+      return wardRecords.filter((ward) => {
+        const record = ward as Record<string, unknown>;
+        const localBodyId = normalizeEntityId(
+          record.corporation_id ??
+            record.municipality_id ??
+            record.town_panchayat_id ??
+            record.panchayat_union_id ??
+            record.panchayat_id,
+        );
+        return selectedKeys.has(`${String(record.local_body_type ?? "")}:${localBodyId}`);
+      });
+    },
+    [wardRecords],
+  );
+
+  const wardOptions = useMemo(
+    () =>
+      toOptions(
+        wardsForLocalBodies(values.localBodies).map((ward) => ({
+          ...ward,
+          name: (ward as Record<string, unknown>).ward_name as string,
+        })),
+      ),
+    [values.localBodies, wardsForLocalBodies],
+  );
+
+  // Dropping a Local Body Type/Local Body must also drop any already-picked
+  // Ward that no longer belongs to a still-selected local body.
+  const intersectWardIds = useCallback(
+    (currentWardIds: string[], remainingLocalBodies: LocalBodySelection[]): string[] => {
+      const validIds = new Set(
+        wardsForLocalBodies(remainingLocalBodies).map((ward) => String(ward.unique_id ?? ward.id ?? "")),
+      );
+      return currentWardIds.filter((id) => validIds.has(id));
+    },
+    [wardsForLocalBodies],
+  );
 
   const tabFields = (tab: number) => {
     if (tab === 0) {
@@ -894,16 +1012,13 @@ export default function StaffAccessConfigPage() {
       return false;
     }
     if (tab === DATA_SCOPE_TAB) {
-      // The chosen government level decides the enforced access boundary.
-      // District roles stop at District and inherit every ULB/RLB under it;
-      // local-body roles must pick the concrete ULB/RLB local body.
+      // State and District are the only mandatory fields — selecting a
+      // District already grants everything beneath it. Area Type, Local
+      // Body Type, Local Body, and Ward are optional narrowing on top of
+      // that boundary, not prerequisites.
       const missing: string[] = [];
       if (!values.stateId) missing.push("State");
       if (!isStateScopeSelected && !values.districtId) missing.push("District");
-      if (isLocalBodyScopeRequired || isLocalBodyScopeStarted) {
-        if (!values.areaTypeId) missing.push("Area Type");
-        if (!values.localBodyLevel || !values.localBodyId) missing.push("Local Body");
-      }
       if (missing.length) {
         setStepError(`Select ${missing.join(", ")} to define this staff member's data scope.`);
         return false;
@@ -964,12 +1079,11 @@ export default function StaffAccessConfigPage() {
       locationNodes: values.locationNodeIds,
       stateId: values.stateId || null,
       districtId: isStateScopeSelected ? null : values.districtId || null,
-      areaTypeId: hasLocalBody ? values.areaTypeId || null : null,
-      areaTypeCategory: hasLocalBody ? selectedAreaTypeCategory : null,
-      localBodyLevel: (hasLocalBody && values.localBodyLevel
-        ? values.localBodyLevel
-        : null) as StaffAccessConfigPayload["dataScope"]["localBodyLevel"],
-      localBodyId: hasLocalBody ? values.localBodyId || null : null,
+      areaTypeId: isStateScopeSelected ? null : values.areaTypeId || null,
+      areaTypeCategory: isStateScopeSelected ? null : selectedAreaTypeCategory,
+      localBodyLevels: isStateScopeSelected ? [] : values.localBodyLevels,
+      localBodies: isStateScopeSelected ? [] : values.localBodies,
+      wardIds: isStateScopeSelected ? [] : values.wardIds,
     },
   });
 
@@ -1187,24 +1301,11 @@ export default function StaffAccessConfigPage() {
           Geographic scope
         </h4>
         <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          {isDistrictScopeSelected ? (
-            <>
-              Pick <b>State → District</b>. This is the access boundary: the staff member will see
-              every Urban Local Body and Rural Local Body under the selected district. To narrow the
-              same role further, optionally continue with Area Type → Local Body Type → Local Body.
-            </>
-          ) : (
-            <>
-              Pick the full path — <b>State → District → Area Type → Local Body Type → Local Body</b>.
-              This is the access boundary: the staff member will only see data under the local body you
-              choose. e.g. for a corporation admin/supervisor select
-            </>
-          )}
-          {!isDistrictScopeSelected && (
-            <>
-              <b> Tamil Nadu → Erode → Urban Local Body → Corporation → Erode Corporation</b>.
-            </>
-          )}
+          Pick <b>State → District</b> — that's the access boundary: the staff member will see every
+          Urban Local Body and Rural Local Body under the selected district. Area Type, Local Body
+          Type, Local Body, and Ward are all optional — use them only to narrow the same role down to
+          specific local bodies and/or wards within that district. You can pick several Local Body
+          Types and several Local Bodies (and Wards) at once.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -1218,8 +1319,9 @@ export default function StaffAccessConfigPage() {
                 setValue("stateId", value);
                 setValue("districtId", "");
                 setValue("areaTypeId", "");
-                setValue("localBodyLevel", "");
-                setValue("localBodyId", "");
+                setValue("localBodyLevels", []);
+                setValue("localBodies", []);
+                setValue("wardIds", []);
               }}
               options={stateOptions}
               placeholder="Select state"
@@ -1235,66 +1337,104 @@ export default function StaffAccessConfigPage() {
               onChange={(value) => {
                 setValue("districtId", value);
                 setValue("areaTypeId", "");
-                setValue("localBodyLevel", "");
-                setValue("localBodyId", "");
+                setValue("localBodyLevels", []);
+                setValue("localBodies", []);
+                setValue("wardIds", []);
               }}
               options={districtOptions}
               placeholder={values.stateId ? "Select district" : "Select a state first"}
               disabled={!values.stateId}
             />
           </div>
-          {shouldShowLocalBodyScope && (
-            <>
-              <div>
-                <Label htmlFor="areaTypeId">
-                  Area Type{isLocalBodyScopeRequired && <span className="text-red-500"> *</span>}
-                </Label>
-                <Select
-                  id="areaTypeId"
-                  value={values.areaTypeId}
-                  onChange={(value) => {
-                    setValue("areaTypeId", value);
-                    setValue("localBodyLevel", "");
-                    setValue("localBodyId", "");
-                  }}
-                  options={areaTypeOptions}
-                  placeholder={values.districtId ? "Select area type" : "Select a district first"}
-                  disabled={!values.districtId}
-                />
-              </div>
-              <div>
-                <Label htmlFor="localBodyLevel">
-                  Local Body Type{isLocalBodyScopeRequired && <span className="text-red-500"> *</span>}
-                </Label>
-                <Select
-                  id="localBodyLevel"
-                  value={values.localBodyLevel}
-                  onChange={(value) => {
-                    setValue("localBodyLevel", value as FormValues["localBodyLevel"]);
-                    setValue("localBodyId", "");
-                  }}
-                  options={availableLocalBodyLevels.map((level) => ({ value: level.value, label: level.label }))}
-                  placeholder={values.areaTypeId ? "Select local body type" : "Select an area type first"}
-                  disabled={!values.areaTypeId}
-                />
-              </div>
-            </>
-          )}
-          {shouldShowLocalBodyScope && values.localBodyLevel && (
-            <div className="md:col-span-2">
-              <Label htmlFor="localBodyId">
-                {LOCAL_BODY_LEVELS.find((level) => level.value === values.localBodyLevel)?.label}
-                {isLocalBodyScopeRequired && <span className="text-red-500"> *</span>}
-              </Label>
-              <Select
-                id="localBodyId"
-                value={values.localBodyId}
-                onChange={(value) => setValue("localBodyId", value)}
-                options={localBodyOptions}
-                placeholder="Select"
-              />
-            </div>
-          )}
+          <div>
+            <Label htmlFor="areaTypeId">Area Type</Label>
+            <Select
+              id="areaTypeId"
+              value={values.areaTypeId}
+              onChange={(value) => {
+                setValue("areaTypeId", value);
+                setValue("localBodyLevels", []);
+                setValue("localBodies", []);
+                setValue("wardIds", []);
+              }}
+              options={areaTypeOptions}
+              placeholder={values.districtId ? "Select area type" : "Select a district first"}
+              disabled={!values.districtId}
+            />
+          </div>
+          <div>
+            <Label htmlFor="localBodyLevels">Local Body Type</Label>
+            <MultiSelect
+              inputId="localBodyLevels"
+              value={values.localBodyLevels}
+              onChange={(event) => {
+                const nextLevels = (Array.isArray(event.value) ? event.value : []) as LocalBodyLevel[];
+                setValue("localBodyLevels", nextLevels);
+                const nextLocalBodies = values.localBodies.filter((body) => nextLevels.includes(body.level));
+                setValue("localBodies", nextLocalBodies);
+                setValue("wardIds", intersectWardIds(values.wardIds, nextLocalBodies));
+              }}
+              options={localBodyLevelOptions}
+              optionLabel="label"
+              optionValue="value"
+              maxSelectedLabels={3}
+              filter
+              placeholder={values.districtId ? "Select local body type(s)" : "Select a district first"}
+              disabled={!values.districtId}
+              className={MULTISELECT_CLASS}
+              pt={MULTISELECT_PT}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor="localBodies">Local Body</Label>
+            <MultiSelect
+              inputId="localBodies"
+              value={selectedLocalBodyValues}
+              onChange={(event) => {
+                const rawValues = (Array.isArray(event.value) ? event.value : []) as string[];
+                const nextLocalBodies = rawValues
+                  .map((raw) => {
+                    const [level, id] = raw.split("::");
+                    return { level: level as LocalBodyLevel, id };
+                  })
+                  .filter((body) => body.id);
+                setValue("localBodies", nextLocalBodies);
+                setValue("wardIds", intersectWardIds(values.wardIds, nextLocalBodies));
+              }}
+              options={localBodyOptions}
+              optionLabel="label"
+              optionValue="value"
+              maxSelectedLabels={3}
+              filter
+              placeholder={values.localBodyLevels.length ? "Select local body/bodies" : "Select a local body type first"}
+              disabled={!values.localBodyLevels.length}
+              className={MULTISELECT_CLASS}
+              pt={MULTISELECT_PT}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <Label htmlFor="wardIds">Ward</Label>
+            <MultiSelect
+              inputId="wardIds"
+              value={values.wardIds}
+              onChange={(event) => {
+                const raw = Array.isArray(event.value) ? event.value : [];
+                setValue(
+                  "wardIds",
+                  raw.map((v) => (v && typeof v === "object" ? String((v as { value?: string }).value ?? "") : String(v))),
+                );
+              }}
+              options={wardOptions}
+              optionLabel="label"
+              optionValue="value"
+              maxSelectedLabels={3}
+              filter
+              placeholder={values.localBodies.length ? "Select ward(s)" : "Select a local body first"}
+              disabled={!values.localBodies.length}
+              className={MULTISELECT_CLASS}
+              pt={MULTISELECT_PT}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -1327,9 +1467,14 @@ export default function StaffAccessConfigPage() {
 
   const roleLabel = labelFromOptions(governmentRoleOptions, values.governmentUserTypeId);
   const userTypeLabel = labelFromOptions(userTypeOptions, values.userTypeId);
-  const localBodyLevelLabel =
-    LOCAL_BODY_LEVELS.find((level) => level.value === values.localBodyLevel)?.label || "";
-  const localBodyLabel = labelFromOptions(localBodyOptions, values.localBodyId);
+  const localBodyTypeLabels = values.localBodyLevels
+    .map((level) => LOCAL_BODY_LEVELS.find((item) => item.value === level)?.label ?? level)
+    .join(", ");
+  const localBodyLabels = selectedLocalBodyValues
+    .map((value) => labelFromOptions(localBodyOptions, value))
+    .filter(Boolean)
+    .join(", ");
+  const wardLabels = labelsFromOptions(wardOptions, values.wardIds);
   const enabledScreens = modules.flatMap((module) =>
     module.enabled
       ? module.screens
@@ -1428,13 +1573,14 @@ export default function StaffAccessConfigPage() {
           {reviewRow("Access boundary", dataScopeBoundaryLabel)}
           {reviewRow("State", labelFromOptions(stateOptions, values.stateId))}
           {!isStateScopeSelected && reviewRow("District", labelFromOptions(districtOptions, values.districtId))}
+          {!isStateScopeSelected && values.areaTypeId && reviewRow("Area type", labelFromOptions(areaTypeOptions, values.areaTypeId))}
           {hasLocalBody && (
             <>
-              {reviewRow("Area type", labelFromOptions(areaTypeOptions, values.areaTypeId))}
-              {reviewRow("Local body type", localBodyLevelLabel)}
-              {reviewRow(localBodyLevelLabel || "Local body", localBodyLabel)}
+              {reviewRow("Local body type", localBodyTypeLabels)}
+              {reviewRow("Local body", localBodyLabels)}
             </>
           )}
+          {values.wardIds.length > 0 && reviewRow("Ward", wardLabels)}
         </>,
       )}
 

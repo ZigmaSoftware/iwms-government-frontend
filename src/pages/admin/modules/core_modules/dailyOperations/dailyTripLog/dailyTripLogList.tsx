@@ -543,6 +543,7 @@ export default function DailyTripLogList() {
     _base_template: rec.staff_template?.base?.display_code ?? "",
     _alt_template: rec.staff_template?.alt?.display_code ?? "",
     _location: rec.location?.local_body_name ?? rec.location_name ?? rec.panchayat?.panchayat_name ?? "",
+    _ward: rec.wards_detail?.map((ward) => ward.ward_name).filter(Boolean).join(", ") ?? "",
     _driver: rec.driver?.employee_name ?? "",
     _operator: rec.operator?.employee_name ?? "",
     _vehicle: (rec.vehicle as any)?.vehicle_no ?? "",
@@ -765,6 +766,7 @@ export default function DailyTripLogList() {
           District: rec.location?.district ?? "-",
           "Local Body": rec.location?.local_body_name ?? "-",
           "Local Body Level": rec.location?.local_body_level ?? "-",
+          Ward: rec.wards_detail?.map((ward) => ward.ward_name).filter(Boolean).join(", ") || "-",
           Driver: rec.driver?.employee_name ?? "-",
           Operator: rec.operator?.employee_name ?? "-",
           Vehicle: (rec.vehicle as any)?.vehicle_no ?? "-",
@@ -964,6 +966,7 @@ export default function DailyTripLogList() {
           "unique_id",
           "_assignment",
           "_location",
+          "_ward",
           "_waste",
           "_base_template",
           "_alt_template",
@@ -1020,6 +1023,14 @@ export default function DailyTripLogList() {
               </div>
             );
           }}
+        />
+        <Column
+          field="_ward"
+          header="Ward"
+          sortable
+          filter
+          showFilterMatchModes={false}
+          style={{ minWidth: 150 }}
         />
         <Column
           field="_base_template"

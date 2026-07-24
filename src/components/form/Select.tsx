@@ -11,6 +11,7 @@ import {
 export type SelectOption = {
   value: string | number;
   label: ReactNode;
+  disabled?: boolean;
 };
 
 interface SelectProps {
@@ -96,7 +97,7 @@ export default function Select({
           </SelectItem>
         )}
         {options.map((option) => (
-          <SelectItem key={option.value} value={String(option.value)}>
+          <SelectItem key={option.value} value={String(option.value)} disabled={option.disabled}>
             {option.label}
           </SelectItem>
         ))}

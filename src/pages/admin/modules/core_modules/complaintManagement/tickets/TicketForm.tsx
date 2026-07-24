@@ -23,6 +23,7 @@ import type { GeoOption, LocalBodyOption, LocalBodyType } from "@/features/compl
 import { asArray, errorText } from "../utils";
 import { ticketSchema } from "@/schemas/core_modules/complaintManagement/ticket.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
+import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 
 const LOCAL_BODY_TYPES: LocalBodyType[] = [
   "corporation",
@@ -155,6 +156,71 @@ export default function TicketWizardForm() {
     geoApi.states().then(setStates).catch(() => setStates([]));
     geoApi.districts().then(setDistricts).catch(() => setDistricts([]));
   }, []);
+
+  // Data Scope — when the logged-in staff's own scope pins a level to
+  // exactly one value, that field shows pre-filled and non-editable instead
+  // of an editable dropdown. Several scoped values (or none) leave the
+  // field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const cityTypeScopes: Record<LocalBodyType, ReturnType<typeof scopeFieldState>> = {
+    corporation: scopeFieldState("corporation"),
+    municipality: scopeFieldState("municipality"),
+    town_panchayat: scopeFieldState("town_panchayat"),
+    panchayat_union: scopeFieldState("panchayat_union"),
+    panchayat: scopeFieldState("panchayat"),
+  };
+  const lockedCityType = LOCAL_BODY_TYPES.find((type) => cityTypeScopes[type].mode === "locked");
+  const cityScope = form.city_type ? cityTypeScopes[form.city_type] : null;
+
+  useEffect(() => {
+    const patch: Partial<typeof form> = {};
+    if (stateScope.mode === "locked" && !form.state) patch.state = stateScope.options[0].value;
+    if (districtScope.mode === "locked" && !form.district) patch.district = districtScope.options[0].value;
+    if (areaTypeScope.mode === "locked" && !form.area_type) patch.area_type = areaTypeScope.options[0].value;
+    if (lockedCityType && !form.city_type) patch.city_type = lockedCityType;
+    if (Object.keys(patch).length) setForm((prev) => ({ ...prev, ...patch }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stateScope.mode,
+    districtScope.mode,
+    areaTypeScope.mode,
+    lockedCityType,
+    form.state,
+    form.district,
+    form.area_type,
+    form.city_type,
+  ]);
+
+  // Area types / local bodies are re-fetched off the current district / area
+  // type / local-body-type values regardless of whether they were set by
+  // the user or by the Data Scope autofill above.
+  useEffect(() => {
+    if (!form.district) {
+      setAreaTypes([]);
+      return;
+    }
+    let cancelled = false;
+    geoApi.areaTypes(form.district).then((rows) => { if (!cancelled) setAreaTypes(rows); }).catch(() => { if (!cancelled) setAreaTypes([]); });
+    return () => { cancelled = true; };
+  }, [form.district]);
+
+  useEffect(() => {
+    if (!form.district || !form.area_type || !form.city_type) {
+      setCities([]);
+      return;
+    }
+    let cancelled = false;
+    geoApi.localBodies(form.district, form.area_type, form.city_type).then((rows) => { if (!cancelled) setCities(rows); }).catch(() => { if (!cancelled) setCities([]); });
+    return () => { cancelled = true; };
+  }, [form.district, form.area_type, form.city_type]);
+
+  useEffect(() => {
+    if (cityScope?.mode === "locked" && !form.city && cities.some((item) => item.unique_id === cityScope.options[0].value)) {
+      setForm((prev) => ({ ...prev, city: cityScope.options[0].value }));
+    }
+  }, [cityScope, form.city, cities]);
 
   const setValue = (key: keyof typeof form, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
   const toggleWasteType = (id: string) =>

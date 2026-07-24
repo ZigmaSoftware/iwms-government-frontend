@@ -119,6 +119,9 @@ export default function DailyTripCollectionPointList() {
             _bin: nestedText(binObj, ["bin_name", "name"]) !== "-"
               ? nestedText(binObj, ["bin_name", "name"])
               : text(row.bin_id),
+            _ward: Array.isArray(collectionPt?.wards)
+              ? collectionPt.wards.map((ward: NamedRef) => nestedText(ward, ["ward_name"])).join(", ")
+              : text(row.ward_name),
             _waste_type: nestedText(wasteType, ["waste_type_name", "name"]),
           };
         }),
@@ -176,13 +179,14 @@ export default function DailyTripCollectionPointList() {
         stripedRows
         showGridlines
         emptyMessage="No daily trip collection points found."
-        globalFilterFields={["unique_id", "_trip", "_collection_point", "_bin", "_waste_type", "status"]}
+        globalFilterFields={["unique_id", "_trip", "_collection_point", "_bin", "_ward", "_waste_type", "status"]}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={(_, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: 60 }} />
         <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} style={{ minWidth: 150 }} />
         <Column field="_trip" header="Trip" sortable filter showFilterMatchModes={false} style={{ minWidth: 170 }} />
         <Column field="_collection_point" header="Collection Point" sortable filter showFilterMatchModes={false} style={{ minWidth: 180 }} />
+        <Column field="_ward" header="Ward" sortable filter showFilterMatchModes={false} style={{ minWidth: 140 }} />
         <Column field="_bin" header="Bin" sortable filter showFilterMatchModes={false} />
         <Column field="_waste_type" header="Waste Type" sortable />
         <Column field="sequence" header="Seq" sortable style={{ width: 90 }} />

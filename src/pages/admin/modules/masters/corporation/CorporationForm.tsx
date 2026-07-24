@@ -30,6 +30,7 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../shared/dataScopeOptions";
 import { corporationSchema, type CorporationFormValues } from "@/schemas/masters/corporation.schema";
@@ -168,6 +169,28 @@ function CorporationEditor({
 
   const stateId = watch("state_id");
   const districtId = watch("district_id");
+  const areaTypeId = watch("area_type_id");
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) {
+      setValue("state_id", stateScope.options[0].value);
+    }
+    if (districtScope.mode === "locked" && !districtId) {
+      setValue("district_id", districtScope.options[0].value);
+    }
+    if (areaTypeScope.mode === "locked" && !areaTypeId) {
+      setValue("area_type_id", areaTypeScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, stateId, districtId, areaTypeId]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -220,7 +243,7 @@ function CorporationEditor({
                     setValue("district_id", "");
                     setValue("area_type_id", "");
                   }}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || stateScope.mode === "locked"}
                 >
                   <SelectTrigger className="input-validate w-full" id="stateId">
                     <SelectValue placeholder="Select State" />
@@ -254,7 +277,7 @@ function CorporationEditor({
                     field.onChange(value);
                     setValue("area_type_id", "");
                   }}
-                  disabled={isSubmitting || !stateId}
+                  disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
                 >
                   <SelectTrigger className="input-validate w-full" id="districtId">
                     <SelectValue placeholder="Select District" />
@@ -285,7 +308,7 @@ function CorporationEditor({
                 <Select
                   value={field.value ?? ""}
                   onValueChange={field.onChange}
-                  disabled={isSubmitting || !districtId}
+                  disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
                 >
                   <SelectTrigger className="input-validate w-full" id="areaTypeId">
                     <SelectValue placeholder="Select Area Type" />

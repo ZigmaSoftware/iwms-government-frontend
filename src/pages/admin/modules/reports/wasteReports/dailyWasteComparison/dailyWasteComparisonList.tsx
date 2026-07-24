@@ -46,7 +46,7 @@ import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
-import { scopeOption, type ScopeLevel } from "../../../masters/shared/dataScopeOptions";
+import { scopeOption, scopeFieldState, type ScopeLevel } from "../../../masters/shared/dataScopeOptions";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -132,6 +132,15 @@ const localBodyLevels: Array<{ value: LocalBodyLevel; label: string }> = [
 const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyLevel[]> = {
   urban: ["corporation_id", "municipality_id", "town_panchayat_id"],
   rural: ["panchayat_union_id", "panchayat_id"],
+};
+
+/** Maps each local-body filter level to the ScopeLevel that gates it. */
+const LOCAL_BODY_SCOPE_LEVEL: Record<LocalBodyLevel, ScopeLevel> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
 };
 
 const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
@@ -371,6 +380,23 @@ export default function DailyWasteComparisonList() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that filter field shows pre-filled and disabled rather than an
+  // editable dropdown — they can't see data outside their own scope anyway.
+  // Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScope = localBodyLevel ? scopeFieldState(LOCAL_BODY_SCOPE_LEVEL[localBodyLevel]) : null;
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    if (localBodyScope?.mode === "locked" && !localBodyId) setLocalBodyId(localBodyScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope?.mode, stateId, districtId, areaTypeId, localBodyId]);
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
@@ -655,9 +681,11 @@ export default function DailyWasteComparisonList() {
   };
 
   const clearLocalBodyFilter = () => {
-    setStateId("");
-    setDistrictId("");
-    setAreaTypeId("");
+    // A locked field can't be cleared to blank — it snaps back to the
+    // user's own scoped value instead of leaving a disabled, empty select.
+    setStateId(stateScope.mode === "locked" ? stateScope.options[0].value : "");
+    setDistrictId(districtScope.mode === "locked" ? districtScope.options[0].value : "");
+    setAreaTypeId(areaTypeScope.mode === "locked" ? areaTypeScope.options[0].value : "");
     setAreaTypeCategory("");
     setLocalBodyLevel("");
     setLocalBodyId("");
@@ -810,6 +838,7 @@ export default function DailyWasteComparisonList() {
                 setLocalBodyId("");
               }}
               placeholder="Select state"
+              disabled={stateScope.mode === "locked"}
               options={toGeoOptions(states)}
             />
             <FilterSelect
@@ -822,7 +851,7 @@ export default function DailyWasteComparisonList() {
                 setLocalBodyId("");
               }}
               placeholder={stateId ? "Select district" : "Select a state first"}
-              disabled={!stateId}
+              disabled={!stateId || districtScope.mode === "locked"}
               options={toGeoOptions(filteredDistricts)}
             />
             <FilterSelect
@@ -835,7 +864,7 @@ export default function DailyWasteComparisonList() {
                 setLocalBodyId("");
               }}
               placeholder={districtId ? "Select area type" : "Select a district first"}
-              disabled={!districtId}
+              disabled={!districtId || areaTypeScope.mode === "locked"}
               options={toGeoOptions(filteredAreaTypes)}
             />
             <FilterSelect
@@ -856,7 +885,7 @@ export default function DailyWasteComparisonList() {
                   ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}`
                   : "Select a local body type first"
               }
-              disabled={!localBodyLevel}
+              disabled={!localBodyLevel || localBodyScope?.mode === "locked"}
               options={localBodyOptions}
             />
           </div>

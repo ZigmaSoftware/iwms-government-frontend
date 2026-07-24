@@ -26,7 +26,7 @@ export default function GeoHierarchyFields({ geo, required, disabled }: GeoHiera
           onChange={(v) => geo.setStateId(String(v))}
           options={geo.stateOptions}
           placeholder="Select State"
-          disabled={disabled}
+          disabled={disabled || geo.stateScope.mode === "locked"}
         />
       </div>
 
@@ -37,7 +37,7 @@ export default function GeoHierarchyFields({ geo, required, disabled }: GeoHiera
           onChange={(v) => geo.setDistrictId(String(v))}
           options={geo.districtOptions}
           placeholder={geo.stateId ? "Select District" : "Select a State first"}
-          disabled={disabled || !geo.stateId}
+          disabled={disabled || !geo.stateId || geo.districtScope.mode === "locked"}
         />
       </div>
 
@@ -48,7 +48,7 @@ export default function GeoHierarchyFields({ geo, required, disabled }: GeoHiera
           onChange={(v) => geo.setAreaTypeId(String(v))}
           options={geo.areaTypeOptions}
           placeholder={geo.districtId ? "Select Area Type" : "Select a District first"}
-          disabled={disabled || !geo.districtId}
+          disabled={disabled || !geo.districtId || geo.areaTypeScope.mode === "locked"}
         />
       </div>
 
@@ -73,7 +73,7 @@ export default function GeoHierarchyFields({ geo, required, disabled }: GeoHiera
           onChange={(v) => geo.setHierarchyId(String(v))}
           options={geo.hierarchyOptions}
           placeholder="Select"
-          disabled={disabled || !geo.areaTypeCategory}
+          disabled={disabled || !geo.areaTypeCategory || geo.hierarchyScope.mode === "locked"}
         />
       </div>
     </>

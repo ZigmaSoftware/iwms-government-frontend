@@ -30,6 +30,7 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../shared/dataScopeOptions";
 
@@ -147,6 +148,21 @@ function PanchayatEditor({
   const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, stateId, districtId, areaTypeId]);
+
   const filteredDistricts = useMemo(
     () =>
       districts.filter(
@@ -215,7 +231,7 @@ function PanchayatEditor({
                 setDistrictId("");
                 setAreaTypeId("");
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || stateScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="stateId">
                 <SelectValue placeholder="Select State" />
@@ -242,7 +258,7 @@ function PanchayatEditor({
                 setDistrictId(value);
                 setAreaTypeId("");
               }}
-              disabled={isSubmitting || !stateId}
+              disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="districtId">
                 <SelectValue placeholder="Select District" />
@@ -266,7 +282,7 @@ function PanchayatEditor({
             <Select
               value={areaTypeId}
               onValueChange={setAreaTypeId}
-              disabled={isSubmitting || !districtId}
+              disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="areaTypeId">
                 <SelectValue placeholder="Select Area Type" />

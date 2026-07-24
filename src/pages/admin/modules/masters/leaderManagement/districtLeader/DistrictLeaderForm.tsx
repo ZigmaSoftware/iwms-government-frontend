@@ -22,7 +22,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { districtApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { mergeWithScopeOption } from "../../shared/dataScopeOptions";
+import { mergeWithScopeOption, scopeFieldState } from "../../shared/dataScopeOptions";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { buildDistrictLeaderSchema } from "@/schemas/masters/leaderManagement/districtLeader.schema";
 
@@ -97,6 +97,18 @@ function DistrictLeaderEditor({
   );
   const [districtTakenBy, setDistrictTakenBy] = useState<string | null>(null);
   const [checkingDistrict, setCheckingDistrict] = useState(false);
+
+  // When the logged-in user's own Data Scope pins district to exactly one
+  // value, the District field shows pre-filled and disabled rather than an
+  // editable dropdown.
+  const districtScope = scopeFieldState("district");
+
+  useEffect(() => {
+    if (districtScope.mode === "locked" && !formData.district_id) {
+      setFormData((prev) => ({ ...prev, district_id: districtScope.options[0].value }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [districtScope.mode, formData.district_id]);
 
   // Apply pending district_id once options are loaded
   useEffect(() => {
@@ -199,7 +211,7 @@ function DistrictLeaderEditor({
                 setPendingDistrictId(null);
                 setDistrictTakenBy(null);
               }}
-              disabled={isSubmitting || loadingDistricts}
+              disabled={isSubmitting || loadingDistricts || districtScope.mode === "locked"}
             >
               <SelectTrigger className="w-full" id="district_id">
                 <SelectValue

@@ -27,7 +27,7 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
-import { mergeWithScopeOptionExtra, scopeOption } from "../shared/dataScopeOptions";
+import { mergeWithScopeOptionExtra, scopeFieldState, scopeOption } from "../shared/dataScopeOptions";
 
 type Option = {
   value: string;
@@ -134,6 +134,23 @@ function AreaTypeEditor({
   const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) {
+      setStateId(stateScope.options[0].value);
+    }
+    if (districtScope.mode === "locked" && !districtId) {
+      setDistrictId(districtScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, stateId, districtId]);
+
   const filteredDistricts = useMemo(
     () =>
       districts.filter(
@@ -188,7 +205,7 @@ function AreaTypeEditor({
                 setStateId(value);
                 setDistrictId("");
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || stateScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="stateId">
                 <SelectValue placeholder="Select State" />
@@ -212,7 +229,7 @@ function AreaTypeEditor({
             <Select
               value={districtId}
               onValueChange={setDistrictId}
-              disabled={isSubmitting || !stateId}
+              disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="districtId">
                 <SelectValue placeholder="Select District" />

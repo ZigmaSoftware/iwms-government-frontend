@@ -41,6 +41,7 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../../shared/dataScopeOptions";
 import type { ScopeLevel } from "../../shared/dataScopeOptions";
@@ -787,6 +788,85 @@ function CustomerEditor({
   };
 
   /* ===============================
+     DATA SCOPE — LOCK FIELDS THE USER IS PINNED TO
+     When the logged-in staff's own Data Scope holds exactly one value at a
+     level, that field shows pre-filled and non-editable instead of an
+     editable dropdown. Several scoped values (or none) leave the field as
+     it behaves today.
+  ================================ */
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const wardScope = scopeFieldState("ward");
+  const hierarchyScopeByLevel: Record<HierarchyLevel, ReturnType<typeof scopeFieldState>> = {
+    corporation_id: scopeFieldState("corporation"),
+    municipality_id: scopeFieldState("municipality"),
+    town_panchayat_id: scopeFieldState("town_panchayat"),
+    panchayat_union_id: scopeFieldState("panchayat_union"),
+    panchayat_id: scopeFieldState("panchayat"),
+  };
+  const lockedHierarchyLevel = (Object.keys(hierarchyScopeByLevel) as HierarchyLevel[]).find(
+    (level) => hierarchyScopeByLevel[level].mode === "locked",
+  );
+  const lockedHierarchyScope = lockedHierarchyLevel
+    ? hierarchyScopeByLevel[lockedHierarchyLevel]
+    : null;
+  const lockedHierarchyAreaKind = lockedHierarchyLevel
+    ? ((Object.entries(areaTypeHierarchyMap) as Array<[AreaType, HierarchyLevel[]]>).find(
+        ([, levels]) => levels.includes(lockedHierarchyLevel),
+      )?.[0] ?? undefined)
+    : undefined;
+  const hierarchyScope = selectedHierarchyType
+    ? hierarchyScopeByLevel[selectedHierarchyType as HierarchyLevel]
+    : null;
+
+  useEffect(() => {
+    const patch: Partial<FormDataType> = {};
+    if (stateScope.mode === "locked" && !formData.state_id) {
+      patch.state_id = stateScope.options[0].value;
+    }
+    if (districtScope.mode === "locked" && !formData.district_id) {
+      patch.district_id = districtScope.options[0].value;
+    }
+    if (areaTypeScope.mode === "locked" && !formData.area_type_id) {
+      patch.area_type_id = areaTypeScope.options[0].value;
+    }
+    if (lockedHierarchyLevel && lockedHierarchyScope && !formData[lockedHierarchyLevel]) {
+      patch[lockedHierarchyLevel] = lockedHierarchyScope.options[0].value;
+    }
+    if (wardScope.mode === "locked" && !formData.ward_id) {
+      patch.ward_id = wardScope.options[0].value;
+    }
+    if (Object.keys(patch).length) {
+      setFormData((prev) => ({ ...prev, ...patch }));
+    }
+    if (lockedHierarchyLevel && !selectedHierarchyType) {
+      setSelectedHierarchyType(lockedHierarchyLevel);
+    }
+    if (lockedHierarchyAreaKind && !selectedAreaType) {
+      setSelectedAreaType(lockedHierarchyAreaKind);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stateScope.mode,
+    districtScope.mode,
+    areaTypeScope.mode,
+    wardScope.mode,
+    lockedHierarchyLevel,
+    formData.state_id,
+    formData.district_id,
+    formData.area_type_id,
+    formData.corporation_id,
+    formData.municipality_id,
+    formData.town_panchayat_id,
+    formData.panchayat_union_id,
+    formData.panchayat_id,
+    formData.ward_id,
+    selectedHierarchyType,
+    selectedAreaType,
+  ]);
+
+  /* ===============================
      COMPUTED OPTIONS
   ================================ */
   const filteredStates = useMemo(
@@ -884,11 +964,12 @@ function CustomerEditor({
             label: String(ward.ward_name ?? ward.unique_id ?? ""),
           }))
           .filter((option) => option.value);
-        setWardOptions(options);
+        const merged = mergeWithScopeOptionExtra(options, "ward", {});
+        setWardOptions(merged);
         setFormData((current) => ({
           ...current,
           ward_id:
-            current.ward_id && options.some((option) => option.value === current.ward_id)
+            current.ward_id && merged.some((option) => option.value === current.ward_id)
               ? current.ward_id
               : "",
         }));
@@ -1497,6 +1578,7 @@ function CustomerEditor({
                 label: s.name || s.state_name || resolveId(s),
               }))}
               placeholder="Select state"
+              disabled={stateScope.mode === "locked"}
             />
             <ShadcnSelect
               label="District"
@@ -1522,7 +1604,7 @@ function CustomerEditor({
                 label: d.name || d.district_name || resolveId(d),
               }))}
               placeholder={formData.state_id ? "Select district" : "Select a state first"}
-              disabled={!formData.state_id}
+              disabled={!formData.state_id || districtScope.mode === "locked"}
             />
             <ShadcnSelect
               label="Area Type"
@@ -1560,7 +1642,7 @@ function CustomerEditor({
                 label: areaType.name || areaType.area_type_name || resolveId(areaType),
               }))}
               placeholder={formData.district_id ? "Select area type" : "Select a district first"}
-              disabled={!formData.district_id}
+              disabled={!formData.district_id || areaTypeScope.mode === "locked"}
             />
             <ShadcnSelect
               label="Local Body"
@@ -1571,7 +1653,7 @@ function CustomerEditor({
                 label: level.label,
               }))}
               placeholder={selectedAreaType ? "Select local body type" : "Select an area type first"}
-              disabled={!selectedAreaType}
+              disabled={!selectedAreaType || Boolean(lockedHierarchyLevel)}
             />
             {selectedHierarchyType && (
               <div>
@@ -1584,6 +1666,7 @@ function CustomerEditor({
                   onChange={(v) => setHierarchyValue(selectedHierarchyType as HierarchyLevel, v)}
                   options={destinationOptions}
                   placeholder="Select"
+                  disabled={hierarchyScope?.mode === "locked"}
                 />
               </div>
             )}
@@ -1593,7 +1676,7 @@ function CustomerEditor({
               onChange={(v) => update("ward_id", v)}
               options={wardOptions}
               placeholder={selectedHierarchyId ? "Select ward" : "Select a local body first"}
-              disabled={!selectedHierarchyId}
+              disabled={!selectedHierarchyId || wardScope.mode === "locked"}
             />
             {isIndividual && (
               <>

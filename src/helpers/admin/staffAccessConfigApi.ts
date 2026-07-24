@@ -1,6 +1,7 @@
 import { api } from "@/api";
 import type {
   DashboardWidget,
+  LocalBodyLevel,
   ModulePermission,
   StaffAccessConfigPayload,
   StaffAccessConfigPreviewResponse,
@@ -157,11 +158,15 @@ export type StaffAccessConfigRecord = Record<string, unknown> & {
   permissions?: Array<RawModule>;
   dashboardPermissions?: DashboardWidget[];
   dataScope?: Partial<StaffAccessConfigPayload["dataScope"]> & {
-    corporationId?: string | null;
-    municipalityId?: string | null;
-    townPanchayatId?: string | null;
-    panchayatUnionId?: string | null;
-    panchayatId?: string | null;
+    corporationIds?: string[];
+    municipalityIds?: string[];
+    townPanchayatIds?: string[];
+    panchayatUnionIds?: string[];
+    panchayatIds?: string[];
+    wardIds?: string[];
+    /** Backward-compatible single value, populated only when the staff has exactly one local body in total. */
+    localBodyLevel?: LocalBodyLevel | null;
+    localBodyId?: string | null;
   };
 };
 
@@ -295,6 +300,11 @@ export const mapPermissionModules = (
     .filter((module) => module.mainScreenId);
 };
 
+const idsForLevel = (
+  localBodies: StaffAccessConfigPayload["dataScope"]["localBodies"],
+  level: LocalBodyLevel,
+): string[] => localBodies.filter((body) => body.level === level).map((body) => body.id);
+
 const toBackendPayload = (payload: StaffAccessConfigPayload) => {
   return {
     basicInfo: {
@@ -335,16 +345,12 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
       stateId: payload.dataScope.stateId,
       districtId: payload.dataScope.districtId,
       areaTypeId: payload.dataScope.areaTypeId,
-      corporationId:
-        payload.dataScope.localBodyLevel === "corporation_id" ? payload.dataScope.localBodyId : null,
-      municipalityId:
-        payload.dataScope.localBodyLevel === "municipality_id" ? payload.dataScope.localBodyId : null,
-      townPanchayatId:
-        payload.dataScope.localBodyLevel === "town_panchayat_id" ? payload.dataScope.localBodyId : null,
-      panchayatUnionId:
-        payload.dataScope.localBodyLevel === "panchayat_union_id" ? payload.dataScope.localBodyId : null,
-      panchayatId:
-        payload.dataScope.localBodyLevel === "panchayat_id" ? payload.dataScope.localBodyId : null,
+      corporationIds: idsForLevel(payload.dataScope.localBodies, "corporation_id"),
+      municipalityIds: idsForLevel(payload.dataScope.localBodies, "municipality_id"),
+      townPanchayatIds: idsForLevel(payload.dataScope.localBodies, "town_panchayat_id"),
+      panchayatUnionIds: idsForLevel(payload.dataScope.localBodies, "panchayat_union_id"),
+      panchayatIds: idsForLevel(payload.dataScope.localBodies, "panchayat_id"),
+      wardIds: payload.dataScope.wardIds ?? [],
     },
   };
 };
@@ -386,7 +392,7 @@ const normalizePreviewResponse = (
         selectedPermissionCount,
       scopeLabel:
         response?.summary?.scopeLabel ??
-        (payload.dataScope.localBodyId || payload.dataScope.districtId
+        (payload.dataScope.localBodies.length || payload.dataScope.districtId
           ? "Location scoped"
           : "No location scope"),
     },

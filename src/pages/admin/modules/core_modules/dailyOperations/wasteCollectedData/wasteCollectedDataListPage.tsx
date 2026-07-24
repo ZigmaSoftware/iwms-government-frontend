@@ -122,6 +122,7 @@ export default function WasteCollectedDataList() {
     return [
       row.customer_name, row.contact_no, row.district_name, row.area_type_name,
       row.location_name, row.status, row.collection_date, row.vehicle?.vehicle_no,
+      row.ward_name, row.ward_id,
     ].some((value) => String(value ?? "").toLowerCase().includes(search));
   }), [dateFilter, globalFilterValue, wasteCollections]);
 
@@ -144,6 +145,7 @@ export default function WasteCollectedDataList() {
     District: row.district_name ?? "-",
     "Area Type": row.area_type_name ?? "-",
     "Local Body": row.location_name ?? "-",
+    Ward: row.ward_name ?? row.ward_id ?? "-",
     Vehicle: row.vehicle?.vehicle_no ?? "-",
   }));
 

@@ -50,5 +50,7 @@ export type BinCERecord = {
   panchayat_name?: string | null;
   location_name?: string | null;
   location_level?: string | null;
+  ward_id?: string | null;
+  ward_name?: string | null;
   [key: string]: unknown;
 };

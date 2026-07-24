@@ -10,6 +10,8 @@ export type DailyTripCollectionPointRecord = {
   trip_assignment?: NamedRef;
   collection_point_id?: string;
   collection_point?: NamedRef;
+  ward_id?: string | null;
+  ward_name?: string | null;
   bin_id?: string;
   bin?: NamedRef;
   collected_by?: string | null;

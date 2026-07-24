@@ -123,6 +123,7 @@ export default function BinCollectionEventList() {
         _waste_type: r.waste_type?.waste_type_name ?? "-",
         _vehicle: r.vehicle?.vehicle_no ?? "-",
         _location: r.location_name ?? r.panchayat_name ?? r.panchayat_id ?? "-",
+        _ward: r.ward_name ?? r.ward_id ?? "-",
         _status: r.status ?? "-",
         collection_date: r.collection_date ?? "",
       })),
@@ -132,7 +133,7 @@ export default function BinCollectionEventList() {
   /* ── apply filters locally to get the visible subset ─────────────────────
      PrimeReact filters internally but doesn't expose the result. We replicate
      the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_location", "_status", "collection_date"] as const;
+  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_location", "_ward", "_status", "collection_date"] as const;
   type FilterableField = (typeof GLOBAL_FIELDS)[number];
   const isFilterableField = (field: string): field is FilterableField =>
     (GLOBAL_FIELDS as readonly string[]).includes(field);
@@ -174,6 +175,7 @@ export default function BinCollectionEventList() {
     "Trip Plan": row._trip_plan,
     "Collection Point": row._collection_point,
     "Local Body": row._location,
+    Ward: row._ward,
     Bin: row._bin,
     "Waste Type": row._waste_type,
     Vehicle: row._vehicle,
