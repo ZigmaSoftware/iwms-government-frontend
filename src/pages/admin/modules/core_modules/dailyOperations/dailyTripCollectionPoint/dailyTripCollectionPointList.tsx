@@ -63,10 +63,10 @@ const extractError = (error: unknown): string | null => {
 export default function DailyTripCollectionPointList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { encScheduleOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripCollectionPoint);
+  const { encDailyOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
+  const { newPath: NEW_PATH } = createCrudRoutePaths(encDailyOperations, encDailyTripCollectionPoint);
   const { editPath: EDIT_PATH } = createCrudRoutePaths(
-    encScheduleOperations,
+    encDailyOperations,
     encDailyTripCollectionPoint,
   );
 

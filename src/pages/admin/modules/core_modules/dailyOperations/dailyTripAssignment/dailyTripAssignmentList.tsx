@@ -192,9 +192,9 @@ export default function DailyTripAssignmentList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const { encScheduleOperations, encDailyTripAssignment } = getEncryptedRoute();
+  const { encDailyOperations, encDailyTripAssignment } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleOperations,
+    encDailyOperations,
     encDailyTripAssignment,
   );
 

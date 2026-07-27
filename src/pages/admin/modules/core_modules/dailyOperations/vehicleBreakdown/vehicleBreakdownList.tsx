@@ -215,8 +215,8 @@ export default function VehicleBreakdownList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const { encScheduleOperations, encVehicleBreakdown } = getEncryptedRoute();
-  const { newPath, editPath } = createCrudRoutePaths(encScheduleOperations, encVehicleBreakdown);
+  const { encDailyOperations, encVehicleBreakdown } = getEncryptedRoute();
+  const { newPath, editPath } = createCrudRoutePaths(encDailyOperations, encVehicleBreakdown);
 
   const [records, setRecords] = useState<VehicleBreakdownRecord[]>([]);
   const [loading, setLoading] = useState(false);

@@ -24,8 +24,8 @@ import { toSwalMessage } from "@/lib/zodErrors";
 /* ------------------------------
     ROUTES
 ------------------------------ */
-const { encAdmins, encMainScreenType } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encMainScreenType);
+const { encSuperAdmin, encMainScreenType } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encSuperAdmin, encMainScreenType);
 
 const firstErrorMessage = (value: unknown): string | undefined => {
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];

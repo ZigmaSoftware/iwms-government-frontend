@@ -10,8 +10,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import { userTypeSchema } from "@/schemas/superadmin/roleManagement/userType.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 
-const { encAdmins, encUserType } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encUserType);
+const { encRoleManagement, encUserType } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encRoleManagement, encUserType);
 
 export default function UserTypeForm() {
   const { t } = useTranslation();

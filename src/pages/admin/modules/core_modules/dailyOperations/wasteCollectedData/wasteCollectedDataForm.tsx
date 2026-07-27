@@ -854,8 +854,8 @@ export default function WasteCollectedForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
-  const { encScheduleOperations, encWasteCollectedData } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encWasteCollectedData);
+  const { encDailyOperations, encWasteCollectedData } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encDailyOperations, encWasteCollectedData);
 
   const [masters, setMasters] = useState<MasterData>(EMPTY_MASTERS);
   const [record, setRecord] = useState<WasteCollection | null>(null);

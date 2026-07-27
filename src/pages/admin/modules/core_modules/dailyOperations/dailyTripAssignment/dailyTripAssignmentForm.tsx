@@ -120,8 +120,8 @@ export default function DailyTripAssignmentForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
-  const { encScheduleOperations, encDailyTripAssignment } = getEncryptedRoute();
-  const { listPath } = createCrudRoutePaths(encScheduleOperations, encDailyTripAssignment);
+  const { encDailyOperations, encDailyTripAssignment } = getEncryptedRoute();
+  const { listPath } = createCrudRoutePaths(encDailyOperations, encDailyTripAssignment);
 
   const [tripPlanId, setTripPlanId] = useState("");
   const [staffTemplateId, setStaffTemplateId] = useState("");

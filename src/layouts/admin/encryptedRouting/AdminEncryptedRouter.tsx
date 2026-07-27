@@ -156,6 +156,20 @@ const ROUTES: RouteMap = {
     "userscreens": {list: UserScreenList, form: UserScreenForm},
     "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
   },
+  // Screen Management now routes under its own master segment (encSuperAdmin);
+  // "admins" above is kept only so already-open/bookmarked tabs still resolve.
+  "screen-management": {
+    "mainscreen-type": {list: MainScreenTypeList, form: MainScreenTypeForm},
+    "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
+    "mainscreens": {list: MainScreenList, form: MainScreenForm},
+    "userscreens": {list: UserScreenList, form: UserScreenForm},
+    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
+  },
+  // Role Management now routes under its own master segment (encRoleManagement).
+  "role-management": {
+    "user-type": { list: UserTypeList, form: UserTypeForm },
+    "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
+  },
   "common-masters": {
     continents: { list: ContinentList, form: ContinentForm },
     countries: { list: CountryList, form: CountryForm },
@@ -254,8 +268,11 @@ const ROUTES: RouteMap = {
 
 const MASTER_ALIASES: Record<string, string[]> = {
   // Sidebar permission/module names -> router route groups
-  "screen-managements": ["admins"],
-  "role-assigns": ["admins"],
+  "screen-managements": ["screen-management", "admins"],
+  "role-assigns": ["role-management", "admins"],
+  // Backward-compat: old bookmarked/cached URLs whose encrypted segment still
+  // decrypts to the legacy shared "admins" master resolve into both new buckets.
+  admins: ["screen-management", "role-management", "admins"],
   "process-items": ["user-creations"],
 
   customers: ["customer-master"],
