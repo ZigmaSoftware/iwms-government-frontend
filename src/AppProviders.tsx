@@ -10,6 +10,7 @@ import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
 import { RolesProvider } from "@/contexts/RolesContext";
+
 type Props = {
   children: ReactNode;
 };

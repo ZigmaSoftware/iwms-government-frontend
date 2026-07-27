@@ -800,8 +800,8 @@ export default function BinCollectionEventForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
-  const { encScheduleOperations, encBinCollectionEvent } = getEncryptedRoute();
-  const { listPath } = createCrudRoutePaths(encScheduleOperations, encBinCollectionEvent);
+  const { encDailyOperations, encBinCollectionEvent } = getEncryptedRoute();
+  const { listPath } = createCrudRoutePaths(encDailyOperations, encBinCollectionEvent);
 
   const [data, setData] = useState<EditorData>({
     panchayats: [],

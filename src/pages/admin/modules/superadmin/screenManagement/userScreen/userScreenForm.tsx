@@ -26,8 +26,8 @@ import { capitalize } from "@/utils/capitalize";
 /* -----------------------------------------
    ROUTES
 ----------------------------------------- */
-const { encAdmins, encUserScreen } = getEncryptedRoute();
-const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encAdmins, encUserScreen);
+const { encSuperAdmin, encUserScreen } = getEncryptedRoute();
+const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encSuperAdmin, encUserScreen);
 
 
 const toText = (value: unknown): string => {

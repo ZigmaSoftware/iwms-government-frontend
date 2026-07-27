@@ -3,6 +3,7 @@ import { encryptSegment } from "./routeCrypto";
 export type EncryptedRoutes = {
   encAttendance: string;
   encAdmins: string;
+  encRoleManagement: string;
   encAudits: string;
   encComplaintTicket: string;
   encCollectionMonitoring: string;
@@ -37,7 +38,7 @@ export type EncryptedRoutes = {
   encUserManagement: string;
   encScheduleMasters: string;
   encScheduleSetup: string;
-  encScheduleOperations: string;
+  encDailyOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
   encStaffTemplateAudit: string;
@@ -168,12 +169,13 @@ const plainRoutes: EncryptedRoutes = {
   encMasters: "masters",
   encLocationMasters: "masters",
   encWasteMasters: "waste-types",
-  encSuperAdmin: "admins",
+  encSuperAdmin: "screen-management",
+  encRoleManagement: "role-management",
   encStaffMasters: "staff-masters",
   encUserManagement: "user-creations",
   encScheduleMasters: "schedule-masters",
   encScheduleSetup: "schedule-setup",
-  encScheduleOperations: "schedule-operations",
+  encDailyOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
   encStaffTemplateAudit: "staff-template-audit",

@@ -73,10 +73,10 @@ export default function BinCollectionEventList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const { encScheduleOperations, encBinCollectionEvent } = getEncryptedRoute();
-  const { newPath: NEW_PATH } = createCrudRoutePaths(encScheduleOperations, encBinCollectionEvent);
+  const { encDailyOperations, encBinCollectionEvent } = getEncryptedRoute();
+  const { newPath: NEW_PATH } = createCrudRoutePaths(encDailyOperations, encBinCollectionEvent);
   const { editPath: VIEW_PATH } = createCrudRoutePaths(
-    encScheduleOperations,
+    encDailyOperations,
     encBinCollectionEvent,
   );
 

@@ -13,6 +13,8 @@ export function buildNavRouteMap(): RouteEntry[] {
 
   const {
     encAttendance,
+    encSuperAdmin,
+    encRoleManagement,
     encMasters,
     encAudits,
     encDepartments,
@@ -88,10 +90,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWards,
     encScheduleMasters,
     encScheduleSetup,
-    encScheduleOperations,
+    encDailyOperations,
     encWasteMasters,
-    encLocationMasters,
-    encSuperAdmin,
     encLeaderLogin,
     encPlbLeaderCreation,
     encDistrictLeaderCreation,
@@ -124,8 +124,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encSuperAdmin}/${encUserScreenPermission}`, nameKey: "admin.nav.user_screen_permission", parentNameKey: "admin.nav.screen_management" },
 
     // ── Super Admin > Role Management ──
-    { path: `/${encSuperAdmin}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.role_management" },
-    { path: `/${encSuperAdmin}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.role_management" },
+    { path: `/${encRoleManagement}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.role_management" },
+    { path: `/${encRoleManagement}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.role_management" },
 
     // ── Super Admin > User Management ──
     { path: `/${encStaffMasters}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
@@ -151,20 +151,20 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encMasters}/${encHierarchies}`, nameKey: "admin.nav.hierarchy", parentNameKey: "admin.nav.masters" },
 
     // ── Masters > Location Masters ──
-    { path: `/${encLocationMasters}/${encDistricts}`, nameKey: "admin.nav.district", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encCorporations}`, nameKey: "admin.nav.corporation", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encMunicipalities}`, nameKey: "admin.nav.municipality", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encTownPanchayats}`, nameKey: "admin.nav.town_panchayat", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encPanchayatUnions}`, nameKey: "admin.nav.panchayat_union", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.location_masters" },
-    { path: `/${encLocationMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encDistricts}`, nameKey: "admin.nav.district", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encAreaTypes}`, nameKey: "admin.nav.area_type", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encCorporations}`, nameKey: "admin.nav.corporation", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encMunicipalities}`, nameKey: "admin.nav.municipality", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encTownPanchayats}`, nameKey: "admin.nav.town_panchayat", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encPanchayatUnions}`, nameKey: "admin.nav.panchayat_union", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encPanchayats}`, nameKey: "admin.nav.panchayat", parentNameKey: "admin.nav.location_masters" },
+    { path: `/${encMasters}/${encWards}`, nameKey: "admin.nav.ward", parentNameKey: "admin.nav.location_masters" },
 
     // ── Masters > Waste Masters ──
-    { path: `/${encMasters}/${encWasteTypes}`, nameKey: "common.waste_type", parentNameKey: "admin.nav.waste_masters" },
-    { path: `/${encMasters}/${encProperties}`, nameKey: "admin.nav.property", parentNameKey: "admin.nav.waste_masters" },
-    { path: `/${encMasters}/${encSubProperties}`, nameKey: "admin.nav.sub_property", parentNameKey: "admin.nav.waste_masters" },
-    { path: `/${encMasters}/${encBins}`, nameKey: "common.bins", parentNameKey: "admin.nav.waste_masters" },
+    { path: `/${encWasteMasters}/${encWasteTypes}`, nameKey: "common.waste_type", parentNameKey: "admin.nav.waste_masters" },
+    { path: `/${encWasteMasters}/${encProperties}`, nameKey: "admin.nav.property", parentNameKey: "admin.nav.waste_masters" },
+    { path: `/${encWasteMasters}/${encSubProperties}`, nameKey: "admin.nav.sub_property", parentNameKey: "admin.nav.waste_masters" },
+    { path: `/${encWasteMasters}/${encBins}`, nameKey: "common.bins", parentNameKey: "admin.nav.waste_masters" },
 
     // ── Masters > Transport Masters ──
     { path: `/${encTransportMaster}/${encVehicleType}`, nameKey: "admin.nav.vehicle_type", parentNameKey: "admin.nav.transport_masters" },
@@ -196,20 +196,20 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.complaint_ticket" },
 
     // ── Core Modules > Schedule Setup ──
-    { path: `/${encScheduleMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.schedule_setup" },
-    { path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.schedule_setup" },
-    { path: `/${encScheduleMasters}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.schedule_setup" },
-    { path: `/${encScheduleMasters}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encCollectionPoints}`, nameKey: "admin.nav.collection_point", parentNameKey: "admin.nav.schedule_setup" },
+    { path: `/${encScheduleSetup}/${encTripPlans}`, nameKey: "admin.nav.trip_plans", parentNameKey: "admin.nav.schedule_setup" },
 
     // ── Core Modules > Daily Operations ──
-    { path: `/${encScheduleMasters}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_assignment", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encDailyTripHouseholdCollection}`, nameKey: "admin.nav.daily_trip_household_collection", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encBinCollectionEvent}`, nameKey: "admin.nav.secondary_bin_collection_event", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encWasteCollectedData}`, nameKey: "admin.nav.household_collection_event", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encVehicleBreakdown}`, nameKey: "admin.nav.vehicle_breakdown", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_operations" },
-    { path: `/${encScheduleMasters}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encDailyTripAssignment}`, nameKey: "admin.nav.daily_trip_assignment", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encDailyTripTracking}`, nameKey: "admin.nav.daily_trip_tracking", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encDailyTripHouseholdCollection}`, nameKey: "admin.nav.daily_trip_household_collection", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encBinCollectionEvent}`, nameKey: "admin.nav.secondary_bin_collection_event", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encWasteCollectedData}`, nameKey: "admin.nav.household_collection_event", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encVehicleBreakdown}`, nameKey: "admin.nav.vehicle_breakdown", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_operations" },
 
     // ── Reports > Schedule Reports ──
     { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.schedule_reports" },

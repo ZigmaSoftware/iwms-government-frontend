@@ -24,6 +24,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
+  encSuperAdmin,
+  encRoleManagement,
   encMasters,
   encAttendance,
   encAudits,
@@ -33,7 +35,6 @@ const {
   encSubProperties,
   encStaffCreation,
   encStaffAccessConfiguration,
-  encAdmins,
   encUserScreen,
   encUserType,
   encCustomerMaster,
@@ -53,6 +54,9 @@ const {
   encComplaintSlaRules,
   encTransportMaster,
   encScheduleMasters,
+  encScheduleSetup,
+  encDailyOperations,
+  encWasteMasters,
   encFuel,
   encVehicleCreation,
   encVehicleType,
@@ -311,25 +315,25 @@ const wasteTypeItems: NavItem[] = [
     subItems: [
       {
         nameKey: "common.waste_type",
-        path: `/${encMasters}/${encWasteTypes}`,
+        path: `/${encWasteMasters}/${encWasteTypes}`,
         module: "waste-types",
         screen: "wastetypes",
       },
       {
         nameKey: "admin.nav.property",
-        path: `/${encMasters}/${encProperties}`,
+        path: `/${encWasteMasters}/${encProperties}`,
         module: "waste-types",
         screen: "properties",
       },
       {
         nameKey: "admin.nav.sub_property",
-        path: `/${encMasters}/${encSubProperties}`,
+        path: `/${encWasteMasters}/${encSubProperties}`,
         module: "waste-types",
         screen: "subproperties",
       },
       {
         nameKey: "admin.nav.bin_creation",
-        path: `/${encMasters}/${encBins}`,
+        path: `/${encWasteMasters}/${encBins}`,
         module: "waste-types",
         screen: "bins",
       },
@@ -347,31 +351,31 @@ const screenManagementItems: NavItem[] = [
     subItems: [
       {
         nameKey: "admin.nav.main_screen_type",
-        path: `/${encAdmins}/${encMainScreenType}`,
+        path: `/${encSuperAdmin}/${encMainScreenType}`,
         module: "screen-managements",
         screen: "mainscreentype",
       },
       {
         nameKey: "admin.nav.main_screen",
-        path: `/${encAdmins}/${encMainScreen}`,
+        path: `/${encSuperAdmin}/${encMainScreen}`,
         module: "screen-managements",
         screen: "mainscreens",
       },
       {
         nameKey: "admin.nav.user_screen",
-        path: `/${encAdmins}/${encUserScreen}`,
+        path: `/${encSuperAdmin}/${encUserScreen}`,
         module: "screen-managements",
         screen: "userscreens",
       },
       {
         nameKey: "admin.nav.user_screen_action",
-        path: `/${encAdmins}/${encUserScreenAction}`,
+        path: `/${encSuperAdmin}/${encUserScreenAction}`,
         module: "screen-managements",
         screen: "userscreen-action",
       },
       {
         nameKey: "admin.nav.user_screen_permission",
-        path: `/${encAdmins}/${encUserScreenPermission}`,
+        path: `/${encSuperAdmin}/${encUserScreenPermission}`,
         module: "screen-managements",
         screen: "userscreenpermissions",
       },
@@ -388,13 +392,13 @@ const roleAssignsItems: NavItem[] = [
     subItems: [
       {
         nameKey: "admin.nav.user_type",
-        path: `/${encAdmins}/${encUserType}`,
+        path: `/${encRoleManagement}/${encUserType}`,
         module: "role-assigns",
         screen: "user-type",
       },
       {
         nameKey: "admin.nav.staff_user_type",
-        path: `/${encAdmins}/${encStaffUserType}`,
+        path: `/${encRoleManagement}/${encStaffUserType}`,
         module: "role-assigns",
         screen: "staff-user-type",
       },
@@ -558,25 +562,25 @@ const scheduleSetupItems: NavItem[] = [
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
-        path: `/${encScheduleMasters}/${encStaffTemplate}`,
+        path: `/${encScheduleSetup}/${encStaffTemplate}`,
         module: "schedule-setup",
         screen: "staff-templates",
       },
       {
         nameKey: "admin.nav.alternative_staff_template",
-        path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`,
+        path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`,
         module: "schedule-setup",
         screen: "alternative-staff-templates",
       },
       {
         nameKey: "admin.nav.collection_point",
-        path: `/${encScheduleMasters}/${encCollectionPoints}`,
+        path: `/${encScheduleSetup}/${encCollectionPoints}`,
         module: "schedule-setup",
         screen: "collection-points",
       },
       {
         nameKey: "admin.nav.trip_plans",
-        path: `/${encScheduleMasters}/${encTripPlans}`,
+        path: `/${encScheduleSetup}/${encTripPlans}`,
         module: "schedule-setup",
         screen: "trip-plans",
       }
@@ -594,37 +598,37 @@ const scheduleOperationsItems: NavItem[] = [
     subItems: [
       {
         nameKey: "admin.nav.daily_trip_assignment",
-        path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
+        path: `/${encDailyOperations}/${encDailyTripAssignment}`,
         module: "schedule-operations",
         screen: "daily-trip-assignments",
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
-        path: `/${encScheduleMasters}/${encDailyTripTracking}`,
+        path: `/${encDailyOperations}/${encDailyTripTracking}`,
         module: "schedule-operations",
         screen: "daily-trip-collection-points",
       },
       {
         nameKey: "admin.nav.secondary_bin_collection_event",
-        path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
+        path: `/${encDailyOperations}/${encBinCollectionEvent}`,
         module: "schedule-operations",
         screen: "secondary-bin-collection-events",
       },
       {
         nameKey: "admin.nav.household_collection_event",
-        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
+        path: `/${encDailyOperations}/${encWasteCollectedData}`,
         module: "schedule-operations",
         screen: "householdcollection-events",
       },
       {
         nameKey: "admin.nav.vehicle_breakdown",
-        path: `/${encScheduleMasters}/${encVehicleBreakdown}`,
+        path: `/${encDailyOperations}/${encVehicleBreakdown}`,
         module: "schedule-operations",
         screen: "vehicle-breakdowns",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
-        path: `/${encScheduleMasters}/${encDailyTripLog}`,
+        path: `/${encDailyOperations}/${encDailyTripLog}`,
         module: "schedule-operations",
         screen: "daily-trip-logs",
       },

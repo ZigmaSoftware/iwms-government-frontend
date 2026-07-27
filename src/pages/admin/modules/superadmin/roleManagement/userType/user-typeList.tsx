@@ -36,10 +36,10 @@ export default function UserTypePage() {
   });
 
   const navigate = useNavigate();
-  const { encAdmins, encUserType } = getEncryptedRoute();
+  const { encRoleManagement, encUserType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encAdmins,
+    encRoleManagement,
     encUserType,
   );
 

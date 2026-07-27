@@ -36,10 +36,10 @@ export default function MainScreenTypeList() {
   });
 
   const navigate = useNavigate();
-  const { encAdmins, encMainScreenType } = getEncryptedRoute();
+  const { encSuperAdmin, encMainScreenType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encAdmins,
+    encSuperAdmin,
     encMainScreenType,
   );
 

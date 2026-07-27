@@ -97,9 +97,9 @@ export default function UserScreenPermissionList() {
   });
 
 
-  const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
+  const { encSuperAdmin, encUserScreenPermission } = getEncryptedRoute();
   const { newPath: permissionNewPath, editPath: permissionEditPath } =
-    createCrudRoutePaths(encAdmins, encUserScreenPermission);
+    createCrudRoutePaths(encSuperAdmin, encUserScreenPermission);
   const ENC_NEW_PATH = permissionNewPath;
 
   const ENC_EDIT_PATH = (
