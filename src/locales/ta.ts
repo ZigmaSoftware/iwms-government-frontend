@@ -48,6 +48,7 @@ const taResource = {
         expected_life_years: "எதிர்பார்க்கப்படும் ஆயுள் (ஆண்டு)",
         color_code: "நிற குறியீடு",
         last_collected: "கடைசியாக சேகரிக்கப்பட்டது",
+        collected_weight_kg: "சேகரிக்கப்பட்ட எடை (கிகி)",
         beat_worker: "பீட் பணியாளர்",
         status_open: "திறந்திருக்கும்",
         status_in_progress: "நடைபெறுகிறது",
@@ -216,6 +217,7 @@ const taResource = {
           "grievances_none": "புகார்கள் இல்லை.",
           "complaint_fallback": "புகார்",
           "total_households_label": "மொத்த வீடுகள்",
+          "total_bins_label": "மொத்த குப்பைத்தொட்டிகள்",
           "bin_info_title": "குப்பைத்தொட்டி தகவல்",
           "location_title": "இடம்",
           "lifecycle_title": "ஆயுள் சுழற்சி",
@@ -267,7 +269,7 @@ const taResource = {
           "map_summaries": {
             "all": "வாகனங்கள், பாதைகள் மற்றும் நேரடி காட்சி.",
             "vehicle": "வாகனங்கள், பாதைகள் மற்றும் நேரடி காட்சி.",
-            "bins": "குப்பைத்தொட்டி நிரப்பு நிலை மற்றும் முக்கிய பகுதிகள்.",
+            "bins": "வார்டு அடிப்படையிலான குப்பைத்தொட்டி சேகரிப்பு நிலை.",
             "households": "வார்டு அடிப்படையிலான வீடு-வீடு சேகரிப்பு நிலை."
           }
         },

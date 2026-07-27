@@ -80,6 +80,7 @@ export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
    AUTHENTICATION
 ========================= */
 export const loginApi = adminApi.loginUser;
+export const dashboardSummaryApi = adminApi.dashboardSummary;
 
 /* =========================
    CUSTOMERS
