@@ -943,7 +943,7 @@ export default function StaffAccessConfigPage() {
       );
       return toOptions(records).map((option) => ({
         value: `${level}::${option.value}`,
-        label: `${levelLabel}: ${capitalize(option.label)}`,
+        label: `${levelLabel}: ${capitalize(String(option.label ?? ""))}`,
       }));
     });
   }, [localBodyRecords, values.districtId, values.localBodyLevels]);
