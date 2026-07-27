@@ -5,8 +5,10 @@ import type {
   WasteTypeBreakdownRow,
 } from "./types";
 import { useEffect, useMemo, useState } from "react";
+import ReportMultiSelect from "../ReportMultiSelect";
 import {
   Calendar,
+  ChevronLeft,
   ChevronRight,
   Download,
   Leaf,
@@ -40,13 +42,20 @@ import {
   panchayatUnionApi,
   stateApi,
   townPanchayatApi,
+  wardApi,
 } from "@/helpers/admin";
 import { api } from "@/api";
 import {
   exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
-import { scopeOption, scopeFieldState, type ScopeLevel } from "../../../masters/shared/dataScopeOptions";
+import {
+  filterLocalBodyLevelsByScope,
+  scopeFieldState,
+  scopeHierarchyRecords,
+  scopeOptions,
+  type ScopeLevel,
+} from "../../../masters/shared/dataScopeOptions";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -71,20 +80,20 @@ import {
    TOKENS — civic sanitation ledger palette, layered onto shadcn primitives
 ══════════════════════════════════════════════════════════════════ */
 const C = {
-  bg: "#F4F5EE",
+  bg: "#F5F7FB",
   surface: "#FFFFFF",
-  surfaceSunk: "#EEF0E6",
-  ink: "#152420",
-  inkSoft: "#5D6B60",
-  inkFaint: "#93A096",
-  line: "#E2E5D9",
-  primary: "#1F5B44",
-  primaryDeep: "#123A2B",
-  leaf: "#3FA66A",
-  teal: "#2C6E8E",
-  ochre: "#D98E2B",
-  brick: "#B84A3E",
-  violet: "#7C6FAE",
+  surfaceSunk: "#F1F5F9",
+  ink: "#0F172A",
+  inkSoft: "#475569",
+  inkFaint: "#94A3B8",
+  line: "#E2E8F0",
+  primary: "#0F766E",
+  primaryDeep: "#0F2744",
+  leaf: "#10B981",
+  teal: "#0EA5E9",
+  ochre: "#F59E0B",
+  brick: "#EF4444",
+  violet: "#8B5CF6",
 } as const;
 
 const WASTE_PALETTE: string[] = [C.leaf, C.teal, C.ochre, C.violet, C.brick, C.primary, "#3E8E7E"];
@@ -93,13 +102,13 @@ const OTHER_SLICE_COLOR = "#9CA3AF";
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 .dwcr{font-family:'Manrope',system-ui,sans-serif;color:${C.ink};background:${C.bg};}
-.dwcr .font-display{font-family:'Fraunces',serif;}
+.dwcr .font-display{font-family:'Manrope',system-ui,sans-serif;}
 .dwcr .font-mono{font-family:'IBM Plex Mono',monospace;}
 .dwcr ::-webkit-scrollbar{height:6px;width:6px;}
 .dwcr ::-webkit-scrollbar-thumb{background:${C.line};border-radius:4px;}
-.dwcr .dwcr-select > button{background:${C.surfaceSunk};border-color:${C.line};color:${C.ink};font-size:0.75rem;height:2.25rem;}
-.dwcr .dwcr-select-dark > button{background:rgba(255,255,255,0.14);border-color:transparent;color:#fff;height:2.5rem;}
-.dwcr .dwcr-select-dark > button svg{color:#fff;opacity:0.7;}
+.dwcr .dwcr-select{background:${C.surfaceSunk};border-color:${C.line};color:${C.ink};font-size:0.75rem;height:2.25rem;}
+.dwcr .dwcr-select-dark{background:#fff;border-color:rgba(255,255,255,0.3);color:${C.ink};height:2.5rem;}
+.dwcr .dwcr-select-dark svg{color:${C.inkSoft};opacity:0.8;}
 `;
 
 const initialKpis: DailyReportResponse["kpis"] = {
@@ -159,6 +168,7 @@ const resolveGeoName = (record: any): string =>
       record?.town_panchayat_name ??
       record?.union_name ??
       record?.panchayat_name ??
+      record?.ward_name ??
       resolveGeoId(record),
   );
 const toRecordList = (value: unknown): Record<string, unknown>[] => {
@@ -171,6 +181,21 @@ const toRecordList = (value: unknown): Record<string, unknown>[] => {
 };
 const toGeoOptions = (records: any[]) =>
   records.filter((r) => resolveGeoId(r)).map((r) => ({ value: resolveGeoId(r), label: resolveGeoName(r) }));
+const mergeRecordLists = (
+  primary: Record<string, unknown>[],
+  fallback: Record<string, unknown>[],
+): Record<string, unknown>[] => {
+  const seen = new Set(primary.map(resolveGeoId).filter(Boolean));
+  return [
+    ...primary,
+    ...fallback.filter((record) => {
+      const id = resolveGeoId(record);
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }),
+  ];
+};
 
 /**
  * Merge a permission-gated hierarchy fetch (raw record list) with the user's
@@ -185,10 +210,10 @@ const mergeRecordsWithScope = (
   level: ScopeLevel,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown>[] => {
-  const scoped = scopeOption(level);
-  if (!scoped) return records;
-  if (records.some((r) => resolveGeoId(r) === scoped.value)) return records;
-  return [{ unique_id: scoped.value, name: scoped.label, ...extra }, ...records];
+  const missing = scopeOptions(level)
+    .filter((option) => !records.some((record) => resolveGeoId(record) === option.value))
+    .map((option) => ({ unique_id: option.value, name: option.label, ...extra }));
+  return missing.length ? [...missing, ...records] : records;
 };
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
@@ -201,49 +226,60 @@ const fmtKg = (v?: number | string | null, dec = 0) => {
 const fmtAxis = (v: number) =>
   Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 
-/* ══════════════════════════════════════════════════════════════════
-   SIGNATURE ELEMENT — weighbridge dial
-══════════════════════════════════════════════════════════════════ */
-interface Point {
-  x: number;
-  y: number;
-}
-
-function polar(cx: number, cy: number, r: number, deg: number): Point {
-  const rad = ((deg - 180) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-}
-
-function arcPath(cx: number, cy: number, r: number, startDeg: number, endDeg: number): string {
-  const s = polar(cx, cy, r, startDeg);
-  const e = polar(cx, cy, r, endDeg);
-  const large = endDeg - startDeg > 180 ? 1 : 0;
-  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 1 ${e.x} ${e.y}`;
-}
-
-function WeighDial({ value, max, unit = "kg" }: { value: number; max: number; unit?: string }) {
+/* ── Hero collection snapshot ──────────────────────────────────── */
+function WeighDial({
+  value,
+  max,
+  unit = "kg",
+  trips,
+  points,
+}: {
+  value: number;
+  max: number;
+  unit?: string;
+  trips: number;
+  points: number;
+}) {
   const pct = Math.max(0, Math.min(1, max ? value / max : 0));
-  const sweep = pct * 180;
-  const needle = polar(110, 110, 78, sweep);
-  const ticks: number[] = [0, 25, 50, 75, 100];
   return (
-    <svg viewBox="0 0 220 128" className="w-full max-w-[260px]">
-      <path d={arcPath(110, 110, 92, 0, 180)} fill="none" stroke={C.line} strokeWidth={14} strokeLinecap="round" />
-      <path d={arcPath(110, 110, 92, 0, Math.max(sweep, 2))} fill="none" stroke={C.leaf} strokeWidth={14} strokeLinecap="round" />
-      {ticks.map((t) => {
-        const p1 = polar(110, 110, 100, t * 1.8);
-        const p2 = polar(110, 110, 108, t * 1.8);
-        return <line key={t} x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={C.inkFaint} strokeWidth={1.5} />;
-      })}
-      <line x1={110} y1={110} x2={needle.x} y2={needle.y} stroke={C.primaryDeep} strokeWidth={3} strokeLinecap="round" />
-      <circle cx={110} cy={110} r={7} fill={C.primaryDeep} />
-      <text x={110} y={98} textAnchor="middle" className="font-mono" fontSize={22} fontWeight={600} fill={C.ink}>
-        {value.toLocaleString("en-IN")}
-      </text>
-      <text x={110} y={114} textAnchor="middle" className="font-mono" fontSize={10} fill={C.inkSoft} letterSpacing={1.5}>
-        {unit.toUpperCase()} TODAY
-      </text>
-    </svg>
+    <div className="w-full">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/70">
+            Total collected
+          </p>
+          <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-white md:text-4xl">
+            {value.toLocaleString("en-IN")}
+            <span className="ml-2 text-sm font-medium text-cyan-100/70">{unit}</span>
+          </p>
+        </div>
+        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
+          <Scale className="h-5 w-5 text-emerald-300" />
+        </div>
+      </div>
+      <div className="mt-5">
+        <div className="mb-2 flex items-center justify-between text-[10px] font-medium text-cyan-100/60">
+          <span>Against peak collection</span>
+          <span className="font-mono">{Math.round(pct * 100)}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-300 transition-all duration-700"
+            style={{ width: `${pct * 100}%` }}
+          />
+        </div>
+      </div>
+      <div className="mt-5 grid grid-cols-2 gap-3 border-t border-white/10 pt-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">Trips</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-white">{fmtKg(trips)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">Points covered</p>
+          <p className="mt-1 font-mono text-lg font-semibold text-white">{fmtKg(points)}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -355,11 +391,13 @@ export default function DailyWasteComparisonList() {
   const [areaTypeId, setAreaTypeId] = useState("");
   const [areaTypeCategory, setAreaTypeCategory] = useState<"urban" | "rural" | "">("");
   const [localBodyLevel, setLocalBodyLevel] = useState<LocalBodyLevel | "">("");
-  const [localBodyId, setLocalBodyId] = useState("");
+  const [localBodyIds, setLocalBodyIds] = useState<string[]>([]);
+  const [wardIds, setWardIds] = useState<string[]>([]);
 
   const [states, setStates] = useState<any[]>([]);
   const [districts, setDistricts] = useState<any[]>([]);
   const [areaTypes, setAreaTypes] = useState<any[]>([]);
+  const [wards, setWards] = useState<any[]>([]);
   const [localBodyRecords, setLocalBodyRecords] = useState<Record<LocalBodyLevel, any[]>>({
     corporation_id: [],
     municipality_id: [],
@@ -380,6 +418,8 @@ export default function DailyWasteComparisonList() {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [detailPage, setDetailPage] = useState(1);
+  const [detailPageSize, setDetailPageSize] = useState(10);
 
   // When the logged-in user's own Data Scope pins a level to exactly one
   // value, that filter field shows pre-filled and disabled rather than an
@@ -389,14 +429,16 @@ export default function DailyWasteComparisonList() {
   const districtScope = scopeFieldState("district");
   const areaTypeScope = scopeFieldState("area_type");
   const localBodyScope = localBodyLevel ? scopeFieldState(LOCAL_BODY_SCOPE_LEVEL[localBodyLevel]) : null;
+  const wardScope = scopeFieldState("ward");
 
   useEffect(() => {
     if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
     if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
     if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
-    if (localBodyScope?.mode === "locked" && !localBodyId) setLocalBodyId(localBodyScope.options[0].value);
+    if (localBodyScope?.mode === "locked" && !localBodyIds.length) setLocalBodyIds([localBodyScope.options[0].value]);
+    if (wardScope.mode === "locked" && localBodyIds.length && !wardIds.length) setWardIds([wardScope.options[0].value]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope?.mode, stateId, districtId, areaTypeId, localBodyId]);
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, localBodyScope?.mode, wardScope.mode, stateId, districtId, areaTypeId, localBodyIds, wardIds]);
 
   /* fetch state/district/area type/local body dropdowns */
   useEffect(() => {
@@ -406,8 +448,8 @@ export default function DailyWasteComparisonList() {
     // permission-granted to this user at all (View gates their own
     // menu/list, not these report filter dropdowns) — their Data Scope
     // from login always supplies their own hierarchy values regardless.
-    const scopedStateId = scopeOption("state")?.value;
-    const scopedDistrictId = scopeOption("district")?.value;
+    const scopedStateId = scopeOptions("state")[0]?.value;
+    const scopedDistrictId = scopeOptions("district")[0]?.value;
 
     const applyScopeFallback = (records: {
       states: Record<string, unknown>[];
@@ -418,6 +460,7 @@ export default function DailyWasteComparisonList() {
       townPanchayats: Record<string, unknown>[];
       panchayatUnions: Record<string, unknown>[];
       panchayats: Record<string, unknown>[];
+      wards: Record<string, unknown>[];
     }) => {
       setStates(mergeRecordsWithScope(records.states, "state"));
       setDistricts(
@@ -460,9 +503,10 @@ export default function DailyWasteComparisonList() {
           scopedDistrictId ? { district_id: scopedDistrictId } : {},
         ),
       });
+      setWards(mergeRecordsWithScope(records.wards, "ward"));
     };
 
-    Promise.all([
+    Promise.allSettled([
       stateApi.readAll(),
       districtApi.readAll(),
       areaTypeApi.readAll(),
@@ -471,52 +515,54 @@ export default function DailyWasteComparisonList() {
       townPanchayatApi.readAll(),
       panchayatUnionApi.readAll(),
       panchayatApi.readAll(),
-    ])
-      .then(
-        ([
-          stateRes,
-          districtRes,
-          areaTypeRes,
-          corporationRes,
-          municipalityRes,
-          townPanchayatRes,
-          panchayatUnionRes,
-          panchayatRes,
-        ]) => {
-          if (cancelled) return;
-          applyScopeFallback({
-            states: toRecordList(stateRes),
-            districts: toRecordList(districtRes),
-            areaTypes: toRecordList(areaTypeRes),
-            corporations: toRecordList(corporationRes),
-            municipalities: toRecordList(municipalityRes),
-            townPanchayats: toRecordList(townPanchayatRes),
-            panchayatUnions: toRecordList(panchayatUnionRes),
-            panchayats: toRecordList(panchayatRes),
-          });
-        },
-      )
-      .catch(() => {
+      wardApi.readAll(),
+    ]).then((results) => {
+      if (cancelled) return;
+      const descendants = scopeHierarchyRecords();
+      const valueAt = (index: number) => {
+        const result = results[index];
+        return result?.status === "fulfilled" ? toRecordList(result.value) : [];
+      };
+      applyScopeFallback({
+        states: mergeRecordLists(valueAt(0), descendants.states),
+        districts: mergeRecordLists(valueAt(1), descendants.districts),
+        areaTypes: mergeRecordLists(valueAt(2), descendants.areaTypes),
+        corporations: mergeRecordLists(valueAt(3), descendants.corporations),
+        municipalities: mergeRecordLists(valueAt(4), descendants.municipalities),
+        townPanchayats: mergeRecordLists(valueAt(5), descendants.townPanchayats),
+        panchayatUnions: mergeRecordLists(valueAt(6), descendants.panchayatUnions),
+        panchayats: mergeRecordLists(valueAt(7), descendants.panchayats),
+        wards: mergeRecordLists(valueAt(8), descendants.wards),
+      });
+      if (
+        results.every((result) => result.status === "rejected") &&
+        !scopeOptions("state").length &&
+        !scopeOptions("district").length &&
+        !scopeOptions("area_type").length &&
+        !scopeOptions("corporation").length &&
+        !scopeOptions("municipality").length &&
+        !scopeOptions("town_panchayat").length &&
+        !scopeOptions("panchayat_union").length &&
+        !scopeOptions("panchayat").length
+      ) {
+        Swal.fire(
+          t("common.error"),
+          "Failed to load local body filter options.",
+          "error",
+        );
+      }
+    }).catch(() => {
         if (cancelled) return;
-        applyScopeFallback({
-          states: [],
-          districts: [],
-          areaTypes: [],
-          corporations: [],
-          municipalities: [],
-          townPanchayats: [],
-          panchayatUnions: [],
-          panchayats: [],
-        });
+        applyScopeFallback(scopeHierarchyRecords());
         if (
-          !scopeOption("state") &&
-          !scopeOption("district") &&
-          !scopeOption("area_type") &&
-          !scopeOption("corporation") &&
-          !scopeOption("municipality") &&
-          !scopeOption("town_panchayat") &&
-          !scopeOption("panchayat_union") &&
-          !scopeOption("panchayat")
+          !scopeOptions("state").length &&
+          !scopeOptions("district").length &&
+          !scopeOptions("area_type").length &&
+          !scopeOptions("corporation").length &&
+          !scopeOptions("municipality").length &&
+          !scopeOptions("town_panchayat").length &&
+          !scopeOptions("panchayat_union").length &&
+          !scopeOptions("panchayat").length
         ) {
           Swal.fire(
             t("common.error"),
@@ -549,16 +595,51 @@ export default function DailyWasteComparisonList() {
   const filteredAreaTypes = areaTypes.filter(
     (a) => !districtId || String(a.district_id ?? a.district ?? "") === districtId,
   );
-  const availableLocalBodyLevels = areaTypeCategory
-    ? localBodyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
-    : [];
-  const localBodyOptions = localBodyLevel
+  const availableLocalBodyLevels = filterLocalBodyLevelsByScope(
+    areaTypeCategory
+      ? localBodyLevels.filter((level) => AREA_TYPE_LEVELS[areaTypeCategory].includes(level.value))
+      : [],
+  );
+  const fetchedLocalBodyOptions = localBodyLevel
     ? toGeoOptions(
         (localBodyRecords[localBodyLevel] ?? []).filter(
           (item) => !districtId || String(item.district_id ?? item.district ?? "") === districtId,
         ),
       )
     : [];
+  const localBodyOptions =
+    localBodyScope?.mode === "choices"
+      ? localBodyScope.options
+      : fetchedLocalBodyOptions;
+  const fetchedWardOptions = localBodyIds.length
+    ? toGeoOptions(
+        wards.filter((ward) => {
+          const wardLocalBodyId = String(
+            ward.local_body_id ??
+              (localBodyLevel ? ward[localBodyLevel] : "") ??
+              "",
+          );
+          return localBodyIds.includes(wardLocalBodyId);
+        }),
+      )
+    : [];
+  const wardOptions =
+    wardScope.mode === "choices" ? wardScope.options : fetchedWardOptions;
+  const onlyAvailableLocalBodyLevel =
+    availableLocalBodyLevels.length === 1
+      ? availableLocalBodyLevels[0].value
+      : "";
+
+  useEffect(() => {
+    if (
+      onlyAvailableLocalBodyLevel &&
+      localBodyLevel !== onlyAvailableLocalBodyLevel
+    ) {
+      setLocalBodyLevel(onlyAvailableLocalBodyLevel);
+      setLocalBodyIds([]);
+      setWardIds([]);
+    }
+  }, [onlyAvailableLocalBodyLevel, localBodyLevel]);
 
   /* ── fetch report ── */
   const fetchReport = async () => {
@@ -567,7 +648,11 @@ export default function DailyWasteComparisonList() {
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedDate) params.date = appliedDate;
-      if (localBodyLevel && localBodyId) params[localBodyLevel] = localBodyId;
+      if (stateId) params.state_id = stateId;
+      if (districtId) params.district_id = districtId;
+      if (areaTypeId) params.area_type_id = areaTypeId;
+      if (localBodyLevel && localBodyIds.length) params[localBodyLevel] = localBodyIds.join(",");
+      if (wardIds.length) params.ward_id = wardIds.join(",");
 
       const { data } = await api.get<DailyReportResponse>(
         "/schedule-masters/daily-waste-comparisons/",
@@ -586,6 +671,7 @@ export default function DailyWasteComparisonList() {
           : [],
       );
       setKpis(data?.kpis ?? initialKpis);
+      setDetailPage(1);
     } catch {
       setRows([]);
       setDateTrends([]);
@@ -600,7 +686,7 @@ export default function DailyWasteComparisonList() {
 
   useEffect(() => {
     void fetchReport();
-  }, [appliedDate, sortMode, source, localBodyLevel, localBodyId]);
+  }, [appliedDate, sortMode, source, stateId, districtId, areaTypeId, localBodyLevel, localBodyIds, wardIds]);
 
   /* ── derived ── */
   const maxPlbWeight = useMemo(
@@ -643,14 +729,43 @@ export default function DailyWasteComparisonList() {
     return head;
   }, [wasteTypeBreakdown]);
 
-  const selectedLocalBodyLabel = localBodyOptions.find((o) => o.value === localBodyId)?.label;
+  const selectedLocalBodyLabel = localBodyOptions
+    .filter((option) => localBodyIds.includes(option.value))
+    .map((option) => option.label)
+    .join(", ");
+  const selectedWardLabel = wardOptions
+    .filter((option) => wardIds.includes(option.value))
+    .map((option) => option.label)
+    .join(", ");
+  const detailPageCount = Math.max(1, Math.ceil(rows.length / detailPageSize));
+  const safeDetailPage = Math.min(detailPage, detailPageCount);
+  const paginatedRows = useMemo(
+    () =>
+      rows.slice(
+        (safeDetailPage - 1) * detailPageSize,
+        safeDetailPage * detailPageSize,
+      ),
+    [rows, safeDetailPage, detailPageSize],
+  );
+  const visibleDetailPages = useMemo(() => {
+    const visibleCount = Math.min(5, detailPageCount);
+    const start = Math.max(
+      1,
+      Math.min(safeDetailPage - 2, detailPageCount - visibleCount + 1),
+    );
+    return Array.from({ length: visibleCount }, (_, index) => start + index);
+  }, [detailPageCount, safeDetailPage]);
 
   const handleDownload = async () => {
     setExporting(true);
     try {
       const params: Record<string, string> = { sort: sortMode, source };
       if (appliedDate) params.date = appliedDate;
-      if (localBodyLevel && localBodyId) params[localBodyLevel] = localBodyId;
+      if (stateId) params.state_id = stateId;
+      if (districtId) params.district_id = districtId;
+      if (areaTypeId) params.area_type_id = areaTypeId;
+      if (localBodyLevel && localBodyIds.length) params[localBodyLevel] = localBodyIds.join(",");
+      if (wardIds.length) params.ward_id = wardIds.join(",");
 
       const exportRows = await dailyWasteComparisonApi.readAllForExport({
         params,
@@ -687,8 +802,14 @@ export default function DailyWasteComparisonList() {
     setDistrictId(districtScope.mode === "locked" ? districtScope.options[0].value : "");
     setAreaTypeId(areaTypeScope.mode === "locked" ? areaTypeScope.options[0].value : "");
     setAreaTypeCategory("");
-    setLocalBodyLevel("");
-    setLocalBodyId("");
+    const scopedLevels = filterLocalBodyLevelsByScope(localBodyLevels);
+    const onlyScopedLevel = scopedLevels.length === 1 ? scopedLevels[0].value : "";
+    const scopedBody = onlyScopedLevel
+      ? scopeFieldState(LOCAL_BODY_SCOPE_LEVEL[onlyScopedLevel])
+      : null;
+    setLocalBodyLevel(onlyScopedLevel);
+    setLocalBodyIds(scopedBody?.mode === "locked" ? [scopedBody.options[0].value] : []);
+    setWardIds([]);
   };
 
   /* ══════════════════════════════════════════════════════════════
@@ -710,41 +831,44 @@ export default function DailyWasteComparisonList() {
       {/* ══════════════ HERO ══════════════ */}
       <div className="px-6 md:px-10 pt-5">
         <div
-          className="rounded-3xl overflow-hidden relative"
-          style={{ background: `linear-gradient(120deg, ${C.primaryDeep} 0%, ${C.primary} 62%, #2C6E52 100%)` }}
+          className="relative overflow-hidden rounded-[28px] border border-white/10 shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]"
+          style={{ background: `linear-gradient(120deg, ${C.primaryDeep} 0%, #115E6D 58%, ${C.primary} 100%)` }}
         >
           <div
-            className="absolute inset-0 opacity-[0.07]"
-            style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+            className="absolute inset-0 opacity-[0.09]"
+            style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
           />
-          <div className="relative grid grid-cols-1 lg:grid-cols-[1.5fr_1fr] gap-6 px-7 md:px-10 py-8">
+          <div className="absolute -right-20 -top-32 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
+          <div className="relative grid grid-cols-1 gap-7 px-7 py-8 md:px-10 lg:grid-cols-[1.65fr_0.8fr] lg:items-stretch">
             <div className="flex flex-col justify-between gap-6">
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ background: "rgba(255,255,255,0.12)" }}>
-                    <Leaf className="h-4 w-4" style={{ color: "#B8E6C6" }} />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
+                    <Leaf className="h-4 w-4 text-emerald-300" />
                   </div>
-                  <span className="font-mono text-[11px] tracking-[0.2em]" style={{ color: "#B8E6C6" }}>
-                    CIVIC SANITATION · COLLECTION LEDGER
+                  <span className="font-mono text-[10px] tracking-[0.22em] text-cyan-100/70">
+                    CIVIC SANITATION · DAILY OPERATIONS
                   </span>
                 </div>
-                <h1 className="font-display text-3xl md:text-4xl font-semibold text-white leading-tight">Daily Waste Collection Report</h1>
-                <p className="mt-2 text-sm max-w-md" style={{ color: "rgba(244,245,238,0.72)" }}>
-                  Every load, weighed and logged — total weight, trips, and composition across every local body on record.
+                <h1 className="font-display text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
+                  Daily Waste Collection
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-cyan-50/65">
+                  Monitor collected weight, completed trips, coverage, and waste composition across every accessible local body.
                 </p>
               </div>
 
               {/* ── toolbar ── */}
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <Input
                   type="date"
                   value={dateValue}
                   max={todayValue()}
                   onChange={(e) => setDateValue(e.target.value)}
-                  className="w-auto rounded-xl border-0 h-10 text-sm"
-                  style={{ background: "rgba(255,255,255,0.14)", color: "white", colorScheme: "dark" }}
+                  className="h-10 w-auto rounded-xl border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm"
+                  style={{ colorScheme: "light" }}
                 />
-                <div className="w-40">
+                <div className="w-44">
                   <FilterSelect
                     value={sortMode}
                     onChange={setSortMode}
@@ -771,8 +895,7 @@ export default function DailyWasteComparisonList() {
                 </div>
                 <Button
                   onClick={() => setAppliedDate(dateValue)}
-                  className="rounded-xl font-semibold transition-transform hover:scale-[1.03]"
-                  style={{ background: C.leaf, color: C.primaryDeep }}
+                  className="h-10 rounded-xl bg-emerald-400 px-5 font-semibold text-emerald-950 shadow-sm transition-all hover:bg-emerald-300"
                 >
                   Go
                 </Button>
@@ -782,16 +905,14 @@ export default function DailyWasteComparisonList() {
                     setDateValue("");
                     setAppliedDate("");
                   }}
-                  className="rounded-xl font-semibold bg-transparent hover:bg-white/10"
-                  style={{ borderColor: "rgba(255,255,255,0.3)", color: "white" }}
+                  className="h-10 rounded-xl border-white/20 bg-white/5 font-semibold text-white hover:bg-white/10 hover:text-white"
                 >
                   All dates
                 </Button>
                 <Button
                   onClick={handleDownload}
                   disabled={!rows.length || exporting}
-                  className="flex items-center gap-1.5 rounded-xl font-semibold ml-auto transition-transform hover:scale-[1.03]"
-                  style={{ background: "rgba(255,255,255,0.14)", color: "white" }}
+                  className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 font-semibold text-white shadow-sm transition-colors hover:bg-white/15 lg:ml-auto"
                 >
                   <Download className="h-3.5 w-3.5" /> {exporting ? "Downloading…" : "Download all"}
                 </Button>
@@ -800,11 +921,16 @@ export default function DailyWasteComparisonList() {
 
             {/* ── signature weighbridge dial ── */}
             <div
-              className="rounded-2xl flex flex-col items-center justify-center py-4"
-              style={{ background: "rgba(244,245,238,0.06)", border: "1px solid rgba(255,255,255,0.1)" }}
+              className="flex min-h-56 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.07] p-6 shadow-inner backdrop-blur-sm"
             >
-              <WeighDial value={kpis.total_actual_weight_kg} max={dayMax} unit="kg" />
-              <p className="text-[11px] mt-1 font-mono tracking-wide" style={{ color: "rgba(244,245,238,0.6)" }}>
+              <WeighDial
+                value={kpis.total_actual_weight_kg}
+                max={dayMax}
+                unit="kg"
+                trips={kpis.total_trips}
+                points={kpis.collection_points_covered}
+              />
+              <p className="mt-4 border-t border-white/10 pt-3 font-mono text-[10px] tracking-wide text-cyan-100/50">
                 {appliedDate || "All dates"} · load against day's peak
               </p>
             </div>
@@ -819,14 +945,14 @@ export default function DailyWasteComparisonList() {
             <h2 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: C.inkSoft }}>
               <MapPin className="h-3.5 w-3.5" /> Filter by local body
             </h2>
-            {(stateId || districtId || areaTypeId || localBodyId) && (
+            {(stateId || districtId || areaTypeId || localBodyIds.length || wardIds.length) && (
               <Button variant="link" onClick={clearLocalBodyFilter} className="h-auto p-0 text-xs font-semibold" style={{ color: C.teal }}>
                 Clear filter
               </Button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-6">
             <FilterSelect
               value={stateId}
               onChange={(v) => {
@@ -835,7 +961,8 @@ export default function DailyWasteComparisonList() {
                 setAreaTypeId("");
                 setAreaTypeCategory("");
                 setLocalBodyLevel("");
-                setLocalBodyId("");
+                setLocalBodyIds([]);
+                setWardIds([]);
               }}
               placeholder="Select state"
               disabled={stateScope.mode === "locked"}
@@ -848,7 +975,8 @@ export default function DailyWasteComparisonList() {
                 setAreaTypeId("");
                 setAreaTypeCategory("");
                 setLocalBodyLevel("");
-                setLocalBodyId("");
+                setLocalBodyIds([]);
+                setWardIds([]);
               }}
               placeholder={stateId ? "Select district" : "Select a state first"}
               disabled={!stateId || districtScope.mode === "locked"}
@@ -861,7 +989,8 @@ export default function DailyWasteComparisonList() {
                 setAreaTypeId(v);
                 setAreaTypeCategory(areaTypeCategoryFromName(String(selected?.name ?? "")));
                 setLocalBodyLevel("");
-                setLocalBodyId("");
+                setLocalBodyIds([]);
+                setWardIds([]);
               }}
               placeholder={districtId ? "Select area type" : "Select a district first"}
               disabled={!districtId || areaTypeScope.mode === "locked"}
@@ -871,30 +1000,44 @@ export default function DailyWasteComparisonList() {
               value={localBodyLevel}
               onChange={(v) => {
                 setLocalBodyLevel(v as LocalBodyLevel);
-                setLocalBodyId("");
+                setLocalBodyIds([]);
+                setWardIds([]);
               }}
               placeholder={areaTypeCategory ? "Select local body type" : "Select an area type first"}
-              disabled={!areaTypeCategory}
+              disabled={!areaTypeCategory || availableLocalBodyLevels.length === 1}
               options={availableLocalBodyLevels}
             />
-            <FilterSelect
-              value={localBodyId}
-              onChange={setLocalBodyId}
+            <ReportMultiSelect
+              value={localBodyIds}
+              onChange={(values) => {
+                setLocalBodyIds(values);
+                setWardIds([]);
+              }}
+              options={localBodyOptions}
               placeholder={
                 localBodyLevel
-                  ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}`
+                  ? `Select ${localBodyLevels.find((l) => l.value === localBodyLevel)?.label}(s)`
                   : "Select a local body type first"
               }
               disabled={!localBodyLevel || localBodyScope?.mode === "locked"}
-              options={localBodyOptions}
+              ariaLabel="Local bodies"
+            />
+            <ReportMultiSelect
+              value={wardIds}
+              onChange={setWardIds}
+              options={wardOptions}
+              placeholder={localBodyIds.length ? "Select ward(s)" : "Select a local body first"}
+              disabled={!localBodyIds.length || wardScope.mode === "locked"}
+              ariaLabel="Wards"
             />
           </div>
 
-          {localBodyId && (
+          {localBodyIds.length > 0 && (
             <p className="mt-3 text-xs" style={{ color: C.inkFaint }}>
               Showing data for{" "}
               <span className="font-semibold" style={{ color: C.ink }}>
                 {selectedLocalBodyLabel}
+                {selectedWardLabel ? ` · ${selectedWardLabel}` : ""}
               </span>
             </p>
           )}
@@ -1212,7 +1355,7 @@ export default function DailyWasteComparisonList() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {rows.map((r) => (
+                    {paginatedRows.map((r) => (
                       <TableRow key={r.unique_id} style={{ borderColor: C.line }}>
                         <TableCell className="whitespace-nowrap font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.collection_date}
@@ -1237,6 +1380,72 @@ export default function DailyWasteComparisonList() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-xs" style={{ color: C.inkSoft }}>
+                  <span>Rows per page</span>
+                  <select
+                    value={detailPageSize}
+                    onChange={(event) => {
+                      setDetailPageSize(Number(event.target.value));
+                      setDetailPage(1);
+                    }}
+                    className="h-8 rounded-lg border px-2 font-mono outline-none"
+                    style={{ borderColor: C.line, background: C.surfaceSunk, color: C.ink }}
+                    aria-label="Rows per page"
+                  >
+                    {[10, 25, 50].map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                  <span className="font-mono">
+                    {(safeDetailPage - 1) * detailPageSize + 1}–
+                    {Math.min(safeDetailPage * detailPageSize, rows.length)} of {rows.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetailPage((page) => Math.max(1, page - 1))}
+                    disabled={safeDetailPage === 1}
+                    className="h-8 w-8 rounded-lg p-0"
+                    style={{ borderColor: C.line }}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  {visibleDetailPages.map((page) => (
+                    <Button
+                      key={page}
+                      type="button"
+                      variant={page === safeDetailPage ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setDetailPage(page)}
+                      className="h-8 min-w-8 rounded-lg px-2 font-mono text-xs"
+                      style={
+                        page === safeDetailPage
+                          ? { background: C.primary, color: "#fff" }
+                          : { borderColor: C.line, color: C.inkSoft }
+                      }
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetailPage((page) => Math.min(detailPageCount, page + 1))}
+                    disabled={safeDetailPage === detailPageCount}
+                    className="h-8 w-8 rounded-lg p-0"
+                    style={{ borderColor: C.line }}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           )}

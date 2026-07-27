@@ -13,7 +13,7 @@ import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import { Divider } from "primereact/divider";
-import { MultiSelect } from "primereact/multiselect";
+import { MultiSelect } from "@/components/form/MultiSelect";
 import { FilterMatchMode } from "primereact/api";
 import type { DataTableFilterMeta } from "primereact/datatable";
 

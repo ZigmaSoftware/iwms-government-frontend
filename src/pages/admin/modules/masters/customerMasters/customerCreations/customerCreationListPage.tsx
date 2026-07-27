@@ -9,7 +9,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { MultiSelect } from "primereact/multiselect";
+import { MultiSelect } from "@/components/form/MultiSelect";
 import { FilterMatchMode } from "primereact/api";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";

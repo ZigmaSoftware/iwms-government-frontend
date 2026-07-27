@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { MultiSelect } from "primereact/multiselect";
+import { MultiSelect } from "@/components/form/MultiSelect";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";

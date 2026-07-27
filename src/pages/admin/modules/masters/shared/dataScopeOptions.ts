@@ -68,6 +68,97 @@ export const scopeOptions = (level: ScopeLevel): ScopeOption[] => {
 
 export type ScopeFieldMode = "unrestricted" | "locked" | "choices";
 
+export type ScopeHierarchyRecords = {
+  states: Record<string, unknown>[];
+  districts: Record<string, unknown>[];
+  areaTypes: Record<string, unknown>[];
+  corporations: Record<string, unknown>[];
+  municipalities: Record<string, unknown>[];
+  townPanchayats: Record<string, unknown>[];
+  panchayatUnions: Record<string, unknown>[];
+  panchayats: Record<string, unknown>[];
+  wards: Record<string, unknown>[];
+};
+
+/**
+ * Flatten the descendant hierarchy embedded in the login data scope into the
+ * same lightweight record shape used by hierarchy dropdowns. This is the
+ * permission-independent fallback for cross-module filters: a staff member
+ * may be allowed to view a report without being allowed to open every
+ * underlying master screen.
+ */
+export const scopeHierarchyRecords = (): ScopeHierarchyRecords => {
+  const scope = getStoredDataScope();
+  const records: ScopeHierarchyRecords = {
+    states: [],
+    districts: [],
+    areaTypes: [],
+    corporations: [],
+    municipalities: [],
+    townPanchayats: [],
+    panchayatUnions: [],
+    panchayats: [],
+    wards: [],
+  };
+
+  if (scope?.state?.unique_id) {
+    records.states.push({
+      unique_id: scope.state.unique_id,
+      name: scope.state.name ?? scope.state.unique_id,
+    });
+  }
+
+  const localBodyTargets: Record<string, keyof ScopeHierarchyRecords> = {
+    corporation: "corporations",
+    municipality: "municipalities",
+    town_panchayat: "townPanchayats",
+    panchayat_union: "panchayatUnions",
+    panchayat: "panchayats",
+  };
+
+  for (const district of scope?.descendants?.districts ?? []) {
+    records.districts.push({
+      unique_id: district.unique_id,
+      name: district.name ?? district.unique_id,
+      state_id: scope?.state?.unique_id,
+    });
+    for (const areaType of district.area_types ?? []) {
+      records.areaTypes.push({
+        unique_id: areaType.unique_id,
+        name: areaType.name ?? areaType.unique_id,
+        district_id: district.unique_id,
+        state_id: scope?.state?.unique_id,
+      });
+      for (const localBody of areaType.local_bodies ?? []) {
+        const target = localBodyTargets[localBody.local_body_type];
+        if (!target) continue;
+        records[target].push({
+          unique_id: localBody.unique_id,
+          name: localBody.name ?? localBody.unique_id,
+          district_id: district.unique_id,
+          area_type_id: areaType.unique_id,
+          state_id: scope?.state?.unique_id,
+        });
+        for (const ward of localBody.wards ?? []) {
+          records.wards.push({
+            unique_id: ward.unique_id,
+            name: ward.name ?? ward.ward_name ?? ward.unique_id,
+            ward_name: ward.ward_name ?? ward.name ?? ward.unique_id,
+            local_body_id: localBody.unique_id,
+            local_body_type: localBody.local_body_type,
+            [`${localBody.local_body_type}_id`]: localBody.unique_id,
+            district_id: district.unique_id,
+            area_type_id: areaType.unique_id,
+            state_id: scope?.state?.unique_id,
+          });
+        }
+      }
+    }
+  }
+
+  return records;
+};
+
 /**
  * Decide how a form field for `level` should behave given the staff's own
  * Data Scope: "unrestricted" (no scope value — keep the field as-is, fed by
