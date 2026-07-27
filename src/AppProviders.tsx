@@ -23,7 +23,7 @@ export function AppProviders({ children }: Props) {
           <UserProvider>
 
               <PermissionProvider>
-                <TooltipProvider>
+                <TooltipProvider delayDuration={150} skipDelayDuration={0}>
                   <BrowserRouter>
                     {children}
                     <NotificationDialog />
