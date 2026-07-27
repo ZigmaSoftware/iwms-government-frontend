@@ -34,10 +34,10 @@ export default function UserScreenList() {
   });
 
   const navigate = useNavigate();
-  const { encAdmins, encUserScreen } = getEncryptedRoute();
+  const { encSuperAdmin, encUserScreen } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encAdmins,
+    encSuperAdmin,
     encUserScreen,
   );
 

@@ -30,9 +30,9 @@ import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagemen
 import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
-const { encAdmins, encUserScreenPermission } = getEncryptedRoute();
+const { encSuperAdmin, encUserScreenPermission } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(
-  encAdmins,
+  encSuperAdmin,
   encUserScreenPermission,
 );
 

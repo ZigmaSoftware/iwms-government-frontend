@@ -362,8 +362,8 @@ export default function StaffUserTypeForm() {
   const { id } = useParams<{ id: string }>();
   const isEdit = Boolean(id);
 
-  const { encAdmins, encStaffUserType } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encAdmins, encStaffUserType);
+  const { encRoleManagement, encStaffUserType } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encRoleManagement, encStaffUserType);
 
   // ── dropdown data ──
   const [userTypes, setUserTypes]           = useState<UserTypeOption[]>([]);

@@ -103,8 +103,8 @@ export default function DailyTripCollectionPointForm() {
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
 
-  const { encScheduleOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
-  const { listPath: LIST_PATH } = createCrudRoutePaths(encScheduleOperations, encDailyTripCollectionPoint);
+  const { encDailyOperations, encDailyTripCollectionPoint } = getEncryptedRoute();
+  const { listPath: LIST_PATH } = createCrudRoutePaths(encDailyOperations, encDailyTripCollectionPoint);
 
   const [tripAssignmentId, setTripAssignmentId] = useState("");
   const [collectionPointId, setCollectionPointId] = useState("");

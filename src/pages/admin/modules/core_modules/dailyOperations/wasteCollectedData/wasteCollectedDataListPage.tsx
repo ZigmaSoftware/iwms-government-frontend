@@ -78,9 +78,9 @@ const CollectionStatusBadge = ({ value }: { value?: string }) => (
 export default function WasteCollectedDataList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { encScheduleOperations, encWasteCollectedData } = getEncryptedRoute();
+  const { encDailyOperations, encWasteCollectedData } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encScheduleOperations,
+    encDailyOperations,
     encWasteCollectedData,
   );
 

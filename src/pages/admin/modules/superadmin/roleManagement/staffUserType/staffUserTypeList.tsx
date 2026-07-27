@@ -71,10 +71,10 @@ export default function StaffUserTypeList() {
   });
 
   const navigate = useNavigate();
-  const { encAdmins, encStaffUserType } = getEncryptedRoute();
+  const { encRoleManagement, encStaffUserType } = getEncryptedRoute();
 
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
-    encAdmins,
+    encRoleManagement,
     encStaffUserType,
   );
 
