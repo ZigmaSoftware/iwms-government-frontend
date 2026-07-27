@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-import { MultiSelect } from "primereact/multiselect";
+import { MultiSelect } from "@/components/form/MultiSelect";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";

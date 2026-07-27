@@ -5,6 +5,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { api } from "@/api";
 import PasswordInput from "@/components/form/input/PasswordInput";
+import { MultiSelect } from "@/components/form/MultiSelect";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { customerCreationSchema } from "@/schemas/masters/customerMasters/customerCreation.schema";
 
@@ -469,36 +470,28 @@ const MultiSelectCheckboxes = ({
   options: Option[];
   isRequired?: boolean;
 }) => {
-  const selected = new Set(values);
-  const toggle = (value: string) => {
-    if (selected.has(value)) {
-      onChange(values.filter((item) => item !== value));
-      return;
-    }
-    onChange([...values, value]);
-  };
   return (
     <div className="space-y-2 md:col-span-2">
       <Label className="text-sm font-medium text-gray-700">
         {label}
         {isRequired && <span className="text-red-500 ml-1">*</span>}
       </Label>
-      <div className="grid max-h-44 gap-2 overflow-y-auto rounded-md border border-gray-300 bg-white p-3 md:grid-cols-2">
-        {options.length > 0 ? (
-          options.map((option) => (
-            <label key={option.value} className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={selected.has(option.value)}
-                onChange={() => toggle(option.value)}
-              />
-              <span>{capitalize(option.label)}</span>
-            </label>
-          ))
-        ) : (
-          <p className="text-sm text-gray-500">No options available</p>
-        )}
-      </div>
+      <MultiSelect
+        value={values}
+        onChange={(event) =>
+          onChange((Array.isArray(event.value) ? event.value : []).map(String))
+        }
+        options={options.map((option) => ({
+          ...option,
+          label: capitalize(option.label),
+        }))}
+        optionLabel="label"
+        optionValue="value"
+        maxSelectedLabels={3}
+        placeholder={`Select ${label.toLowerCase()}`}
+        aria-label={label}
+        filter
+      />
     </div>
   );
 };

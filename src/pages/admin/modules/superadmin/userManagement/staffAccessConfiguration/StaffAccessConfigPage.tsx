@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
-import { MultiSelect } from "primereact/multiselect";
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
+import { MultiSelect } from "@/components/form/MultiSelect";
 import { CheckCircle2, KeyRound, Loader2, MapPinned, ShieldCheck, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -17,16 +15,6 @@ import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { getStoredDataScope } from "@/utils/authStorage";
-
-const MULTISELECT_PT = {
-  labelContainer: { className: "!flex !flex-1 !items-center !overflow-hidden" },
-  label: { className: "!m-0 !block !truncate !p-0 !text-sm !leading-5 !text-gray-900" },
-  trigger: { className: "!ml-2 !flex !h-4 !w-4 !shrink-0 !items-center !justify-center !text-gray-500" },
-  dropdownIcon: { className: "!h-4 !w-4 !opacity-50" },
-  panel: { className: "!z-[80] !rounded-md !border !bg-white !shadow-md" },
-};
-const MULTISELECT_CLASS =
-  "flex! h-10! w-full! items-center rounded-md! border! border-gray-300! bg-white! px-3! text-sm! disabled:opacity-50! dark:border-gray-700! dark:bg-gray-900!";
 
 import DashboardWidgetPanel from "./DashboardWidgetPanel";
 import PermissionTree from "./PermissionTree";
@@ -1408,8 +1396,6 @@ export default function StaffAccessConfigPage() {
               filter
               placeholder={values.districtId ? "Select local body type(s)" : "Select a district first"}
               disabled={!values.districtId}
-              className={MULTISELECT_CLASS}
-              pt={MULTISELECT_PT}
             />
           </div>
           <div className="md:col-span-2">
@@ -1435,8 +1421,6 @@ export default function StaffAccessConfigPage() {
               filter
               placeholder={values.localBodyLevels.length ? "Select local body/bodies" : "Select a local body type first"}
               disabled={!values.localBodyLevels.length}
-              className={MULTISELECT_CLASS}
-              pt={MULTISELECT_PT}
             />
           </div>
           <div className="md:col-span-2">
@@ -1458,8 +1442,6 @@ export default function StaffAccessConfigPage() {
               filter
               placeholder={values.localBodies.length ? "Select ward(s)" : "Select a local body first"}
               disabled={!values.localBodies.length}
-              className={MULTISELECT_CLASS}
-              pt={MULTISELECT_PT}
             />
           </div>
         </div>
