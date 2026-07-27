@@ -3,12 +3,14 @@ import L from "leaflet";
 import type { LatLngTuple } from "leaflet";
 
 import {
-  BIN_PRIORITY_META,
   createBinIcon,
+  DEFAULT_CENTER,
+  HOUSEHOLD_STATUS_META,
   initBaseMap,
-  type BinPriority,
+  spreadPositions,
+  type HouseholdStatus,
 } from "./mapUtils";
-import { binApi } from "@/helpers/admin";
+import { binApi, binCollectionEventApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
 
 /* ================= TYPES ================= */
@@ -29,21 +31,37 @@ type ApiBin = {
   is_active?: boolean;
 };
 
+type ApiBinCollectionEvent = {
+  bin_id?: string;
+  bin?: { unique_id?: string };
+  status?: string;
+  collection_date?: string;
+  created_at?: string;
+  collected_weight_kg?: number | string;
+};
+
+type CollectionMeta = {
+  lastCollectedOn?: string;
+  collectedWeightKg?: number;
+};
+
 type Bin = {
   id: string;
   name: string;
   lat: number;
   lng: number;
-  priority: BinPriority;
+  status: HouseholdStatus;
   wardName?: string;
   installedDate?: string;
   binType?: string;
   wasteType?: string;
   capacityLiters?: number;
-  status?: string;
+  binCondition?: string;
   colorCode?: string;
   expectedLifeYears?: number;
   isActive?: boolean;
+  lastCollectedOn?: string;
+  collectedWeightKg?: number;
 };
 
 const parseCoordinate = (value?: number | string | null) => {
@@ -65,58 +83,43 @@ const formatLabel = (value?: string) => {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-const parseHexColor = (value: string) => {
-  let hex = value.trim().toLowerCase();
-  if (!hex) return null;
-  if (hex.startsWith("#")) hex = hex.slice(1);
-  if (hex.length === 3) {
-    hex = hex
-      .split("")
-      .map((c) => c + c)
-      .join("");
-  }
-  if (hex.length !== 6) return null;
-  const r = Number.parseInt(hex.slice(0, 2), 16);
-  const g = Number.parseInt(hex.slice(2, 4), 16);
-  const b = Number.parseInt(hex.slice(4, 6), 16);
-  if ([r, g, b].some((c) => Number.isNaN(c))) return null;
-  return { r, g, b };
+const formatDateTime = (value?: string) => {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
 };
 
-const getPriorityFromColor = (
-  colorCode?: string,
-  status?: string
-): BinPriority => {
-  const normalized = String(colorCode ?? "").trim().toLowerCase();
-  if (normalized) {
-    if (normalized.includes("red")) return "high";
-    if (
-      normalized.includes("orange") ||
-      normalized.includes("yellow") ||
-      normalized.includes("amber")
-    ) {
-      return "medium";
-    }
-    if (normalized.includes("green")) return "low";
-    const rgb = parseHexColor(normalized);
-    if (rgb) {
-      if (rgb.r >= 200 && rgb.g < 120) return "high";
-      if (rgb.g >= 170 && rgb.r < 140) return "low";
-      if (rgb.r >= 180 && rgb.g >= 120) return "medium";
-    }
-  }
-
-  const statusValue = String(status ?? "").trim().toLowerCase();
-  if (statusValue === "full") return "high";
-  if (statusValue === "maintenance" || statusValue === "damaged") {
-    return "medium";
-  }
-
-  return "low";
+const buildBin = (
+  bin: ApiBin,
+  lat: number,
+  lng: number,
+  collectedMeta: Map<string, CollectionMeta>
+): Bin => {
+  const id = String(bin.unique_id ?? "");
+  const meta = collectedMeta.get(id);
+  return {
+    id,
+    name: bin.bin_name || bin.unique_id || "Unnamed Bin",
+    lat,
+    lng,
+    status: meta ? "collected" : "not_collected",
+    wardName: bin.ward_name || bin.ward || undefined,
+    installedDate: bin.installation_date || undefined,
+    binType: formatLabel(bin.bin_type),
+    wasteType: formatLabel(bin.waste_type),
+    capacityLiters: toNumberOrUndefined(bin.capacity_liters),
+    binCondition: formatLabel(bin.bin_status),
+    colorCode: bin.color_code || undefined,
+    expectedLifeYears: toNumberOrUndefined(bin.expected_life_years),
+    isActive: bin.is_active,
+    lastCollectedOn: meta?.lastCollectedOn,
+    collectedWeightKg: meta?.collectedWeightKg,
+  };
 };
 
 /* ================= COMPONENT ================= */
-export function BinMapPanel() {
+export function BinMapPanel({ params = {} }: { params?: Record<string, string> }) {
   const { t } = useTranslation();
   const mapRef = useRef<L.Map | null>(null);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
@@ -126,27 +129,34 @@ export function BinMapPanel() {
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [binRecords, setBinRecords] = useState<ApiBin[]>([]);
+  const [collectionRecords, setCollectionRecords] = useState<ApiBinCollectionEvent[]>([]);
 
   /* ================= FILTER STATE ================= */
-  const [priorityFilter, setPriorityFilter] = useState<
-    Record<BinPriority, boolean>
+  const [statusFilter, setStatusFilter] = useState<
+    Record<HouseholdStatus, boolean>
   >({
-    high: true,
-    medium: true,
-    low: true,
+    collected: true,
+    not_collected: true,
   });
 
   /* ================= DATA ================= */
   useEffect(() => {
     let isMounted = true;
     const fetchBins = async () => {
+      const today = new Date().toISOString().split("T")[0];
+      const config = Object.keys(params).length ? { params } : undefined;
       try {
-        const data = await binApi.readAll();
+        const [binResponse, collectionResponse] = await Promise.all([
+          binApi.readAll(config),
+          binCollectionEventApi.readAll({ params: { collection_date: today, ...params } }),
+        ]);
         if (!isMounted) return;
-        setBinRecords(Array.isArray(data) ? data : []);
+        setBinRecords(Array.isArray(binResponse) ? binResponse : []);
+        setCollectionRecords(Array.isArray(collectionResponse) ? collectionResponse : []);
       } catch {
         if (!isMounted) return;
         setBinRecords([]);
+        setCollectionRecords([]);
       }
     };
 
@@ -154,53 +164,73 @@ export function BinMapPanel() {
     return () => {
       isMounted = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(params)]);
 
   /* ================= DATA ================= */
-  const bins = useMemo(
-    () =>
-      binRecords.reduce<Bin[]>((acc, bin) => {
-        if (bin.is_active === false) return acc;
+  const bins = useMemo(() => {
+    const collectedMeta = new Map<string, CollectionMeta>();
+    collectionRecords.forEach((event) => {
+      if (event.status !== "Collected") return;
+      const binId = String(event.bin_id ?? event.bin?.unique_id ?? "").trim();
+      if (!binId) return;
+      collectedMeta.set(binId, {
+        lastCollectedOn: formatDateTime(event.collection_date || event.created_at),
+        collectedWeightKg: toNumberOrUndefined(event.collected_weight_kg),
+      });
+    });
 
-        const lat = parseCoordinate(bin.latitude);
-        const lng = parseCoordinate(bin.longitude);
-        if (lat === null || lng === null) return acc;
+    const active = binRecords.filter((bin) => bin.is_active !== false);
 
-        acc.push({
-          id: String(bin.unique_id ?? ""),
-          name: bin.bin_name || bin.unique_id || "Unnamed Bin",
-          lat,
-          lng,
-          priority: getPriorityFromColor(bin.color_code, bin.bin_status),
-          wardName: bin.ward_name || bin.ward || undefined,
-          installedDate: bin.installation_date || undefined,
-          binType: formatLabel(bin.bin_type),
-          wasteType: formatLabel(bin.waste_type),
-          capacityLiters: toNumberOrUndefined(bin.capacity_liters),
-          status: formatLabel(bin.bin_status),
-          colorCode: bin.color_code || undefined,
-          expectedLifeYears: toNumberOrUndefined(bin.expected_life_years),
-          isActive: bin.is_active,
-        });
+    const withCoords: Bin[] = [];
+    const missingCoords: ApiBin[] = [];
 
-        return acc;
-      }, []),
-    [binRecords]
-  );
+    active.forEach((bin) => {
+      const lat = parseCoordinate(bin.latitude);
+      const lng = parseCoordinate(bin.longitude);
+      if (lat === null || lng === null) {
+        missingCoords.push(bin);
+        return;
+      }
+      withCoords.push(buildBin(bin, lat, lng, collectedMeta));
+    });
+
+    const center: LatLngTuple = withCoords.length
+      ? [
+          withCoords.reduce((sum, b) => sum + b.lat, 0) / withCoords.length,
+          withCoords.reduce((sum, b) => sum + b.lng, 0) / withCoords.length,
+        ]
+      : DEFAULT_CENTER;
+    const fallbackPositions = spreadPositions(missingCoords.length, center);
+
+    const synthesized: Bin[] = missingCoords.map((bin, i) =>
+      buildBin(bin, fallbackPositions[i][0], fallbackPositions[i][1], collectedMeta)
+    );
+
+    return [...withCoords, ...synthesized];
+  }, [binRecords, collectionRecords]);
 
   const filteredBins = useMemo(
-    () => bins.filter((b) => priorityFilter[b.priority]),
-    [bins, priorityFilter]
+    () => bins.filter((b) => statusFilter[b.status]),
+    [bins, statusFilter]
   );
+
+  const totalSelected = statusFilter.collected && statusFilter.not_collected;
+  const totalMeta = {
+    label: t("dashboard.home.total_bins_label"),
+    color: "#1d4ed8",
+    bg: "rgba(59,130,246,0.16)",
+  };
 
   const summary = useMemo(
     () =>
       bins.reduce(
         (acc, b) => {
-          acc[b.priority] += 1;
+          acc[b.status] += 1;
+          acc.total += 1;
           return acc;
         },
-        { high: 0, medium: 0, low: 0 }
+        { total: 0, collected: 0, not_collected: 0 }
       ),
     [bins]
   );
@@ -243,16 +273,15 @@ export function BinMapPanel() {
       bounds.push(pos);
 
       const marker = L.marker(pos, {
-        icon: createBinIcon(bin.priority, bin.id === selectedBin?.id),
+        icon: createBinIcon(bin.status, bin.id === selectedBin?.id),
         title: bin.name,
       });
 
-      const priorityLabel = t(BIN_PRIORITY_META[bin.priority].labelKey);
+      const statusLabel = t(HOUSEHOLD_STATUS_META[bin.status].labelKey);
       marker.bindPopup(
         `<strong>${bin.name}</strong><br/>
-         ${t("common.priority")}: ${priorityLabel}<br/>
-         ${t("common.color")}: ${bin.colorCode ?? "—"}<br/>
-         ${t("common.status")}: ${bin.status ?? "—"}`,
+         ${t("common.status")}: ${statusLabel}<br/>
+         ${t("common.ward")}: ${bin.wardName ?? "—"}`,
         { closeButton: false, autoClose: false, closeOnClick: false }
       );
 
@@ -269,7 +298,9 @@ export function BinMapPanel() {
       markerLookupRef.current[bin.id] = marker;
     });
 
-    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40] });
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    else if (bounds.length === 1) map.setView(bounds[0], 15);
+    else map.setView(DEFAULT_CENTER, 13);
   }, [filteredBins, selectedBin, t]);
 
   useEffect(() => {
@@ -290,18 +321,18 @@ export function BinMapPanel() {
       <div ref={mapDivRef} className="absolute inset-0" />
 
       {/* TOP FILTER */}
-      <div className="absolute left-1/2 top-3 z-[600] -translate-x-1/2">
-        <div className="flex gap-2 rounded-lg border border-white/40 bg-white/80 px-3 py-2 shadow text-xs">
-          {(Object.keys(priorityFilter) as BinPriority[]).map((key) => {
-            const meta = BIN_PRIORITY_META[key];
+      <div className="absolute left-1/2 top-2 z-[600] -translate-x-1/2">
+        <div className="flex max-w-[calc(100vw-32px)] flex-wrap items-center justify-center gap-2 rounded-md border border-white/40 bg-white/80 px-4 py-1 text-[10px] text-slate-700 dark:text-slate-200">
+          {(Object.keys(statusFilter) as HouseholdStatus[]).map((key) => {
+            const meta = HOUSEHOLD_STATUS_META[key];
             return (
               <label
                 key={key}
-                className="flex items-center gap-2 rounded-full px-3 py-1 font-semibold cursor-pointer"
+                className="flex flex-wrap items-center justify-center gap-1.5 rounded-full px-2 py-1 text-center font-semibold leading-tight cursor-pointer"
                 style={{
                   background: meta.bg,
                   color: meta.color,
-                  opacity: priorityFilter[key] ? 1 : 0.5,
+                  opacity: statusFilter[key] ? 1 : 0.5,
                 }}
               >
                 <span
@@ -314,15 +345,32 @@ export function BinMapPanel() {
                 </span>
                 <input
                   type="checkbox"
-                  checked={priorityFilter[key]}
+                  checked={statusFilter[key]}
                   onChange={() =>
-                    setPriorityFilter((p) => ({ ...p, [key]: !p[key] }))
+                    setStatusFilter((p) => ({ ...p, [key]: !p[key] }))
                   }
                   className="hidden"
                 />
               </label>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setStatusFilter({ collected: true, not_collected: true })}
+            className="flex flex-wrap items-center justify-center gap-1.5 rounded-full px-2 py-1 text-center font-semibold leading-tight"
+            style={{
+              background: totalMeta.bg,
+              color: totalMeta.color,
+              opacity: totalSelected ? 1 : 0.5,
+            }}
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: totalMeta.color }}
+            />
+            {totalMeta.label}
+            <span className="ml-1 text-[11px] font-bold">{summary.total}</span>
+          </button>
         </div>
       </div>
 
@@ -350,7 +398,7 @@ function BinSideDetailsPanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const meta = bin ? BIN_PRIORITY_META[bin.priority] : null;
+  const meta = bin ? HOUSEHOLD_STATUS_META[bin.status] : null;
   const WIDTH = 240;
 
   return (
@@ -397,7 +445,7 @@ function BinSideDetailsPanel({
             {/* DETAILS */}
             <div className="space-y-4 p-3 text-xs">
               <Section title={t("dashboard.home.bin_info_title")}>
-                <InfoRow label={t("common.status")} value={bin.status} />
+                <InfoRow label={t("common.status")} value={bin.binCondition} />
                 <InfoRow label={t("common.bin_type")} value={bin.binType} />
                 <InfoRow label={t("common.waste_type")} value={bin.wasteType} />
                 <InfoRow label={t("common.color_code")} value={bin.colorCode} />
@@ -408,6 +456,11 @@ function BinSideDetailsPanel({
                 <InfoRow label={t("common.ward")} value={bin.wardName} />
                 <InfoRow label={t("common.latitude")} value={bin.lat} />
                 <InfoRow label={t("common.longitude")} value={bin.lng} />
+              </Section>
+
+              <Section title={t("dashboard.home.collection_title")}>
+                <InfoRow label={t("common.last_collected")} value={bin.lastCollectedOn} />
+                <InfoRow label={t("common.collected_weight_kg")} value={bin.collectedWeightKg} />
               </Section>
 
               <Section title={t("dashboard.home.lifecycle_title")}>

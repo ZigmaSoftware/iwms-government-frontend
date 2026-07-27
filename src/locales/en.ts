@@ -48,6 +48,7 @@ const enResource = {
         expected_life_years: "Expected Life (Years)",
         color_code: "Color Code",
         last_collected: "Last Collected",
+        collected_weight_kg: "Collected Weight (kg)",
         beat_worker: "Beat Worker",
         status_open: "Open",
         status_in_progress: "In Progress",
@@ -221,6 +222,7 @@ const enResource = {
           "grievances_none": "No grievances available.",
           "complaint_fallback": "Complaint",
           "total_households_label": "Total Household",
+          "total_bins_label": "Total Bin",
           "bin_info_title": "Bin Info",
           "location_title": "Location",
           "lifecycle_title": "Lifecycle",
@@ -272,7 +274,7 @@ const enResource = {
           "map_summaries": {
             "all": "Fleet, routes, and live coverage.",
             "vehicle": "Fleet, routes, and live coverage.",
-            "bins": "Smart bin fill levels and priority hotspots.",
+            "bins": "Bin collection status by ward.",
             "households": "Door-to-door collection status by ward."
           }
         },

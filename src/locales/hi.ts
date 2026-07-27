@@ -48,6 +48,7 @@ const hiResource = {
         expected_life_years: "अनुमानित आयु (वर्ष)",
         color_code: "रंग कोड",
         last_collected: "अंतिम संग्रह",
+        collected_weight_kg: "एकत्रित वजन (किग्रा)",
         beat_worker: "बीट कार्यकर्ता",
         status_open: "खुला",
         status_in_progress: "प्रगति में",
@@ -216,6 +217,7 @@ const hiResource = {
           "grievances_none": "कोई शिकायत उपलब्ध नहीं।",
           "complaint_fallback": "शिकायत",
           "total_households_label": "कुल घर",
+          "total_bins_label": "कुल बिन",
           "bin_info_title": "बिन जानकारी",
           "location_title": "स्थान",
           "lifecycle_title": "जीवनचक्र",
@@ -267,7 +269,7 @@ const hiResource = {
           "map_summaries": {
             "all": "फ्लीट, रूट और लाइव कवरेज।",
             "vehicle": "फ्लीट, रूट और लाइव कवरेज।",
-            "bins": "स्मार्ट बिन भराव स्तर और प्राथमिकता हॉटस्पॉट।",
+            "bins": "वार्ड अनुसार बिन संग्रह स्थिति।",
             "households": "वार्ड अनुसार डोर-टू-डोर संग्रह स्थिति।"
           }
         },
