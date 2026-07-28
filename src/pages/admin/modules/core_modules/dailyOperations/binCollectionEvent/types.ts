@@ -1,5 +1,3 @@
-import type { FilterMatchMode } from "primereact/api";
-
 export type SelectOption = { value: string; label: string };
 
 export type FormState = {
@@ -13,17 +11,6 @@ export type FormState = {
   driver_latitude: string;
   driver_longitude: string;
   notes: string;
-};
-
-export type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-  _trip_plan: { value: string | null; matchMode: FilterMatchMode };
-  _collection_point: { value: string | null; matchMode: FilterMatchMode };
-  _bin: { value: string | null; matchMode: FilterMatchMode };
-  _waste_type: { value: string | null; matchMode: FilterMatchMode };
-  _location: { value: string | null; matchMode: FilterMatchMode };
-  _status: { value: string | null; matchMode: FilterMatchMode };
-  collection_date: { value: string | null; matchMode: FilterMatchMode };
 };
 
 export type BinCERecord = {

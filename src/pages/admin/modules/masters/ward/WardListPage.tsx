@@ -2,11 +2,10 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DataTable, type DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
 import { PencilIcon } from "@/icons";
@@ -39,6 +38,8 @@ const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
   panchayat: "Panchayat",
 };
 
+const SORTABLE_FIELDS = new Set(["ward_name", "is_active"]);
+
 const columns = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District" },
@@ -55,17 +56,29 @@ export default function WardListPage() {
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encWards);
 
   const [rows, setRows] = useState<WardListRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const loadRows = async () => {
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setIsLoading(true);
     try {
-      setRows(toRecordList(await wardApi.readAll()));
+      const response = await wardApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
     } catch (error: any) {
       Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Ward"), "error");
     } finally {
@@ -73,19 +86,39 @@ export default function WardListPage() {
     }
   };
 
-  useEffect(() => {
-    void loadRows();
-  }, []);
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
-  const onFilter = (event: DataTableFilterEvent) => {
-    setFilters(event.filters as DataTableFilterMeta);
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setFilters((current) => ({ ...current, global: { ...current.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(event.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await wardApi.readAllForExport());
 
   const statusTemplate = (row: WardListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -140,12 +173,17 @@ export default function WardListPage() {
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        filters={filters}
-        onFilter={onFilter}
         header={renderListSearchHeader({
           value: globalFilterValue,
           onChange: onGlobalFilterChange,
@@ -154,7 +192,7 @@ export default function WardListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Ward records found."
-        globalFilterFields={columns.map((column) => column.field)}
+        onExportRequest={onExportRequest}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
@@ -163,9 +201,7 @@ export default function WardListPage() {
             key={column.field}
             field={column.field}
             header={column.header}
-            sortable
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has(column.field)}
             body={(row: WardListRecord) =>
               column.field === "coordinates"
                 ? formatCoordinates(row.coordinates)

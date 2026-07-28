@@ -1,4 +1,4 @@
-import type { AlternativeStaffTemplate, TableFilters } from "./types";
+import type { AlternativeStaffTemplate } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,10 +7,9 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import SearchInput from "@/components/common/SearchInput";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -28,6 +27,16 @@ const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   created_at: ["created_at"],
 };
 
+const toRecordList = (value: unknown): AlternativeStaffTemplate[] => {
+  if (Array.isArray(value)) return value as AlternativeStaffTemplate[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: AlternativeStaffTemplate[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["approval_status"]);
+
 
 export default function AlternativeStaffTemplateList() {
   const { t } = useTranslation();
@@ -37,17 +46,15 @@ export default function AlternativeStaffTemplateList() {
     "alternative-staff-template",
     ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS
   );
-  const [records, setRecords] = useState<AlternativeStaffTemplate[]>([]);
+  const [rows, setRows] = useState<AlternativeStaffTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    effective_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    operator_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    change_reason: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const { encScheduleSetup, encAlternativeStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -55,45 +62,57 @@ export default function AlternativeStaffTemplateList() {
     encAlternativeStaffTemplate,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+    setLoading(true);
+    try {
+      const response: any = await adminApi.alternativeStaffTemplate.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    const fetchRecords = async () => {
-      if (mounted) setLoading(true);
-      try {
-        const payload: any = await adminApi.alternativeStaffTemplate.readAll();
-        if (!mounted) return;
-        const data =
-          Array.isArray(payload)
-            ? payload
-            : Array.isArray(payload?.data)
-            ? payload.data
-            : payload?.data?.results ?? [];
-        setRecords(data as AlternativeStaffTemplate[]);
-      } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    void fetchRecords();
-
-    return () => { mounted = false; };
-  }, [t]);
-
-  const onFilter = (e: DataTableFilterEvent) => {
-    setDatatableFilters(e.filters as TableFilters);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setDatatableFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const header = (
     <div className="space-y-4">
@@ -145,22 +164,17 @@ export default function AlternativeStaffTemplateList() {
   return (
     <div className="p-3">
       <DataTable
-        value={records}
+        value={rows}
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={loading}
-        filters={datatableFilters}
-        onFilter={onFilter}
-        globalFilterFields={[
-          ...(showCol("unique_id") ? ["unique_id", "display_code"] : []),
-          ...(showCol("staff_template") ? ["staff_template", "staff_template_display_code"] : []),
-          ...(showCol("driver_name") ? ["driver", "driver_name"] : []),
-          ...(showCol("operator_name") ? ["operator", "operator_name"] : []),
-          ...(showCol("change_reason") ? ["change_reason"] : []),
-          ...(showCol("approval_status") ? ["approval_status"] : []),
-          "company_name",
-          "project_name",
-        ]}
         header={header}
         stripedRows
         showGridlines
@@ -200,8 +214,6 @@ export default function AlternativeStaffTemplateList() {
             field="driver_name"
             header={t("admin.alternative_staff_template.columns.driver")}
             body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -210,8 +222,6 @@ export default function AlternativeStaffTemplateList() {
             field="operator_name"
             header={t("admin.alternative_staff_template.columns.operator")}
             body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -233,8 +243,6 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="change_reason"
             header={t("admin.alternative_staff_template.columns.change_reason")}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -242,8 +250,7 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="approval_status"
             header={t("admin.alternative_staff_template.columns.approval_status")}
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has("approval_status")}
           />
         )}
 

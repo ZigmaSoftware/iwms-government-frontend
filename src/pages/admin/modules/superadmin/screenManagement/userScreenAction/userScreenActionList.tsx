@@ -7,7 +7,7 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -20,19 +20,31 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 
 import { userScreenActionApi } from "@/helpers/admin";
 
-import type { UserScreenAction } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
+import type { UserScreenAction } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
+
+const toRecordList = (value: unknown): UserScreenAction[] => {
+  if (Array.isArray(value)) return value as UserScreenAction[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: UserScreenAction[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["action_name", "variable_name"]);
 
 export default function UserScreenActionList() {
   const { t } = useTranslation();
   const [records, setRecords] = useState<UserScreenAction[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    action_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const navigate = useNavigate();
   const { encSuperAdmin, encUserScreenAction } = getEncryptedRoute();
@@ -43,35 +55,71 @@ export default function UserScreenActionList() {
     encUserScreenAction,
   );
 
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await userScreenActionApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRecords(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
     let mounted = true;
 
-    const loadActions = async () => {
-      setIsLoading(true);
-      try {
-        const data = await userScreenActionApi.readAll();
-        if (mounted) setRecords(data as UserScreenAction[]);
-      } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      } finally {
-        if (mounted) setIsLoading(false);
+    const run = async () => {
+      if (mounted) {
+        await loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
       }
     };
 
-    void loadActions();
+    void run();
 
     return () => {
       mounted = false;
     };
-  }, [t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, t]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters["global"].value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await userScreenActionApi.readAllForExport());
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -136,7 +184,7 @@ export default function UserScreenActionList() {
 
   return (
     <div className="px-3 py-3 w-full">
-      
+
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -163,31 +211,38 @@ export default function UserScreenActionList() {
         {/* Table */}
         <DataTable
           value={records}
+          dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           loading={isLoading}
-          filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["action_name", "variable_name"]}
           header={header}
           emptyMessage={t("common.no_items_found", {
             item: t("admin.user_screen_action.action_label"),
           })}
           stripedRows
           showGridlines
+          onExportRequest={onExportRequest}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
           <Column
             field="action_name"
             header={t("common.action_name")}
-            sortable
+            sortable={SORTABLE_FIELDS.has("action_name")}
             style={{ minWidth: "200px" }}
           />
           <Column
             field="variable_name"
             header={t("common.variable_name")}
-            sortable
+            sortable={SORTABLE_FIELDS.has("variable_name")}
             style={{ minWidth: "200px" }}
           />
           <Column
@@ -201,7 +256,7 @@ export default function UserScreenActionList() {
             style={{ width: "150px" }}
           />
         </DataTable>
- 
+
     </div>
   );
 }

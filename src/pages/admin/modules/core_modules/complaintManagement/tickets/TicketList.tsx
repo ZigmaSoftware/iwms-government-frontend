@@ -6,13 +6,13 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
 import type { ComplaintTicket, GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
-import { asArray, errorText, formatDateTime } from "../utils";
+import { errorText, formatDateTime } from "../utils";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
 
@@ -62,15 +62,47 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
 
 const isPublic = (row: ComplaintTicket) => row.source_code === PUBLIC_SOURCE_CODE;
 
+const toRecordList = (value: unknown): ComplaintTicket[] => {
+  if (Array.isArray(value)) return value as ComplaintTicket[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: ComplaintTicket[] }).results;
+  }
+  return [];
+};
+
+// Backend `ordering_fields` also includes updated/sla_due_at, but only these
+// two are rendered as columns whose field name matches a real orderable
+// backend column - keep sorting limited to what the server can honor.
+const SORTABLE_FIELDS = new Set(["ticket_no", "created"]);
+
 export default function TicketList() {
   const navigate = useNavigate();
   const { encComplaintTicket, encComplaint } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(encComplaintTicket, encComplaint);
-  const [records, setRecords] = useState<ComplaintTicket[]>([]);
+  // Table view: one server-paginated page of raw ticket rows.
+  const [tableRows, setTableRows] = useState<ComplaintTicket[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [tableLoading, setTableLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+
+  // Kanban view: a separate, un-paginated fetch of everything matching the
+  // current filters - the board groups the whole matching dataset by status.
+  const [kanbanRows, setKanbanRows] = useState<ComplaintTicket[]>([]);
+  const [kanbanLoading, setKanbanLoading] = useState(false);
+
+  // Tab counts (All / Public Grievances / Internal) - sourced from the
+  // backend so all three are correct regardless of page/sort/source tab.
+  const [counts, setCounts] = useState<{ all: number; public: number; internal: number }>({
+    all: 0,
+    public: 0,
+    internal: 0,
   });
+
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
 
@@ -85,9 +117,6 @@ export default function TicketList() {
   const [cityFilter, setCityFilter] = useState("");
 
   useEffect(() => {
-    complaintTicketApi.readAll({ params: { all: 1 } })
-      .then((response) => setRecords(asArray<ComplaintTicket>(response)))
-      .catch((err) => Swal.fire("Error", errorText(err, "Unable to load tickets"), "error"));
     geoApi.states()
       .then(setStates)
       .catch(() => setStates([]));
@@ -95,6 +124,118 @@ export default function TicketList() {
       .then(setDistricts)
       .catch(() => setDistricts([]));
   }, []);
+
+  // Combines every current filter into the params object sent to the
+  // backend for both the table's page fetch and the Kanban board's full
+  // fetch. `localBodyTypeFilter` is deliberately excluded - it only narrows
+  // the city dropdown's options client-side; `city` already targets the
+  // specific local body id directly on the backend.
+  const buildTicketParams = () => ({
+    ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
+    ...(stateFilter ? { state: stateFilter } : {}),
+    ...(districtFilter ? { district: districtFilter } : {}),
+    ...(areaTypeFilter ? { area_type: areaTypeFilter } : {}),
+    ...(cityFilter ? { city: cityFilter } : {}),
+  });
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadTableRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+    setTableLoading(true);
+    try {
+      const response = await complaintTicketApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...buildTicketParams(),
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setTableRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (err) {
+      Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
+    } finally {
+      setTableLoading(false);
+    }
+  };
+
+  // Reset to the first page whenever any filter other than pagination
+  // itself changes, so the user isn't left stranded on an out-of-range page.
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, ordering, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+
+  useEffect(() => {
+    void loadTableRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearchTerm(query), 400);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  const loadCounts = async () => {
+    try {
+      const response = await complaintTicketApi.action<{ all: number; public: number; internal: number }>(
+        "counts",
+        undefined,
+        {
+          params: {
+            ...(stateFilter ? { state: stateFilter } : {}),
+            ...(districtFilter ? { district: districtFilter } : {}),
+            ...(areaTypeFilter ? { area_type: areaTypeFilter } : {}),
+            ...(cityFilter ? { city: cityFilter } : {}),
+          },
+        },
+      );
+      setCounts({
+        all: response?.all ?? 0,
+        public: response?.public ?? 0,
+        internal: response?.internal ?? 0,
+      });
+    } catch (err) {
+      Swal.fire("Error", errorText(err, "Unable to load ticket counts"), "error");
+    }
+  };
+
+  useEffect(() => {
+    void loadCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+
+  const loadKanbanRows = async () => {
+    setKanbanLoading(true);
+    try {
+      const response = await complaintTicketApi.readAllForExport({ params: buildTicketParams() });
+      setKanbanRows(toRecordList(response));
+    } catch (err) {
+      Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
+    } finally {
+      setKanbanLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === "kanban") void loadKanbanRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
 
   const filteredDistricts = useMemo(
     () => districts.filter((item) => !stateFilter || item.state_id === stateFilter),
@@ -153,20 +294,6 @@ export default function TicketList() {
     }
   };
 
-  const scopedRecords = useMemo(() => {
-    let rows = records;
-    if (sourceFilter === "public") rows = rows.filter(isPublic);
-    else if (sourceFilter === "internal") rows = rows.filter((row) => !isPublic(row));
-    if (stateFilter) rows = rows.filter((row) => String(row.state_id ?? row.state ?? "") === stateFilter);
-    if (districtFilter) rows = rows.filter((row) => String(row.district_id ?? "") === districtFilter);
-    if (areaTypeFilter) rows = rows.filter((row) => String(row.area_type_id ?? row.area_type ?? "") === areaTypeFilter);
-    if (localBodyTypeFilter) rows = rows.filter((row) => String(row.city_type ?? "") === localBodyTypeFilter);
-    if (cityFilter) rows = rows.filter((row) => String(row.city_id ?? "") === cityFilter);
-    return rows;
-  }, [records, sourceFilter, stateFilter, districtFilter, areaTypeFilter, localBodyTypeFilter, cityFilter]);
-
-  const publicCount = useMemo(() => records.filter(isPublic).length, [records]);
-
   const statusTemplate = (row: ComplaintTicket) => (
     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
       {row.status_name || row.status_code || "-"}
@@ -192,7 +319,7 @@ export default function TicketList() {
 
   const kanbanColumns = useMemo(() => {
     const byCode = new Map<string, { code: string; name: string; tickets: ComplaintTicket[] }>();
-    scopedRecords.forEach((row) => {
+    kanbanRows.forEach((row) => {
       const code = row.status_code || "UNKNOWN";
       if (!byCode.has(code)) {
         byCode.set(code, { code, name: row.status_name || code, tickets: [] });
@@ -205,7 +332,7 @@ export default function TicketList() {
       .sort()
       .map((code) => byCode.get(code)!);
     return [...ordered, ...extras];
-  }, [scopedRecords]);
+  }, [kanbanRows]);
 
   return (
     <div className="p-3">
@@ -221,9 +348,9 @@ export default function TicketList() {
         <div className="flex gap-2">
           {(
             [
-              { key: "all", label: `All (${records.length})` },
-              { key: "public", label: `Public Grievances (${publicCount})` },
-              { key: "internal", label: `Internal (${records.length - publicCount})` },
+              { key: "all", label: `All (${counts.all})` },
+              { key: "public", label: `Public Grievances (${counts.public})` },
+              { key: "internal", label: `Internal (${counts.internal})` },
             ] as { key: SourceFilter; label: string }[]
           ).map((tab) => (
             <button
@@ -316,35 +443,25 @@ export default function TicketList() {
 
       {viewMode === "table" ? (
         <DataTable
-          value={scopedRecords}
+          value={tableRows}
           dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          filters={filters}
-          onFilter={(event: any) => setFilters(event.filters)}
-          globalFilterFields={[
-            "ticket_no",
-            "customer_name",
-            "profile_name",
-            "wa_phone",
-            "category_name",
-            "waste_type_name",
-            "subcategory_name",
-            "status_name",
-            "priority_code",
-            "assigned_team_name",
-            "district_name",
-            "city_name",
-          ]}
+          loading={tableLoading}
+          onExportRequest={async () => toRecordList(await complaintTicketApi.readAllForExport({ params: buildTicketParams() }))}
           header={
             <div className="flex justify-end">
               <InputText
                 value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value: event.target.value } }));
-                }}
+                onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search tickets"
                 className="p-inputtext-sm"
               />
@@ -358,16 +475,16 @@ export default function TicketList() {
           <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
           <Column field="ticket_no" header="Ticket No" sortable />
           <Column field="created" header="Created" body={(row) => formatDateTime(row.created)} sortable />
-          <Column header="Source" body={sourceTemplate} sortable sortField="source_code" />
-          <Column header="Customer" body={(row) => row.customer_name || row.profile_name || "-"} sortable sortField="customer_name" />
+          <Column header="Source" body={sourceTemplate} />
+          <Column header="Customer" body={(row) => row.customer_name || row.profile_name || "-"} />
           <Column field="wa_phone" header="Phone" />
-          <Column field="category_name" header="Category" sortable />
-          <Column field="waste_type_name" header="Waste Type" sortable />
+          <Column field="category_name" header="Category" />
+          <Column field="waste_type_name" header="Waste Type" />
           <Column field="subcategory_name" header="Subcategory" />
-          <Column header="District" body={(row) => row.district_name || "-"} sortable sortField="district_name" />
-          <Column header="City" body={(row) => row.city_name || "-"} sortable sortField="city_name" />
-          <Column field="priority_code" header="Priority" sortable />
-          <Column header="Status" body={statusTemplate} sortable sortField="status_name" />
+          <Column header="District" body={(row) => row.district_name || "-"} />
+          <Column header="City" body={(row) => row.city_name || "-"} />
+          <Column field="priority_code" header="Priority" />
+          <Column header="Status" body={statusTemplate} />
           <Column field="assigned_team_name" header="Assigned Team" />
           <Column header="SLA Due" body={(row) => formatDateTime(row.sla_due_at)} />
           <Column header="SLA" body={slaTemplate}  style={{ width: "120px" }}/>
@@ -383,7 +500,8 @@ export default function TicketList() {
         </DataTable>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {kanbanColumns.length === 0 && <p className="text-sm text-gray-500">No tickets found</p>}
+          {kanbanLoading && kanbanRows.length === 0 && <p className="text-sm text-gray-500">Loading tickets…</p>}
+          {!kanbanLoading && kanbanColumns.length === 0 && <p className="text-sm text-gray-500">No tickets found</p>}
           {kanbanColumns.map((column) => (
             <div key={column.code} className="flex w-72 shrink-0 flex-col rounded-lg border border-slate-200 bg-slate-50">
               <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">

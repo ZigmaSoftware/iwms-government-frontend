@@ -50,6 +50,8 @@ export type WasteTypeBreakdownRow = {
 };
 
 export type ReportResponse = {
+  source?: string;
+  count?: number;
   results: ReportRow[];
   monthly_trends: Array<Record<string, number | string>>;
   location_comparison: LocationComparisonRow[];

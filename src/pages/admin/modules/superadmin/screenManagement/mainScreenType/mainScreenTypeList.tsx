@@ -7,7 +7,7 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -20,20 +20,31 @@ import { Switch } from "@/components/ui/switch";
 
 import { mainScreenTypeApi } from "@/helpers/admin";
 
-import type { MainScreenType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
+import type { MainScreenType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 
+const toRecordList = (value: unknown): MainScreenType[] => {
+  if (Array.isArray(value)) return value as MainScreenType[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: MainScreenType[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["type_name"]);
 
 export default function MainScreenTypeList() {
   const { t } = useTranslation();
-  const [mainScreenTypes, setMainScreenTypes] = useState<MainScreenType[]>([]);
+  const [rows, setRows] = useState<MainScreenType[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
-  const [globalFilterValue, setGlobalFilterValue] = useState('');
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH }
-  });
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const navigate = useNavigate();
   const { encSuperAdmin, encMainScreenType } = getEncryptedRoute();
@@ -43,35 +54,59 @@ export default function MainScreenTypeList() {
     encMainScreenType,
   );
 
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await mainScreenTypeApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    const loadMainScreenTypes = async () => {
-      setIsLoading(true);
-      try {
-        const data = await mainScreenTypeApi.readAll();
-        if (mounted) setMainScreenTypes(data as MainScreenType[]);
-      } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    void loadMainScreenTypes();
-
-    return () => {
-      mounted = false;
-    };
-  }, [t]);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters["global"].value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await mainScreenTypeApi.readAllForExport());
 
   const indexTemplate = (_: MainScreenType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -103,7 +138,7 @@ export default function MainScreenTypeList() {
 
       try {
         await mainScreenTypeApi.update(row.unique_id, { is_active: value });
-        setMainScreenTypes((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -134,7 +169,7 @@ export default function MainScreenTypeList() {
 
   return (
     <div className="px-3 py-3 w-full ">
-    
+
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -159,19 +194,25 @@ export default function MainScreenTypeList() {
         </div>
 
         <DataTable
-          value={mainScreenTypes}
+          value={rows}
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           loading={isLoading}
-          filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["type_name"]}
           header={header}
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.main_screen_type"),
           })}
           stripedRows
           showGridlines
+          onExportRequest={onExportRequest}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -184,7 +225,7 @@ export default function MainScreenTypeList() {
           <Column header={t("common.status")} body={statusTemplate} style={{ width: "150px" }} />
           <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px" }} />
         </DataTable>
- 
+
     </div>
   );
 }

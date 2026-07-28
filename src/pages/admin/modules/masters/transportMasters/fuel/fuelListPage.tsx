@@ -5,11 +5,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -31,8 +29,17 @@ const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active", "active_status", "status"],
 };
 
+const SORTABLE_FIELDS = new Set(["fuel_type"]);
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+const toRecordList = (value: unknown): Fuel[] => {
+  if (Array.isArray(value)) return value as Fuel[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: Fuel[] }).results;
+  }
+  return [];
+};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -45,16 +52,18 @@ export default function FuelList() {
     FUEL_COLUMN_FIELDS
   );
 
-  const [allFuels, setAllFuels] = useState<Fuel[]>([]);
+  const [rows, setRows] = useState<Fuel[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    fuel_type: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encFuel } = getEncryptedRoute();
@@ -63,34 +72,61 @@ export default function FuelList() {
     encFuel,
   );
 
-  // ── Load data ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
-    setIsLoading(true);
-    fuelApi.readAll()
-      .then((data: unknown) => {
-        if (mounted) setAllFuels(Array.isArray(data) ? (data as Fuel[]) : []);
-      })
-      .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
-        }
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [t]);
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
-  // ── Filter handlers ───────────────────────────────────────────────────────
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
+  // ── Load data ─────────────────────────────────────────────────────────────
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await fuelApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error: unknown) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(error) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  // ── Pagination / sort handlers ────────────────────────────────────────────
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
+
+  const onExportRequest = async () => toRecordList(await fuelApi.readAllForExport());
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: Fuel) => {
@@ -106,7 +142,7 @@ export default function FuelList() {
             is_active: value,
           }) as Record<string, unknown>
         );
-        setAllFuels((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -174,21 +210,24 @@ export default function FuelList() {
       </div>
 
       <DataTable
-        value={allFuels}
+        value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
-        loading={isLoading && allFuels.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        loading={isLoading}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        globalFilterFields={[
-          ...(showCol("fuel_type") ? ["fuel_type"] : []),
-        ]}
         header={header}
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
         showGridlines
+        onExportRequest={onExportRequest}
         className="p-datatable-sm"
       >
         <Column
@@ -201,11 +240,9 @@ export default function FuelList() {
           <Column
             field="fuel_type"
             header={t("admin.fuel.fuel_type")}
-            sortable
+            sortable={SORTABLE_FIELDS.has("fuel_type")}
             body={(row: Fuel) => capitalize(row.fuel_type)}
             style={{ minWidth: "200px" }}
-            filter
-            showFilterMatchModes={false}
           />
         )}
 

@@ -2,17 +2,15 @@ import type { DailyTripCollectionPointRecord } from "./types";
 import type { NamedRef } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -60,6 +58,16 @@ const extractError = (error: unknown): string | null => {
   return typeof first === "string" ? first : null;
 };
 
+const toRecordList = (value: unknown): DailyTripCollectionPointRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripCollectionPointRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripCollectionPointRecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["sequence", "status"]);
+
 export default function DailyTripCollectionPointList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -70,44 +78,64 @@ export default function DailyTripCollectionPointList() {
     encDailyTripCollectionPoint,
   );
 
-  const [records, setRecords] = useState<DailyTripCollectionPointRecord[]>([]);
+  const [rawRows, setRawRows] = useState<DailyTripCollectionPointRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _trip: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_point: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _bin: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const loadRecords = useCallback(() => {
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setLoading(true);
-    dailyTripCollectionPointApi
-      .readAll()
-      .then((data) => setRecords(Array.isArray(data) ? data as DailyTripCollectionPointRecord[] : []))
-      .catch((error: unknown) => {
-        setRecords([]);
-        Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
-      })
-      .finally(() => setLoading(false));
-  }, [t]);
+    try {
+      const response = await dailyTripCollectionPointApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error: unknown) {
+      setRawRows([]);
+      Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
   useEffect(() => {
-    loadRecords();
-  }, [loadRecords]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const rows = useMemo(
     () =>
-      records
+      rawRows
         .map((row) => {
           const tripAssign = row.trip_assignment as NamedRef;
           const tripPlan = (tripAssign?.trip_plan as NamedRef) ?? (tripAssign?.trip_plan_id as NamedRef);
           const collectionPt = row.collection_point as NamedRef;
           const binObj = row.bin as NamedRef;
           const wasteType = (binObj?.waste_type as NamedRef) ?? null;
-          
+
           return {
             ...row,
             _trip: nestedText(tripPlan, ["display_code", "unique_id"]) !== "-"
@@ -125,16 +153,22 @@ export default function DailyTripCollectionPointList() {
             _waste_type: nestedText(wasteType, ["waste_type_name", "name"]),
           };
         }),
-    [records],
+    [rawRows],
   );
 
-  const onFilter = (event: DataTableFilterEvent) =>
-    setFilters(event.filters as DataTableFilterMeta);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(event.target.value);
   };
 
   return (
@@ -157,12 +191,17 @@ export default function DailyTripCollectionPointList() {
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading && rows.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={loading}
         header={
           <div className="flex justify-end items-center">
             <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
@@ -179,19 +218,18 @@ export default function DailyTripCollectionPointList() {
         stripedRows
         showGridlines
         emptyMessage="No daily trip collection points found."
-        globalFilterFields={["unique_id", "_trip", "_collection_point", "_bin", "_ward", "_waste_type", "status"]}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={(_, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} style={{ minWidth: 150 }} />
-        <Column field="_trip" header="Trip" sortable filter showFilterMatchModes={false} style={{ minWidth: 170 }} />
-        <Column field="_collection_point" header="Collection Point" sortable filter showFilterMatchModes={false} style={{ minWidth: 180 }} />
-        <Column field="_ward" header="Ward" sortable filter showFilterMatchModes={false} style={{ minWidth: 140 }} />
-        <Column field="_bin" header="Bin" sortable filter showFilterMatchModes={false} />
-        <Column field="_waste_type" header="Waste Type" sortable />
-        <Column field="sequence" header="Seq" sortable style={{ width: 90 }} />
-        <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} />
-        <Column field="status" header="Status" body={(row: DailyTripCollectionPointRecord) => <Badge value={row.status} />} sortable filter showFilterMatchModes={false} />
+        <Column field="unique_id" header="ID" style={{ minWidth: 150 }} />
+        <Column field="_trip" header="Trip" style={{ minWidth: 170 }} />
+        <Column field="_collection_point" header="Collection Point" style={{ minWidth: 180 }} />
+        <Column field="_ward" header="Ward" style={{ minWidth: 140 }} />
+        <Column field="_bin" header="Bin" />
+        <Column field="_waste_type" header="Waste Type" />
+        <Column field="sequence" header="Seq" sortable={SORTABLE_FIELDS.has("sequence")} style={{ width: 90 }} />
+        <Column field="collected_weight_kg" header="Weight (kg)" body={(row: DailyTripCollectionPointRecord) => text(row.collected_weight_kg)} />
+        <Column field="status" header="Status" body={(row: DailyTripCollectionPointRecord) => <Badge value={row.status} />} sortable={SORTABLE_FIELDS.has("status")} />
         <Column
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (
