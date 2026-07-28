@@ -1,4 +1,4 @@
-import type { StaffTemplate, TableFilters } from "./types";
+import type { StaffTemplate } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,11 +6,10 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { staffTemplateApi } from "@/helpers/admin";
@@ -29,6 +28,24 @@ const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   updated_at: ["updated_at"],
 };
 
+const toRecordList = (value: unknown): StaffTemplate[] => {
+  if (Array.isArray(value)) return value as StaffTemplate[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: StaffTemplate[] }).results;
+  }
+  return [];
+};
+
+// Backend `ordering_fields` exposes `display_code`, not `unique_id`. The
+// "Template ID" column displays `display_code ?? unique_id` but is keyed by
+// the `unique_id` field for visibility/config purposes, so map it to the
+// actual backend-sortable field when building the `ordering` query param.
+const BACKEND_ORDER_FIELD: Record<string, string> = {
+  unique_id: "display_code",
+};
+
+const SORTABLE_FIELDS = new Set(["status", "approval_status", "unique_id"]);
+
 export default function StaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -38,19 +55,17 @@ export default function StaffTemplateList() {
     STAFF_TEMPLATE_COLUMN_FIELDS
   );
 
-  const [templates, setTemplates] = useState<StaffTemplate[]>([]);
+  const [rows, setRows] = useState<StaffTemplate[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-
-  const [datatableFilters, setDatatableFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    driver_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    operator_name: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -60,42 +75,58 @@ export default function StaffTemplateList() {
 
   /* ================= FETCH ================= */
 
-  useEffect(() => {
-    let mounted = true;
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setLoading(true);
-
-    staffTemplateApi.readAll()
-      .then((rawData: any) => {
-        if (!mounted) return;
-        const data =
-          Array.isArray(rawData) ? rawData :
-          Array.isArray(rawData?.data) ? rawData.data :
-          rawData?.data?.results ?? [];
-        setTemplates(data as StaffTemplate[]);
-      })
-      .catch(() => {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
+    try {
+      const response = await staffTemplateApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
       });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return () => { mounted = false; };
-  }, [t]);
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${BACKEND_ORDER_FIELD[sortField] ?? sortField}`
+    : undefined;
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
   /* ================= FILTERS ================= */
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setDatatableFilters(e.filters as TableFilters);
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setGlobalFilterValue(e.target.value);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setDatatableFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   /* ================= STATUS TOGGLE ================= */
@@ -107,7 +138,7 @@ export default function StaffTemplateList() {
       setIsUpdating(true);
       try {
         await staffTemplateApi.update(id, filterPayload({ status: checked ? "ACTIVE" : "INACTIVE" }));
-        setTemplates((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item
           )
@@ -185,19 +216,17 @@ export default function StaffTemplateList() {
   return (
     <div className="p-3">
       <DataTable
-        value={templates}
+        value={rows}
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={loading}
-        filters={datatableFilters}
-        onFilter={onFilter}
-        globalFilterFields={[
-          ...(showCol("unique_id") ? ["unique_id", "display_code"] : []),
-          ...(showCol("driver_name") ? ["driver_name"] : []),
-          ...(showCol("operator_name") ? ["operator_name"] : []),
-          ...(showCol("status") ? ["status"] : []),
-          ...(showCol("approval_status") ? ["approval_status"] : []),
-        ]}
         header={header}
         stripedRows
         showGridlines
@@ -212,8 +241,6 @@ export default function StaffTemplateList() {
             header={t("admin.staff_template.columns.template_id")}
             body={(r: StaffTemplate) => r.display_code ?? r.unique_id}
             sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -222,9 +249,6 @@ export default function StaffTemplateList() {
             field="driver_name"
             header={t("admin.staff_template.columns.primary_driver")}
             body={(r: StaffTemplate) => r.driver_name}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -233,9 +257,6 @@ export default function StaffTemplateList() {
             field="operator_name"
             header={t("admin.staff_template.columns.primary_operator")}
             body={(r: StaffTemplate) => r.operator_name}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -260,8 +281,6 @@ export default function StaffTemplateList() {
             field="approval_status"
             header={t("admin.staff_template.columns.approval_status")}
             sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
 

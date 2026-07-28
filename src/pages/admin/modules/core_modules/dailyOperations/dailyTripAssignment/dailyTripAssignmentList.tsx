@@ -8,11 +8,9 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { jsPDF } from "jspdf";
 
 import { PencilIcon } from "@/icons";
@@ -186,6 +184,56 @@ const locationInfo = (record: DailyTripAssignmentRecord): { name: string; tag: s
   return null;
 };
 
+/* ── backend's DRF `ordering_fields` allowlist (see daily_trip_assignment_viewset.py) ──
+   approval_status is intentionally NOT wired to `sortable` on any column — it has
+   no dedicated visible column (it's folded into the "Breakdown" cell display). */
+const SORTABLE_FIELDS = new Set(["trip_date", "scheduled_time", "status", "approval_status"]);
+
+const toRecordList = (value: unknown): DailyTripAssignmentRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripAssignmentRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripAssignmentRecord[] }).results;
+  }
+  return [];
+};
+
+type EnrichedAssignment = DailyTripAssignmentRecord & {
+  _trip_plan: string | number;
+  _staff: string | number;
+  _staff_names: string;
+  _vehicle: string;
+  _location: string;
+  _collection_type: CollectionTypeKey;
+  _collection_type_label: string;
+  _collection_point_count: string;
+};
+
+/* ── client-side enrichment applied to every raw API row (unchanged logic) ── */
+const enrichAssignmentRow = (rec: DailyTripAssignmentRecord): EnrichedAssignment => ({
+  ...rec,
+  _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
+  _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
+  _staff_names: [
+    (rec.effective_staff ?? rec.staff_template)?.operator,
+    (rec.effective_staff ?? rec.staff_template)?.driver,
+  ].filter(Boolean).join(" "),
+  _vehicle: rec.vehicle?.vehicle_no ?? "",
+  _location: locationInfo(rec)?.name ?? "",
+  _collection_type: getCollectionTypeKey(rec),
+  _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
+  _collection_point_count: String(getPointCount(rec)),
+});
+
+/* ── "Collection Type" is a client-only derived classification (inspects nested
+   trip_plan.has_bin/has_household/has_bulk flags, not a simple backend field), so
+   it stays a client-side post-filter — but it now only ever sees ONE PAGE of rows
+   at a time, so narrowing by it narrows within the current page, not the whole
+   dataset (same accepted limitation as dailyTripLogList's collectionType filter). ── */
+const filterByCollectionType = <T extends DailyTripAssignmentRecord>(
+  list: T[],
+  collectionType: "all" | CollectionTypeKey,
+): T[] => (collectionType === "all" ? list : list.filter((row) => getCollectionTypeKey(row) === collectionType));
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function DailyTripAssignmentList() {
@@ -198,7 +246,12 @@ export default function DailyTripAssignmentList() {
     encDailyTripAssignment,
   );
 
-  const [allAssignments, setAllAssignments] = useState<DailyTripAssignmentRecord[]>([]);
+  const [rawRows, setRawRows] = useState<DailyTripAssignmentRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [schedulerStatus, setSchedulerStatus] = useState<SchedulerStatus | null>(null);
   const [isSchedulerRunning, setIsSchedulerRunning] = useState(false);
@@ -209,40 +262,76 @@ export default function DailyTripAssignmentList() {
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
   const [filterResetKey, setFilterResetKey] = useState(0);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _trip_plan: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _staff: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _staff_names: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _vehicle: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_type_label: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_point_count: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    trip_date: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    scheduled_time: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
-  /* ── load assignments ── */
-  const loadAssignments = useCallback(async () => {
+  const [searchTerm, setSearchTerm] = useState("");
+
+  /* ── ordering param, from the sortField/sortOrder state, mapped through the
+     backend's `ordering_fields` allowlist ── */
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  /* ── load ONE page of assignments (server-side pagination + search + ordering).
+     `schedulerDate` is sent to the backend as the exact-match `?date=` filter —
+     it used to be loaded for every date and filtered client-side, which meant
+     fetching the whole table just to throw most of it away. ── */
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
     setIsLoading(true);
     try {
-      const assignmentData = await (dailyTripAssignmentApi.readAll({
-        params: hierarchyParams,
-      }) as Promise<DailyTripAssignmentRecord[]>);
-      setAllAssignments(Array.isArray(assignmentData) ? assignmentData : []);
+      const response = await dailyTripAssignmentApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...hierarchyParams,
+          ...(schedulerDate ? { date: schedulerDate } : {}),
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
+      );
     } catch (err) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
     } finally {
       setIsLoading(false);
     }
-  }, [hierarchyParams, t]);
+  };
 
+  /* ── reset to first page whenever hierarchy/date filters change (NOT on
+     pagination/sort/collectionTypeFilter — collectionTypeFilter is a pure
+     client post-filter and never needs a refetch) ── */
   useEffect(() => {
-    loadAssignments();
-  }, [loadAssignments]);
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyParams, schedulerDate]);
+
+  /* ── debounce the global search box into the server-side `?search=` param ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  /* ── load rows (re-runs whenever pagination/sort/search/hierarchy/date change) ── */
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, schedulerDate]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   /* ── background auto-schedule status + config ── */
   const loadSchedulerStatus = useCallback(() => {
@@ -275,7 +364,7 @@ export default function DailyTripAssignmentList() {
         ),
       });
       loadSchedulerStatus();
-      loadAssignments();
+      void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     } catch (err) {
       Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Scheduler failed" });
     } finally {
@@ -309,69 +398,58 @@ export default function DailyTripAssignmentList() {
     }
   };
 
-  /* ── enrich + filter rows ── */
-  const rows = (() => {
-    return allAssignments
-      .filter((row) => {
-        if (schedulerDate && row.trip_date !== schedulerDate) return false;
-        if (collectionTypeFilter !== "all" && getCollectionTypeKey(row) !== collectionTypeFilter) return false;
-        return true;
-      })
-      .map((rec) => ({
-        ...rec,
-        _trip_plan: rec.trip_plan?.display_code ?? rec.trip_plan_id ?? "",
-        _staff: rec.effective_staff?.display_code ?? rec.staff_template?.display_code ?? rec.staff_template_id ?? "",
-        _staff_names: [
-          (rec.effective_staff ?? rec.staff_template)?.operator,
-          (rec.effective_staff ?? rec.staff_template)?.driver,
-        ].filter(Boolean).join(" "),
-        _vehicle: rec.vehicle?.vehicle_no ?? "",
-        _location: locationInfo(rec)?.name ?? "",
-        _collection_type: getCollectionTypeKey(rec),
-        _collection_type_label: COLLECTION_TYPE_LABELS[getCollectionTypeKey(rec)],
-        _collection_point_count: String(getPointCount(rec)),
-      }));
-  })();
+  /* ── current-page rows: enriched + collectionType-filtered. This feeds the
+     DataTable directly (see point 10 in the migration notes). ── */
+  const rows = filterByCollectionType(rawRows.map(enrichAssignmentRow), collectionTypeFilter);
 
-  const exportSource = rows.filter((row) => {
-    const search = globalFilterValue.trim().toLowerCase();
-    if (search && ![
-      row.unique_id, row._trip_plan, row._staff, row._staff_names, row._vehicle,
-      row._location, row._collection_type_label, row.status,
-      row.trip_date, row.scheduled_time,
-    ].some((value) => String(value ?? "").toLowerCase().includes(search))) {
-      return false;
-    }
-    return Object.entries(filters).every(([field, filter]) => {
-      const filterValue = "value" in filter ? filter.value : null;
-      if (field === "global" || !filterValue) return true;
-      return String((row as Record<string, unknown>)[field] ?? "")
-        .toLowerCase()
-        .includes(String(filterValue).toLowerCase());
+  /* ── exports fetch a FRESH full dataset (independent of the current page),
+     using the same hierarchy/date/search params as the list, then apply the
+     same enrichment + collectionType client filter — see points 6a/6b. ── */
+  const fetchExportRows = async (): Promise<EnrichedAssignment[]> => {
+    const all = await dailyTripAssignmentApi.readAllForExport({
+      params: {
+        ...hierarchyParams,
+        ...(schedulerDate ? { date: schedulerDate } : {}),
+        ...(searchTerm ? { search: searchTerm } : {}),
+      },
     });
-  });
+    return filterByCollectionType(toRecordList(all).map(enrichAssignmentRow), collectionTypeFilter);
+  };
 
-  const excelRows = exportSource.map((row) => ({
-    ID: row.unique_id,
-    "Trip Plan": row._trip_plan,
-    "Local Body": row._location,
-    "Collection Type": row._collection_type_label,
-    "Effective Staff": row._staff,
-    "Operator / Driver": row._staff_names,
-    Vehicle: row._vehicle,
-    "Collection Points": row._collection_point_count,
-    "Trip Date": row.trip_date,
-    "Start Time": formatTime12Hour(row.scheduled_time),
-    Status: row.status ?? "-",
-  }));
-
-  const handleExcelDownload = () =>
-    exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+  const handleExcelDownload = async () => {
+    setIsExportingExcel(true);
+    try {
+      const exportSource = await fetchExportRows();
+      if (!exportSource.length) {
+        Swal.fire({ icon: "warning", title: "Nothing to export", text: "No trip assignments match the current filters." });
+        return;
+      }
+      const excelRows = exportSource.map((row) => ({
+        ID: row.unique_id,
+        "Trip Plan": row._trip_plan,
+        "Local Body": row._location,
+        "Collection Type": row._collection_type_label,
+        "Effective Staff": row._staff,
+        "Operator / Driver": row._staff_names,
+        Vehicle: row._vehicle,
+        "Collection Points": row._collection_point_count,
+        "Trip Date": row.trip_date,
+        "Start Time": formatTime12Hour(row.scheduled_time),
+        Status: row.status ?? "-",
+      }));
+      exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to export Excel data." });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
 
   const handlePdfDownload = async () => {
-    if (!exportSource.length) return;
     setIsExportingPdf(true);
     try {
+      const exportSource = await fetchExportRows();
+      if (!exportSource.length) return;
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       let hasPage = false;
 
@@ -587,15 +665,12 @@ export default function DailyTripAssignmentList() {
     setHierarchyParams({});
     setCollectionTypeFilter("all");
     setSchedulerDate(toDateInputValue());
+    setFirst(0);
     setFilterResetKey((key) => key + 1);
   };
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   /* ── column templates ── */
@@ -636,8 +711,20 @@ export default function DailyTripAssignmentList() {
           <p className="text-sm text-gray-500">Manage daily trip plans with assigned collection points</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined" disabled={!excelRows.length} onClick={handleExcelDownload} />
-          <Button label={isExportingPdf ? "Generating PDF…" : "Download PDF"} icon="pi pi-file-pdf" className="p-button-outlined" disabled={isExportingPdf || !exportSource.length} onClick={handlePdfDownload} />
+          <Button
+            label={isExportingExcel ? "Exporting…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel || totalRecords === 0}
+            onClick={handleExcelDownload}
+          />
+          <Button
+            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined"
+            disabled={isExportingPdf || totalRecords === 0}
+            onClick={handlePdfDownload}
+          />
 
           <Button
             label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
@@ -751,39 +838,29 @@ export default function DailyTripAssignmentList() {
         exportable={false}
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && rows.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No trip assignments found."
-        globalFilterFields={[
-          "unique_id",
-          "_trip_plan",
-          "_staff",
-          "_staff_names",
-          "_vehicle",
-          "_location",
-          "_collection_type_label",
-          "_collection_point_count",
-          "status",
-          "approval_status",
-          "trip_date",
-          "scheduled_time",
-        ]}
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" filter showFilterMatchModes={false} style={{ minWidth: 160 }} />
+        <Column field="unique_id" header="ID" style={{ minWidth: 160 }} />
         <Column
           field="_trip_plan"
           header="Trip Plan"
           body={(row: DailyTripAssignmentRecord) => row.trip_plan?.display_code ?? row.trip_plan_id ?? "—"}
-          filter showFilterMatchModes={false}
         />
         <Column
           field="_staff"
@@ -793,7 +870,6 @@ export default function DailyTripAssignmentList() {
               ? <span className="font-medium text-amber-700">{row.effective_staff.display_code}</span>
               : (row.staff_template?.display_code ?? row.staff_template_id ?? "—")
           }
-          filter showFilterMatchModes={false}
         />
         <Column
           field="_staff_names"
@@ -807,23 +883,17 @@ export default function DailyTripAssignmentList() {
               </span>
             );
           }}
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
         />
         <Column
           field="_vehicle"
           header="Vehicle"
           body={(row: DailyTripAssignmentRecord) => row.vehicle?.vehicle_no ?? "—"}
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 120 }}
         />
         <Column
           field="_location"
           header="Location"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row: DailyTripAssignmentRecord) => {
             const info = locationInfo(row);
@@ -840,33 +910,32 @@ export default function DailyTripAssignmentList() {
           field="_collection_type_label"
           header="Collection Type"
           body={(row: DailyTripAssignmentRecord) => <CollectionTypeBadge rec={row} />}
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="_collection_point_count"
           header="Collection Points"
           body={(row: DailyTripAssignmentRecord) => getPointCount(row)}
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ width: 150 }}
         />
-        <Column field="trip_date" header="Trip Date" filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
+        <Column
+          field="trip_date"
+          header="Trip Date"
+          sortable={SORTABLE_FIELDS.has("trip_date")}
+          style={{ minWidth: 110 }}
+        />
         <Column
           field="scheduled_time"
           header="Start Time"
           body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.scheduled_time)}
-          filter
-          showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("scheduled_time")}
           style={{ minWidth: 110 }}
         />
         <Column
           field="status"
           header="Status"
           body={statusTemplate}
-          filter showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("status")}
           style={{ minWidth: 160 }}
         />
         <Column

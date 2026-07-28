@@ -1,7 +1,6 @@
-import type { TableFilters } from "./types";
 import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -10,7 +9,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { MultiSelect } from "@/components/form/MultiSelect";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -50,6 +49,16 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   qr_code: ["qr_code"],
   is_active: ["is_active"],
 };
+
+const toRecordList = (value: unknown): Customer[] => {
+  if (Array.isArray(value)) return value as Customer[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: Customer[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["customer_name"]);
 
 const localBodyLabel = (customer: Customer): string =>
   customer.corporation_name ||
@@ -93,22 +102,22 @@ export default function CustomerCreationListPage() {
     CUSTOMER_CREATION_COLUMN_FIELDS,
   );
 
-  const [allCustomers, setAllCustomers] = useState<Customer[]>([]);
+  const [rawRows, setRawRows] = useState<Customer[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [selectedQrCustomer, setSelectedQrCustomer] = useState<Customer | null>(null);
   const [isPrintingQr, setIsPrintingQr] = useState(false);
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    customer_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    contact_no: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    location_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
 
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
   const [wasteTypeIds, setWasteTypeIds] = useState<string[]>([]);
@@ -147,51 +156,78 @@ export default function CustomerCreationListPage() {
     return params;
   }, [hierarchyParams, wasteTypeIds]);
 
-  // ── Load data ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
-    setIsLoading(true);
-    customerCreationApi.readAll({ params: buildParams() })
-      .then((data: unknown) => {
-        if (mounted) setAllCustomers(Array.isArray(data) ? (data as Customer[]) : []);
-      })
-      .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
-          });
-        }
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [t, refetchTrigger, buildParams]);
+  // ── Load one page of data (server-side pagination) ───────────────────────
+  const loadRows = useCallback(
+    async (page: number, limit: number, search: string, orderingParam?: string) => {
+      setIsLoading(true);
+      try {
+        const response = await customerCreationApi.readAllwithPaginated(page, limit, {
+          params: {
+            ...buildParams(),
+            ...(search ? { search } : {}),
+            ...(orderingParam ? { ordering: orderingParam } : {}),
+          },
+        });
+        setRawRows(toRecordList(response));
+        setTotalRecords(
+          typeof (response as any)?.count === "number"
+            ? (response as any).count
+            : toRecordList(response).length,
+        );
+      } catch (error: unknown) {
+        Swal.fire({
+          icon: "error",
+          title: t("common.error"),
+          text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [buildParams, t],
+  );
 
-  const customers = useMemo<Customer[]>(() => {
-    return allCustomers
-      .sort((a, b) =>
-        String(a.customer_name ?? "").localeCompare(String(b.customer_name ?? ""))
-      );
-  }, [allCustomers]);
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, wasteTypeIds, refetchTrigger]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const hasActiveFilters =
     Object.keys(hierarchyParams).length > 0 || wasteTypeIds.length > 0;
 
   const handleClearFilters = () => {
+    setFirst(0);
     setHierarchyParams({});
     setWasteTypeIds([]);
     setFilterResetKey((key) => key + 1);
   };
 
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   // ── Download template ─────────────────────────────────────────────────────
@@ -236,6 +272,7 @@ export default function CustomerCreationListPage() {
         icon: "success",
       });
 
+      setFirst(0);
       setRefetchTrigger((prev) => prev + 1);
     } catch (err) {
       console.error(err);
@@ -250,29 +287,34 @@ export default function CustomerCreationListPage() {
     }
   };
 
-  // ── Filtered set used for both on-screen search and exports ──────────────
-  const getFilteredExportCustomers = (): Customer[] => {
-    const search = globalFilterValue.trim().toLowerCase();
-    if (!search) return customers;
-    return customers.filter((row) => {
-      const wasteTypeNames = row.waste_types?.map((w) => w.waste_type_name).join(" ") ?? "";
-      const haystack = [
-        row.customer_name, row.contact_no, row.property_name, row.sub_property_name, wasteTypeNames,
-      ].join(" ").toLowerCase();
-      return haystack.includes(search);
+  // ── Fetch a fresh, fully-loaded dataset for exports (server already applies
+  //    the hierarchy/waste-type/search filters — no client-side re-filtering) ──
+  const fetchExportRows = async (): Promise<Customer[]> => {
+    const response = await customerCreationApi.readAllForExport({
+      params: {
+        ...buildParams(),
+        ...(searchTerm ? { search: searchTerm } : {}),
+      },
     });
+    return toRecordList(response);
   };
 
   // ── Excel export of the currently filtered customer data ─────────────────
-  const handleDownloadExcel = () => {
+  const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = getFilteredExportCustomers();
+      const rows = await fetchExportRows();
       if (rows.length === 0) {
         Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
         return;
       }
       exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to export customers.",
+      });
     } finally {
       setIsExportingExcel(false);
     }
@@ -280,13 +322,13 @@ export default function CustomerCreationListPage() {
 
   // ── PDF export: one full-detail page per currently filtered customer ─────
   const handleDownloadPdf = async () => {
-    const rows = getFilteredExportCustomers();
-    if (rows.length === 0) {
-      Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
-      return;
-    }
     setIsExportingPdf(true);
     try {
+      const rows = await fetchExportRows();
+      if (rows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        return;
+      }
       await downloadAllCustomersPdf(rows);
     } catch (error) {
       Swal.fire({
@@ -326,14 +368,14 @@ export default function CustomerCreationListPage() {
             label={isExportingExcel ? "Downloading…" : "Download Excel"}
             icon="pi pi-file-excel"
             className="p-button-outlined"
-            disabled={isExportingExcel || customers.length === 0}
+            disabled={isExportingExcel}
             onClick={handleDownloadExcel}
           />
           <Button
             label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
             icon="pi pi-file-pdf"
             className="p-button-outlined"
-            disabled={isExportingPdf || customers.length === 0}
+            disabled={isExportingPdf}
             onClick={handleDownloadPdf}
           />
         </div>
@@ -359,7 +401,10 @@ export default function CustomerCreationListPage() {
           key={filterResetKey}
           className="contents"
           showClear={false}
-          onChange={setHierarchyParams}
+          onChange={(params) => {
+            setFirst(0);
+            setHierarchyParams(params);
+          }}
         />
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700">Waste Type</label>
@@ -370,6 +415,7 @@ export default function CustomerCreationListPage() {
               const values = raw.map((v: any) =>
                 v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
               );
+              setFirst(0);
               setWasteTypeIds(values);
             }}
             options={wasteTypeOptions}
@@ -470,7 +516,7 @@ export default function CustomerCreationListPage() {
           row.unique_id,
           filterPayload(rawPayload) as Record<string, unknown>
         );
-        setAllCustomers((current) =>
+        setRawRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -525,20 +571,21 @@ export default function CustomerCreationListPage() {
         </div>
 
         <DataTable
-          value={customers}
+          value={rawRows}
           bulkImportable={false}
           exportable={false}
           dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          loading={isLoading && customers.length === 0}
-          filters={filters}
-          globalFilterFields={[
-            "customer_name", "contact_no", "property_name",
-            "sub_property_name", "waste_types",
-            "ward_name",
-          ]}
+          loading={isLoading}
           header={header}
           emptyMessage={t("admin.customer_creation.empty_message")}
           stripedRows
@@ -547,17 +594,20 @@ export default function CustomerCreationListPage() {
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
           {showCol("customer_name") && (
-            <Column field="customer_name" header={t("admin.customer_creation.customer")} sortable />
+            <Column
+              field="customer_name"
+              header={t("admin.customer_creation.customer")}
+              sortable={SORTABLE_FIELDS.has("customer_name")}
+            />
           )}
           {showCol("contact_no") && (
-            <Column field="contact_no" header={t("common.mobile")} sortable />
+            <Column field="contact_no" header={t("common.mobile")} />
           )}
           {showCol("property_name") && (
             <Column
               field="property_name"
               header={t("admin.customer_creation.property") || "Property"}
               body={(row: Customer) => (row.property_name ? capitalize(row.property_name) : "-")}
-              sortable
             />
           )}
           {showCol("sub_property_name") && (
@@ -565,7 +615,6 @@ export default function CustomerCreationListPage() {
               field="sub_property_name"
               header={t("admin.customer_creation.sub_property") || "Sub Property"}
               body={(row: Customer) => (row.sub_property_name ? capitalize(row.sub_property_name) : "-")}
-              sortable
             />
           )}
           {showCol("location_name") && (
@@ -573,7 +622,6 @@ export default function CustomerCreationListPage() {
               field="location_name"
               header={t("common.location") || "Location"}
               body={(row: Customer) => localBodyLabel(row)}
-              sortable
             />
           )}
           {showCol("ward_name") && (
@@ -581,7 +629,6 @@ export default function CustomerCreationListPage() {
               field="ward_name"
               header="Ward"
               body={(row: Customer) => row.ward_name || "-"}
-              sortable
             />
           )}
           {showCol("waste_types") && (

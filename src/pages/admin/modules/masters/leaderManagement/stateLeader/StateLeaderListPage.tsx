@@ -6,10 +6,9 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { stateLeaderApi } from "@/helpers/admin";
@@ -36,6 +35,15 @@ const STATE_LEADER_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const toRecordList = (value: unknown): StateLeader[] => {
+  if (Array.isArray(value)) return value as StateLeader[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: StateLeader[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["username"]);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function StateLeaderListPage() {
@@ -47,48 +55,71 @@ export default function StateLeaderListPage() {
   const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encLeaderLogin, encStateLeaderCreation);
   const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encLeaderLogin, encStateLeaderCreation);
 
-  const [allRecords, setAllRecords]         = useState<StateLeader[]>([]);
+  const [rows, setRows]                     = useState<StateLeader[]>([]);
+  const [totalRecords, setTotalRecords]     = useState(0);
+  const [first, setFirst]                   = useState(0);
+  const [rowsPerPage, setRowsPerPage]       = useState(10);
   const [isLoading, setIsLoading]           = useState(false);
   const [isUpdating, setIsUpdating]         = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global:     { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    username:   { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    leader_name:{ value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    state_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm]         = useState("");
+  const [sortField, setSortField]           = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
 
   // ── Load ────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setIsLoading(true);
-    stateLeaderApi
-      .readAll()
-      .then((data: unknown) => {
-        if (!mounted) return;
-        const rows: StateLeader[] = Array.isArray(data)
-          ? (data as StateLeader[])
-          : ((data as any)?.results ?? []);
-        setAllRecords(rows);
-      })
-      .catch(() => {
-        if (mounted)
-          Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [t, refetchTrigger]);
+    try {
+      const response = await stateLeaderApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // ── Filters ─────────────────────────────────────────────────────────────────
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   // ── Excel ────────────────────────────────────────────────────────────────────
   const handleDownloadTemplate = () => {
@@ -99,9 +130,10 @@ export default function StateLeaderListPage() {
     );
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
+    const all = await stateLeaderApi.readAllForExport();
     exportRecordsToExcel(
-      allRecords as unknown as Record<string, unknown>[],
+      all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
       "State Leaders",
     );
@@ -148,7 +180,7 @@ export default function StateLeaderListPage() {
       setIsUpdating(true);
       try {
         await stateLeaderApi.update(row.unique_id, { is_active: checked });
-        setAllRecords((prev) =>
+        setRows((prev) =>
           prev.map((r) => r.unique_id === row.unique_id ? { ...r, is_active: checked } : r)
         );
       } catch {
@@ -223,7 +255,7 @@ export default function StateLeaderListPage() {
           label="Download All Excel"
           icon="pi pi-download"
           className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
-          onClick={handleDownloadAll}
+          onClick={() => void handleDownloadAll()}
         />
       </div>
     </div>
@@ -252,19 +284,23 @@ export default function StateLeaderListPage() {
 
       {/* ── DataTable ── */}
       <DataTable
-        value={allRecords}
+        value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && allRecords.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage="No State Leader found."
-        globalFilterFields={["username", "leader_name", "email", "state_name"]}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={indexTemplate} style={{ width: "70px" }} />
@@ -273,26 +309,18 @@ export default function StateLeaderListPage() {
           field="username"
           header="Username"
           sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: StateLeader) => capitalize(r.username)}
         />
 
         <Column
           field="leader_name"
           header="Leader Name"
-          sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: StateLeader) => capitalize(r.leader_name) || "-"}
         />
 
         <Column
           field="state_name"
           header="State"
-          sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: StateLeader) => capitalize(r.state_name) || "-"}
         />
 

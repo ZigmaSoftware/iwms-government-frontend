@@ -5,10 +5,9 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -51,18 +50,28 @@ const SUB_PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
+const toRecordList = (value: unknown): SubPropertyRecord[] => {
+  if (Array.isArray(value)) return value as SubPropertyRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: SubPropertyRecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["sub_property_name"]);
+
 export default function SubPropertyList() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [subProperties, setSubProperties] = useState<SubPropertyRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    sub_property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
 
   const navigate = useNavigate();
   const { encWasteMasters, encSubProperties } = getEncryptedRoute();
@@ -78,14 +87,18 @@ export default function SubPropertyList() {
     SUB_PROPERTY_COLUMN_FIELDS,
   );
 
-  const loadSubProperties = async () => {
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setIsLoading(true);
     try {
-      const response = await adminApi.subProperties.readAll();
-      setSubProperties(
-        (Array.isArray(response)
-          ? response
-          : ((response as { results?: SubPropertyRecord[] })?.results ?? [])) as SubPropertyRecord[]
+      const response = await adminApi.subProperties.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setSubProperties(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error) {
       Swal.fire(
@@ -98,23 +111,40 @@ export default function SubPropertyList() {
     }
   };
 
-  useEffect(() => {
-    void loadSubProperties();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   /* ================= Search ================= */
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters({
-      ...filters,
-      global: { ...filters.global, value },
-    });
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await adminApi.subProperties.readAllForExport());
 
   const renderHeader = () =>
     renderListSearchHeader({
@@ -202,22 +232,24 @@ export default function SubPropertyList() {
         <DataTable
           value={subProperties}
           dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={isLoading}
-          filters={filters}
-          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.sub_property"),
           })}
-          globalFilterFields={[
-            "sub_property_name",
-            "property_name",
-          ]}
+          onExportRequest={onExportRequest}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -226,9 +258,6 @@ export default function SubPropertyList() {
             <Column
               field="property_name"
               header={t("admin.nav.property")}
-              sortable
-              filter
-              showFilterMatchModes={false}
               body={(row: SubPropertyRecord) => capitalize(row.property_name)}
             />
           )}
@@ -238,8 +267,6 @@ export default function SubPropertyList() {
               field="sub_property_name"
               header={t("admin.nav.sub_property")}
               sortable
-              filter
-              showFilterMatchModes={false}
               body={(row: SubPropertyRecord) => capitalize(row.sub_property_name)}
             />
           )}

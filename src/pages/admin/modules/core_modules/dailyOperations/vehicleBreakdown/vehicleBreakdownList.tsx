@@ -6,14 +6,12 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { Dialog } from "primereact/dialog";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -62,6 +60,16 @@ const extractError = (error: any): string => {
   }
   return "An unexpected error occurred.";
 };
+
+const toRecordList = (value: unknown): VehicleBreakdownRecord[] => {
+  if (Array.isArray(value)) return value as VehicleBreakdownRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: VehicleBreakdownRecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["status", "approval_status"]);
 
 /* ── Verify Dialog ─────────────────────────────────────────────── */
 function VerifyDialog({
@@ -218,19 +226,15 @@ export default function VehicleBreakdownList() {
   const { encDailyOperations, encVehicleBreakdown } = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(encDailyOperations, encVehicleBreakdown);
 
-  const [records, setRecords] = useState<VehicleBreakdownRecord[]>([]);
+  const [rawRows, setRawRows] = useState<VehicleBreakdownRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    trip_assignment_id: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _breakdown_vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _replacement_vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _breakdown_reason: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    approval_status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const [verifyTarget, setVerifyTarget] = useState<VehicleBreakdownRecord | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -238,22 +242,56 @@ export default function VehicleBreakdownList() {
   const [isRejecting, setIsRejecting] = useState(false);
 
   /* ── Fetch ─────────────────────────────────────────────────────── */
-  useEffect(() => {
-    let mounted = true;
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setLoading(true);
-    (vehicleBreakdownApi.readAll() as Promise<any>)
-      .then((data: any) => {
-        if (!mounted) return;
-        const rows = Array.isArray(data) ? data : data?.results ?? [];
-        setRecords(rows);
-      })
-      .catch(() => { if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error"); })
-      .finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
-  }, [t]);
+    try {
+      const response = await vehicleBreakdownApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  /* ── Enrich rows for global filter ──────────────────────────────── */
-  const rows = records.map((r) => ({
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  /* ── Enrich rows for display ──────────────────────────────── */
+  const rows = rawRows.map((r) => ({
     ...r,
     _trip_date: r.trip_assignment_detail?.trip_date ?? "",
     _location: r.trip_assignment_detail?.location_name ?? "",
@@ -278,7 +316,7 @@ export default function VehicleBreakdownList() {
     if (!result.isConfirmed) return;
     try {
       await vehicleBreakdownApi.delete(row.unique_id);
-      setRecords((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
+      setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
       Swal.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err), "error");
@@ -294,7 +332,7 @@ export default function VehicleBreakdownList() {
         `/schedule-operations/vehicle-breakdowns/${verifyTarget.unique_id}/verify/`,
         { remarks },
       );
-      setRecords((prev) =>
+      setRawRows((prev) =>
         prev.map((r) =>
           r.unique_id === verifyTarget.unique_id
             ? { ...r, status: "REPLACEMENT_ARRANGED", approval_status: "APPROVED" }
@@ -319,7 +357,7 @@ export default function VehicleBreakdownList() {
         `/schedule-operations/vehicle-breakdowns/${rejectTarget.unique_id}/reject/`,
         { rejection_remarks: remarks },
       );
-      setRecords((prev) =>
+      setRawRows((prev) =>
         prev.map((r) =>
           r.unique_id === rejectTarget.unique_id
             ? { ...r, status: "REJECTED", approval_status: "REJECTED" }
@@ -335,13 +373,8 @@ export default function VehicleBreakdownList() {
     }
   };
 
-  /* ── Filters ─────────────────────────────────────────────────────── */
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
+    setGlobalFilterValue(e.target.value);
   };
 
   /* ── Action column ──────────────────────────────────────────────── */
@@ -425,30 +458,22 @@ export default function VehicleBreakdownList() {
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        filters={filters}
-        onFilter={onFilter}
         header={header}
         stripedRows
         showGridlines
         className="p-datatable-sm"
         emptyMessage="No breakdown records found."
-        globalFilterFields={[
-          "unique_id",
-          "trip_assignment_id",
-          "_trip_date",
-          "_location",
-          "_breakdown_vehicle",
-          "_replacement_vehicle",
-          "_repl_driver",
-          "_repl_operator",
-          "_breakdown_reason",
-          "status",
-          "approval_status",
-        ]}
       >
         <Column
           header={t("common.s_no")}
@@ -458,17 +483,11 @@ export default function VehicleBreakdownList() {
         <Column
           field="unique_id"
           header="Breakdown ID"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="trip_assignment_id"
           header="Trip"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(r: any) => (
             <div className="text-sm text-gray-800">
@@ -486,8 +505,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="_breakdown_vehicle"
           header="Vehicle (Broken → Replacement)"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 200 }}
           body={(r: any) => (
             <div className="flex items-center gap-1.5 text-sm">
@@ -511,8 +528,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="_breakdown_reason"
           header="Reason"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 140 }}
           body={(r: any) => (
             <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
@@ -523,8 +538,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="status"
           header="Status"
-          filter
-          showFilterMatchModes={false}
           sortable
           style={{ minWidth: 170 }}
           body={(r: VehicleBreakdownRecord) => <StatusBadge value={r.status} />}
@@ -532,8 +545,6 @@ export default function VehicleBreakdownList() {
         <Column
           field="approval_status"
           header="Approval"
-          filter
-          showFilterMatchModes={false}
           sortable
           style={{ minWidth: 110 }}
           body={(r: VehicleBreakdownRecord) => <ApprovalBadge value={r.approval_status} />}

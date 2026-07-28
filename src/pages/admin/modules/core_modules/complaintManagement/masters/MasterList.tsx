@@ -5,7 +5,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -49,15 +49,36 @@ const routeModule: Record<MasterKind, keyof ReturnType<typeof getEncryptedRoute>
   slaRule: "encComplaintSlaRules",
 };
 
+// Mirrors the `ordering_fields` configured on each backend viewset, intersected
+// with the fields that are actually rendered as visible columns below. Related-object
+// display fields (e.g. module_name, category_name, department_name, lead_staff_name,
+// default_priority_code/default_team_name, and the slaRule category_code/priority_code
+// lookups) are not safely orderable and are intentionally left out.
+const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
+  module: new Set(["module_code"]),
+  category: new Set(["category_code"]),
+  subcategory: new Set(["subcategory_code"]),
+  priority: new Set(["priority_code"]),
+  status: new Set(["status_code"]),
+  source: new Set(["source_code", "source_name"]),
+  team: new Set(["team_code", "team_name"]),
+  slaRule: new Set([]),
+};
+
 export default function MasterList({ kind }: Props) {
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
   const { newPath, editPath } = createCrudRoutePaths(routes.encComplaintTicket, routes[routeModule[kind]]);
-  const [records, setRecords] = useState<any[]>([]);
+
+  const [rows, setRows] = useState<any[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [isLoading, setIsLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const api = useMemo(() => {
     if (kind === "module") return complaintModuleApi;
@@ -70,33 +91,60 @@ export default function MasterList({ kind }: Props) {
     return complaintTeamApi;
   }, [kind]);
 
-  const load = async () => {
-    const response = await api.readAll();
-    setRecords(asArray(response));
+  // Switching kind should restart pagination (and drop any sort tied to the old kind's columns).
+  useEffect(() => {
+    setFirst(0);
+  }, [kind]);
+
+  const ordering = sortField && SORTABLE_FIELDS_BY_KIND[kind].has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, sortOrdering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await api.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(sortOrdering ? { ordering: sortOrdering } : {}),
+        },
+      });
+      setRows(asArray(response));
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : asArray(response).length,
+      );
+    } catch (error) {
+      Swal.fire("Error", errorText(error, "Unable to load records"), "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    load().catch((err) => Swal.fire("Error", errorText(err, "Unable to load records"), "error"));
-  }, [api]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, first, rowsPerPage, searchTerm, ordering]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(query);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [query, kind]);
 
   const edit = (row: any) => navigate(editPath(row.unique_id));
-
-  const fields =
-    kind === "module"
-      ? ["module_code", "module_name"]
-      : kind === "category"
-      ? ["category_code", "category_name", "module_name", "default_priority_code", "default_team_name"]
-      : kind === "subcategory"
-        ? ["subcategory_code", "subcategory_name", "category_name"]
-        : kind === "priority"
-          ? ["priority_code", "priority_name"]
-          : kind === "status"
-            ? ["status_code", "status_name"]
-            : kind === "source"
-              ? ["source_code", "source_name"]
-              : kind === "team"
-                ? ["team_code", "team_name", "department_name", "lead_staff_name"]
-                : ["category_code", "priority_code"];
 
   return (
     <div className="p-3">
@@ -108,22 +156,24 @@ export default function MasterList({ kind }: Props) {
         <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
       </div>
       <DataTable
-        value={records}
+        value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        filters={filters}
-        onFilter={(event: any) => setFilters(event.filters)}
-        globalFilterFields={fields}
+        loading={isLoading}
         header={
           <div className="flex justify-end">
             <InputText
               value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value: event.target.value } }));
-              }}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Search"
               className="p-inputtext-sm"
             />
@@ -135,30 +185,30 @@ export default function MasterList({ kind }: Props) {
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-        {kind === "module" && <Column field="module_code" header="Code" sortable />}
-        {kind === "module" && <Column field="module_name" header="Module" sortable />}
-        {kind === "category" && <Column field="category_code" header="Code" sortable />}
-        {kind === "category" && <Column field="category_name" header="Category" sortable />}
-        {kind === "category" && <Column field="module_name" header="Module" sortable />}
+        {kind === "module" && <Column field="module_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_code")} />}
+        {kind === "module" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} />}
+        {kind === "category" && <Column field="category_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} />}
+        {kind === "category" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} />}
+        {kind === "category" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} />}
         {kind === "category" && <Column field="default_priority_code" header="Default Priority" />}
         {kind === "category" && <Column field="default_team_name" header="Default Team" />}
-        {kind === "subcategory" && <Column field="subcategory_code" header="Code" sortable />}
-        {kind === "subcategory" && <Column field="subcategory_name" header="Subcategory" sortable />}
-        {kind === "subcategory" && <Column field="category_name" header="Category" sortable />}
-        {kind === "priority" && <Column field="priority_code" header="Code" sortable />}
-        {kind === "priority" && <Column field="priority_name" header="Priority" sortable />}
-        {kind === "status" && <Column field="status_code" header="Code" sortable />}
-        {kind === "status" && <Column field="status_name" header="Status" sortable />}
+        {kind === "subcategory" && <Column field="subcategory_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_code")} />}
+        {kind === "subcategory" && <Column field="subcategory_name" header="Subcategory" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_name")} />}
+        {kind === "subcategory" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} />}
+        {kind === "priority" && <Column field="priority_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} />}
+        {kind === "priority" && <Column field="priority_name" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_name")} />}
+        {kind === "status" && <Column field="status_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("status_code")} />}
+        {kind === "status" && <Column field="status_name" header="Status" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("status_name")} />}
         {kind === "status" && <Column header="Final" body={(row) => yesNo(row.is_final)} />}
         {kind === "status" && <Column header="Allow Reopen" body={(row) => yesNo(row.allow_reopen)} />}
-        {kind === "source" && <Column field="source_code" header="Code" sortable />}
-        {kind === "source" && <Column field="source_name" header="Source" sortable />}
-        {kind === "team" && <Column field="team_code" header="Code" sortable />}
-        {kind === "team" && <Column field="team_name" header="Team" sortable />}
+        {kind === "source" && <Column field="source_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_code")} />}
+        {kind === "source" && <Column field="source_name" header="Source" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_name")} />}
+        {kind === "team" && <Column field="team_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("team_code")} />}
+        {kind === "team" && <Column field="team_name" header="Team" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("team_name")} />}
         {kind === "team" && <Column field="department_name" header="Department" />}
         {kind === "team" && <Column field="lead_staff_name" header="Lead Staff" />}
-        {kind === "slaRule" && <Column field="category_code" header="Category" sortable />}
-        {kind === "slaRule" && <Column field="priority_code" header="Priority" sortable />}
+        {kind === "slaRule" && <Column field="category_code" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} />}
+        {kind === "slaRule" && <Column field="priority_code" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} />}
         {kind === "slaRule" && <Column field="assign_within_minutes" header="Assign Minutes" />}
         {kind === "slaRule" && <Column field="resolve_within_minutes" header="Resolve Minutes" />}
         {kind === "slaRule" && <Column header="Working Hours" body={(row) => yesNo(row.working_hours_only)} />}

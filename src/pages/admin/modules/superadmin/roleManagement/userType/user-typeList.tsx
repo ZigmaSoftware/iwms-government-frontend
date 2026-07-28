@@ -7,7 +7,7 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -18,22 +18,34 @@ import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 
-import type { UserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
+import type { UserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 
 import { userTypeApi } from "@/helpers/admin";
 
+const toRecordList = (value: unknown): UserType[] => {
+  if (Array.isArray(value)) return value as UserType[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: UserType[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["name"]);
+
 export default function UserTypePage() {
   const { t } = useTranslation();
-  const [userTypes, setUserTypes] = useState<UserType[]>([]);
+  const [rows, setRows] = useState<UserType[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const navigate = useNavigate();
   const { encRoleManagement, encUserType } = getEncryptedRoute();
@@ -43,37 +55,59 @@ export default function UserTypePage() {
     encUserType,
   );
 
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await userTypeApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    const loadUserTypes = async () => {
-      setIsLoading(true);
-      try {
-        const data = await userTypeApi.readAll();
-        if (mounted) setUserTypes(data as UserType[]);
-      } catch {
-        if (mounted) {
-          Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
-        }
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    void loadUserTypes();
-
-    return () => {
-      mounted = false;
-    };
-  }, [t]);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters["global"].value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await userTypeApi.readAllForExport());
 
   const indexTemplate = (_: UserType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -105,7 +139,7 @@ export default function UserTypePage() {
 
     try {
       await userTypeApi.update(row.unique_id, { is_active: checked });
-      setUserTypes((current) =>
+      setRows((current) =>
         current.map((item) =>
           item.unique_id === row.unique_id ? { ...item, is_active: checked } : item
         )
@@ -161,19 +195,26 @@ export default function UserTypePage() {
         </div>
 
         <DataTable
-          value={userTypes}
+          value={rows}
+          dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
-          loading={isLoading && userTypes.length === 0}
-          filters={filters}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
+          loading={isLoading}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          globalFilterFields={["name"]}
           header={header}
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.user_type"),
           })}
           stripedRows
           showGridlines
+          onExportRequest={onExportRequest}
           className="p-datatable-sm"
         >
           <Column
@@ -198,7 +239,7 @@ export default function UserTypePage() {
             style={{ width: "150px" }}
           />
         </DataTable>
-    
+
     </div>
   );
 }

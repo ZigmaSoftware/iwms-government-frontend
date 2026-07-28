@@ -341,6 +341,7 @@ export default function MonthlyWasteComparisonListPage() {
   const [error, setError] = useState("");
   const [detailPage, setDetailPage] = useState(1);
   const [detailPageSize, setDetailPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
 
   // When the logged-in user's own Data Scope pins a level to exactly one
   // value, that filter field shows pre-filled and disabled rather than an
@@ -567,7 +568,12 @@ export default function MonthlyWasteComparisonListPage() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode, source };
+      const params: Record<string, string> = {
+        sort: sortMode,
+        source,
+        page: String(detailPage),
+        limit: String(detailPageSize),
+      };
       if (appliedMonth) params.month = appliedMonth;
       if (stateId) params.state_id = stateId;
       if (districtId) params.district_id = districtId;
@@ -580,6 +586,13 @@ export default function MonthlyWasteComparisonListPage() {
         { params },
       );
       setRows(Array.isArray(data?.results) ? data.results : []);
+      setTotalCount(
+        typeof data?.count === "number"
+          ? data.count
+          : Array.isArray(data?.results)
+            ? data.results.length
+            : 0,
+      );
       setMonthlyTrends(
         Array.isArray(data?.monthly_trends) ? data.monthly_trends : [],
       );
@@ -592,9 +605,9 @@ export default function MonthlyWasteComparisonListPage() {
         Array.isArray(data?.waste_type_breakdown) ? data.waste_type_breakdown : [],
       );
       setKpis(data?.kpis ?? initialKpis);
-      setDetailPage(1);
     } catch {
       setRows([]);
+      setTotalCount(0);
       setMonthlyTrends([]);
       setPlbComparison([]);
       setWasteTypeBreakdown([]);
@@ -607,6 +620,27 @@ export default function MonthlyWasteComparisonListPage() {
 
   useEffect(() => {
     void fetchReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    appliedMonth,
+    sortMode,
+    source,
+    stateId,
+    districtId,
+    areaTypeId,
+    localBodyLevel,
+    localBodyIds,
+    wardIds,
+    detailPage,
+    detailPageSize,
+  ]);
+
+  /* Reset to page 1 whenever a filter OTHER than pagination changes — the
+     server refetch above also fires when detailPage/detailPageSize change
+     (i.e. on a "next page" click), so an unconditional reset there would
+     immediately snap the user back to page 1. */
+  useEffect(() => {
+    setDetailPage(1);
   }, [appliedMonth, sortMode, source, stateId, districtId, areaTypeId, localBodyLevel, localBodyIds, wardIds]);
 
   /* ── derived ── */
@@ -660,16 +694,8 @@ export default function MonthlyWasteComparisonListPage() {
     .filter((option) => wardIds.includes(option.value))
     .map((option) => option.label)
     .join(", ");
-  const detailPageCount = Math.max(1, Math.ceil(rows.length / detailPageSize));
+  const detailPageCount = Math.max(1, Math.ceil(totalCount / detailPageSize));
   const safeDetailPage = Math.min(detailPage, detailPageCount);
-  const paginatedRows = useMemo(
-    () =>
-      rows.slice(
-        (safeDetailPage - 1) * detailPageSize,
-        safeDetailPage * detailPageSize,
-      ),
-    [rows, safeDetailPage, detailPageSize],
-  );
   const visibleDetailPages = useMemo(() => {
     const visibleCount = Math.min(5, detailPageCount);
     const start = Math.max(
@@ -807,7 +833,7 @@ export default function MonthlyWasteComparisonListPage() {
               </button>
               <button
                 onClick={handleDownload}
-                disabled={!rows.length || exporting}
+                disabled={!totalCount || exporting}
                 className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-white/15 disabled:opacity-50 lg:ml-auto"
               >
                 <Download className="h-4 w-4" />
@@ -1292,8 +1318,8 @@ export default function MonthlyWasteComparisonListPage() {
                   <span className="font-semibold text-teal-700">
                     {appliedMonth || "All Months"}
                   </span>
-                  &nbsp;·&nbsp;{rows.length} record
-                  {rows.length !== 1 ? "s" : ""} combined
+                  &nbsp;·&nbsp;{totalCount} record
+                  {totalCount !== 1 ? "s" : ""} combined
                 </p>
               </div>
             </div>
@@ -1380,8 +1406,8 @@ export default function MonthlyWasteComparisonListPage() {
           {rows.length > 0 && (
             <div className="border-t border-gray-100 px-6 py-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">
-                Breakdown by Local Body &amp; Waste Type — {rows.length} row
-                {rows.length !== 1 ? "s" : ""}
+                Breakdown by Local Body &amp; Waste Type — {totalCount} row
+                {totalCount !== 1 ? "s" : ""}
               </p>
               <div className="overflow-x-auto rounded-xl border border-gray-200">
                 <table className="min-w-full text-xs">
@@ -1411,7 +1437,7 @@ export default function MonthlyWasteComparisonListPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {paginatedRows.map((r) => (
+                    {rows.map((r) => (
                       <tr
                         key={r.unique_id}
                         className="hover:bg-gray-50 transition-colors"
@@ -1460,7 +1486,7 @@ export default function MonthlyWasteComparisonListPage() {
                   </select>
                   <span className="font-mono text-gray-600">
                     {(safeDetailPage - 1) * detailPageSize + 1}–
-                    {Math.min(safeDetailPage * detailPageSize, rows.length)} of {rows.length}
+                    {Math.min(safeDetailPage * detailPageSize, totalCount)} of {totalCount}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">

@@ -1,5 +1,4 @@
 import type { CountryRecord, ErrorWithResponse } from "./types";
-import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 
@@ -8,10 +7,9 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -32,6 +30,16 @@ const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
   currency: ["currency"],
   mob_code: ["mob_code"],
   is_active: ["is_active"],
+};
+
+const SORTABLE_FIELDS = new Set(["name"]);
+
+const toRecordList = (value: unknown): CountryRecord[] => {
+  if (Array.isArray(value)) return value as CountryRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: CountryRecord[] }).results;
+  }
+  return [];
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -57,6 +65,9 @@ export default function CountryList() {
   const { t } = useTranslation();
 
   const [countries, setCountries] = useState<CountryRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
@@ -67,14 +78,9 @@ export default function CountryList() {
   );
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    continent_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    currency: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    mob_code: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const navigate = useNavigate();
 
@@ -85,48 +91,63 @@ export default function CountryList() {
     encCountries,
   );
 
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await countryApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setCountries(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error) {
+      Swal.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.fetch_failed")),
+        "error"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    const loadCountries = async () => {
-      setIsLoading(true);
-      try {
-        const data = await countryApi.readAll();
-        if (mounted) setCountries(data as CountryRecord[]);
-      } catch (error) {
-        if (mounted) {
-          Swal.fire(
-            t("common.error"),
-            extractErrorMessage(error, t("common.fetch_failed")),
-            "error"
-          );
-        }
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    void loadCountries();
-
-    return () => {
-      mounted = false;
-    };
-  }, [t]);
-
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-
-    const updated = { ...filters };
-    updated.global.value = value;
-
-    setFilters(updated);
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await countryApi.readAllForExport());
 
   const updateStatus = async (row: CountryRecord, checked: boolean) => {
     const countryId = String(row.unique_id);
@@ -215,21 +236,21 @@ export default function CountryList() {
       <DataTable
         value={countries}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && countries.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={header}
-        globalFilterFields={[
-          "name",
-          "continent_name",
-          "currency",
-          "mob_code",
-        ]}
         stripedRows
         showGridlines
+        onExportRequest={onExportRequest}
         className="p-datatable-sm"
       >
 
@@ -243,9 +264,6 @@ export default function CountryList() {
           <Column
             field="continent_name"
             header={t("admin.nav.continent")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(r) => capitalize(r.continent_name)}
           />
         )}
@@ -254,9 +272,7 @@ export default function CountryList() {
           <Column
             field="name"
             header={t("admin.nav.country")}
-            sortable
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has("name")}
             body={(r) => capitalize(r.name)}
           />
         )}
@@ -265,9 +281,6 @@ export default function CountryList() {
           <Column
             field="currency"
             header={t("common.currency")}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
 
@@ -275,9 +288,6 @@ export default function CountryList() {
           <Column
             field="mob_code"
             header={t("common.mobile_code")}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
 

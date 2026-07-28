@@ -5,14 +5,13 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import Swal from "@/lib/notify";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
@@ -25,24 +24,30 @@ const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   default_team: ["default_team"],
 };
 
+const SORTABLE_FIELDS = new Set(["waste_type_name"]);
+
+const toRecordList = (value: unknown): WasteTypeListRecord[] => {
+  if (Array.isArray(value)) return value as WasteTypeListRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: WasteTypeListRecord[] }).results;
+  }
+  return [];
+};
+
 export default function WasteTypeListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [allWasteTypes, setAllWasteTypes] = useState<WasteTypeListRecord[]>([]);
+  const [rows, setRows] = useState<WasteTypeListRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.CONTAINS,
-    },
-    waste_type_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const { encWasteMasters, encWasteTypes } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -56,40 +61,65 @@ export default function WasteTypeListPage() {
     WASTE_TYPE_COLUMN_FIELDS,
   );
 
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await wasteTypeApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error: any) {
+      Swal.fire(
+        "Error",
+        String(
+          error?.response?.data?.detail ?? error?.message ?? "Failed to load Waste Type",
+        ),
+        "error",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    const loadWasteTypes = async () => {
-      setIsLoading(true);
-      try {
-        const data = await wasteTypeApi.readAll();
-        if (mounted) setAllWasteTypes(data as WasteTypeListRecord[]);
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
-    void loadWasteTypes();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const rows = Array.isArray(allWasteTypes) ? allWasteTypes : [];
-
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as DataTableFilterMeta);
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await wasteTypeApi.readAllForExport());
 
   const renderHeader = () =>
     renderListSearchHeader({
@@ -126,7 +156,7 @@ export default function WasteTypeListPage() {
           row.unique_id,
           filterPayload({ is_active: value }) as { is_active: boolean }
         );
-        setAllWasteTypes((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -173,20 +203,22 @@ export default function WasteTypeListPage() {
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        filters={filters}
-        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        globalFilterFields={[
-          "unique_id",
-          "waste_type_name",
-        ]}
+        onExportRequest={onExportRequest}
         emptyMessage={t("common.no_items_found", {
           item: t("common.waste_type"),
         })}
@@ -207,8 +239,6 @@ export default function WasteTypeListPage() {
             field="waste_type_name"
             header={t("common.item_name", { item: t("common.waste_type") })}
             sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: WasteTypeListRecord) => capitalize(row.waste_type_name)}
           />
         )}
