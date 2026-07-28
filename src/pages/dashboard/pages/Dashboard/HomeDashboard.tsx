@@ -1153,7 +1153,7 @@ function VehicleStatusRing({
 
     <DashboardPanel
       title="Waste Type Breakdown (Ton)"
-      className="min-h-[176px] flex-1"
+      className="min-h-[220px] flex-1"
       accent="green"
     >
       <div>
@@ -1166,7 +1166,7 @@ function VehicleStatusRing({
               <span className="text-xs font-bold text-slate-900 dark:text-white">{formatTons(totalWasteTons)}</span>
             </div>
           </div>
-          <div className="grid max-h-44 grid-cols-2 gap-2 overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-2">
             {wasteSegments.map((item) => (
               <div
                 key={item.label}

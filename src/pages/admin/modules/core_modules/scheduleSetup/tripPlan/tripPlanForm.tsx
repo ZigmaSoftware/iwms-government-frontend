@@ -155,6 +155,25 @@ const matchesSelectedGeo = (
 };
 
 const resolveId = (record: any): string => String(record?.unique_id ?? record?.id ?? "");
+const referenceId = (value: any): string =>
+  value && typeof value === "object"
+    ? resolveId(value)
+    : String(value ?? "");
+
+const extractErrorMessage = (error: unknown): string => {
+  const data = (error as { response?: { data?: unknown }; message?: string })?.response?.data;
+  if (typeof data === "string") return data;
+  if (data && typeof data === "object") {
+    const detail = (data as Record<string, unknown>).detail;
+    if (typeof detail === "string") return detail;
+    const messages = Object.values(data as Record<string, unknown>).flatMap((value) =>
+      Array.isArray(value) ? value.map(String) : typeof value === "string" ? [value] : [],
+    );
+    if (messages.length > 0) return messages.join(" ");
+  }
+  return (error as { message?: string })?.message || "Unable to save Trip Plan.";
+};
+
 const resolveName = (record: any): string =>
   String(
     record?.name ??
@@ -268,8 +287,7 @@ export default function TripPlanForm() {
   const [collectionPoints, setCollectionPoints] = useState<CollectionPointOption[]>([]);
   const [bins, setBins] = useState<BinOption[]>([]);
   const [assignedBinIds, setAssignedBinIds] = useState<string[]>([]);
-  const [assignedStaffTemplateIds, setAssignedStaffTemplateIds] = useState<string[]>([]);
-  const [assignedVehicleIds, setAssignedVehicleIds] = useState<string[]>([]);
+  const [existingTripPlans, setExistingTripPlans] = useState<ApiRecord[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
 
   // True once the user manually picks a staff template, so we only inherit its
@@ -425,7 +443,9 @@ export default function TripPlanForm() {
         })).filter((o: Option) => o.value),
       );
       const reservedBins = new Set<string>();
-      normalizeList(tripPlanRes).forEach((plan: any) => {
+      const loadedTripPlans = normalizeList(tripPlanRes);
+      setExistingTripPlans(loadedTripPlans);
+      loadedTripPlans.forEach((plan: any) => {
         if (String(plan?.unique_id ?? "") === String(id ?? "")) return;
         normalizeList(plan?.plan_collection_points).forEach((stop: any) => {
           const binId = String(stop?.bin_id ?? "");
@@ -433,17 +453,6 @@ export default function TripPlanForm() {
         });
       });
       setAssignedBinIds(Array.from(reservedBins));
-      const reservedStaffTemplates = new Set<string>();
-      const reservedVehicles = new Set<string>();
-      normalizeList(tripPlanRes).forEach((plan: any) => {
-        if (String(plan?.unique_id ?? "") === String(id ?? "")) return;
-        const staffId = String(plan?.staff_template?.unique_id ?? plan?.staff_template_id ?? "");
-        const vehicleId = String(plan?.vehicle?.unique_id ?? plan?.vehicle_id ?? "");
-        if (staffId) reservedStaffTemplates.add(staffId);
-        if (vehicleId) reservedVehicles.add(vehicleId);
-      });
-      setAssignedStaffTemplateIds(Array.from(reservedStaffTemplates));
-      setAssignedVehicleIds(Array.from(reservedVehicles));
     });
 
     return () => { cancelled = true; };
@@ -548,6 +557,56 @@ export default function TripPlanForm() {
     pendingHierarchy && pendingHierarchy.id === hierarchyId ? pendingHierarchy.name : undefined,
   );
 
+  const contextAssignedResources = useMemo(() => {
+    const selectedWardKey = [...selectedWardIds].sort().join("|");
+    const staffIds = new Set<string>();
+    const vehicleIds = new Set<string>();
+
+    existingTripPlans.forEach((plan) => {
+      if (
+        String(plan?.unique_id ?? "") === String(id ?? "")
+        || String(plan?.status ?? "ACTIVE") !== "ACTIVE"
+        || String(plan?.collection_type ?? "") !== collectionType
+      ) {
+        return;
+      }
+
+      const planWardKey = (Array.isArray(plan?.wards_detail) ? plan.wards_detail : [])
+        .map((ward: ApiRecord) => referenceId(ward))
+        .filter(Boolean)
+        .sort()
+        .join("|");
+      const planHierarchyId = referenceId(
+        plan?.[hierarchyLevel.replace(/_id$/, "")]
+        ?? plan?.[hierarchyLevel],
+      );
+      const sameLocation =
+        referenceId(plan?.state) === stateId
+        && referenceId(plan?.district) === districtId
+        && referenceId(plan?.area_type) === areaTypeId
+        && planHierarchyId === hierarchyId
+        && planWardKey === selectedWardKey;
+      if (!sameLocation) return;
+
+      const staffId = referenceId(plan?.staff_template ?? plan?.staff_template_id);
+      const vehicleId = referenceId(plan?.vehicle ?? plan?.vehicle_id);
+      if (staffId) staffIds.add(staffId);
+      if (vehicleId) vehicleIds.add(vehicleId);
+    });
+
+    return { staffIds, vehicleIds };
+  }, [
+    existingTripPlans,
+    id,
+    collectionType,
+    stateId,
+    districtId,
+    areaTypeId,
+    hierarchyLevel,
+    hierarchyId,
+    selectedWardIds,
+  ]);
+
   // Staff templates scoped to the selected local body — keeps the already
   // selected template present even if it falls outside the current filter,
   // and (in edit mode) shows its correct label instantly via
@@ -562,18 +621,26 @@ export default function TripPlanForm() {
         )
           .map((tpl) => {
             const value = String(tpl?.unique_id ?? tpl?.id ?? "");
+            const isAssigned = contextAssignedResources.staffIds.has(value);
             return {
               value,
-              label: assignedStaffTemplateIds.includes(value) && value !== staffTemplateId
-                ? staffTemplateLabel(tpl) + " (Assigned)"
+              label: isAssigned
+                ? `${staffTemplateLabel(tpl)} (Assigned)`
                 : staffTemplateLabel(tpl),
-              disabled: assignedStaffTemplateIds.includes(value) && value !== staffTemplateId,
+              disabled: isAssigned,
             };
           })
         .filter((o) => o.value);
       return ensureOption(options, staffTemplateId, initialStaffTemplateLabel || undefined);
     },
-    [staffTemplatesRaw, hierarchyLevel, hierarchyId, staffTemplateId, initialStaffTemplateLabel, assignedStaffTemplateIds],
+    [
+      staffTemplatesRaw,
+      hierarchyLevel,
+      hierarchyId,
+      staffTemplateId,
+      initialStaffTemplateLabel,
+      contextAssignedResources,
+    ],
   );
 
 useEffect(() => {
@@ -820,11 +887,13 @@ useEffect(() => {
       ? vehicles.filter((v) => v.hierarchyField === hierarchyLevel && v.hierarchyId === hierarchyId)
       : vehicles
     ).filter((v) => v.value === currentValue || v.isActive !== false)
-      .map((vehicle) =>
-        assignedVehicleIds.includes(vehicle.value) && vehicle.value !== currentValue
-          ? { ...vehicle, label: vehicle.label + " (Assigned)", disabled: true }
-          : vehicle,
-      );
+      .map((vehicle) => {
+        const isAssigned =
+          contextAssignedResources.vehicleIds.has(vehicle.value);
+        return isAssigned
+          ? { ...vehicle, label: `${vehicle.label} (Assigned)`, disabled: true }
+          : vehicle;
+      });
     const current = vehicles.find((v) => v.value === currentValue);
     return ensureOption(filtered, currentValue, current?.label || initialVehicleLabel || undefined);
   };
@@ -969,6 +1038,8 @@ useEffect(() => {
       if (isEdit && id) await tripPlanApi.update(id, payload);
       else await tripPlanApi.create(payload);
       navigate(listPath);
+    } catch (error) {
+      Swal.fire("Unable to save Trip Plan", extractErrorMessage(error), "error");
     } finally {
       setSaving(false);
     }
