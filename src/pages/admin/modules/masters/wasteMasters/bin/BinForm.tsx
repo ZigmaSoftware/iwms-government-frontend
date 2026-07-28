@@ -100,7 +100,7 @@ export default function BinForm() {
   useEffect(() => {
     Promise.all([
       collectionPointApi.readAll(),
-      wasteTypeApi.readAll(),
+      wasteTypeApi.readAll({ params: { lite: 1 } }),
     ]).then(([cpRes, wasteTypeRes]) => {
       setCollectionPoints(normalizeList(cpRes).map((item) => optionOf(item, "cp_name")));
       setWasteTypes(normalizeList(wasteTypeRes).map((item) => optionOf(item, "waste_type_name")));

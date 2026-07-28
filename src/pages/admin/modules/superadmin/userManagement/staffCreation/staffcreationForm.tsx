@@ -874,16 +874,17 @@ export default function StaffCreationForm() {
 
     const loadScopeGeoOptions = async () => {
       try {
+        const liteConfig = { params: { lite: 1 } };
         const [states, districts, areaTypes, corporations, municipalities, townPanchayats, panchayatUnions, panchayats] =
           await Promise.all([
-            stateApi.readAll(),
-            districtApi.readAll(),
-            areaTypeApi.readAll(),
-            corporationApi.readAll(),
-            municipalityApi.readAll(),
-            townPanchayatApi.readAll(),
-            panchayatUnionApi.readAll(),
-            panchayatApi.readAll(),
+            stateApi.readAll(liteConfig),
+            districtApi.readAll(liteConfig),
+            areaTypeApi.readAll(liteConfig),
+            corporationApi.readAll(liteConfig),
+            municipalityApi.readAll(liteConfig),
+            townPanchayatApi.readAll(liteConfig),
+            panchayatUnionApi.readAll(liteConfig),
+            panchayatApi.readAll(liteConfig),
           ]);
 
         const asArray = (res: any): GeoOptionRecord[] =>

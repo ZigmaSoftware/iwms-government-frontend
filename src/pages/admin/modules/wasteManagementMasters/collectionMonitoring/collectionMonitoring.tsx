@@ -284,14 +284,11 @@ const WasteCollectionMonitor: React.FC = () => {
           },
         }
       );
-      console.log(response);
-      
 
       if (!response.ok)
         throw new Error(`HTTP error! Status: ${response.status}`);
 
       const data = await response.json();
-      console.log("Raw API data:", data);
 
       const parsedData: Vehicle[] =
         data?.data?.map((v: any, index: number) => {
