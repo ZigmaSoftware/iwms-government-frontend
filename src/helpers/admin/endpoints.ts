@@ -100,6 +100,7 @@ export const adminEndpoints = {
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
   staffAccessConfiguration: "user-creations/staff-access-configuration",
+  staffAccessDashboard: "user-creations/staff-access-dashboard",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
   /* =========================

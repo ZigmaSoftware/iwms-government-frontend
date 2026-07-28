@@ -23,6 +23,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encCollectionPoints,
     encStaffCreation,
     encStaffAccessConfiguration,
+    encStaffAccessDashboard,
     encUserScreen,
     encUserType,
     encCustomerMaster,
@@ -62,6 +63,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encMainScreen,
     encUserScreenPermission,
     encStaffMasters,
+    encUserManagement,
     encStaffTemplate,
     encAlternativeStaffTemplate,
     encStaffTemplateAudit,
@@ -74,7 +76,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encTripPlans,
     encVehicleTripAudit,
     encTripExceptionLog,
-    encSuperAdminMaster,
     encCommonMasters,
     encContinents,
     encCountries,
@@ -128,8 +129,14 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encRoleManagement}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.role_management" },
 
     // ── Super Admin > User Management ──
+    { path: `/${encUserManagement}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
+    { path: `/${encUserManagement}/${encStaffAccessConfiguration}`, nameKey: "admin.nav.staff_access_configuration", parentNameKey: "admin.nav.user_creations" },
+    { path: `/${encUserManagement}/${encStaffAccessDashboard}`, nameKey: "admin.nav.staff_access_dashboard", parentNameKey: "admin.nav.user_creations" },
+    // Legacy staff-masters URLs remain valid through router aliases and need
+    // matching labels until old bookmarks/cached sidebar links age out.
     { path: `/${encStaffMasters}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffAccessConfiguration}`, nameKey: "admin.nav.staff_access_configuration", parentNameKey: "admin.nav.user_creations" },
+    { path: `/${encStaffMasters}/${encStaffAccessDashboard}`, nameKey: "admin.nav.staff_access_dashboard", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encStaffTemplate}`, nameKey: "admin.nav.staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encAlternativeStaffTemplate}`, nameKey: "admin.nav.alternative_staff_template", parentNameKey: "admin.nav.user_creations" },
     { path: `/${encStaffMasters}/${encUnassignedStaffPool}`, nameKey: "admin.nav.unassigned_staff_pool", parentNameKey: "admin.nav.user_creations" },

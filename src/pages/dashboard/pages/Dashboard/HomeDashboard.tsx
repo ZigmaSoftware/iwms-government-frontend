@@ -2,6 +2,7 @@ import { DataCard } from "@/components/ui/DataCard";
 import Label from "@/components/form/Label";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Activity,
   Building2,
@@ -27,7 +28,15 @@ import { useTranslation } from "react-i18next";
 import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
 import Select from "@/components/form/Select";
 import { HoverCard, HoverCardArrow, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   AreaChart,
   Area,
@@ -70,6 +79,37 @@ type WardPerformance = {
 
 type FilterItem = { id: string; name: string };
 
+type CriticalAlert = {
+  id: string;
+  kind: "grievance" | "vehicle_breakdown";
+  title: string;
+  description?: string;
+  status: string;
+  severity: "critical" | "warning";
+  created?: string | null;
+  updated?: string | null;
+  priority?: string;
+  category?: string;
+  subcategory?: string;
+  source?: string;
+  incident_type?: string;
+  assigned_to?: string;
+  location?: string;
+  trip?: string;
+  trip_date?: string;
+  scheduled_time?: string;
+  vehicle?: string;
+  replacement_vehicle?: string;
+  driver?: string;
+  operator?: string;
+  replacement_driver?: string;
+  replacement_operator?: string;
+  breakdown_time?: string;
+  approval_status?: string;
+  collected_weight_kg?: string;
+  remarks?: string;
+};
+
 type DashboardSummary = {
   filters: {
     states: FilterItem[];
@@ -111,6 +151,7 @@ type DashboardSummary = {
     priority: string;
     created?: string | null;
   }>;
+  critical_alerts: CriticalAlert[];
   vehicle_performance: Array<{
     registration_no: string;
     vehicle_type: string;
@@ -165,6 +206,7 @@ const emptyDashboard: DashboardSummary = {
     masters: { states: 0, districts: 0, area_types: 0, local_bodies: 0, wards: 0 },
   },
   recent_grievances: [],
+  critical_alerts: [],
   vehicle_performance: [],
   trip_performance: [],
   team_performance: [],
@@ -173,6 +215,104 @@ const emptyDashboard: DashboardSummary = {
   vehicle_status_detail: { idle: 0, breakdown: 0, offline_gps: 0 },
   as_of: "",
 };
+
+const alertDateTime = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleString([], {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+
+function CriticalAlertDrillDown({ alert }: { alert: CriticalAlert }) {
+  const fields = alert.kind === "vehicle_breakdown"
+    ? [
+        ["Trip", alert.trip],
+        ["Trip date", alert.trip_date],
+        ["Scheduled", alert.scheduled_time],
+        ["Breakdown time", alert.breakdown_time],
+        ["Broken vehicle", alert.vehicle],
+        ["Replacement vehicle", alert.replacement_vehicle],
+        ["Original driver", alert.driver],
+        ["Original operator", alert.operator],
+        ["Replacement driver", alert.replacement_driver],
+        ["Replacement operator", alert.replacement_operator],
+        ["Approval", alert.approval_status],
+        ["Collected before breakdown", alert.collected_weight_kg ? `${alert.collected_weight_kg} kg` : ""],
+      ]
+    : [
+        ["Complaint type", alert.incident_type],
+        ["Category", alert.category],
+        ["Subcategory", alert.subcategory],
+        ["Source", alert.source],
+        ["Priority", alert.priority],
+        ["Assigned to", alert.assigned_to],
+        ["Trip", alert.trip],
+        ["Vehicle", alert.vehicle],
+        ["Driver", alert.driver],
+        ["Operator", alert.operator],
+      ];
+
+  return (
+    <div className="text-xs">
+      <div className={`border-b px-4 py-3 ${
+        alert.severity === "critical"
+          ? "border-rose-100 bg-rose-50 dark:border-rose-500/20 dark:bg-rose-500/10"
+          : "border-amber-100 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10"
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-bold text-slate-950 dark:text-white">{alert.id}</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-100">{alert.title}</p>
+          </div>
+          <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase ${
+            alert.severity === "critical"
+              ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200"
+              : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200"
+          }`}>
+            {alert.kind === "vehicle_breakdown" ? "Breakdown" : "Grievance"}
+          </span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">{alert.status || "Open"}</span>
+          {alert.priority && <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">{alert.priority}</span>}
+          <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">{alertDateTime(alert.created)}</span>
+        </div>
+      </div>
+      <div className="max-h-[55vh] space-y-3 overflow-y-auto p-4">
+        {alert.description && (
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-[#243954] dark:bg-[#14243a]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Description</p>
+            <p className="mt-1 leading-5 text-slate-700 dark:text-slate-200">{alert.description}</p>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          {fields.filter(([, value]) => Boolean(value)).map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-[#243954]">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+              <p className="mt-1 break-words font-semibold text-slate-800 dark:text-slate-100">{value}</p>
+            </div>
+          ))}
+        </div>
+        {alert.location && (
+          <div className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-[#243954]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Location</p>
+            <p className="mt-1 font-semibold text-slate-800 dark:text-slate-100">{alert.location}</p>
+          </div>
+        )}
+        {alert.remarks && alert.remarks !== alert.description && (
+          <div className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-[#243954]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Remarks</p>
+            <p className="mt-1 text-slate-700 dark:text-slate-200">{alert.remarks}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Every geo filter (State/District/Area Type/Local Body) is backed by a
 // plain "" = unselected value in useGeoHierarchy. The shared Select
@@ -847,6 +987,7 @@ function CompactTable({
 
 export function HomeDashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<DashboardSummary>(emptyDashboard);
   const [loading, setLoading] = useState(true);
   const geo = useGeoHierarchy();
@@ -856,6 +997,7 @@ export function HomeDashboard() {
   const [activeMapTab, setActiveMapTab] = useState<MapTabKey>("vehicle");
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
+  const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
 
   const params = useMemo(() => {
@@ -996,7 +1138,8 @@ export function HomeDashboard() {
   const tripsTarget = Math.max(tripsCompleted + summary.bins.not_collected, tripsCompleted, 1);
   const tripsPct = (tripsCompleted / tripsTarget) * 100;
   const completedWards = Math.max(summary.masters.wards - summary.bins.not_collected, 0);
-  const alerts = dashboard.recent_grievances.slice(0, 6);
+  const alerts = dashboard.critical_alerts.slice(0, 6);
+  const grievancesPath = `/dashboard/${getEncryptedRoute().encDashboardGrievances}`;
   const vehicleRows = dashboard.vehicle_performance.slice(0, 5).map((v) => [
     v.registration_no,
     v.vehicle_type,
@@ -1178,37 +1321,79 @@ export function HomeDashboard() {
               </div>
             </div>
             <div className="xl:col-span-3">
-              <DashboardPanel title="Critical Alerts" action={<button className="text-[10px] font-semibold text-sky-600 dark:text-sky-300">View All</button>} className="h-full" accent="orange">
+              <DashboardPanel title="Critical Alerts" action={<button type="button" onClick={() => navigate(grievancesPath)} className="text-[10px] font-semibold text-sky-600 dark:text-sky-300">View All</button>} className="h-full" accent="orange">
                 <div className="space-y-2">
                   {alerts.map((item, index) => (
-                    <div
-                      key={`${item.id}-${index}`}
-                      className={`flex items-start gap-2 rounded-md border px-2 py-1.5 ${
-                        index < 2
-                          ? "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"
-                          : "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
-                      }`}
-                    >
-                      <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 ${index < 2 ? "text-rose-500" : "text-amber-500"}`} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">{item.id}</p>
-                        <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">{item.title || item.status}</p>
-                      </div>
-                      <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${index < 2 ? "bg-white text-rose-600 dark:bg-rose-500/20" : "bg-white text-amber-600 dark:bg-amber-500/20"}`}>
-                        10:{String(index + 1).padStart(2, "0")}
-                      </span>
-                    </div>
+                    <HoverCard key={`${item.id}-${index}`} openDelay={100} closeDelay={160}>
+                      <HoverCardTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAlert(item)}
+                          className={`flex w-full items-start gap-2 rounded-md border px-2 py-1.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                            item.severity === "critical"
+                              ? "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"
+                              : "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
+                          }`}
+                          aria-label={`Open drill down for ${item.id}`}
+                        >
+                          {item.kind === "vehicle_breakdown" ? (
+                            <Truck className={`mt-0.5 h-3.5 w-3.5 ${item.severity === "critical" ? "text-rose-500" : "text-amber-500"}`} />
+                          ) : (
+                            <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 ${item.severity === "critical" ? "text-rose-500" : "text-amber-500"}`} />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                              {item.id}
+                              {item.kind === "vehicle_breakdown" && <span className="ml-1 text-[9px] text-rose-500">BREAKDOWN</span>}
+                            </p>
+                            <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">{item.title || item.status}</p>
+                            {(item.trip || item.vehicle) && (
+                              <p className="truncate text-[9px] text-slate-400">
+                                {[item.trip && `Trip ${item.trip}`, item.vehicle && `Vehicle ${item.vehicle}`].filter(Boolean).join(" · ")}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.severity === "critical" ? "bg-white text-rose-600 dark:bg-rose-500/20" : "bg-white text-amber-600 dark:bg-amber-500/20"}`}>
+                            {item.created ? new Date(item.created).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Now"}
+                          </span>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="left"
+                        align="start"
+                        sideOffset={12}
+                        className="w-[390px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-[#28425f] dark:bg-[#101d2c]"
+                      >
+                        <HoverCardArrow className="fill-white stroke-slate-200 dark:fill-[#101d2c] dark:stroke-[#28425f]" width={18} height={9} />
+                        <CriticalAlertDrillDown alert={item} />
+                        <p className="border-t px-4 py-2 text-[10px] font-semibold text-sky-600 dark:border-[#243954] dark:text-sky-300">
+                          Click alert to keep this drill-down open
+                        </p>
+                      </HoverCardContent>
+                    </HoverCard>
                   ))}
                   {alerts.length === 0 && (
                     <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-6 text-center text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                       No critical alerts available.
                     </p>
                   )}
-                  <div className="pt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">Total Alerts: {formatNumber(summary.grievances.open)}</div>
+                  <div className="pt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    Total Alerts: {formatNumber(summary.grievances.open + dashboard.vehicle_status_detail.breakdown)}
+                  </div>
                 </div>
               </DashboardPanel>
             </div>
           </div>
+
+          <Dialog open={Boolean(selectedAlert)} onOpenChange={(open) => !open && setSelectedAlert(null)}>
+            <DialogContent className="max-w-2xl overflow-hidden p-0">
+              <DialogHeader className="sr-only">
+                <DialogTitle>{selectedAlert?.id || "Critical alert"} drill-down</DialogTitle>
+                <DialogDescription>Operational details for the selected critical alert.</DialogDescription>
+              </DialogHeader>
+              {selectedAlert && <CriticalAlertDrillDown alert={selectedAlert} />}
+            </DialogContent>
+          </Dialog>
 
           {/* <div className="mt-3 grid gap-3 xl:grid-cols-12">
             <div className="xl:col-span-4" >

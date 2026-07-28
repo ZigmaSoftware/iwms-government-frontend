@@ -51,6 +51,7 @@ import StaffCreationList from "@/pages/admin/modules/superadmin/userManagement/s
 import StaffCreationForm from "@/pages/admin/modules/superadmin/userManagement/staffCreation/staffcreationForm";
 import StaffAccessConfigList from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigList";
 import StaffAccessConfigPage from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigPage";
+import StaffAccessDashboard from "@/pages/admin/modules/superadmin/userManagement/staffAccessDashboard/StaffAccessDashboard";
 import UserTypeList from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeList";
 import UserTypeForm from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeForm";
 import CustomerCreationList from "@/pages/admin/modules/masters/customerMasters/customerCreations/customerCreationListPage";
@@ -200,6 +201,7 @@ const ROUTES: RouteMap = {
   "user-creations": {
     "staff-creation": { list: StaffCreationList, form: StaffCreationForm },
     "staff-access-configuration": { list: StaffAccessConfigList, form: StaffAccessConfigPage },
+    "staff-access-dashboard": { component: StaffAccessDashboard },
     "unassigned-staff-pool": { list: UnassignedStaffPoolList, form: UnassignedStaffPoolForm },
   },
   "transport-master": {
@@ -321,6 +323,7 @@ const MODULE_ALIASES: Record<string, string[]> = {
   staffcreation: ["staff-creation"],
   "staff-creation": ["staff-creation"],
   "staff-access-configuration": ["staff-access-configuration"],
+  "staff-access-dashboard": ["staff-access-dashboard"],
 
   // Common/location masters
   continents: ["continents"],
