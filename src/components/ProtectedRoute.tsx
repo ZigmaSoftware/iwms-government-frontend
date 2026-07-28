@@ -39,13 +39,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         ),
       );
 
-      console.log(
-        "[ProtectedRoute] Role not in allowedRoles:",
-        role,
-        "| hasPermissions:",
-        hasPerms
-      );
-
       if (!hasPerms) {
         setIsAllowed(false);
         return;

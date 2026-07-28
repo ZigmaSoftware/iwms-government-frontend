@@ -825,16 +825,17 @@ export default function BinCollectionEventForm() {
   // tables are large and their serializers are heavy, so the editor below
   // fetches them itself, scoped to the selected Local Body.
   useEffect(() => {
+    const liteConfig = { params: { lite: 1 } };
     Promise.all([
-      panchayatApi.readAll(),
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      wardApi.readAll(),
+      panchayatApi.readAll(liteConfig),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      wardApi.readAll(liteConfig),
     ]).then(([
       panchayatRes,
       stateRes,

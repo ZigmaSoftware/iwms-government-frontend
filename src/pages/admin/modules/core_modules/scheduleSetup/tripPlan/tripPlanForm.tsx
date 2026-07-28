@@ -291,17 +291,18 @@ export default function TripPlanForm() {
   // immediately for the geo cascade UI. Waste Types has only ~7 rows and the
   // backend has no filter support for it, so it stays eager too.
   useEffect(() => {
+    const liteConfig = { params: { lite: 1 } };
     Promise.all([
-      wasteTypeApi.readAll(),
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-      wardApi.readAll(),
+      wasteTypeApi.readAll(liteConfig),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      panchayatApi.readAll(liteConfig),
+      wardApi.readAll(liteConfig),
     ]).then(([
       wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,

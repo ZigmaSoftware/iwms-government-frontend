@@ -23,9 +23,6 @@ export default function StaffTemplateAuditList() {
   const [records, setRecords] = useState<StaffTemplateAuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  // const [filters, setFilters] = useState<any>({
-  //   global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  // });
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
