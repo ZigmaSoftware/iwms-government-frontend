@@ -346,7 +346,8 @@ export default function AreaTypeForm() {
     // Data Scope from login always supplies their own state/district.
     const scopedStateId = scopeOption("state")?.value;
 
-    Promise.all([stateApi.readAll(), districtApi.readAll()])
+    const liteConfig = { params: { lite: 1 } };
+    Promise.all([stateApi.readAll(liteConfig), districtApi.readAll(liteConfig)])
       .then(([stateRes, districtRes]) => {
         if (cancelled) return;
         const fetchedStates = toRecordList(stateRes)

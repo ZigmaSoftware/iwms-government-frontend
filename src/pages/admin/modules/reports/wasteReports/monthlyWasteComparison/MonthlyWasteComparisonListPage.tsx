@@ -432,16 +432,17 @@ export default function MonthlyWasteComparisonListPage({
       setWards(mergeRecordsWithScope(records.wards, "ward"));
     };
 
+    const liteConfig = { params: { lite: 1 } };
     Promise.allSettled([
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-      wardApi.readAll(),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      panchayatApi.readAll(liteConfig),
+      wardApi.readAll(liteConfig),
     ]).then((results) => {
       if (cancelled) return;
       const descendants = scopeHierarchyRecords();

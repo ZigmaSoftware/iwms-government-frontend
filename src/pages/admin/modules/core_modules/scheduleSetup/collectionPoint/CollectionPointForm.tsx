@@ -126,7 +126,7 @@ export default function CollectionPointForm() {
   const wardScopeKey = wardScope.options.map((option) => `${option.value}:${option.label}`).join("|");
 
   useEffect(() => {
-    wasteTypeApi.readAll().then((res: unknown) => {
+    wasteTypeApi.readAll({ params: { lite: 1 } }).then((res: unknown) => {
       setWasteTypes(
         normalizeList(res)
           .map((item) => ({ value: idOf(item.unique_id), label: String(item.waste_type_name ?? item.unique_id ?? "") }))

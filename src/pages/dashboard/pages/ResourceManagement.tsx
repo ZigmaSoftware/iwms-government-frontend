@@ -82,7 +82,6 @@ export default function ResourceManagement() {
     const fetchStaff = async () => {
       try {
         const res = await staffCreationApi.readAll();
-        console.log(res);
         const records = normalizeList(res);
         const staffOnly = records.filter(
           (record: any) =>

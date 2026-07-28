@@ -136,7 +136,7 @@ export default function CustomerCreationListPage() {
 
   /* ── waste type dropdown options ── */
   useEffect(() => {
-    (wasteTypeApi.readAll() as Promise<any[]>)
+    (wasteTypeApi.readAll({ params: { lite: 1 } }) as Promise<any[]>)
       .then((data) => {
         const options = (Array.isArray(data) ? data : []).map((wt) => ({
           label: wt.waste_type_name ?? wt.name ?? wt.unique_id,

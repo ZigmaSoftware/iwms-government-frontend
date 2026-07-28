@@ -388,7 +388,8 @@ export default function TownPanchayatForm() {
     const scopedStateId = scopeOption("state")?.value;
     const scopedDistrictId = scopeOption("district")?.value;
 
-    Promise.all([stateApi.readAll(), districtApi.readAll(), areaTypeApi.readAll()])
+    const liteConfig = { params: { lite: 1 } };
+    Promise.all([stateApi.readAll(liteConfig), districtApi.readAll(liteConfig), areaTypeApi.readAll(liteConfig)])
       .then(([stateRes, districtRes, areaTypeRes]) => {
         if (cancelled) return;
         const fetchedStates = toRecordList(stateRes)
