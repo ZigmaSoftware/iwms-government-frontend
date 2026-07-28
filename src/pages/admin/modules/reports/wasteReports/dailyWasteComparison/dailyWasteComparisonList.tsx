@@ -377,7 +377,11 @@ function FilterSelect({
 /* ══════════════════════════════════════════════════════════════════
     MAIN COMPONENT
 ══════════════════════════════════════════════════════════════════ */
-export default function DailyWasteComparisonList() {
+export default function DailyWasteComparisonList({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t } = useTranslation();
 
   const [dateValue, setDateValue] = useState("");
@@ -842,20 +846,22 @@ export default function DailyWasteComparisonList() {
       RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="dwcr min-h-screen">
+    <div className={embedded ? "dwcr overflow-hidden rounded-2xl" : "dwcr min-h-screen"}>
       <style>{FONTS}</style>
 
       {/* ── breadcrumb rail ── */}
-      <div className="px-6 md:px-10 pt-6 flex items-center gap-1.5 text-xs" style={{ color: C.inkFaint }}>
-        <span>Schedule Masters</span>
-        <ChevronRight className="h-3 w-3" />
-        <span style={{ color: C.primary }} className="font-semibold">
-          Daily Waste Comparison
-        </span>
-      </div>
+      {!embedded && (
+        <div className="px-6 md:px-10 pt-6 flex items-center gap-1.5 text-xs" style={{ color: C.inkFaint }}>
+          <span>Schedule Masters</span>
+          <ChevronRight className="h-3 w-3" />
+          <span style={{ color: C.primary }} className="font-semibold">
+            Daily Waste Comparison
+          </span>
+        </div>
+      )}
 
       {/* ══════════════ HERO ══════════════ */}
-      <div className="px-6 md:px-10 pt-5">
+      <div className={embedded ? "pt-0" : "px-6 md:px-10 pt-5"}>
         <div
           className="relative overflow-hidden rounded-[28px] border border-white/10 shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]"
           style={{ background: `linear-gradient(120deg, ${C.primaryDeep} 0%, #115E6D 58%, ${C.primary} 100%)` }}

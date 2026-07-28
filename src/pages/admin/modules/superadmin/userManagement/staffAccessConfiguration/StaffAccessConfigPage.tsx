@@ -27,10 +27,12 @@ import {
   fetchEnabledScreensForLocalBody,
   fetchRawUserScreenActions,
   fetchScreenCatalogPermissions,
+  fetchScopeAdmins,
   fetchUserScreenActions,
   mapPermissionModules,
   updateStaffAccess,
   type AllowedActionsMap,
+  type ScopeAdminRecord,
 } from "@/helpers/admin/staffAccessConfigApi";
 import type {
   AreaTypeCategory,
@@ -62,6 +64,7 @@ type FormValues = {
   userTypeId: string;
   governmentUserTypeId: string;
   loginEnabled: boolean;
+  scopeAdminId: string;
   stateId: string;
   districtId: string;
   areaTypeId: string;
@@ -251,6 +254,7 @@ const defaultValues: FormValues = {
   userTypeId: "",
   governmentUserTypeId: "",
   loginEnabled: true,
+  scopeAdminId: "",
   stateId: "",
   districtId: "",
   areaTypeId: "",
@@ -353,6 +357,7 @@ export default function StaffAccessConfigPage() {
 
   const [userTypes, setUserTypes] = useState<ApiOptionRecord[]>([]);
   const [governmentRoles, setGovernmentRoles] = useState<ApiOptionRecord[]>([]);
+  const [scopeAdmins, setScopeAdmins] = useState<ScopeAdminRecord[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<SelectOption[]>([]);
 
   const [governmentLevel, setGovernmentLevel] = useState("");
@@ -368,6 +373,20 @@ export default function StaffAccessConfigPage() {
     panchayat_id: [],
   });
   const [wardRecords, setWardRecords] = useState<ApiOptionRecord[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchScopeAdmins()
+      .then((records) => {
+        if (mounted) setScopeAdmins(records);
+      })
+      .catch(() => {
+        if (mounted) setScopeAdmins([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // Wards aren't filterable server-side by an arbitrary SET of local bodies
   // (the API only supports one parent id at a time), so load the full table
@@ -603,6 +622,10 @@ export default function StaffAccessConfigPage() {
         setValue("designation", String(basicInfo.designation ?? record.designation ?? ""));
         setValue("doj", String(basicInfo.doj ?? record.doj ?? ""));
         setValue("activeStatus", Boolean(basicInfo.activeStatus ?? record.active_status ?? true));
+        setValue(
+          "scopeAdminId",
+          String(basicInfo.scopeAdminId ?? record.staff_head_id ?? ""),
+        );
         setValue("username", String(loginConfig.username ?? record.username ?? ""));
         const existingPassword = String(loginConfig.password ?? record.password ?? "");
         setValue("password", existingPassword);
@@ -694,15 +717,33 @@ export default function StaffAccessConfigPage() {
 
   const governmentLevelOptions = useMemo(() => {
     const seen = new Set<string>();
+    const parentLevel = scopeAdmins.find(
+      (admin) => admin.id === values.scopeAdminId,
+    )?.roleLevel;
+    const rank: Record<string, number> = {
+      state: 0,
+      district: 1,
+      corporation: 2,
+      municipality: 2,
+      town_panchayat: 2,
+      panchayat_union: 2,
+      panchayat: 2,
+    };
     return governmentRoles
       .filter((role) => {
         const level = role.level ?? "";
-        if (!level || seen.has(level)) return false;
+        if (
+          !level ||
+          seen.has(level) ||
+          (parentLevel && (rank[level] ?? 99) < (rank[parentLevel] ?? 99))
+        ) {
+          return false;
+        }
         seen.add(level);
         return true;
       })
       .map((role) => ({ value: role.level ?? "", label: role.level_display || role.level || "" }));
-  }, [governmentRoles]);
+  }, [governmentRoles, scopeAdmins, values.scopeAdminId]);
 
   const governmentRoleOptions = useMemo(() => {
     if (!governmentLevel) return [];
@@ -712,6 +753,58 @@ export default function StaffAccessConfigPage() {
         .map((role) => ({ ...role, name: role.name_display || role.name })),
     );
   }, [governmentLevel, governmentRoles]);
+
+  const selectedScopeAdmin = useMemo(
+    () => scopeAdmins.find((admin) => admin.id === values.scopeAdminId) ?? null,
+    [scopeAdmins, values.scopeAdminId],
+  );
+  const scopeAdminOptions = useMemo(
+    () =>
+      scopeAdmins.map((admin) => ({
+        value: admin.id,
+        label: `${admin.name} — ${admin.role}${admin.username ? ` (${admin.username})` : ""}`,
+      })),
+    [scopeAdmins],
+  );
+
+  const applyScopeAdmin = (adminId: string) => {
+    setValue("scopeAdminId", adminId, { shouldValidate: true });
+    const admin = scopeAdmins.find((item) => item.id === adminId);
+    if (!admin) return;
+    const rank: Record<string, number> = {
+      state: 0,
+      district: 1,
+      corporation: 2,
+      municipality: 2,
+      town_panchayat: 2,
+      panchayat_union: 2,
+      panchayat: 2,
+    };
+    if (
+      governmentLevel &&
+      (rank[governmentLevel] ?? 99) < (rank[admin.roleLevel] ?? 99)
+    ) {
+      setGovernmentLevel("");
+      setValue("governmentUserTypeId", "");
+    }
+    const localBodies = Object.entries(admin.scope.localBodies).flatMap(
+      ([level, entries]) =>
+        entries.map((entry) => ({
+          level: level as LocalBodyLevel,
+          id: entry.id,
+        })),
+    );
+    setValue("stateId", admin.scope.stateId ?? "");
+    setValue("districtId", admin.scope.districtId ?? "");
+    setValue("areaTypeId", admin.scope.areaTypeId ?? "");
+    setValue(
+      "localBodyLevels",
+      Array.from(new Set(localBodies.map((body) => body.level))),
+    );
+    setValue("localBodies", localBodies);
+    setValue("wardIds", admin.scope.wards.map((ward) => ward.id));
+    setValue("locationNodeIds", []);
+  };
 
   // "Any local body selected" — drives display/payload (the staff's data
   // scope always includes exactly what was picked here). Permissions and
@@ -923,8 +1016,18 @@ export default function StaffAccessConfigPage() {
         return Array.isArray(entries) && entries.length > 0;
       });
     }
+    if (selectedScopeAdmin) {
+      const restrictedLevels = new Set(
+        Object.entries(selectedScopeAdmin.scope.localBodies)
+          .filter(([, entries]) => entries.length > 0)
+          .map(([level]) => level),
+      );
+      if (restrictedLevels.size) {
+        levels = levels.filter((level) => restrictedLevels.has(level.value));
+      }
+    }
     return levels;
-  }, [selectedAreaTypeCategory]);
+  }, [selectedAreaTypeCategory, selectedScopeAdmin]);
 
   const localBodyLevelOptions = useMemo(
     () => availableLocalBodyLevels.map((level) => ({ value: level.value, label: level.label })),
@@ -939,14 +1042,25 @@ export default function StaffAccessConfigPage() {
     return values.localBodyLevels.flatMap((level) => {
       const levelLabel = LOCAL_BODY_LEVELS.find((item) => item.value === level)?.label ?? level;
       const records = (localBodyRecords[level] ?? []).filter(
-        (record) => normalizeEntityId(record.district_id) === values.districtId,
+        (record) => {
+          if (normalizeEntityId(record.district_id) !== values.districtId) return false;
+          if (!selectedScopeAdmin) return true;
+          const allowed = selectedScopeAdmin.scope.localBodies[level] ?? [];
+          const parentHasBodyRestriction = Object.values(
+            selectedScopeAdmin.scope.localBodies,
+          ).some((entries) => entries.length > 0);
+          return (
+            !parentHasBodyRestriction ||
+            allowed.some((entry) => entry.id === normalizeEntityId(record.unique_id ?? record.id))
+          );
+        },
       );
       return toOptions(records).map((option) => ({
         value: `${level}::${option.value}`,
         label: `${levelLabel}: ${capitalize(String(option.label ?? ""))}`,
       }));
     });
-  }, [localBodyRecords, values.districtId, values.localBodyLevels]);
+  }, [localBodyRecords, selectedScopeAdmin, values.districtId, values.localBodyLevels]);
 
   const selectedLocalBodyValues = values.localBodies.map((body) => `${body.level}::${body.id}`);
 
@@ -975,12 +1089,18 @@ export default function StaffAccessConfigPage() {
   const wardOptions = useMemo(
     () =>
       toOptions(
-        wardsForLocalBodies(values.localBodies).map((ward) => ({
+        wardsForLocalBodies(values.localBodies)
+          .filter((ward) => {
+            if (!selectedScopeAdmin?.scope.wards.length) return true;
+            const wardId = normalizeEntityId(ward.unique_id ?? ward.id);
+            return selectedScopeAdmin.scope.wards.some((allowed) => allowed.id === wardId);
+          })
+          .map((ward) => ({
           ...ward,
           name: (ward as Record<string, unknown>).ward_name as string,
         })),
       ),
-    [values.localBodies, wardsForLocalBodies],
+    [values.localBodies, wardsForLocalBodies, selectedScopeAdmin],
   );
 
   // Dropping a Local Body Type/Local Body must also drop any already-picked
@@ -1000,7 +1120,7 @@ export default function StaffAccessConfigPage() {
       return ["employeeName", "staffConfigName", "mobileNumber", "departmentId"] as const;
     }
     if (tab === 1) {
-      return ["username", "password", "confirmPassword", "userTypeId", "governmentUserTypeId"] as const;
+      return ["username", "password", "confirmPassword", "userTypeId", "governmentUserTypeId", "scopeAdminId"] as const;
     }
     return [] as const;
   };
@@ -1034,6 +1154,20 @@ export default function StaffAccessConfigPage() {
       const missing: string[] = [];
       if (!values.stateId) missing.push("State");
       if (!isStateScopeSelected && !values.districtId) missing.push("District");
+      const adminHasLocalBodyRestriction = selectedScopeAdmin
+        ? Object.values(selectedScopeAdmin.scope.localBodies).some(
+            (entries) => entries.length > 0,
+          )
+        : false;
+      if (adminHasLocalBodyRestriction && !values.localBodies.length) {
+        missing.push("Local Body");
+      }
+      if (
+        selectedScopeAdmin?.scope.wards.length &&
+        !values.wardIds.length
+      ) {
+        missing.push("Ward");
+      }
       if (missing.length) {
         setStepError(`Select ${missing.join(", ")} to define this staff member's data scope.`);
         return false;
@@ -1079,6 +1213,8 @@ export default function StaffAccessConfigPage() {
       designation: values.designation,
       doj: values.doj,
       activeStatus: values.activeStatus,
+      scopeAdminId: values.scopeAdminId,
+      scopeAdminName: selectedScopeAdmin?.name,
     },
     loginConfig: {
       username: values.username,
@@ -1274,6 +1410,38 @@ export default function StaffAccessConfigPage() {
         />
         {renderError("governmentUserTypeId")}
       </div>
+      <div className="md:col-span-2">
+        <Label htmlFor="scopeAdminId">
+          Admin Name (Access Owner)<span className="text-red-500"> *</span>
+        </Label>
+        <Select
+          id="scopeAdminId"
+          value={values.scopeAdminId}
+          onChange={applyScopeAdmin}
+          options={scopeAdminOptions}
+          placeholder="Select the admin responsible for this login"
+        />
+        <input
+          type="hidden"
+          {...register("scopeAdminId", { required: "Scope admin is required." })}
+        />
+        {renderError("scopeAdminId")}
+        {selectedScopeAdmin && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+            <p className="font-semibold text-emerald-800 dark:text-emerald-200">
+              {selectedScopeAdmin.name} · {selectedScopeAdmin.role}
+            </p>
+            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+              Allowed hierarchy:{" "}
+              {selectedScopeAdmin.hierarchy.map((item) => item.name).join(" → ") ||
+                "No active hierarchy"}
+            </p>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+              The Data Scope tab is limited to this admin’s hierarchy and anything below it.
+            </p>
+          </div>
+        )}
+      </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
         <input type="checkbox" className="h-4 w-4" {...register("loginEnabled")} />
         Login Enabled
@@ -1316,11 +1484,18 @@ export default function StaffAccessConfigPage() {
           Geographic scope
         </h4>
         <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          Pick <b>State → District</b> — that's the access boundary: the staff member will see every
-          Urban Local Body and Rural Local Body under the selected district. Area Type, Local Body
-          Type, Local Body, and Ward are all optional — use them only to narrow the same role down to
-          specific local bodies and/or wards within that district. You can pick several Local Body
-          Types and several Local Bodies (and Wards) at once.
+          {selectedScopeAdmin ? (
+            <>
+              This staff member can only be assigned within{" "}
+              <b>{selectedScopeAdmin.name}’s hierarchy</b>. Fixed parent levels are locked;
+              lower Local Bodies and Wards can be narrowed but cannot be expanded.
+            </>
+          ) : (
+            <>
+              Pick <b>State → District</b> as the access boundary. Area Type,
+              Local Body, and Ward can narrow that boundary further.
+            </>
+          )}
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -1340,6 +1515,7 @@ export default function StaffAccessConfigPage() {
               }}
               options={stateOptions}
               placeholder="Select state"
+              disabled={Boolean(selectedScopeAdmin?.scope.stateId)}
             />
           </div>
           <div>
@@ -1358,7 +1534,7 @@ export default function StaffAccessConfigPage() {
               }}
               options={districtOptions}
               placeholder={values.stateId ? "Select district" : "Select a state first"}
-              disabled={!values.stateId}
+              disabled={!values.stateId || Boolean(selectedScopeAdmin?.scope.districtId)}
             />
           </div>
           <div>
@@ -1374,7 +1550,7 @@ export default function StaffAccessConfigPage() {
               }}
               options={areaTypeOptions}
               placeholder={values.districtId ? "Select area type" : "Select a district first"}
-              disabled={!values.districtId}
+              disabled={!values.districtId || Boolean(selectedScopeAdmin?.scope.areaTypeId)}
             />
           </div>
           <div>
@@ -1527,6 +1703,11 @@ export default function StaffAccessConfigPage() {
           {reviewRow("User type", userTypeLabel)}
           {reviewRow("Government level", governmentLevelOptions.find((option) => option.value === governmentLevel)?.label)}
           {reviewRow("Role", roleLabel)}
+          {reviewRow("Scope admin", selectedScopeAdmin?.name)}
+          {reviewRow(
+            "Admin hierarchy",
+            selectedScopeAdmin?.hierarchy.map((item) => item.name).join(" → "),
+          )}
           {reviewRow("Account", values.loginEnabled ? "Enabled" : "Disabled")}
         </>,
       )}

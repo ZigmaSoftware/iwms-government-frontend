@@ -237,6 +237,12 @@ export default function TicketDetail() {
           <Field label="Phone" value={ticket.wa_phone} />
           <Field label="Assigned Team" value={ticket.assigned_team_name} />
           <Field label="Assigned Staff" value={ticket.assigned_staff_name} />
+          <Field label="Complaint Type" value={ticket.operational_context?.incident_type?.replaceAll("_", " ")} />
+          <Field label="Trip Reference" value={ticket.operational_context?.trip_reference} />
+          <Field label="Vehicle Reference" value={ticket.operational_context?.vehicle_reference} />
+          <Field label="Driver Reference" value={ticket.operational_context?.driver_reference} />
+          <Field label="Operator Reference" value={ticket.operational_context?.operator_reference} />
+          <Field label="Other Context" value={ticket.operational_context?.other_reference} />
           <Field label="Created" value={formatDateTime(ticket.created)} />
           <Field label="SLA Due" value={formatDateTime(ticket.sla_due_at)} />
           <div>

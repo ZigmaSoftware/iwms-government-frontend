@@ -86,6 +86,27 @@ export type ComplaintTicket = {
   comments?: ComplaintComment[];
   attachments?: ComplaintAttachment[];
   public_timeline?: ComplaintTimelineItem[];
+  image_url?: string | null;
+  close_image_url?: string | null;
+  operational_context?: OperationalContext;
+};
+
+export type IncidentType =
+  | "trip"
+  | "driver"
+  | "operator"
+  | "vehicle"
+  | "public"
+  | "other"
+  | string;
+
+export type OperationalContext = {
+  incident_type: IncidentType;
+  trip_reference?: string;
+  driver_reference?: string;
+  operator_reference?: string;
+  vehicle_reference?: string;
+  other_reference?: string;
 };
 
 export type ComplaintCategory = {
@@ -378,6 +399,14 @@ export interface Grievance {
   category_name?: string;
   sub_category?: string;
   subcategory_name?: string;
+  priority?: string;
+  priority_code?: string;
+  source_code?: string;
+  assigned_team_name?: string;
+  assigned_staff_name?: string;
+  district_name?: string;
+  city_name?: string;
+  operational_context?: OperationalContext;
 }
 
 export interface InfoFieldProps {

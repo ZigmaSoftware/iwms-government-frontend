@@ -18,15 +18,10 @@ const {
 
 export const menuItems = [
   { labelKey: "dashboard.nav.dashboard", url: "/dashboard", icon: LayoutDashboard, moduleName: null },
-  { labelKey: "dashboard.nav.overall", url: `/dashboard/${encDashboardOverall}`, icon: BarChart3, moduleName: "dashboard-overall" },
-  { labelKey: "dashboard.nav.live_map", url: `/dashboard/${encDashboardLiveMap}`, icon: MapPin, moduleName: "dashboard-map" },
-  { labelKey: "dashboard.nav.vehicle", url: `/dashboard/${encDashboardVehicleManagement}`, icon: Truck, moduleName: "dashboard-vehicle" },
-  { labelKey: "dashboard.nav.waste_collection", url: `/dashboard/${encDashboardWasteCollection}`, icon: Trash2, moduleName: "dashboard-waste-collection" },
-  { labelKey: "dashboard.nav.resources", url: `/dashboard/${encDashboardResources}`, icon: Users, moduleName: "dashboard-resources" },
+  // { labelKey: "dashboard.nav.vehicle", url: `/dashboard/${encDashboardVehicleManagement}`, icon: Truck, moduleName: "dashboard-vehicle" },
+  // { labelKey: "dashboard.nav.resources", url: `/dashboard/${encDashboardResources}`, icon: Users, moduleName: "dashboard-resources" },
   { labelKey: "dashboard.nav.grievances", url: `/dashboard/${encDashboardGrievances}`, icon: MessageSquare, moduleName: "dashboard-grievances" },
-  { labelKey: "dashboard.nav.alerts", url: `/dashboard/${encDashboardAlerts}`, icon: Bell, moduleName: "dashboard-alerts" },
   { labelKey: "dashboard.nav.reports", url: `/dashboard/${encDashboardReports}`, icon: FileText, moduleName: "dashboard-reports" },
-  { labelKey: "dashboard.nav.weighbridge", url: `/dashboard/${encDashboardWeighBridge}`, icon: Scale, moduleName: "dashboard-weighbridge" },
 ];
 
 
