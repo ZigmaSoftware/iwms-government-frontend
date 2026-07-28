@@ -1,7 +1,9 @@
 import type { HierarchyPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -15,9 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import ComponentCard from "@/components/common/ComponentCard";
+import { FieldError } from "@/components/form/FieldError";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
+import { hierarchySchema, type HierarchyFormValues } from "@/schemas/masters/hierarchy.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { mergeWithScopeOption, scopeFieldState } from "../shared/dataScopeOptions";
 import type { ApiError } from "./types";
 
 
@@ -32,21 +38,49 @@ const HIERARCHY_FIELDS: Record<string, string[]> = {
 
 export default function HierarchyForm() {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "hierarchies", HIERARCHY_FIELDS);
-  const [name, setName] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [areaTypeId, setAreaTypeId] = useState("");
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams();
   const isEdit = Boolean(id);
 
+  const [loading, setLoading] = useState(false);
   const [recordData, setRecordData] = useState<any>(null);
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [areaTypes, setAreaTypes] = useState<{ value: string; label: string }[]>([]);
   const [pendingAreaTypeId, setPendingAreaTypeId] = useState("");
+
+  const schema = useMemo(() => requireWhenVisible(hierarchySchema, showField), [showField]);
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<HierarchyFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      level_name: "",
+      area_type: "",
+      is_active: true,
+    },
+  });
+
+  // When the logged-in user's own Data Scope pins Area Type to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave it editable.
+  const areaTypeScope = scopeFieldState("area_type");
+  const areaTypeValue = watch("area_type");
+
+  useEffect(() => {
+    if (areaTypeScope.mode === "locked" && !areaTypeValue) {
+      setValue("area_type", areaTypeScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaTypeScope.mode, areaTypeValue]);
 
   // Fetch area types list
   useEffect(() => {
@@ -55,18 +89,17 @@ export default function HierarchyForm() {
       .then((res: any) => {
         if (cancelled) return;
         const data: any[] = Array.isArray(res) ? res : [];
-        setAreaTypes(
-          data
-            .filter((record) => record && record.is_active !== false)
-            .map((record) => ({
-              value: String(record.unique_id),
-              label: record.name ?? record.area_type_name ?? String(record.unique_id),
-            }))
-        );
+        const fetched = data
+          .filter((record) => record && record.is_active !== false)
+          .map((record) => ({
+            value: String(record.unique_id),
+            label: record.name ?? record.area_type_name ?? String(record.unique_id),
+          }));
+        setAreaTypes(mergeWithScopeOption(fetched, "area_type"));
       })
       .catch(() => {
         if (cancelled) return;
-        // silently ignore area types fetch error
+        setAreaTypes((prev) => mergeWithScopeOption(prev, "area_type"));
       });
     return () => { cancelled = true; };
   }, []);
@@ -78,10 +111,10 @@ export default function HierarchyForm() {
       areaTypes.length > 0 &&
       areaTypes.some((a) => a.value === pendingAreaTypeId)
     ) {
-      setAreaTypeId(pendingAreaTypeId);
+      setValue("area_type", pendingAreaTypeId);
       setPendingAreaTypeId("");
     }
-  }, [pendingAreaTypeId, areaTypes]);
+  }, [pendingAreaTypeId, areaTypes, setValue]);
 
   // Fetch hierarchy record in edit mode
   useEffect(() => {
@@ -95,8 +128,8 @@ export default function HierarchyForm() {
         setRecordData(record);
         setLoadingRecord(false);
 
-        setName(record.level_name ?? "");
-        setIsActive(Boolean(record.is_active));
+        setValue("level_name", record.level_name ?? "");
+        setValue("is_active", Boolean(record.is_active));
         if (record.area_type ?? record.area_type_id) {
           setPendingAreaTypeId(String(record.area_type ?? record.area_type_id));
         }
@@ -114,46 +147,16 @@ export default function HierarchyForm() {
         });
       });
     return () => { cancelled = true; };
-  }, [id, isEdit]);
+  }, [id, isEdit, setValue, t]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const fieldValues: Record<string, unknown> = {
-      level_name: name.trim(),
-      area_type: areaTypeId,
-    };
-
-    if (
-      getMissingRequiredFields(["level_name"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.missing_fields"),
-      });
-      return;
-    }
-
-    if (
-      getMissingRequiredFields(["area_type"], (fieldKey) => fieldValues[fieldKey])
-        .length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: "Area Type is required",
-      });
-      return;
-    }
-
+  const onValid = async (values: HierarchyFormValues) => {
     setLoading(true);
     setIsSubmitting(true);
     try {
       const rawPayload = {
-        level_name: name.trim(),
-        area_type: areaTypeId,
-        is_active: isActive,
+        level_name: values.level_name.trim(),
+        area_type: values.area_type,
+        is_active: values.is_active,
       };
       const basePayload = filterPayload(rawPayload) as HierarchyPayload;
       if (isEdit) {
@@ -207,30 +210,37 @@ export default function HierarchyForm() {
           : t("common.add_item", { item: t("admin.nav.hierarchy") })
       }
     >
-      <form onSubmit={handleSubmit} className="grid md:grid-cols-2 gap-6">{showField("area_type") && (
+      <form onSubmit={handleSubmit(onValid)} noValidate className="grid md:grid-cols-2 gap-6">{showField("area_type") && (
           <div>
             <Label htmlFor="areaType">
               Area Type <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={areaTypeId}
-              onValueChange={setAreaTypeId}
-              disabled={areaTypes.length === 0}
-            >
-              <SelectTrigger id="areaType">
-                <SelectValue placeholder="Select Area Type" />
-              </SelectTrigger>
-              <SelectContent>
-                {areaTypes.map((a) => (
-                  <SelectItem key={a.value} value={a.value}>
-                    {a.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="area_type"
+              render={({ field }) => (
+                <Select
+                  value={field.value ?? ""}
+                  onValueChange={field.onChange}
+                  disabled={areaTypes.length === 0 || areaTypeScope.mode === "locked"}
+                >
+                  <SelectTrigger id="areaType">
+                    <SelectValue placeholder="Select Area Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {areaTypes.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
             {areaTypes.length === 0 && (
               <p className="mt-1 text-xs text-red-500">No area types found.</p>
             )}
+            <FieldError message={errors.area_type?.message} />
           </div>
         )}
 
@@ -243,13 +253,12 @@ export default function HierarchyForm() {
             <Input
               id="name"
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
               placeholder={t("common.enter_item_name", {
                 item: t("admin.nav.hierarchy"),
               })}
-              required
+              {...register("level_name")}
             />
+            <FieldError message={errors.level_name?.message} />
           </div>
         )}
 
@@ -258,18 +267,24 @@ export default function HierarchyForm() {
             <Label htmlFor="isActive">
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
-            >
-              <SelectTrigger id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="is_active"
+              render={({ field }) => (
+                <Select
+                  value={field.value ? "true" : "false"}
+                  onValueChange={(value) => field.onChange(value === "true")}
+                >
+                  <SelectTrigger id="isActive">
+                    <SelectValue placeholder={t("common.select_status")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">{t("common.active")}</SelectItem>
+                    <SelectItem value="false">{t("common.inactive")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </div>
         )}
 

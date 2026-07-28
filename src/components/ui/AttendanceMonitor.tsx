@@ -4,20 +4,27 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { Users } from "lucide-react";
 
-export function AttendanceMonitor() {
+type AttendanceStats = {
+  total: number;
+  present: number;
+  absent: number;
+  leave: number;
+};
+
+export function AttendanceMonitor({ stats }: { stats?: AttendanceStats }) {
   const { t } = useTranslation();
-  const stats = {
+  const displayStats = stats ?? {
     total: 182,
     present: 158,
     absent: 24,
-    onLeave: 12,
+    leave: 12,
   };
   const { encDashboardResources } = getEncryptedRoute();
   const resourcesPath = `/dashboard/${encDashboardResources}`;
 
-  const presentPct = stats.total > 0 ? (stats.present / stats.total) * 100 : 0;
-  const absentPct = stats.total > 0 ? (stats.absent / stats.total) * 100 : 0;
-  const leavePct = stats.total > 0 ? (stats.onLeave / stats.total) * 100 : 0;
+  const presentPct = displayStats.total > 0 ? (displayStats.present / displayStats.total) * 100 : 0;
+  const absentPct = displayStats.total > 0 ? (displayStats.absent / displayStats.total) * 100 : 0;
+  const leavePct = displayStats.total > 0 ? (displayStats.leave / displayStats.total) * 100 : 0;
 
   return (
     <DataCard
@@ -56,7 +63,7 @@ export function AttendanceMonitor() {
             {t("common.total")}
           </div>
           <div className="text-xl font-bold text-gray-900 dark:text-white mt-0.5">
-            {stats.total}
+            {displayStats.total}
           </div>
         </div>
 
@@ -65,7 +72,7 @@ export function AttendanceMonitor() {
             {t("common.present")}
           </div>
           <div className="text-xl font-bold text-green-700 dark:text-green-400 mt-0.5">
-            {stats.present}
+            {displayStats.present}
           </div>
         </div>
 
@@ -74,7 +81,7 @@ export function AttendanceMonitor() {
             {t("common.absent")}
           </div>
           <div className="text-xl font-bold text-red-700 dark:text-red-400 mt-0.5">
-            {stats.absent}
+            {displayStats.absent}
           </div>
         </div>
 
@@ -83,7 +90,7 @@ export function AttendanceMonitor() {
             {t("common.leave")}
           </div>
           <div className="text-xl font-bold text-blue-700 dark:text-blue-400 mt-0.5">
-            {stats.onLeave}
+            {displayStats.leave}
           </div>
         </div>
       </div>

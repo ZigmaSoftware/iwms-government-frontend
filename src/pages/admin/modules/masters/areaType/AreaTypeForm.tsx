@@ -1,5 +1,6 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -19,12 +20,15 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { areaTypeSchema } from "@/schemas/masters/areaType.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
-import { mergeWithScopeOptionExtra, scopeOption } from "../shared/dataScopeOptions";
+import { mergeWithScopeOptionExtra, scopeFieldState, scopeOption } from "../shared/dataScopeOptions";
 
 type Option = {
   value: string;
@@ -122,7 +126,7 @@ function AreaTypeEditor({
   districts,
 }: AreaTypeEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "areatypes", AREA_TYPE_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
@@ -131,33 +135,58 @@ function AreaTypeEditor({
   const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
 
-  const filteredDistricts = useMemo(
-    () =>
-      districts.filter(
-        (item) => !stateId || !item.stateId || item.stateId === stateId
-      ),
-    [districts, stateId]
-  );
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+
+  useEffect(() => {
+    if (
+      stateScope.mode === "locked" &&
+      !stateId &&
+      states.some((item) => item.value === stateScope.options[0].value)
+    ) {
+      setStateId(stateScope.options[0].value);
+    }
+    if (
+      districtScope.mode === "locked" &&
+      !districtId &&
+      districts.some((item) => item.value === districtScope.options[0].value)
+    ) {
+      setDistrictId(districtScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, stateId, districtId, states, districts]);
+
+  const filteredDistricts = useMemo(() => {
+    let result = districts.filter(
+      (item) => !stateId || !item.stateId || item.stateId === stateId
+    );
+    if (districtScope.mode !== "unrestricted") {
+      const allowed = new Set(districtScope.options.map((o) => o.value));
+      result = result.filter((item) => allowed.has(item.value));
+    }
+    return result;
+  }, [districts, stateId, districtScope]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(areaTypeSchema, showField).safeParse({
       name: name.trim(),
       state_id: stateId,
       district_id: districtId,
-    };
+      coordinates,
+      is_active: isActive,
+    });
 
-    if (
-      getMissingRequiredFields(
-        ["name", "state_id", "district_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;
@@ -188,7 +217,7 @@ function AreaTypeEditor({
                 setStateId(value);
                 setDistrictId("");
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || stateScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="stateId">
                 <SelectValue placeholder="Select State" />
@@ -196,7 +225,7 @@ function AreaTypeEditor({
               <SelectContent>
                 {states.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -212,7 +241,7 @@ function AreaTypeEditor({
             <Select
               value={districtId}
               onValueChange={setDistrictId}
-              disabled={isSubmitting || !stateId}
+              disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="districtId">
                 <SelectValue placeholder="Select District" />
@@ -220,7 +249,7 @@ function AreaTypeEditor({
               <SelectContent>
                 {filteredDistricts.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

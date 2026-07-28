@@ -1,0 +1,94 @@
+export type BasicInfoForm = {
+  employeeName: string;
+  staffConfigName: string;
+  mobileNumber: string;
+  officeEmail: string;
+  departmentId: string;
+  designation: string;
+  doj: string;
+  activeStatus: boolean;
+  scopeAdminId: string;
+  scopeAdminName?: string;
+};
+
+export type LoginConfigForm = {
+  username: string;
+  password: string;
+  confirmPassword: string;
+  userTypeId: string;
+  governmentUserTypeId: string;
+  loginEnabled: boolean;
+};
+
+export type ScreenPermission = {
+  userScreenId: string;
+  userScreenName?: string;
+  enabled: boolean;
+  actions: Record<string, boolean>;
+};
+
+export type UserActionOption = {
+  value: string;
+  label: string;
+};
+
+export type ModulePermission = {
+  mainScreenId: string;
+  mainScreenName: string;
+  enabled: boolean;
+  screens: ScreenPermission[];
+};
+
+export type DashboardWidget = {
+  widgetName: string;
+  isEnabled: boolean;
+  orderNo: number;
+};
+
+export type LocalBodyLevel =
+  | "corporation_id"
+  | "municipality_id"
+  | "town_panchayat_id"
+  | "panchayat_union_id"
+  | "panchayat_id";
+
+export type AreaTypeCategory = "urban" | "rural";
+
+export type LocalBodySelection = {
+  level: LocalBodyLevel;
+  id: string;
+};
+
+export type DataScopeForm = {
+  locationNodes?: string[];
+  stateId: string | null;
+  districtId: string | null;
+  areaTypeId: string | null;
+  areaTypeCategory: AreaTypeCategory | null;
+  /** Local Body Types chosen (Corporation/Municipality/... — can be several at once). */
+  localBodyLevels: LocalBodyLevel[];
+  /** Specific local bodies chosen, across any of `localBodyLevels`. */
+  localBodies: LocalBodySelection[];
+  /** Wards chosen, further narrowing `localBodies` (optional). */
+  wardIds: string[];
+};
+
+export type StaffAccessConfigPayload = {
+  basicInfo: BasicInfoForm;
+  loginConfig: LoginConfigForm;
+  permissions: ModulePermission[];
+  dashboardPermissions: DashboardWidget[];
+  dataScope: DataScopeForm;
+};
+
+export type StaffAccessConfigPreviewResponse = {
+  valid: boolean;
+  summary: {
+    staffName: string;
+    username: string;
+    roleLabel: string;
+    permissionCount: number;
+    scopeLabel: string;
+  };
+  errors?: Record<string, string>;
+};

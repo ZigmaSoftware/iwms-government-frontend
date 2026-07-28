@@ -3,6 +3,7 @@ import { encryptSegment } from "./routeCrypto";
 export type EncryptedRoutes = {
   encAttendance: string;
   encAdmins: string;
+  encRoleManagement: string;
   encAudits: string;
   encComplaintTicket: string;
   encCollectionMonitoring: string;
@@ -30,8 +31,14 @@ export type EncryptedRoutes = {
   encFeedback: string;
   encFuel: string;
   encMasters: string;
+  encLocationMasters: string;
+  encWasteMasters: string;
+  encSuperAdmin: string;
   encStaffMasters: string;
+  encUserManagement: string;
   encScheduleMasters: string;
+  encScheduleSetup: string;
+  encDailyOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
   encStaffTemplateAudit: string;
@@ -40,6 +47,7 @@ export type EncryptedRoutes = {
   encReport: string;
   encStaffCreation: string;
   encStaffAccessConfiguration: string;
+  encStaffAccessDashboard: string;
   encStaffUserType: string;
   encStates: string;
   encSubProperties: string;
@@ -99,6 +107,7 @@ export type EncryptedRoutes = {
 
   encCompanyCreation: string;
   encCommonAudit: string;
+  encStaffAudit: string;
   encLoginAudits: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
@@ -119,6 +128,7 @@ export type EncryptedRoutes = {
   encMunicipalities: string;
   encTownPanchayats: string;
   encPanchayatUnions: string;
+  encWards: string;
 };
 
 const plainRoutes: EncryptedRoutes = {
@@ -151,14 +161,22 @@ const plainRoutes: EncryptedRoutes = {
   encCommonMasters: "common-masters",
   encCompanyCreation: "company-creation",
   encCommonAudit: "common-audit",
+  encStaffAudit: "staff-audit",
   encLoginAudits: "login-audits",
   encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",
   encFuel: "fuel",
   encMasters: "masters",
+  encLocationMasters: "masters",
+  encWasteMasters: "waste-types",
+  encSuperAdmin: "screen-management",
+  encRoleManagement: "role-management",
   encStaffMasters: "staff-masters",
+  encUserManagement: "user-creations",
   encScheduleMasters: "schedule-masters",
+  encScheduleSetup: "schedule-setup",
+  encDailyOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
   encStaffTemplateAudit: "staff-template-audit",
@@ -167,6 +185,7 @@ const plainRoutes: EncryptedRoutes = {
   encReport: "reports",
   encStaffCreation: "staff-creation",
   encStaffAccessConfiguration: "staff-access-configuration",
+  encStaffAccessDashboard: "staff-access-dashboard",
   encStaffUserType: "staff-user-type",
   encStates: "states",
   encSubProperties: "sub-properties",
@@ -228,6 +247,7 @@ const plainRoutes: EncryptedRoutes = {
   encMunicipalities: "municipalities",
   encTownPanchayats: "town-panchayats",
   encPanchayatUnions: "panchayat-unions",
+  encWards: "wards",
 
   //dashboard
 

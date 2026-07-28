@@ -10,7 +10,7 @@ import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
 import { RolesProvider } from "@/contexts/RolesContext";
-import { ProjectSelectorProvider } from "@/contexts/ProjectSelectorContext";
+
 type Props = {
   children: ReactNode;
 };
@@ -21,9 +21,9 @@ export function AppProviders({ children }: Props) {
       <ThemeProvider>
         <ModuleProvider>
           <UserProvider>
-            <ProjectSelectorProvider>
+
               <PermissionProvider>
-                <TooltipProvider>
+                <TooltipProvider delayDuration={150} skipDelayDuration={0}>
                   <BrowserRouter>
                     {children}
                     <NotificationDialog />
@@ -32,7 +32,7 @@ export function AppProviders({ children }: Props) {
                   </BrowserRouter>
                 </TooltipProvider>
               </PermissionProvider>
-            </ProjectSelectorProvider>
+      
           </UserProvider>
         </ModuleProvider>
       </ThemeProvider>

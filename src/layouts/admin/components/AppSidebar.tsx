@@ -24,6 +24,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 const {
+  encSuperAdmin,
+  encRoleManagement,
   encMasters,
   encAttendance,
   encAudits,
@@ -33,16 +35,12 @@ const {
   encSubProperties,
   encStaffCreation,
   encStaffAccessConfiguration,
-  encAdmins,
+  encStaffAccessDashboard,
   encUserScreen,
   encUserType,
   encCustomerMaster,
   encCustomerCreation,
   encApartmentList,
-  encReport,
-  encMonthlyDistance,
-  encTripSummary,
-  encWasteCollectedSummary,
   encMonthlyWasteComparison,
   encComplaintTicket,
   encComplaint,
@@ -57,26 +55,25 @@ const {
   encComplaintSlaRules,
   encTransportMaster,
   encScheduleMasters,
+  encScheduleSetup,
+  encDailyOperations,
+  encWasteMasters,
   encFuel,
   encVehicleCreation,
-  encVehicleHistory,
-  encVehicleTrack,
-  encVehicleTracking,
   encVehicleType,
   encWasteCollectedData,
-  encWorkforceManagement,
   encStaffUserType,
   encMainScreenType,
   encUserScreenAction,
   encMainScreen,
   encUserScreenPermission,
-  encStaffMasters,
+  encUserManagement,
   encStaffTemplate,
   encAlternativeStaffTemplate,
   encCommonAudit,
+  encStaffAudit,
   encTripPlans,
   encVehicleBreakdown,
-  encSchedulerConfig,
   encCommonMasters,
   encContinents,
   encCountries,
@@ -88,6 +85,7 @@ const {
   encTownPanchayats,
   encPanchayatUnions,
   encPanchayats,
+  encWards,
   encBins,
   encDailyTripAssignment,
   encDailyTripLog,
@@ -139,6 +137,62 @@ type SidebarSectionKey =
   | "fleetReports"
   | "leaderLogin";
 
+const MODULE_GROUPS: {
+  key: string;
+  titleKey: string;
+  accent: string;
+  sectionKeys: SidebarSectionKey[];
+}[] = [
+  {
+    key: "dashboard",
+    titleKey: "admin.nav.group_dashboard",
+    accent: "bg-green-500",
+    sectionKeys: ["main"],
+  },
+  {
+    key: "super-admin",
+    titleKey: "admin.nav.group_super_admin",
+    accent: "bg-blue-500",
+    sectionKeys: [
+      "screenManagement",
+      "roleAssigns",
+      "userCreations",
+      "commonMaster",
+      "auditItems",
+    ],
+  },
+  {
+    key: "masters",
+    titleKey: "admin.nav.group_masters",
+    accent: "bg-orange-400",
+    sectionKeys: [
+      "master",
+      "assets",
+      "wasteType",
+      "transportMasters",
+      "customerMasters",
+      "leaderLogin",
+    ],
+  },
+  {
+    key: "core-modules",
+    titleKey: "admin.nav.group_core_modules",
+    accent: "bg-green-500",
+    sectionKeys: [
+      "scheduleSetup",
+      "scheduleOperations",
+      "complaintTicket",
+      "attendance",
+    ],
+  },
+  {
+    key: "reports",
+    titleKey: "admin.nav.group_reports",
+    accent: "bg-blue-500",
+    sectionKeys: ["scheduleReports"],
+  },
+];
+
 /* =====================
    MENU DEFINITIONS
 ===================== */
@@ -166,8 +220,8 @@ const attendanceItems: NavItem[] = [
 
 
 const masterItems: NavItem[] = [
-  { 
-    nameKey: "admin.nav.masters",
+  {
+    nameKey: "admin.nav.location_masters",
     icon: <Layers3 size={18} />,
     module: "masters",
     screen: "masters",
@@ -214,6 +268,12 @@ const masterItems: NavItem[] = [
         module: "masters",
         screen: "panchayats",
       },
+      {
+        nameKey: "admin.nav.ward",
+        path: `/${encMasters}/${encWards}`,
+        module: "masters",
+        screen: "wards",
+      },
     ],
   },
 ];
@@ -249,84 +309,74 @@ const commonMasterItems: NavItem[] = [
 
 const wasteTypeItems: NavItem[] = [
   {
-    nameKey: "admin.nav.wastetype",
-    icon: <Users size={18} />,
+    nameKey: "admin.nav.waste_masters",
+    icon: <Layers3 size={18} />,
     module: "waste-types",
     screen: "waste-types",
     subItems: [
       {
+        nameKey: "common.waste_type",
+        path: `/${encWasteMasters}/${encWasteTypes}`,
+        module: "waste-types",
+        screen: "wastetypes",
+      },
+      {
         nameKey: "admin.nav.property",
-        path: `/${encMasters}/${encProperties}`,
+        path: `/${encWasteMasters}/${encProperties}`,
         module: "waste-types",
         screen: "properties",
       },
       {
         nameKey: "admin.nav.sub_property",
-        path: `/${encMasters}/${encSubProperties}`,
+        path: `/${encWasteMasters}/${encSubProperties}`,
         module: "waste-types",
         screen: "subproperties",
       },
+      {
+        nameKey: "admin.nav.bin_creation",
+        path: `/${encWasteMasters}/${encBins}`,
+        module: "waste-types",
+        screen: "bins",
+      },
     ],
   },
 ];
 
-const assetItems: NavItem[] = [
-  {
-    nameKey: "admin.nav.assets",
-    icon: <Users size={18} />,
-    module: "assets",
-    screen: "assets",
-    subItems: [
-      {
-        nameKey: "admin.nav.bin_creation", 
-        path: `/${encMasters}/${encBins}`,
-        module: "assets",
-        screen: "bins",
-      },
-      {
-        nameKey: "common.waste_type", 
-        path: `/${encMasters}/${encWasteTypes}`,
-        module: "assets",
-        screen: "wastetypes",
-      }
-    ],
-  },
-];
 
 const screenManagementItems: NavItem[] = [
   {
-    nameKey: "admin.nav.screenManagements",
+    nameKey: "admin.nav.screen_management",
     icon: <Settings size={18} />,
     module: "screen-managements",
     screen: "screen-managements",
     subItems: [
       {
         nameKey: "admin.nav.main_screen_type",
-        path: `/${encAdmins}/${encMainScreenType}`,
+        path: `/${encSuperAdmin}/${encMainScreenType}`,
         module: "screen-managements",
         screen: "mainscreentype",
       },
       {
         nameKey: "admin.nav.main_screen",
-        path: `/${encAdmins}/${encMainScreen}`,
+        path: `/${encSuperAdmin}/${encMainScreen}`,
         module: "screen-managements",
         screen: "mainscreens",
       },
       {
         nameKey: "admin.nav.user_screen",
-        path: `/${encAdmins}/${encUserScreen}`,
+        path: `/${encSuperAdmin}/${encUserScreen}`,
         module: "screen-managements",
         screen: "userscreens",
       },
       {
         nameKey: "admin.nav.user_screen_action",
-        path: `/${encAdmins}/${encUserScreenAction}`,
+        path: `/${encSuperAdmin}/${encUserScreenAction}`,
         module: "screen-managements",
         screen: "userscreen-action",
       },
       {
         nameKey: "admin.nav.user_screen_permission",
-        path: `/${encAdmins}/${encUserScreenPermission}`,
+        path: `/${encSuperAdmin}/${encUserScreenPermission}`,
         module: "screen-managements",
         screen: "userscreenpermissions",
       },
@@ -336,20 +386,20 @@ const screenManagementItems: NavItem[] = [
 
 const roleAssignsItems: NavItem[] = [
   {
-    nameKey: "admin.nav.roleAssigns",
+    nameKey: "admin.nav.role_management",
     icon: <Settings size={18} />,
     module: "role-assigns",
     screen: "role-assigns",
     subItems: [
       {
         nameKey: "admin.nav.user_type",
-        path: `/${encAdmins}/${encUserType}`,
+        path: `/${encRoleManagement}/${encUserType}`,
         module: "role-assigns",
         screen: "user-type",
       },
       {
         nameKey: "admin.nav.staff_user_type",
-        path: `/${encAdmins}/${encStaffUserType}`,
+        path: `/${encRoleManagement}/${encStaffUserType}`,
         module: "role-assigns",
         screen: "staff-user-type",
       },
@@ -359,22 +409,28 @@ const roleAssignsItems: NavItem[] = [
 
 const userCreationMasters: NavItem[] = [
   {
-    nameKey: "admin.nav.user_creations",
+    nameKey: "admin.nav.user_management",
     icon: <Users size={18} />,
     module: "user-creations",
     screen: "user-creations",
     subItems: [
       {
         nameKey: "admin.nav.staff_creation",
-        path: `/${encStaffMasters}/${encStaffCreation}`,
+        path: `/${encUserManagement}/${encStaffCreation}`,
         module: "user-creations",
         screen: "staffcreation",
       },
       {
         nameKey: "admin.nav.staff_access_configuration",
-        path: `/${encStaffMasters}/${encStaffAccessConfiguration}`,
+        path: `/${encUserManagement}/${encStaffAccessConfiguration}`,
         module: "user-creations",
         screen: "staff-access-configuration",
+      },
+      {
+        nameKey: "admin.nav.staff_access_dashboard",
+        path: `/${encUserManagement}/${encStaffAccessDashboard}`,
+        module: "user-creations",
+        screen: "staff-access-dashboard",
       },
     ],
   },
@@ -399,19 +455,13 @@ const customerMasters: NavItem[] = [
         module: "customers",
         screen: "customercreations",
       },
-      {
-        nameKey: "admin.nav.feedback",
-        path: `/${encComplaintTicket}/${encFeedback}`,
-        module: "customers",
-        screen: "feedbacks",
-      },
     ],
   },
 ];
 
 const complaintTicketItems: NavItem[] = [
   {
-    nameKey: "admin.nav.complaint_ticket",
+    nameKey: "admin.nav.complaint_management",
     icon: <AlertTriangle size={18} />,
     module: "complaint-ticket",
     screen: "complaint-ticket",
@@ -514,31 +564,31 @@ const scheduleSetupItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_setup",
     icon: <LayoutGrid size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
+    module: "schedule-setup",
+    screen: "schedule-setup",
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
-        path: `/${encScheduleMasters}/${encStaffTemplate}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encStaffTemplate}`,
+        module: "schedule-setup",
         screen: "staff-templates",
       },
       {
         nameKey: "admin.nav.alternative_staff_template",
-        path: `/${encScheduleMasters}/${encAlternativeStaffTemplate}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encAlternativeStaffTemplate}`,
+        module: "schedule-setup",
         screen: "alternative-staff-templates",
       },
       {
         nameKey: "admin.nav.collection_point",
-        path: `/${encScheduleMasters}/${encCollectionPoints}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encCollectionPoints}`,
+        module: "schedule-setup",
         screen: "collection-points",
       },
       {
         nameKey: "admin.nav.trip_plans",
-        path: `/${encScheduleMasters}/${encTripPlans}`,
-        module: "schedule-masters",
+        path: `/${encScheduleSetup}/${encTripPlans}`,
+        module: "schedule-setup",
         screen: "trip-plans",
       }
     ],
@@ -550,43 +600,43 @@ const scheduleOperationsItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_operations",
     icon: <CalendarCheck size={18} />,
-    module: "schedule-masters",
-    screen: "schedule-masters",
+    module: "schedule-operations",
+    screen: "schedule-operations",
     subItems: [
       {
         nameKey: "admin.nav.daily_trip_assignment",
-        path: `/${encScheduleMasters}/${encDailyTripAssignment}`,
-        module: "schedule-masters",
+        path: `/${encDailyOperations}/${encDailyTripAssignment}`,
+        module: "schedule-operations",
         screen: "daily-trip-assignments",
       },
       {
         nameKey: "admin.nav.daily_trip_tracking",
-        path: `/${encScheduleMasters}/${encDailyTripTracking}`,
-        module: "schedule-masters",
+        path: `/${encDailyOperations}/${encDailyTripTracking}`,
+        module: "schedule-operations",
         screen: "daily-trip-collection-points",
       },
       {
         nameKey: "admin.nav.secondary_bin_collection_event",
-        path: `/${encScheduleMasters}/${encBinCollectionEvent}`,
-        module: "schedule-masters",
+        path: `/${encDailyOperations}/${encBinCollectionEvent}`,
+        module: "schedule-operations",
         screen: "secondary-bin-collection-events",
       },
       {
         nameKey: "admin.nav.household_collection_event",
-        path: `/${encScheduleMasters}/${encWasteCollectedData}`,
-        module: "schedule-masters",
+        path: `/${encDailyOperations}/${encWasteCollectedData}`,
+        module: "schedule-operations",
         screen: "householdcollection-events",
       },
       {
         nameKey: "admin.nav.vehicle_breakdown",
-        path: `/${encScheduleMasters}/${encVehicleBreakdown}`,
-        module: "schedule-masters",
+        path: `/${encDailyOperations}/${encVehicleBreakdown}`,
+        module: "schedule-operations",
         screen: "vehicle-breakdowns",
       },
       {
         nameKey: "admin.nav.daily_trip_log",
-        path: `/${encScheduleMasters}/${encDailyTripLog}`,
-        module: "schedule-masters",
+        path: `/${encDailyOperations}/${encDailyTripLog}`,
+        module: "schedule-operations",
         screen: "daily-trip-logs",
       },
 
@@ -620,11 +670,17 @@ const scheduleReportsItems: NavItem[] = [
 
 const auditItems: NavItem[] = [
   {
-    nameKey: "admin.nav.audit_items",
+    nameKey: "admin.nav.audits",
     icon: <Truck size={18} />,
     module: "audits",
     screen: "audits",
     subItems: [
+      {
+        nameKey: "admin.nav.login_audit",
+        path: `/${encAudits}/${encLoginAudits}`,
+        module: "audits",
+        screen: "login-audit",
+      },
       {
         nameKey: "admin.nav.common_audit",
         path: `/${encAudits}/${encCommonAudit}`,
@@ -632,65 +688,18 @@ const auditItems: NavItem[] = [
         screen: "common-audit",
       },
       {
-        nameKey: "admin.nav.login_audit",
-        path: `/${encAudits}/${encLoginAudits}`,
+        nameKey: "admin.nav.staff_audit",
+        path: `/${encAudits}/${encStaffAudit}`,
         module: "audits",
-        screen: "login-audit",
+        screen: "staff-audit",
       },
     ],
   },
 ];
 
-// const fleetReportItems: NavItem[] = [
-//   {
-//     nameKey: "admin.nav.fleet_reports",
-//     icon: <BarChart3 size={18} />,
-//     module: "fleet-reports",
-//     screen: "FleetReports",
-//     subItems: [
-//       {
-//         nameKey: "admin.nav.vehicle_tracking",
-//         path: `/${encVehicleTracking}/${encVehicleTrack}`,
-//         module: "vehicle-tracking",
-//         screen: "VehicleTrack",
-//       },
-//       {
-//         nameKey: "admin.nav.vehicle_history",
-//         path: `/${encVehicleTracking}/${encVehicleHistory}`,
-//         module: "vehicle-tracking",
-//         screen: "VehicleHistory",
-//       },
-//       {
-//         nameKey: "admin.nav.trip_summary",
-//         path: `/${encReport}/${encTripSummary}`,
-//         module: "reports",
-//         screen: "TripSummary",
-//       },
-//       {
-//         nameKey: "admin.nav.monthly_distance",
-//         path: `/${encReport}/${encMonthlyDistance}`,
-//         module: "reports",
-//         screen: "MonthlyDistance",
-//       },
-//       {
-//         nameKey: "admin.nav.waste_collected_summary",
-//         path: `/${encReport}/${encWasteCollectedSummary}`,
-//         module: "reports",
-//         screen: "WasteCollectedSummary",
-//       },
-//       {
-//         nameKey: "admin.nav.workforce_management",
-//         path: `/${encWorkforceManagement}/${encWorkforceManagement}`,
-//         module: "workforce",
-//         screen: "WorkforceManagement",
-//       },
-//     ],
-//   },
-// ];
-
 const leaderLoginItems: NavItem[] = [
   {
-    nameKey: "admin.nav.leader_login",
+    nameKey: "admin.nav.leader_management",
     icon: <Users size={18} />,
     module: "leader-login",
     screen: "leader-login",
@@ -811,7 +820,6 @@ const AppSidebar: React.FC = () => {
         { key: "commonMaster" as const, items: commonMasterItems },
         { key: "master" as const, items: masterItems },
         { key: "wasteType" as const, items: wasteTypeItems },
-        { key: "assets" as const, items: assetItems },
         { key: "screenManagement" as const, items: screenManagementItems },
         { key: "roleAssigns" as const, items: roleAssignsItems },
         { key: "userCreations" as const, items: userCreationMasters },
@@ -879,6 +887,25 @@ const AppSidebar: React.FC = () => {
       })
       .filter((section) => section.items.length > 0);
   }, [searchQuery, sidebarSections, t]);
+
+  // Nest the flat, permission/search-filtered sections ("main screens") under
+  // their top-level "module" group, in the exact order each group expects.
+  const groupedSections = useMemo(() => {
+    const sectionsByKey = new Map<SidebarSectionKey, (typeof filteredSections)[number]>(
+      filteredSections.map((section) => [section.key, section])
+    );
+    return MODULE_GROUPS.map((group) => ({
+      key: group.key,
+      titleKey: group.titleKey,
+      accent: group.accent,
+      sections: group.sectionKeys
+        .map((key) => sectionsByKey.get(key))
+        .filter(
+          (section): section is (typeof filteredSections)[number] =>
+            !!section && section.items.length > 0
+        ),
+    })).filter((group) => group.sections.length > 0);
+  }, [filteredSections]);
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: SidebarSectionKey;
@@ -1131,10 +1158,32 @@ const AppSidebar: React.FC = () => {
 
         <div className="no-scrollbar flex-1 overflow-y-auto pr-1">
           <nav className="flex flex-col gap-1.5">
-            {filteredSections.length > 0 ? (
-              filteredSections.map((section) => (
-                <div key={section.key} className="flex flex-col gap-1">
-                  {renderMenuItems(section.items, section.key)}
+            {groupedSections.length > 0 ? (
+              groupedSections.map((group, groupIndex) => (
+                <div key={group.key} className="flex flex-col gap-1">
+                  {showFullSidebar ? (
+                    <div
+                      className={cn(
+                        "flex items-center gap-2 px-3 pb-1.5",
+                        groupIndex === 0 ? "pt-0" : "pt-3"
+                      )}
+                    >
+                      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", group.accent)} />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                        {t(group.titleKey)}
+                      </span>
+                    </div>
+                  ) : (
+                    groupIndex > 0 && (
+                      <div className="mx-2 my-2 h-px bg-green-100" />
+                    )
+                  )}
+
+                  {group.sections.map((section) => (
+                    <div key={section.key} className="flex flex-col gap-1">
+                      {renderMenuItems(section.items, section.key)}
+                    </div>
+                  ))}
                 </div>
               ))
             ) : (

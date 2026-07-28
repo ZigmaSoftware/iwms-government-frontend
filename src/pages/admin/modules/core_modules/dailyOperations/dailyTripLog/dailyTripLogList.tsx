@@ -1,0 +1,1202 @@
+import type { DailyTripLogRecord } from "./types";
+import { renderListSearchHeader } from "@/utils/listSearchHeader";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Swal from "@/lib/notify";
+import { useTranslation } from "react-i18next";
+
+import { DataTable } from "@/components/common/SafeDataTable";
+import { Column } from "primereact/column";
+import { Button } from "primereact/button";
+import { InputTextarea } from "primereact/inputtextarea";
+import { Dialog } from "primereact/dialog";
+import { Divider } from "primereact/divider";
+import { MultiSelect } from "@/components/form/MultiSelect";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
+
+import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
+import { api } from "@/api";
+import { getEncryptedRoute } from "@/utils/routeCache";
+import { createCrudRoutePaths } from "@/utils/routePaths";
+import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
+import { downloadRecordsPdf } from "@/utils/exportPdf";
+import { formatCollectionTime } from "./collectionTime";
+
+
+const STATUS_STYLES: Record<string, string> = {
+  Draft: "bg-gray-100 text-gray-700",
+  Submitted: "bg-blue-100 text-blue-800",
+  Verified: "bg-green-100 text-green-800",
+};
+
+const COLLECTION_STATUS_STYLES: Record<string, string> = {
+  "Not Started": "bg-red-50 text-red-600",
+  "In Progress": "bg-yellow-50 text-yellow-700",
+  "Completed": "bg-green-100 text-green-700",
+};
+
+const Badge = ({ value }: { value?: string }) => (
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-600"
+    }`}
+  >
+    {value ?? "-"}
+  </span>
+);
+
+const CollectionStatusBadge = ({ value }: { value?: string }) => (
+  <span
+    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+      COLLECTION_STATUS_STYLES[value ?? ""] ?? "bg-gray-100 text-gray-500"
+    }`}
+  >
+    {value ?? "-"}
+  </span>
+);
+
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">{children}</p>
+);
+
+const InfoRow = ({ label, value }: { label: string; value?: string | number | null }) => (
+  <div className="flex gap-2 text-sm">
+    <span className="text-gray-500 w-36 shrink-0">{label}</span>
+    <span className="font-medium text-gray-800">{value ?? "-"}</span>
+  </div>
+);
+
+const extractError = (error: any): string | null => {
+  const data = error?.response?.data;
+  if (!data) return null;
+  if (typeof data === "string") return data;
+  if (typeof data?.detail === "string") return data.detail;
+  if (typeof data === "object") {
+    const first = Object.values(data)[0];
+    if (Array.isArray(first)) return String(first[0]);
+    if (typeof first === "string") return first;
+  }
+  return null;
+};
+
+const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
+  return (collectionPoints ?? []).reduce((sum, cp) => {
+    if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
+      return sum;
+    }
+    const weight = Number(cp.collected_weight_kg);
+    return sum + (Number.isFinite(weight) ? weight : 0);
+  }, 0);
+};
+
+/* ── backend's manual `?ordering=` allowlist (see daily_trip_log_viewset.py) ── */
+const SORTABLE_FIELDS = new Set(["unique_id", "trip_date", "collected_weight_kg", "log_status"]);
+
+const toRecordList = (value: unknown): DailyTripLogRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripLogRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripLogRecord[] }).results;
+  }
+  return [];
+};
+
+type EnrichedTripLog = DailyTripLogRecord & {
+  _assignment: string;
+  _waste: string;
+  _base_template: string;
+  _alt_template: string;
+  _location: string;
+  _ward: string;
+  _driver: string;
+  _operator: string;
+  _vehicle: string;
+  _computed_weight: number;
+  _has_point_weights: boolean;
+};
+
+/* ── client-side enrichment applied to every raw API row (unchanged logic) ── */
+const enrichTripLogRow = (rec: DailyTripLogRecord): EnrichedTripLog => ({
+  ...rec,
+  _assignment:
+    rec.trip_assignment?.display_code ??
+    rec.trip_assignment?.unique_id ??
+    rec.trip_assignment_id ??
+    "",
+  _waste: Array.isArray(rec.waste_types_detail)
+    ? rec.waste_types_detail.map((wt) => wt.waste_type_name).filter(Boolean).join(", ")
+    : "",
+  _base_template: rec.staff_template?.base?.display_code ?? "",
+  _alt_template: rec.staff_template?.alt?.display_code ?? "",
+  _location: rec.location?.local_body_name ?? rec.location_name ?? rec.panchayat?.panchayat_name ?? "",
+  _ward: rec.wards_detail?.map((ward) => ward.ward_name).filter(Boolean).join(", ") ?? "",
+  _driver: rec.driver?.employee_name ?? "",
+  _operator: rec.operator?.employee_name ?? "",
+  _vehicle: (rec.vehicle as any)?.vehicle_no ?? "",
+  _computed_weight: computeCollectedWeight(rec.collection_points),
+  _has_point_weights: (rec.collection_points ?? []).some(
+    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+  ),
+});
+
+/* ── client-side "bin vs household" post-filter (unchanged logic) ── */
+const filterByCollectionType = (
+  list: EnrichedTripLog[],
+  collectionType: "all" | "bin" | "household",
+): EnrichedTripLog[] =>
+  list.filter((row) => {
+    if (collectionType === "bin") {
+      const hasBinWeight =
+        (row._has_point_weights && (row._computed_weight ?? 0) > 0) ||
+        (row.collected_weight_kg != null && Number(row.collected_weight_kg) > 0);
+      return hasBinWeight;
+    }
+    if (collectionType === "household") {
+      return (
+        row.household_collected_weight_kg != null &&
+        Number(row.household_collected_weight_kg) > 0
+      );
+    }
+    return true;
+  });
+
+/* ─────────────────────────────────────────────────────
+   Trip Log Modal  (mode="view" | "verify")
+───────────────────────────────────────────────────── */
+function TripLogModal({
+  row,
+  mode,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  row: DailyTripLogRecord;
+  mode: "view" | "verify";
+  onClose: () => void;
+  onConfirm: (remarks: string) => void;
+  isLoading: boolean;
+}) {
+  const [remarks, setRemarks] = useState(row.remarks ?? "");
+  const cps = row.collection_points ?? [];
+  const collectedCount = cps.filter((cp) => cp.is_collected).length;
+  const hhCollections = row.household_collections ?? [];
+  const hhCollectedCount = hhCollections.filter((hh) => hh.is_collected).length;
+  const st = row.staff_template;
+  const wasteTypeName =
+    Array.isArray(row.waste_types_detail) && row.waste_types_detail.length > 0
+      ? row.waste_types_detail.map((wt) => wt.waste_type_name).filter(Boolean).join(", ")
+      : "-";
+  const wasteTypeBreakdown = Array.isArray(row.waste_type_breakdown) ? row.waste_type_breakdown : [];
+  const collectedWeightFromPoints = computeCollectedWeight(cps);
+  const hasPointWeights = cps.some(
+    (cp) => cp?.collected_weight_kg !== null && cp?.collected_weight_kg !== undefined
+  );
+  const weight = hasPointWeights
+    ? `${collectedWeightFromPoints.toFixed(2)} kg`
+    : row.collected_weight_kg != null
+    ? `${Number(row.collected_weight_kg).toFixed(2)} kg`
+    : "-";
+
+  const footer = (
+    <div className="flex justify-end gap-2 pt-2">
+      <Button
+        label={mode === "verify" ? "Cancel" : "Close"}
+        className="p-button-text p-button-secondary"
+        onClick={onClose}
+        disabled={isLoading}
+      />
+      {mode === "verify" && (
+        <Button
+          label="Verify"
+          icon="pi pi-check"
+          className="p-button-success"
+          loading={isLoading}
+          onClick={() => onConfirm(remarks)}
+        />
+      )}
+    </div>
+  );
+
+  const title = mode === "verify" ? "Verify Trip Log" : "Trip Log Details";
+  const statusColor: Record<string, string> = {
+    Draft: "text-gray-600",
+    Submitted: "text-blue-600",
+    Verified: "text-green-600",
+  };
+
+  return (
+    <Dialog
+      visible
+      onHide={onClose}
+      header={
+        <div className="flex items-start justify-between gap-4 pr-4">
+          <div>
+            <p className="text-lg font-bold text-gray-800">{title}</p>
+            <p className="text-xs text-gray-400 font-normal mt-0.5">{row.unique_id}</p>
+          </div>
+          <span
+            className={`mt-1 text-xs font-semibold uppercase tracking-wide ${
+              statusColor[row.log_status ?? ""] ?? "text-gray-500"
+            }`}
+          >
+            {row.log_status}
+          </span>
+        </div>
+      }
+      footer={footer}
+      style={{ width: "580px" }}
+      modal
+      draggable={false}
+      resizable={false}
+    >
+      <div className="flex flex-col gap-5 pt-1">
+        {/* Trip details */}
+        <div>
+          <SectionLabel>Trip Details</SectionLabel>
+          <div className="flex flex-col gap-1.5">
+            <InfoRow
+              label="Trip Assignment"
+              value={row.trip_assignment?.display_code ?? row.trip_assignment_id}
+            />
+            <InfoRow label="Date" value={row.trip_date} />
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Collection Status</span>
+              <CollectionStatusBadge value={row.collection_status} />
+            </div>
+            <InfoRow label="Waste Type" value={wasteTypeName} />
+            {wasteTypeBreakdown.length > 0 && (
+              <div className="flex gap-2 text-sm">
+                <span className="text-gray-500 w-36 shrink-0">Waste Breakdown</span>
+                <div className="flex flex-col gap-0.5">
+                  {wasteTypeBreakdown.map((item, index) => (
+                    <span key={index} className="text-gray-800">
+                      {item.waste_type_name ?? "—"}: {item.collected_weight_kg ?? "—"} kg
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <InfoRow label="Bin Weight" value={weight} />
+            {row.household_collected_weight_kg != null && (
+              <InfoRow
+                label="Household Weight"
+                value={`${Number(row.household_collected_weight_kg).toFixed(2)} kg`}
+              />
+            )}
+            {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
+            {row.actual_end_time && <InfoRow label="End Time" value={row.actual_end_time} />}
+            {(row.vehicle as any)?.vehicle_no && (
+              <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
+            )}
+
+          </div>
+        </div>
+
+        <Divider className="!my-0" />
+
+        {/* Location — from the geo masters (district / ULB-RLB / local body) */}
+        <div>
+          <SectionLabel>Location</SectionLabel>
+          <div className="flex flex-col gap-1.5">
+            {row.location?.state && <InfoRow label="State" value={row.location.state} />}
+            <InfoRow label="District" value={row.location?.district ?? "-"} />
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Classification</span>
+              {row.location?.classification ? (
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    row.location.classification.toLowerCase().includes("urban")
+                      ? "bg-sky-100 text-sky-800"
+                      : "bg-lime-100 text-lime-800"
+                  }`}
+                >
+                  {row.location.classification}
+                  <span className="ml-1 font-normal opacity-70">
+                    ({row.location.classification.toLowerCase().includes("urban") ? "ULB" : "RLB"})
+                  </span>
+                </span>
+              ) : (
+                <span className="font-medium text-gray-800">-</span>
+              )}
+            </div>
+            <div className="flex gap-2 text-sm">
+              <span className="text-gray-500 w-36 shrink-0">Local Body</span>
+              <span className="font-medium text-gray-800">
+                {row.location?.local_body_name ?? row.panchayat?.panchayat_name ?? "-"}
+                {(row.location?.local_body_level ?? (row.panchayat?.panchayat_name ? "Panchayat" : null)) && (
+                  <span className="ml-1.5 text-xs text-indigo-500 font-semibold">
+                    ({row.location?.local_body_level ?? "Panchayat"})
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <Divider className="!my-0" />
+
+        {/* Staff */}
+        <div>
+          <SectionLabel>Staff</SectionLabel>
+          {st?.base ? (
+            <div className="mb-3">
+              <p className="text-xs text-gray-500 mb-1.5">
+                Base Template:{" "}
+                <span className="font-semibold text-gray-700">{st.base.display_code}</span>
+              </p>
+              <div className="flex flex-col gap-1 pl-3 border-l-2 border-gray-200">
+                <InfoRow label="Driver" value={st.base.driver?.employee_name} />
+                <InfoRow label="Operator" value={st.base.operator?.employee_name} />
+              </div>
+            </div>
+          ) : (
+            <div className="mb-3 flex flex-col gap-1">
+              <InfoRow label="Driver" value={row.driver?.employee_name} />
+              <InfoRow label="Operator" value={row.operator?.employee_name} />
+            </div>
+          )}
+          {st?.alt && (
+            <div>
+              <p className="text-xs text-orange-500 mb-1.5">
+                Alt Template <span className="text-orange-400">(Substitute)</span>:{" "}
+                <span className="font-semibold text-orange-700">{st.alt.display_code}</span>
+              </p>
+              <div className="flex flex-col gap-1 pl-3 border-l-2 border-orange-200">
+                <InfoRow label="Driver" value={st.alt.driver?.employee_name} />
+                <InfoRow label="Operator" value={st.alt.operator?.employee_name} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <Divider className="!my-0" />
+
+        {/* Collection Points */}
+        <div>
+          <SectionLabel>
+            Collection Points
+            {cps.length > 0 && (
+              <span className="ml-1 normal-case font-normal text-gray-400">
+                — {collectedCount} / {cps.length} collected
+              </span>
+            )}
+          </SectionLabel>
+          {cps.length === 0 ? (
+            <p className="text-sm text-gray-400">No collection points recorded.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {cps.map((cp) => (
+                <li
+                  key={cp.unique_id}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <div className="flex items-center gap-2">
+                    {cp.is_collected ? (
+                      <i className="pi pi-check-circle text-green-500 text-base" />
+                    ) : (
+                      <i className="pi pi-times-circle text-red-400 text-base" />
+                    )}
+                    <span className={cp.is_collected ? "text-gray-800" : "text-gray-400"}>
+                      {cp.sequence != null ? `${cp.sequence}. ` : ""}
+                      {cp.cp_name ?? cp.unique_id}
+                    </span>
+                    {!cp.is_collected && (
+                      <span className="text-xs text-red-400">(Not collected)</span>
+                    )}
+                  </div>
+                  {cp.collected_weight_kg != null ? (
+                    <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
+                      {Number(cp.collected_weight_kg).toFixed(2)} kg
+                    </span>
+                  ) : cp.is_collected ? (
+                    <span className="text-xs text-gray-400 shrink-0">— kg</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Household Collection Points */}
+        {hhCollections.length > 0 && (
+          <>
+            <Divider className="!my-0" />
+            <div>
+              <SectionLabel>
+                Household Collections
+                <span className="ml-1 normal-case font-normal text-gray-400">
+                  — {hhCollectedCount} / {hhCollections.length} collected
+                </span>
+              </SectionLabel>
+              <ul className="flex flex-col gap-2">
+                {hhCollections.map((hh) => (
+                  <li
+                    key={hh.unique_id}
+                    className="flex items-center justify-between gap-2 text-sm"
+                  >
+                    <div className="flex items-center gap-2">
+                      {hh.is_collected ? (
+                        <i className="pi pi-check-circle text-green-500 text-base" />
+                      ) : (
+                        <i className="pi pi-times-circle text-red-400 text-base" />
+                      )}
+                      <span className={hh.is_collected ? "text-gray-800" : "text-gray-400"}>
+                        {hh.sequence != null ? `${hh.sequence}. ` : ""}
+                        {hh.customer_name ?? hh.customer_unique_id ?? hh.unique_id}
+                      </span>
+                      {!hh.is_collected && (
+                        <span className="text-xs text-red-400">(Not collected)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {hh.collected_weight_kg != null ? (
+                        <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                          {Number(hh.collected_weight_kg).toFixed(2)} kg
+                        </span>
+                      ) : hh.is_collected ? (
+                        <span className="text-xs text-gray-400">— kg</span>
+                      ) : null}
+                      {hh.collected_at && (
+                        <span className="text-xs text-gray-400">
+                          {formatCollectionTime(hh.collected_at)}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+
+        {/* Remarks */}
+        {(mode === "verify" || row.remarks) && (
+          <>
+            <Divider className="!my-0" />
+            <div>
+              <SectionLabel>
+                {mode === "verify" ? "Remarks (optional)" : "Remarks"}
+              </SectionLabel>
+              {mode === "verify" ? (
+                <InputTextarea
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  rows={2}
+                  className="w-full text-sm"
+                  placeholder="Add verification remarks..."
+                  autoResize
+                />
+              ) : (
+                <p className="text-sm text-gray-700">{row.remarks}</p>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Verified by */}
+        {mode === "view" && row.log_status === "Verified" && row.verified_by_name && (
+          <>
+            <Divider className="!my-0" />
+            <div>
+              <SectionLabel>Verification</SectionLabel>
+              <div className="flex flex-col gap-1.5">
+                <InfoRow label="Verified by" value={row.verified_by_name} />
+                <InfoRow label="Verified at" value={row.verified_at ?? undefined} />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
+/* ─────────────────────────────────────────────────────
+   Main list component
+───────────────────────────────────────────────────── */
+export default function DailyTripLogList() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { encScheduleMasters, encDailyTripLog } = getEncryptedRoute();
+  const { reportPath } = createCrudRoutePaths(encScheduleMasters, encDailyTripLog);
+
+  const [rawRows, setRawRows] = useState<DailyTripLogRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
+  const [isLoading, setIsLoading] = useState(false);
+  const [modalState, setModalState] = useState<{
+    row: DailyTripLogRecord;
+    mode: "view" | "verify";
+  } | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [imageRow, setImageRow] = useState<DailyTripLogRecord | null>(null);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const [dateFilter, setDateFilter] = useState("");
+  const [wasteTypeIds, setWasteTypeIds] = useState<string[]>([]);
+  const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+  // Bumped to force-remount HierarchyFilterBar (it owns its own internal
+  // state/pre-seeding) whenever "Clear All Filters" is used.
+  const [filterResetKey, setFilterResetKey] = useState(0);
+
+  /* ── waste type dropdown options ── */
+  useEffect(() => {
+    (wasteTypeApi.readAll() as Promise<any[]>)
+      .then((data) => {
+        const options = (Array.isArray(data) ? data : []).map((wt) => ({
+          label: wt.waste_type_name ?? wt.name ?? wt.unique_id,
+          value: wt.unique_id,
+        }));
+        setWasteTypeOptions(options);
+      })
+      .catch(() => {
+        /* non-critical — filter simply shows no options */
+      });
+  }, []);
+
+  /* ── build server query params from the hierarchy/date/waste-type filters ──
+     waste_type_id is sent as one comma-separated string, not an array — axios
+     serializes array params as waste_type_id[]=a&waste_type_id[]=b, which the
+     backend's getlist("waste_type_id") never matches. */
+  const buildParams = useCallback((): Record<string, any> => {
+    const params: Record<string, any> = { ...hierarchyParams };
+    if (dateFilter) params.date = dateFilter;
+    if (wasteTypeIds.length > 0) params.waste_type_id = wasteTypeIds.join(",");
+    return params;
+  }, [hierarchyParams, dateFilter, wasteTypeIds]);
+
+  /* ── ordering param, from the sortField/sortOrder state, mapped through the
+     backend's own manual `?ordering=` allowlist ── */
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await dailyTripLogApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...buildParams(),
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
+      );
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /* ── reset to first page whenever a non-pagination filter changes ── */
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyParams, dateFilter, wasteTypeIds]);
+
+  /* ── load logs (re-runs whenever pagination/sort/search/hierarchy/date/waste-type filters change) ── */
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, dateFilter, wasteTypeIds]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  /* ── enrich rows (current page only) ── */
+  const rows = rawRows.map(enrichTripLogRow);
+
+  /* ── filter by collection type — a client-side post-filter applied to the
+     CURRENT PAGE only (bin-vs-household split isn't a simple backend field,
+     see task notes); totalRecords below still reflects the server-side total. ── */
+  const data = filterByCollectionType(rows, collectionType);
+
+  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setGlobalFilterValue(e.target.value);
+  };
+
+  /* ── debounce the global search box into the server-side `?search=` param ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  /* ── verify confirm (from modal) ── */
+  const handleVerifyConfirm = async (remarks: string) => {
+    if (!modalState) return;
+    setIsVerifying(true);
+    try {
+      await api.patch(
+        `/schedule-operations/daily-trip-logs/${modalState.row.unique_id}/verify/`,
+        { remarks }
+      );
+      setRawRows((current) =>
+        current.map((item) =>
+          item.unique_id === modalState.row.unique_id
+            ? { ...item, log_status: "Verified" }
+            : item
+        )
+      );
+      setModalState(null);
+      Swal.fire({
+        icon: "success",
+        title: "Verified",
+        text: "Trip log has been verified.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  /* ── inline status change (Draft ↔ Verify) ── */
+  const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
+    const result = await Swal.fire({
+      title: `Change status to ${newStatus}?`,
+      text: `This will move the log from "${row.log_status}" to "${newStatus}".`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: `Yes, change to ${newStatus}`,
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const res = await api.patch(
+        `/schedule-operations/daily-trip-logs/${row.unique_id}/change-status/`,
+        { log_status: newStatus }
+      );
+      const updated = (res as any)?.data ?? res;
+      setRawRows((current) =>
+        current.map((item) =>
+          item.unique_id === row.unique_id
+            ? {
+                ...item,
+                log_status: updated.log_status ?? newStatus,
+                verified_by_name: updated.verified_by_name ?? null,
+                verified_at: updated.verified_at ?? null,
+              }
+            : item
+        )
+      );
+      Swal.fire({
+        icon: "success",
+        title: "Done",
+        text: `Status changed to ${newStatus}.`,
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
+    }
+  };
+
+  /* ── inline action buttons ── */
+  const actionTemplate = (row: DailyTripLogRecord) => {
+    const isVerified = row.log_status === "Verified";
+    const isDraft = row.log_status === "Draft";
+
+    return (
+      <div className="flex items-center gap-1.5">
+        {/* Captured images */}
+        <button
+          title="View captured images"
+          onClick={() => setImageRow(row)}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+        >
+          <i className="pi pi-images text-xs" />
+          Images
+        </button>
+
+        {/* View — navigates to the dedicated detail report page */}
+        <button
+          title="View details"
+          onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          <i className="pi pi-eye text-xs" />
+          View
+        </button>
+
+        {/* Verify — disabled when already Verified */}
+        <button
+          title={isVerified ? "Already verified" : "Verify this log"}
+          disabled={isVerified}
+          onClick={() => setModalState({ row, mode: "verify" })}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+            isVerified
+              ? "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
+              : "bg-green-100 text-green-700 hover:bg-green-200"
+          }`}
+        >
+          <i className="pi pi-check-circle text-xs" />
+          Verify
+        </button>
+
+        {/* Draft — disabled when already Draft */}
+        <button
+          title={isDraft ? "Already in draft" : "Revert to draft"}
+          disabled={isDraft}
+          onClick={() => handleStatusChange(row, "Draft")}
+          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
+            isDraft
+              ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          <i className="pi pi-undo text-xs" />
+          Draft
+        </button>
+      </div>
+    );
+  };
+
+  const renderHeader = () =>
+    renderListSearchHeader({
+      value: globalFilterValue,
+      onChange: onGlobalFilterChange,
+      placeholder: "Search trip logs...",
+    });
+
+  /* ── download: fetch the FULL hierarchy/date/waste/search-filtered dataset
+     fresh from the server (independent of whatever page is currently on
+     screen), then apply the same enrichment + collectionType filter + the
+     existing per-point/customer row-expansion to build a detailed report. ── */
+  const handleDownload = async (format: "excel" | "pdf") => {
+    setIsExporting(true);
+    try {
+      const exportRaw = toRecordList(
+        await dailyTripLogApi.readAllForExport({
+          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+        }),
+      );
+      const exportSourceRows = filterByCollectionType(exportRaw.map(enrichTripLogRow), collectionType);
+
+      if (exportSourceRows.length === 0) {
+        throw new Error("No filtered trip log records to export.");
+      }
+
+      const exportRows: Record<string, unknown>[] = [];
+      exportSourceRows.forEach((rec) => {
+        const baseRow = {
+          "Trip ID": rec.unique_id,
+          "Trip Assignment": rec.trip_assignment?.display_code ?? rec.trip_assignment_id ?? "-",
+          "Trip Date": rec.trip_date ?? "-",
+          State: rec.location?.state ?? "-",
+          District: rec.location?.district ?? "-",
+          "Local Body": rec.location?.local_body_name ?? "-",
+          "Local Body Level": rec.location?.local_body_level ?? "-",
+          Ward: rec.wards_detail?.map((ward) => ward.ward_name).filter(Boolean).join(", ") || "-",
+          Driver: rec.driver?.employee_name ?? "-",
+          Operator: rec.operator?.employee_name ?? "-",
+          Vehicle: (rec.vehicle as any)?.vehicle_no ?? "-",
+          "Log Status": rec.log_status ?? "-",
+        };
+
+        const cps = rec.collection_points ?? [];
+        const hhs = rec.household_collections ?? [];
+        const isHousehold = hhs.length > 0;
+
+        if (isHousehold) {
+          hhs.forEach((hh) => {
+            const breakdown = hh.waste_type_breakdown?.length
+              ? hh.waste_type_breakdown
+              : [{ waste_type_name: "-", collected_weight_kg: hh.collected_weight_kg }];
+            breakdown.forEach((wt) => {
+              exportRows.push({
+                ...baseRow,
+                "Point Type": "Household",
+                "Collection Point / Customer": hh.customer_name ?? hh.customer_unique_id ?? "-",
+                "Waste Type": wt.waste_type_name ?? "-",
+                "Collected Weight (kg)": wt.collected_weight_kg ?? "-",
+                "Collection Time": formatCollectionTime(hh.collected_at),
+                "Is Collected": hh.is_collected ? "Yes" : "No",
+              });
+            });
+          });
+        } else if (cps.length > 0) {
+          cps.forEach((cp) => {
+            const breakdown = cp.waste_type_breakdown?.length
+              ? cp.waste_type_breakdown
+              : [{ waste_type_name: cp.waste_type_name, collected_weight_kg: cp.collected_weight_kg }];
+            breakdown.forEach((wt) => {
+              exportRows.push({
+                ...baseRow,
+                "Point Type": "Collection Point",
+                "Collection Point / Customer": cp.cp_name ?? cp.unique_id ?? "-",
+                "Waste Type": wt.waste_type_name ?? "-",
+                "Collected Weight (kg)": wt.collected_weight_kg ?? "-",
+                "Collection Time": formatCollectionTime(cp.collected_at),
+                "Is Collected": cp.is_collected ? "Yes" : "No",
+              });
+            });
+          });
+        } else {
+          exportRows.push({
+            ...baseRow,
+            "Point Type": "-",
+            "Collection Point / Customer": "-",
+            "Waste Type": "-",
+            "Collected Weight (kg)": rec.collected_weight_kg ?? "-",
+            "Collection Time": "-",
+            "Is Collected": "-",
+          });
+        }
+      });
+
+      if (format === "excel") {
+        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+      } else {
+        downloadRecordsPdf({
+          title: "Daily Trip Logs",
+          filename: "daily_trip_logs.pdf",
+          rows: exportRows,
+          columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
+        });
+      }
+    } catch (err: any) {
+      Swal.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const hasActiveFilters =
+    Object.keys(hierarchyParams).length > 0 ||
+    Boolean(dateFilter) ||
+    wasteTypeIds.length > 0 ||
+    collectionType !== "all";
+
+  const handleClearFilters = () => {
+    setHierarchyParams({});
+    setDateFilter("");
+    setWasteTypeIds([]);
+    setCollectionType("all");
+    setFilterResetKey((key) => key + 1);
+  };
+
+  /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
+     filter) — the backend has no aggregate endpoint for this deep a
+     computation, so these are deliberately labeled "(page)" rather than
+     implying dataset-wide totals. ── */
+  const summaryRows = data;
+  const today = new Date().toISOString().slice(0, 10);
+  const totalWeightFor = (row: (typeof summaryRows)[number]) =>
+    Number(row._has_point_weights ? row._computed_weight : row.collected_weight_kg ?? 0)
+    + Number(row.household_collected_weight_kg ?? 0);
+  const overallWeight = summaryRows.reduce((sum, row) => sum + totalWeightFor(row), 0);
+  const dailyWeight = summaryRows.reduce(
+    (sum, row) => sum + (row.trip_date === today ? totalWeightFor(row) : 0),
+    0,
+  );
+
+  return (
+    <div className="p-3">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
+          <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <select
+            value={collectionType}
+            onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
+            className="border rounded px-3 py-2 text-sm"
+          >
+            <option value="all">All Collections</option>
+            <option value="bin">Bin Collection</option>
+            <option value="household">Household Collection</option>
+          </select>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="border rounded px-3 py-2 text-sm"
+          />
+          <Button
+            label={isExporting ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExporting || totalRecords === 0}
+            onClick={() => handleDownload("excel")}
+          />
+          <Button
+            label={isExporting ? "Generating…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined"
+            disabled={isExporting || totalRecords === 0}
+            onClick={() => handleDownload("pdf")}
+          />
+        </div>
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
+        <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-gray-700">Waste Type</label>
+          <MultiSelect
+            value={wasteTypeIds}
+            onChange={(e) => {
+              const raw = Array.isArray(e.value) ? e.value : [];
+              // PrimeReact MultiSelect can emit full option objects instead of
+              // the scalar optionValue — normalize so filter params stay clean strings.
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setWasteTypeIds(values);
+            }}
+            options={wasteTypeOptions}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={2}
+            placeholder="All waste types"
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+          />
+        </div>
+        <div>
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <i className="pi pi-filter-slash text-xs" />
+            Clear All Filters
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-3 text-sm">
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {dailyWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall (page): {overallWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records (page): {summaryRows.length}</span>
+      </div>
+
+      <DataTable
+        exportable={false}
+        value={data}
+        dataKey="unique_id"
+        lazy
+        paginator
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        loading={isLoading}
+        header={renderHeader()}
+        stripedRows
+        showGridlines
+        emptyMessage="No trip logs found."
+        className="p-datatable-sm"
+      >
+        <Column
+          header={t("common.s_no")}
+          body={(_: any, { rowIndex }: any) => rowIndex + 1}
+          style={{ width: 60 }}
+        />
+        <Column
+          field="unique_id"
+          header="ID"
+          sortable
+          style={{ minWidth: 150 }}
+        />
+        <Column
+          field="_assignment"
+          header="Trip Assignment"
+          style={{ minWidth: 170 }}
+        />
+        <Column
+          field="_location"
+          header="Location"
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripLogRecord) => {
+            const name = row.location?.local_body_name ?? row.location_name ?? row.panchayat?.panchayat_name;
+            const level = row.location?.local_body_level ?? row.location_level ?? (row.panchayat?.panchayat_name ? "Panchayat" : null);
+            const cls = row.location?.classification ?? "";
+            if (!name) return <span className="text-sm text-gray-400">—</span>;
+            return (
+              <div className="text-sm text-gray-800">
+                {name}
+                {level && <span className="ml-1 text-xs text-indigo-500 font-medium">({level})</span>}
+                {cls && (
+                  <div className="text-[10px] font-semibold text-gray-500">
+                    {cls.toLowerCase().includes("urban") ? "ULB" : "RLB"} · {row.location?.district ?? ""}
+                  </div>
+                )}
+              </div>
+            );
+          }}
+        />
+        <Column
+          field="_ward"
+          header="Ward"
+          style={{ minWidth: 150 }}
+        />
+        <Column
+          field="_base_template"
+          header="Staff Template"
+          style={{ minWidth: 160 }}
+          body={(row: DailyTripLogRecord) => (
+            <span className="text-sm text-gray-800">
+              {row.staff_template?.base?.display_code ?? "-"}
+            </span>
+          )}
+        />
+        <Column
+          field="_alt_template"
+          header="Alt Staff Template"
+          style={{ minWidth: 170 }}
+          body={(row: DailyTripLogRecord) =>
+            row.staff_template?.alt ? (
+              <span className="text-sm font-medium text-orange-700">
+                {row.staff_template.alt.display_code}
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">-</span>
+            )
+          }
+        />
+        <Column
+          field="_waste"
+          header="Waste Type"
+        />
+        <Column
+          field="collected_weight_kg"
+          header="Bin Weight (kg)"
+          sortable
+          style={{ minWidth: 130 }}
+          body={(row: DailyTripLogRecord & { _computed_weight?: number; _has_point_weights?: boolean }) => {
+            const weight = row._has_point_weights
+              ? row._computed_weight
+              : row.collected_weight_kg;
+            return weight != null ? (
+              <span className="font-semibold text-gray-800">
+                {Number(weight).toFixed(2)}
+              </span>
+            ) : (
+              "-"
+            );
+          }}
+        />
+        <Column
+          field="household_collected_weight_kg"
+          header="HH Weight (kg)"
+          style={{ minWidth: 130 }}
+          body={(row: DailyTripLogRecord) =>
+            row.household_collected_weight_kg != null ? (
+              <span className="font-semibold text-gray-800">
+                {Number(row.household_collected_weight_kg).toFixed(2)}
+              </span>
+            ) : (
+              "-"
+            )
+          }
+        />
+        <Column
+          field="log_status"
+          header="Log Status"
+          body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
+          sortable
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="collection_status"
+          header="Collection Status"
+          body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
+          style={{ minWidth: 145 }}
+        />
+        <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
+        <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
+        <Column field="_vehicle" header="Vehicle" style={{ minWidth: 110 }} />
+        <Column
+          field="trip_date"
+          header="Trip Date"
+          sortable
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          header={t("common.actions")}
+          body={actionTemplate}
+          style={{ minWidth: 210 }}
+        />
+      </DataTable>
+
+      {modalState && (
+        <TripLogModal
+          row={modalState.row}
+          mode={modalState.mode}
+          onClose={() => setModalState(null)}
+          onConfirm={handleVerifyConfirm}
+          isLoading={isVerifying}
+        />
+      )}
+
+      <Dialog
+        header="Captured images"
+        visible={imageRow != null}
+        onHide={() => setImageRow(null)}
+        style={{ width: "min(90vw, 720px)" }}
+        modal
+        dismissableMask
+      >
+        {(imageRow?.capture_images?.length ?? 0) === 0 ? (
+          <p className="py-6 text-center text-sm text-gray-500">
+            No captured images found for this trip.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 p-1 sm:grid-cols-3">
+            {imageRow?.capture_images?.map((img, index) => (
+              <a
+                key={`${img.url}-${index}`}
+                href={img.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block"
+                title="Open image"
+              >
+                <img
+                  src={img.url}
+                  alt={`Captured image ${index + 1}`}
+                  className="h-40 w-full rounded-lg border object-cover"
+                  loading="lazy"
+                />
+                {img.weight != null && img.weight !== "" && (
+                  <div className="mt-1 text-center text-xs text-gray-500">
+                    {img.weight} kg
+                  </div>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
+      </Dialog>
+    </div>
+  );
+}

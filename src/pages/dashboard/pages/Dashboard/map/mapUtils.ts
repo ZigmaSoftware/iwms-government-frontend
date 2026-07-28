@@ -4,17 +4,6 @@ import "leaflet/dist/leaflet.css";
 
 export type MapTabKey = "vehicle" | "bins" | "households";
 
-export type BinPriority = "high" | "medium" | "low";
-
-export type BinPoint = {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  fill: number;
-  area: string;
-};
-
 export type HouseholdStatus = "collected" | "not_collected";
 
 export type HouseholdPoint = {
@@ -44,15 +33,6 @@ export const MAP_TABS: { key: MapTabKey; labelKey: string; summaryKey: string }[
   },
 ];
 
-export const BIN_POINTS: BinPoint[] = [
-  { id: "BIN-101", name: "Bin 101", lat: 11.0189, lng: 76.9524, fill: 88, area: "East Zone" },
-  { id: "BIN-104", name: "Bin 104", lat: 11.0241, lng: 76.9589, fill: 72, area: "East Zone" },
-  { id: "BIN-112", name: "Bin 112", lat: 11.0158, lng: 76.9635, fill: 43, area: "Central Zone" },
-  { id: "BIN-119", name: "Bin 119", lat: 11.0102, lng: 76.9482, fill: 67, area: "West Zone" },
-  { id: "BIN-123", name: "Bin 123", lat: 11.0068, lng: 76.9558, fill: 95, area: "South Zone" },
-  { id: "BIN-130", name: "Bin 130", lat: 11.0217, lng: 76.9691, fill: 58, area: "North Zone" },
-];
-
 export const HOUSEHOLD_POINTS: HouseholdPoint[] = [
   { id: "HH-210", name: "House 210", lat: 11.0176, lng: 76.9561, status: "collected", ward: "Ward 23" },
   { id: "HH-214", name: "House 214", lat: 11.0203, lng: 76.9598, status: "not_collected", ward: "Ward 23" },
@@ -68,15 +48,6 @@ export const HOUSEHOLD_POINTS: HouseholdPoint[] = [
   { id: "HH-415", name: "House 415", lat: 11.0018, lng: 76.9715, status: "not_collected", ward: "Ward 31" },
 ];
 
-export const BIN_PRIORITY_META: Record<
-  BinPriority,
-  { labelKey: string; color: string; bg: string }
-> = {
-  high: { labelKey: "common.priority_high", color: "#b91c1c", bg: "rgba(239,68,68,0.15)" },
-  medium: { labelKey: "common.priority_medium", color: "#b45309", bg: "rgba(245,158,11,0.15)" },
-  low: { labelKey: "common.priority_low", color: "#15803d", bg: "rgba(34,197,94,0.15)" },
-};
-
 export const HOUSEHOLD_STATUS_META: Record<
   HouseholdStatus,
   { labelKey: string; color: string; bg: string }
@@ -87,14 +58,21 @@ export const HOUSEHOLD_STATUS_META: Record<
 
 export const DEFAULT_CENTER: LatLngTuple = [11.0168, 76.9572];
 
-export const getBinPriority = (fill: number): BinPriority => {
-  if (fill >= 80) return "high";
-  if (fill >= 60) return "medium";
-  return "low";
+export const spreadPositions = (
+  count: number,
+  center: LatLngTuple = DEFAULT_CENTER,
+  padding = 0.002
+): LatLngTuple[] => {
+  if (count <= 0) return [];
+  const spread = count > 1 ? (padding * (count - 1)) / 2 : 0;
+  return Array.from({ length: count }, (_, i) => [
+    center[0] - spread + i * padding,
+    center[1] - spread + i * padding,
+  ] as LatLngTuple);
 };
 
-export const createBinIcon = (priority: BinPriority, isFocused = false) => {
-  const meta = BIN_PRIORITY_META[priority];
+export const createBinIcon = (status: HouseholdStatus, isFocused = false) => {
+  const meta = HOUSEHOLD_STATUS_META[status];
   const size = isFocused ? 40 : 34;
   const shadow = isFocused
     ? "0 0 0 4px rgba(255,255,255,0.9), 0 8px 18px rgba(0,0,0,.3)"

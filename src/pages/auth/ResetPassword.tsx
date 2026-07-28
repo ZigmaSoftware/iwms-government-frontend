@@ -1,13 +1,17 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/form/FieldError";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
 import ZigmaLogo from "@/images/logo.png";
+import { newPasswordSchema, type NewPasswordFormValues } from "@/schemas/newPassword.schema";
 
 type StrengthLevel = "weak" | "fair" | "good" | "strong";
 
@@ -29,31 +33,34 @@ export default function ResetPassword() {
   const location = useLocation();
   const state = location.state as { resetToken?: string } | null;
 
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const resetToken = state?.resetToken ?? "";
-  const strength = newPassword ? getPasswordStrength(newPassword) : null;
-  const passwordsMatch = confirmPassword && newPassword === confirmPassword;
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<NewPasswordFormValues>({
+    resolver: zodResolver(newPasswordSchema),
+    mode: "onChange",
+    defaultValues: { newPassword: "", confirmPassword: "" },
+  });
+
+  const newPassword = watch("newPassword");
+  const confirmPassword = watch("confirmPassword");
+  const strength = newPassword ? getPasswordStrength(newPassword) : null;
+  const passwordsMatch = Boolean(confirmPassword) && newPassword === confirmPassword;
+
+  const onValid = async (values: NewPasswordFormValues) => {
     setError("");
 
     if (!resetToken) {
       setError("Invalid session. Please start the password reset process again.");
-      return;
-    }
-    if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
       return;
     }
 
@@ -61,8 +68,8 @@ export default function ResetPassword() {
     try {
       await api.post("/auth/reset-password/", {
         reset_token: resetToken,
-        new_password: newPassword,
-        confirm_password: confirmPassword,
+        new_password: values.newPassword,
+        confirm_password: values.confirmPassword,
       });
       navigate("/auth", {
         state: { successMessage: "Password reset successfully. Please log in with your new password." },
@@ -104,7 +111,7 @@ export default function ResetPassword() {
           </CardHeader>
 
           <CardContent className="bg-white px-8 pb-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit(onValid)} className="space-y-4">
               {error && (
                 <Alert variant="destructive" className="rounded-xl">
                   <AlertDescription>{error}</AlertDescription>
@@ -121,10 +128,8 @@ export default function ResetPassword() {
                     id="new_password"
                     type={showNew ? "text" : "password"}
                     placeholder="Enter new password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
                     className="h-12 rounded-xl border-slate-200 bg-slate-50 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50"
-                    required
+                    {...register("newPassword")}
                   />
                   <button
                     type="button"
@@ -151,6 +156,7 @@ export default function ResetPassword() {
                     </p>
                   </div>
                 )}
+                <FieldError message={errors.newPassword?.message} />
               </div>
 
               {/* Confirm Password */}
@@ -163,8 +169,6 @@ export default function ResetPassword() {
                     id="confirm_password"
                     type={showConfirm ? "text" : "password"}
                     placeholder="Re-enter new password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
                     className={`h-12 rounded-xl border-slate-200 bg-slate-50 pr-12 text-gray-900 placeholder:text-gray-400 focus-visible:ring-green-300/50 transition-all ${
                       confirmPassword
                         ? passwordsMatch
@@ -172,7 +176,7 @@ export default function ResetPassword() {
                           : "border-red-400 focus-visible:border-red-400"
                         : "focus-visible:border-green-400"
                     }`}
-                    required
+                    {...register("confirmPassword")}
                   />
                   <button
                     type="button"

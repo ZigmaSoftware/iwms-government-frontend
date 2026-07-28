@@ -1,11 +1,20 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
-import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
-import { scopeOption } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
+import { useGeoHierarchy, type HierarchyLevel } from "@/hooks/useGeoHierarchy";
+import { scopeFieldState, type ScopeLevel } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 
 export type HierarchyFilterParams = Record<string, string>;
+
+// Maps each local-body hierarchy level to its Data Scope key.
+const LOCAL_BODY_SCOPE_LEVELS: Record<HierarchyLevel, ScopeLevel> = {
+  corporation_id: "corporation",
+  municipality_id: "municipality",
+  town_panchayat_id: "town_panchayat",
+  panchayat_union_id: "panchayat_union",
+  panchayat_id: "panchayat",
+};
 
 interface HierarchyFilterBarProps {
   /**
@@ -17,6 +26,8 @@ interface HierarchyFilterBarProps {
    */
   onChange: (params: HierarchyFilterParams) => void;
   className?: string;
+  /** Show the inline "Clear" link next to the Local Body field. Defaults to true. */
+  showClear?: boolean;
 }
 
 /**
@@ -28,22 +39,36 @@ interface HierarchyFilterBarProps {
  * pre-seeds the caller's own corporation/local body from the stored data scope
  * so the list opens already narrowed to what they manage.
  */
-export default function HierarchyFilterBar({ onChange, className }: HierarchyFilterBarProps) {
+export default function HierarchyFilterBar({ onChange, className, showClear = true }: HierarchyFilterBarProps) {
   const geo = useGeoHierarchy();
   const seeded = useRef(false);
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that filter shows pre-filled and disabled rather than an editable
+  // dropdown — offering a broader choice would be misleading, since they
+  // can't see data outside their own scope anyway. Several scoped values (or
+  // none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const lockedLocalBody = useMemo(
+    () =>
+      (Object.keys(LOCAL_BODY_SCOPE_LEVELS) as HierarchyLevel[])
+        .map((level) => ({ level, state: scopeFieldState(LOCAL_BODY_SCOPE_LEVELS[level]) }))
+        .find((entry) => entry.state.mode === "locked"),
+    [],
+  );
 
   // Pre-seed from the logged-in user's own data scope once masters have loaded.
   useEffect(() => {
     if (seeded.current || geo.loading) return;
     seeded.current = true;
-    const state = scopeOption("state");
-    const district = scopeOption("district");
-    const corporation = scopeOption("corporation");
-    if (state) geo.setStateId(state.value);
-    if (district) geo.setDistrictId(district.value);
-    if (corporation) {
-      geo.setHierarchyLevel("corporation_id");
-      geo.setHierarchyId(corporation.value);
+    if (stateScope.mode === "locked") geo.setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked") geo.setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked") geo.setAreaTypeId(areaTypeScope.options[0].value);
+    if (lockedLocalBody) {
+      geo.setHierarchyLevel(lockedLocalBody.level);
+      geo.setHierarchyId(lockedLocalBody.state.options[0].value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo.loading]);
@@ -72,6 +97,7 @@ export default function HierarchyFilterBar({ onChange, className }: HierarchyFil
           onChange={(v) => geo.setStateId(String(v))}
           options={geo.stateOptions}
           placeholder="All states"
+          disabled={stateScope.mode === "locked"}
         />
       </div>
       <div>
@@ -81,7 +107,7 @@ export default function HierarchyFilterBar({ onChange, className }: HierarchyFil
           onChange={(v) => geo.setDistrictId(String(v))}
           options={geo.districtOptions}
           placeholder={geo.stateId ? "All districts" : "Select a state first"}
-          disabled={!geo.stateId}
+          disabled={!geo.stateId || districtScope.mode === "locked"}
         />
       </div>
       <div>
@@ -91,7 +117,7 @@ export default function HierarchyFilterBar({ onChange, className }: HierarchyFil
           onChange={(v) => geo.setAreaTypeId(String(v))}
           options={geo.areaTypeOptions}
           placeholder={geo.districtId ? "All area types" : "Select a district first"}
-          disabled={!geo.districtId}
+          disabled={!geo.districtId || areaTypeScope.mode === "locked"}
         />
       </div>
       <div>
@@ -101,7 +127,7 @@ export default function HierarchyFilterBar({ onChange, className }: HierarchyFil
           onChange={(v) => geo.setHierarchyLevel(v as ReturnType<typeof useGeoHierarchy>["hierarchyLevel"])}
           options={geo.availableHierarchyLevels}
           placeholder={geo.areaTypeCategory ? "Select type" : "Select an area type first"}
-          disabled={!geo.areaTypeCategory}
+          disabled={!geo.areaTypeCategory || Boolean(lockedLocalBody)}
         />
       </div>
       <div>
@@ -112,15 +138,17 @@ export default function HierarchyFilterBar({ onChange, className }: HierarchyFil
             onChange={(v) => geo.setHierarchyId(String(v))}
             options={geo.hierarchyOptions}
             placeholder="All"
-            disabled={!geo.areaTypeCategory}
+            disabled={!geo.areaTypeCategory || Boolean(lockedLocalBody)}
           />
-          <button
-            type="button"
-            onClick={clear}
-            className="whitespace-nowrap text-sm text-blue-600 hover:text-blue-800"
-          >
-            Clear
-          </button>
+          {showClear && (
+            <button
+              type="button"
+              onClick={clear}
+              className="whitespace-nowrap text-sm text-blue-600 hover:text-blue-800"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
     </div>

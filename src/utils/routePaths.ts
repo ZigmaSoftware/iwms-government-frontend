@@ -14,6 +14,7 @@ export function createCrudRoutePaths(masterSegment: string, moduleSegment: strin
     listPath,
     newPath: createRoutePath(listPath, "new"),
     editPath: (id: RouteId) => createRoutePath(listPath, id, "edit"),
+    reportPath: (id: RouteId) => createRoutePath(listPath, id, "report"),
   };
 }
 

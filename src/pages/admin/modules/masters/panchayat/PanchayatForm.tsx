@@ -1,5 +1,6 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -20,6 +21,9 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { panchayatSchema } from "@/schemas/masters/panchayat.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
@@ -27,6 +31,7 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../shared/dataScopeOptions";
 
@@ -134,7 +139,7 @@ function PanchayatEditor({
   areaTypes,
 }: PanchayatEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "panchayats", PANCHAYAT_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
@@ -143,6 +148,39 @@ function PanchayatEditor({
   const [areaTypeId, setAreaTypeId] = useState(initialPayload.area_type_id);
   const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+
+  useEffect(() => {
+    if (
+      stateScope.mode === "locked" &&
+      !stateId &&
+      states.some((item) => item.value === stateScope.options[0].value)
+    ) {
+      setStateId(stateScope.options[0].value);
+    }
+    if (
+      districtScope.mode === "locked" &&
+      !districtId &&
+      districts.some((item) => item.value === districtScope.options[0].value)
+    ) {
+      setDistrictId(districtScope.options[0].value);
+    }
+    if (
+      areaTypeScope.mode === "locked" &&
+      !areaTypeId &&
+      areaTypes.some((item) => item.value === areaTypeScope.options[0].value)
+    ) {
+      setAreaTypeId(areaTypeScope.options[0].value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, stateId, districtId, areaTypeId, states, districts, areaTypes]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -166,23 +204,20 @@ function PanchayatEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(panchayatSchema, showField).safeParse({
       panchayat_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
-    };
+      coordinates,
+      is_active: isActive,
+    });
 
-    if (
-      getMissingRequiredFields(
-        ["panchayat_name", "state_id", "district_id", "area_type_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;
@@ -215,7 +250,7 @@ function PanchayatEditor({
                 setDistrictId("");
                 setAreaTypeId("");
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || stateScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="stateId">
                 <SelectValue placeholder="Select State" />
@@ -223,7 +258,7 @@ function PanchayatEditor({
               <SelectContent>
                 {states.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -242,7 +277,7 @@ function PanchayatEditor({
                 setDistrictId(value);
                 setAreaTypeId("");
               }}
-              disabled={isSubmitting || !stateId}
+              disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="districtId">
                 <SelectValue placeholder="Select District" />
@@ -250,7 +285,7 @@ function PanchayatEditor({
               <SelectContent>
                 {filteredDistricts.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -266,7 +301,7 @@ function PanchayatEditor({
             <Select
               value={areaTypeId}
               onValueChange={setAreaTypeId}
-              disabled={isSubmitting || !districtId}
+              disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="areaTypeId">
                 <SelectValue placeholder="Select Area Type" />
@@ -274,7 +309,7 @@ function PanchayatEditor({
               <SelectContent>
                 {filteredAreaTypes.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

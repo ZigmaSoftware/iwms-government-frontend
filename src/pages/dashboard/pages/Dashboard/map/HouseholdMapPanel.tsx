@@ -7,6 +7,7 @@ import {
   DEFAULT_CENTER,
   HOUSEHOLD_STATUS_META,
   initBaseMap,
+  spreadPositions,
   type HouseholdStatus,
 } from "./mapUtils";
 import { customerCreationApi, wasteCollectionApi } from "@/helpers/admin";
@@ -107,8 +108,46 @@ const formatDateTime = (value?: string) => {
   return parsed.toLocaleString();
 };
 
+const buildHousehold = (
+  id: string,
+  customer: CustomerRecord,
+  lat: number,
+  lng: number,
+  collectedIds: Set<string>,
+  collectionMeta: Map<string, CollectionMeta>
+): Household => {
+  const status: HouseholdStatus = collectedIds.has(id) ? "collected" : "not_collected";
+
+  const addressParts = [
+    pickText(customer, ["building_no", "buildingNo"], ""),
+    pickText(customer, ["street", "street_name"], ""),
+    pickText(customer, ["area", "area_name"], ""),
+  ].filter((part) => part);
+
+  const meta = collectionMeta.get(id);
+  return {
+    id,
+    name: pickText(customer, ["customer_name", "customerName", "name"], "Unknown"),
+    lat,
+    lng,
+    status,
+    ward: pickText(customer, ["ward_name", "ward"], ""),
+    zone: pickText(customer, ["zone_name", "zone"], ""),
+    city: pickText(customer, ["city_name", "city"], ""),
+    street: pickText(customer, ["street", "street_name"], ""),
+    address: addressParts.length ? addressParts.join(", ") : undefined,
+    ownerName: pickText(customer, ["owner_name", "ownerName", "property_owner"], ""),
+    mobile: pickText(customer, ["mobile_number", "mobile", "phone", "contact_no"], ""),
+    houseType: pickText(customer, ["house_type", "houseType", "property_type"], ""),
+    occupancy: pickText(customer, ["occupancy", "occupancy_status"], ""),
+    lastCollectedOn: meta?.lastCollectedOn,
+    assignedVehicle: meta?.assignedVehicle,
+    beatWorker: meta?.beatWorker,
+  };
+};
+
 /* ================= COMPONENT ================= */
-export function HouseholdMapPanel() {
+export function HouseholdMapPanel({ params = {} }: { params?: Record<string, string> }) {
   const { t } = useTranslation();
   const mapRef = useRef<L.Map | null>(null);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
@@ -136,10 +175,11 @@ export function HouseholdMapPanel() {
     let isMounted = true;
     const fetchHouseholds = async () => {
       const today = new Date().toISOString().split("T")[0];
+      const customerConfig = Object.keys(params).length ? { params } : undefined;
       try {
         const [customerResponse, collectionResponse] = await Promise.all([
-          customerCreationApi.readAll(),
-          wasteCollectionApi.readAll({ params: { collection_date: today } }),
+          customerCreationApi.readAll(customerConfig),
+          wasteCollectionApi.readAll({ params: { collection_date: today, ...params } }),
         ]);
 
         const normalized = normalizeCustomerArray(customerResponse) as CustomerRecord[];
@@ -193,9 +233,12 @@ export function HouseholdMapPanel() {
           }
         });
 
-        const mapped = activeCustomers.reduce<Household[]>((acc, customer) => {
+        const withCoords: Household[] = [];
+        const missingCoords: { id: string; customer: CustomerRecord }[] = [];
+
+        activeCustomers.forEach((customer) => {
           const id = String(customer.unique_id ?? customer.id ?? "").trim();
-          if (!id) return acc;
+          if (!id) return;
           const lat = pickCoordinate(customer, [
             "latitude",
             "lat",
@@ -209,42 +252,33 @@ export function HouseholdMapPanel() {
             "longitude_value",
             "longitudeValue",
           ]);
-          if (lat === null || lng === null) return acc;
+          if (lat === null || lng === null) {
+            missingCoords.push({ id, customer });
+            return;
+          }
+          withCoords.push(buildHousehold(id, customer, lat, lng, collectedIds, collectionMeta));
+        });
 
-          const status: HouseholdStatus = collectedIds.has(id)
-            ? "collected"
-            : "not_collected";
+        const center: LatLngTuple = withCoords.length
+          ? [
+              withCoords.reduce((sum, h) => sum + h.lat, 0) / withCoords.length,
+              withCoords.reduce((sum, h) => sum + h.lng, 0) / withCoords.length,
+            ]
+          : DEFAULT_CENTER;
+        const fallbackPositions = spreadPositions(missingCoords.length, center);
 
-          const addressParts = [
-            pickText(customer, ["building_no", "buildingNo"], ""),
-            pickText(customer, ["street", "street_name"], ""),
-            pickText(customer, ["area", "area_name"], ""),
-          ].filter((part) => part);
-
-          const meta = collectionMeta.get(id);
-          const household: Household = {
+        const synthesized = missingCoords.map(({ id, customer }, i) =>
+          buildHousehold(
             id,
-            name: pickText(customer, ["customer_name", "customerName", "name"], "Unknown"),
-            lat,
-            lng,
-            status,
-            ward: pickText(customer, ["ward_name", "ward"], ""),
-            zone: pickText(customer, ["zone_name", "zone"], ""),
-            city: pickText(customer, ["city_name", "city"], ""),
-            street: pickText(customer, ["street", "street_name"], ""),
-            address: addressParts.length ? addressParts.join(", ") : undefined,
-            ownerName: pickText(customer, ["owner_name", "ownerName", "property_owner"], ""),
-            mobile: pickText(customer, ["mobile_number", "mobile", "phone", "contact_no"], ""),
-            houseType: pickText(customer, ["house_type", "houseType", "property_type"], ""),
-            occupancy: pickText(customer, ["occupancy", "occupancy_status"], ""),
-            lastCollectedOn: meta?.lastCollectedOn,
-            assignedVehicle: meta?.assignedVehicle,
-            beatWorker: meta?.beatWorker,
-          };
+            customer,
+            fallbackPositions[i][0],
+            fallbackPositions[i][1],
+            collectedIds,
+            collectionMeta
+          )
+        );
 
-          acc.push(household);
-          return acc;
-        }, []);
+        const mapped = [...withCoords, ...synthesized];
 
         if (!isMounted) return;
         setHouseholds(mapped);
@@ -267,7 +301,8 @@ export function HouseholdMapPanel() {
     return () => {
       isMounted = false;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(params)]);
 
   useEffect(() => {
     if (!selectedHouse) return;
@@ -353,7 +388,8 @@ export function HouseholdMapPanel() {
       markerLookupRef.current[house.id] = marker;
     });
 
-    if (bounds.length) map.fitBounds(bounds, { padding: [40, 40] });
+    if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+    else if (bounds.length === 1) map.setView(bounds[0], 15);
     else map.setView(DEFAULT_CENTER, 13);
   }, [filteredHouseholds, selectedHouse, t]);
 

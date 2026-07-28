@@ -1,5 +1,6 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -20,6 +21,9 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { panchayatUnionSchema } from "@/schemas/masters/panchayatUnion.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
+import { toSwalMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
@@ -27,6 +31,7 @@ import GeoFenceCoordinates, {
 } from "../shared/GeoFenceCoordinates";
 import {
   mergeWithScopeOptionExtra,
+  scopeFieldState,
   scopeOption,
 } from "../shared/dataScopeOptions";
 
@@ -134,7 +139,7 @@ function PanchayatUnionEditor({
   areaTypes,
 }: PanchayatUnionEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
+  const { showField, filterPayload } =
     useFieldVisibility("masters", "panchayatunions", PANCHAYAT_UNION_FIELDS);
 
   const [name, setName] = useState(initialPayload.name);
@@ -143,6 +148,21 @@ function PanchayatUnionEditor({
   const [areaTypeId, setAreaTypeId] = useState(initialPayload.area_type_id);
   const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
   const [isActive, setIsActive] = useState(initialPayload.is_active);
+
+  // When the logged-in user's own Data Scope pins a level to exactly one
+  // value, that field shows pre-filled and disabled rather than an editable
+  // dropdown — they aren't allowed to place this record outside their own
+  // scope. Several scoped values (or none) leave the field editable as before.
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) setStateId(stateScope.options[0].value);
+    if (districtScope.mode === "locked" && !districtId) setDistrictId(districtScope.options[0].value);
+    if (areaTypeScope.mode === "locked" && !areaTypeId) setAreaTypeId(areaTypeScope.options[0].value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, districtScope.mode, areaTypeScope.mode, stateId, districtId, areaTypeId]);
 
   const filteredDistricts = useMemo(
     () =>
@@ -166,23 +186,20 @@ function PanchayatUnionEditor({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const fieldValues: Record<string, unknown> = {
+    const result = requireWhenVisible(panchayatUnionSchema, showField).safeParse({
       union_name: name.trim(),
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
-    };
+      coordinates,
+      is_active: isActive,
+    });
 
-    if (
-      getMissingRequiredFields(
-        ["union_name", "state_id", "district_id", "area_type_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
+    if (!result.success) {
       Swal.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: t("common.missing_fields"),
+        text: toSwalMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;
@@ -215,7 +232,7 @@ function PanchayatUnionEditor({
                 setDistrictId("");
                 setAreaTypeId("");
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || stateScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="stateId">
                 <SelectValue placeholder="Select State" />
@@ -223,7 +240,7 @@ function PanchayatUnionEditor({
               <SelectContent>
                 {states.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -242,7 +259,7 @@ function PanchayatUnionEditor({
                 setDistrictId(value);
                 setAreaTypeId("");
               }}
-              disabled={isSubmitting || !stateId}
+              disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="districtId">
                 <SelectValue placeholder="Select District" />
@@ -250,7 +267,7 @@ function PanchayatUnionEditor({
               <SelectContent>
                 {filteredDistricts.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -266,7 +283,7 @@ function PanchayatUnionEditor({
             <Select
               value={areaTypeId}
               onValueChange={setAreaTypeId}
-              disabled={isSubmitting || !districtId}
+              disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
             >
               <SelectTrigger className="input-validate w-full" id="areaTypeId">
                 <SelectValue placeholder="Select Area Type" />
@@ -274,7 +291,7 @@ function PanchayatUnionEditor({
               <SelectContent>
                 {filteredAreaTypes.map((item) => (
                   <SelectItem key={item.value} value={item.value}>
-                    {item.label}
+                    {capitalize(item.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

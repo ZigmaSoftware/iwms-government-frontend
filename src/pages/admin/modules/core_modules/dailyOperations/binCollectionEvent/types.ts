@@ -1,0 +1,43 @@
+export type SelectOption = { value: string; label: string };
+
+export type FormState = {
+  trip_assignment_id: string;
+  trip_collection_point_id: string;
+  bin_id: string;
+  collection_date: string;
+  collected_weight_kg: string;
+  status: string;
+  status_reason: string;
+  driver_latitude: string;
+  driver_longitude: string;
+  notes: string;
+};
+
+export type BinCERecord = {
+  unique_id?: string;
+  trip_assignment_id?: string;
+  trip_collection_point_id?: string | null;
+  bin_id?: string | null;
+  collection_point_id?: string | null;
+  panchayat_id?: string | null;
+  trip_plan?: { display_code?: string };
+  collection_point?: { cp_name?: string } | null;
+  bin?: { bin_name?: string; bin_capacity?: number; bin_type?: string };
+  waste_type?: { waste_type_name?: string };
+  vehicle?: { vehicle_no?: string };
+  effective_staff_template?: unknown;
+  collected_weight_kg?: string | number;
+  status?: string;
+  status_reason?: string | null;
+  collection_date?: string;
+  driver_latitude?: string | number | null;
+  driver_longitude?: string | number | null;
+  notes?: string | null;
+  created_at?: string;
+  panchayat_name?: string | null;
+  location_name?: string | null;
+  location_level?: string | null;
+  ward_id?: string | null;
+  ward_name?: string | null;
+  [key: string]: unknown;
+};

@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/form/FieldError";
 
 export type GeoCoordinateDraft = {
   latitude: string;
@@ -68,16 +69,23 @@ export const serializeCoordinateDrafts = (
     }))
     .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
 
+type GeoCoordinateFieldErrors = {
+  latitude?: string;
+  longitude?: string;
+};
+
 type GeoFenceCoordinatesProps = {
   coordinates: GeoCoordinateDraft[];
   onChange: (coordinates: GeoCoordinateDraft[]) => void;
   label?: string;
+  errors?: (GeoCoordinateFieldErrors | undefined)[];
 };
 
 export default function GeoFenceCoordinates({
   coordinates,
   onChange,
   label = "Coordinates",
+  errors,
 }: GeoFenceCoordinatesProps) {
   const updatePoint = (
     index: number,
@@ -114,18 +122,24 @@ export default function GeoFenceCoordinates({
       <div className="space-y-3">
         {coordinates.map((point, index) => (
           <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-            <Input
-              inputMode="decimal"
-              placeholder="Latitude"
-              value={point.latitude}
-              onChange={(event) => updatePoint(index, "latitude", event.target.value)}
-            />
-            <Input
-              inputMode="decimal"
-              placeholder="Longitude"
-              value={point.longitude}
-              onChange={(event) => updatePoint(index, "longitude", event.target.value)}
-            />
+            <div>
+              <Input
+                inputMode="decimal"
+                placeholder="Latitude"
+                value={point.latitude}
+                onChange={(event) => updatePoint(index, "latitude", event.target.value)}
+              />
+              <FieldError message={errors?.[index]?.latitude} />
+            </div>
+            <div>
+              <Input
+                inputMode="decimal"
+                placeholder="Longitude"
+                value={point.longitude}
+                onChange={(event) => updatePoint(index, "longitude", event.target.value)}
+              />
+              <FieldError message={errors?.[index]?.longitude} />
+            </div>
             <Button
               type="button"
               variant="destructive"

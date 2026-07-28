@@ -8,6 +8,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Mail, User, Lock } from "lucide-react";
 import ZigmaLogo from "@/images/logo.png";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { forgotPasswordSchema } from "@/schemas/auth.schema";
+
+const getApiErrorMessage = (error: unknown) => {
+  if (error && typeof error === "object" && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response?.data;
+    if (response && typeof response === "object") {
+      const data = response as Record<string, unknown>;
+      if (typeof data.message === "string") return data.message;
+      if (typeof data.detail === "string") return data.detail;
+    }
+  }
+  if (error instanceof Error) return error.message;
+  return "Something went wrong. Please try again.";
+};
 
 export default function ForgotPassword() {
   const [username, setUsername] = useState("");
@@ -20,14 +35,18 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError("");
 
-    if (!username.trim() || !email.trim()) {
-      setError("Please enter both username and email address.");
+    const validation = forgotPasswordSchema.safeParse({ username, email });
+    if (!validation.success) {
+      setError(toSwalMessage(validation.error));
       return;
     }
 
     setLoading(true);
     try {
-      const res = await api.post("/auth/forgot-password/", { username, email });
+      const res = await api.post("/auth/forgot-password/", {
+        username: validation.data.username,
+        email: validation.data.email,
+      });
       const sessionToken: string | undefined = res.data?.session_token;
       if (!sessionToken) {
         // Username/email combination not found — show generic message without revealing which
@@ -35,13 +54,14 @@ export default function ForgotPassword() {
         return;
       }
       navigate("/auth/verify-otp", {
-        state: { sessionToken, email, username },
+        state: {
+          sessionToken,
+          email: validation.data.email,
+          username: validation.data.username,
+        },
       });
-    } catch (err: any) {
-      setError(
-        err?.response?.data?.message ||
-          "Something went wrong. Please try again."
-      );
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }

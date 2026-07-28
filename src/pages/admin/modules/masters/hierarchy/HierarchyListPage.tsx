@@ -5,22 +5,31 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import Swal from "@/lib/notify";
+import { capitalize } from "@/utils/capitalize";
 
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
   level_name: ["level_name", "name"],
   is_active: ["is_active"],
+};
+
+const SORTABLE_FIELDS = new Set(["level_name", "is_active"]);
+
+const toRecordList = (value: unknown): HierarchyRecord[] => {
+  if (Array.isArray(value)) return value as HierarchyRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: HierarchyRecord[] }).results;
+  }
+  return [];
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -53,15 +62,14 @@ export default function HierarchyListPage() {
   const { t } = useTranslation();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [hierarchies, setHierarchies] = useState<HierarchyRecord[]>([]);
+  const [rows, setRows] = useState<HierarchyRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(true);
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    level_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "hierarchies",
@@ -75,13 +83,19 @@ export default function HierarchyListPage() {
     encHierarchies,
   );
 
-  const records = hierarchies;
-
-  const loadHierarchies = async () => {
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
     setIsLoading(true);
     try {
-      const response = await adminApi.hierarchies.readAll();
-      setHierarchies(Array.isArray(response) ? response : []);
+      const response = await adminApi.hierarchies.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -93,22 +107,39 @@ export default function HierarchyListPage() {
     }
   };
 
-  useEffect(() => {
-    void loadHierarchies();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { ...prev.global, value },
-    }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await adminApi.hierarchies.readAllForExport());
 
   const renderHeader = () =>
     renderListSearchHeader({
@@ -129,7 +160,7 @@ export default function HierarchyListPage() {
           row.unique_id as string | number,
           filterPayload({ is_active: value })
         );
-        setHierarchies((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id
               ? { ...item, is_active: value }
@@ -175,8 +206,6 @@ export default function HierarchyListPage() {
     { rowIndex }: { rowIndex: number }
   ) => rowIndex + 1;
 
-  const cap = (str?: string) =>
-    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="p-3">
@@ -203,21 +232,26 @@ export default function HierarchyListPage() {
       </div>
 
       <DataTable
-        value={records}
+        value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && records.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.hierarchy"),
         })}
-        globalFilterFields={["level_name"]}
+        onExportRequest={onExportRequest}
         className="p-datatable-sm"
       >
         <Column
@@ -229,10 +263,8 @@ export default function HierarchyListPage() {
           <Column
             field="level_name"
             header={t("common.item_name", { item: t("admin.nav.hierarchy") })}
-            sortable
-            filter
-            showFilterMatchModes={false}
-            body={(row: HierarchyRecord) => cap(row.level_name)}
+            sortable={SORTABLE_FIELDS.has("level_name")}
+            body={(row: HierarchyRecord) => capitalize(row.level_name)}
           />
         )}
         {showCol("is_active") && (

@@ -8,6 +8,7 @@ import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
+import { capitalize } from "@/utils/capitalize";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -18,8 +19,6 @@ import "primeicons/primeicons.css";
 
 /* ================= HELPERS ================= */
 
-const cap = (value?: string) =>
-  value ? value.charAt(0).toUpperCase() + value.slice(1).toLowerCase() : "-";
 
 const today = new Date().toISOString().split("T")[0];
 
@@ -335,7 +334,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
               field="zone_name"
               header="Zone"
               sortable
-              body={(row: SummaryRow) => cap(row.zone_name)}
+              body={(row: SummaryRow) => capitalize(row.zone_name)}
             />
           )}
           <Column
@@ -404,7 +403,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
                 field="zone_name"
                 header="Zone"
                 sortable
-                body={(row: CollectionRecord) => cap(row.zone_name)}
+                body={(row: CollectionRecord) => capitalize(row.zone_name)}
               />
             )}
             <Column

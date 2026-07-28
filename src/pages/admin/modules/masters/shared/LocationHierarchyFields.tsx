@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { capitalize } from "@/utils/capitalize";
 
 import { Label } from "@/components/ui/label";
 import {
   areaTypeApi,
+  countryApi,
   corporationApi,
   districtApi,
   municipalityApi,
@@ -11,7 +13,8 @@ import {
   stateApi,
   townPanchayatApi,
 } from "@/helpers/admin";
-import { mergeWithScopeOptionExtra, scopeOption } from "./dataScopeOptions";
+import { getStoredDataScope } from "@/utils/authStorage";
+import { mergeWithScopeOptionExtra, scopeFieldState, scopeOption } from "./dataScopeOptions";
 
 type ApiRecord = Record<string, unknown>;
 
@@ -23,6 +26,7 @@ export type LocalBodyLevel =
   | "panchayat_id";
 
 export type GeoLocationValue = {
+  countryId: string;
   stateId: string;
   districtId: string;
   areaTypeId: string;
@@ -31,6 +35,7 @@ export type GeoLocationValue = {
 };
 
 export const emptyGeo: GeoLocationValue = {
+  countryId: "",
   stateId: "",
   districtId: "",
   areaTypeId: "",
@@ -46,7 +51,29 @@ export const LOCAL_BODY_LEVELS: Array<{ value: LocalBodyLevel; label: string; so
   { value: "panchayat_id", label: "Panchayat", sourceType: "panchayat" },
 ];
 
-type Option = { value: string; label: string; stateId?: string; districtId?: string };
+const LOCAL_BODY_API: Record<LocalBodyLevel, { readAll: (config?: { params?: Record<string, string> }) => Promise<unknown> }> = {
+  corporation_id: corporationApi,
+  municipality_id: municipalityApi,
+  town_panchayat_id: townPanchayatApi,
+  panchayat_union_id: panchayatUnionApi,
+  panchayat_id: panchayatApi,
+};
+
+const LOCAL_BODY_LABEL_KEYS: Record<LocalBodyLevel, string[]> = {
+  corporation_id: ["corporation_name", "name"],
+  municipality_id: ["municipality_name", "name"],
+  town_panchayat_id: ["town_panchayat_name", "name"],
+  panchayat_union_id: ["union_name", "name"],
+  panchayat_id: ["panchayat_name", "name"],
+};
+
+type Option = {
+  value: string;
+  label: string;
+  countryId?: string;
+  stateId?: string;
+  districtId?: string;
+};
 
 const idOf = (value: unknown): string => {
   if (!value) return "";
@@ -71,6 +98,7 @@ const activeOnly = (items: ApiRecord[]) =>
 const toOption = (item: ApiRecord, labelKeys: string[]): Option => ({
   value: idOf(item.unique_id ?? item.id),
   label: String(labelKeys.map((key) => item[key]).find(Boolean) ?? item.name ?? item.unique_id ?? ""),
+  countryId: idOf(item.country_id ?? item.country),
   stateId: idOf(item.state_id ?? item.state),
   districtId: idOf(item.district_id ?? item.district),
 });
@@ -82,10 +110,19 @@ const areaKind = (label: string): "urban" | "rural" | "" => {
   return "";
 };
 
-// Cascading State -> District -> Area Type -> Local Body (Corporation /
-// Municipality / Town Panchayat for urban, Panchayat Union / Panchayat for
-// rural) selector, shared by any master that needs to place a record within
-// the government hierarchy (Collection Point, Vehicle, ...).
+const emptyLocalBodies: Record<LocalBodyLevel, Option[]> = {
+  corporation_id: [],
+  municipality_id: [],
+  town_panchayat_id: [],
+  panchayat_union_id: [],
+  panchayat_id: [],
+};
+
+const ensureOption = (items: Option[], selectedValue: string): Option[] => {
+  if (!selectedValue || items.some((item) => item.value === selectedValue)) return items;
+  return [{ value: selectedValue, label: selectedValue }, ...items];
+};
+
 export default function LocationFields({
   value,
   onChange,
@@ -93,85 +130,33 @@ export default function LocationFields({
   value: GeoLocationValue;
   onChange: (value: GeoLocationValue) => void;
 }) {
+  const [countries, setCountries] = useState<Option[]>([]);
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
   const [areaTypes, setAreaTypes] = useState<Option[]>([]);
-  const [localBodies, setLocalBodies] = useState<Record<LocalBodyLevel, Option[]>>({
-    corporation_id: [],
-    municipality_id: [],
-    town_panchayat_id: [],
-    panchayat_union_id: [],
-    panchayat_id: [],
-  });
+  const [localBodies, setLocalBodies] = useState<Record<LocalBodyLevel, Option[]>>(emptyLocalBodies);
 
-  useEffect(() => {
-    let cancelled = false;
+  const scopedStateId = scopeOption("state")?.value;
+  const scopedDistrictId = scopeOption("district")?.value;
 
-    // The State/District/Area Type/local-body screens may not be
-    // permission-granted to this user at all (View gates each level's own
-    // menu/list, not these dropdowns) — their Data Scope from login always
-    // supplies their own hierarchy values regardless.
-    const scopedStateId = scopeOption("state")?.value;
-    const scopedDistrictId = scopeOption("district")?.value;
+  const stateScope = scopeFieldState("state");
+  const districtScope = scopeFieldState("district");
+  const areaTypeScope = scopeFieldState("area_type");
+  const localBodyScopeLevel = LOCAL_BODY_LEVELS.find(
+    (item) => item.value === value.localBodyLevel,
+  )?.sourceType as
+    | "corporation"
+    | "municipality"
+    | "town_panchayat"
+    | "panchayat_union"
+    | "panchayat"
+    | undefined;
+  const localBodyScope = localBodyScopeLevel ? scopeFieldState(localBodyScopeLevel) : null;
 
-    const applyScopeFallback = () => {
-      setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
-      setDistricts((prev) =>
-        mergeWithScopeOptionExtra(prev, "district", scopedStateId ? { stateId: scopedStateId } : {})
-      );
-      setAreaTypes((prev) =>
-        mergeWithScopeOptionExtra(prev, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {})
-      );
-      setLocalBodies((prev) => ({
-        corporation_id: mergeWithScopeOptionExtra(prev.corporation_id, "corporation", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        municipality_id: mergeWithScopeOptionExtra(prev.municipality_id, "municipality", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        town_panchayat_id: mergeWithScopeOptionExtra(prev.town_panchayat_id, "town_panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_union_id: mergeWithScopeOptionExtra(prev.panchayat_union_id, "panchayat_union", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_id: mergeWithScopeOptionExtra(prev.panchayat_id, "panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-      }));
-    };
-
-    applyScopeFallback();
-
-    Promise.all([
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-    ]).then(([stateRes, districtRes, areaTypeRes, corpRes, muniRes, townRes, unionRes, panchayatRes]) => {
-      if (cancelled) return;
-      const fetchedStates = activeOnly(normalizeList(stateRes)).map((item) => toOption(item, ["name", "state_name"]));
-      const fetchedDistricts = activeOnly(normalizeList(districtRes)).map((item) => toOption(item, ["name", "district_name"]));
-      const fetchedAreaTypes = activeOnly(normalizeList(areaTypeRes)).map((item) => toOption(item, ["name", "area_type_name"]));
-      const fetchedCorp = activeOnly(normalizeList(corpRes)).map((item) => toOption(item, ["corporation_name", "name"]));
-      const fetchedMuni = activeOnly(normalizeList(muniRes)).map((item) => toOption(item, ["municipality_name", "name"]));
-      const fetchedTown = activeOnly(normalizeList(townRes)).map((item) => toOption(item, ["town_panchayat_name", "name"]));
-      const fetchedUnion = activeOnly(normalizeList(unionRes)).map((item) => toOption(item, ["union_name", "name"]));
-      const fetchedPanchayat = activeOnly(normalizeList(panchayatRes)).map((item) => toOption(item, ["panchayat_name", "name"]));
-
-      setStates(mergeWithScopeOptionExtra(fetchedStates, "state", {}));
-      setDistricts(mergeWithScopeOptionExtra(fetchedDistricts, "district", scopedStateId ? { stateId: scopedStateId } : {}));
-      setAreaTypes(mergeWithScopeOptionExtra(fetchedAreaTypes, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
-      setLocalBodies({
-        corporation_id: mergeWithScopeOptionExtra(fetchedCorp, "corporation", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        municipality_id: mergeWithScopeOptionExtra(fetchedMuni, "municipality", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        town_panchayat_id: mergeWithScopeOptionExtra(fetchedTown, "town_panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_union_id: mergeWithScopeOptionExtra(fetchedUnion, "panchayat_union", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-        panchayat_id: mergeWithScopeOptionExtra(fetchedPanchayat, "panchayat", scopedDistrictId ? { districtId: scopedDistrictId } : {}),
-      });
-    }).catch(() => {
-      if (cancelled) return;
-      applyScopeFallback();
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // When state is scoped (locked), the country is derived from it and should
+  // also be locked — the user cannot place a record outside their state's
+  // country.
+  const countryLocked = stateScope.mode === "locked";
 
   const selectedArea = areaTypes.find((item) => item.value === value.areaTypeId);
   const selectedAreaKind = areaKind(selectedArea?.label ?? "");
@@ -182,16 +167,240 @@ export default function LocationFields({
         ? ["panchayat_union_id", "panchayat_id"].includes(level.value)
         : false,
   );
+
+  // Filter local body types by data scope: only show levels that have at
+  // least one entry in the user's stored data scope.
+  const LOCAL_BODY_LEVEL_SCOPE_KEY: Record<string, string> = {
+    corporation_id: "corporations",
+    municipality_id: "municipalities",
+    town_panchayat_id: "town_panchayats",
+    panchayat_union_id: "panchayat_unions",
+    panchayat_id: "panchayats",
+  };
+  const scopedLocalBodyLevels = useMemo(() => {
+    const scope = getStoredDataScope() as Record<string, unknown> | null;
+    if (!scope) return allowedLevels;
+    return allowedLevels.filter((level) => {
+      const key = LOCAL_BODY_LEVEL_SCOPE_KEY[level.value];
+      const entries = scope[key];
+      return Array.isArray(entries) && entries.length > 0;
+    });
+  }, [allowedLevels]);
+
+  useEffect(() => {
+    const patch: Partial<GeoLocationValue> = {};
+    if (stateScope.mode === "locked" && !value.stateId) patch.stateId = stateScope.options[0].value;
+    if (districtScope.mode === "locked" && !value.districtId) patch.districtId = districtScope.options[0].value;
+    if (areaTypeScope.mode === "locked" && !value.areaTypeId) patch.areaTypeId = areaTypeScope.options[0].value;
+    if (scopedLocalBodyLevels.length === 1 && !value.localBodyLevel) {
+      patch.localBodyLevel = scopedLocalBodyLevels[0].value;
+    }
+    if (localBodyScope?.mode === "locked" && !value.localBodyId) {
+      patch.localBodyId = localBodyScope.options[0].value;
+    }
+    if (Object.keys(patch).length) onChange({ ...value, ...patch });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    stateScope.mode,
+    districtScope.mode,
+    areaTypeScope.mode,
+    localBodyScope?.mode,
+    value.stateId,
+    value.districtId,
+    value.areaTypeId,
+    value.localBodyLevel,
+    value.localBodyId,
+    scopedLocalBodyLevels,
+    states,
+    districts,
+    areaTypes,
+  ]);
+
+  // When a state is selected (by scope lock or manually) and no country is
+  // set yet, derive the country from the state's record.
+  useEffect(() => {
+    if (!value.stateId || value.countryId) return;
+    let cancelled = false;
+    const matched = states.find((s) => s.value === value.stateId);
+    if (matched?.countryId) {
+      onChange({ ...value, countryId: matched.countryId });
+      return;
+    }
+    stateApi
+      .read(value.stateId)
+      .then((record: unknown) => {
+        if (cancelled) return;
+        const rec = record as Record<string, unknown>;
+        const countryId = idOf(rec.country_id ?? rec.country);
+        if (countryId) onChange({ ...value, countryId });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.stateId, value.countryId]);
+
+  // Countries are the root of the hierarchy and can be loaded eagerly.
+  useEffect(() => {
+    let cancelled = false;
+    countryApi
+      .readAll()
+      .then((res: unknown) => {
+        if (cancelled) return;
+        setCountries(activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "country_name"])));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCountries([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // States — only once a Country is selected, scoped by that country.
+  useEffect(() => {
+    if (!value.countryId) {
+      setStates((prev) => mergeWithScopeOptionExtra(prev, "state", {}));
+      return;
+    }
+    let cancelled = false;
+    stateApi
+      .readAll({ params: { country: value.countryId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "state_name"]));
+        setStates(mergeWithScopeOptionExtra(fetched, "state", { countryId: value.countryId }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStates((prev) => mergeWithScopeOptionExtra(prev, "state", { countryId: value.countryId }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [value.countryId]);
+
+  // Districts — only once a State is selected, scoped by that state.
+  useEffect(() => {
+    const stateId = value.stateId || scopedStateId;
+    if (!stateId) {
+      setDistricts([]);
+      return;
+    }
+    let cancelled = false;
+    districtApi
+      .readAll({ params: { state_id: stateId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "district_name"]));
+        setDistricts(mergeWithScopeOptionExtra(fetched, "district", scopedStateId ? { stateId: scopedStateId } : {}));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDistricts((prev) => mergeWithScopeOptionExtra(prev, "district", scopedStateId ? { stateId: scopedStateId } : {}));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.stateId, scopedStateId]);
+
+  // Area Types — only once a District is selected, scoped by that district.
+  useEffect(() => {
+    const districtId = value.districtId || scopedDistrictId;
+    if (!districtId) {
+      setAreaTypes([]);
+      return;
+    }
+    let cancelled = false;
+    areaTypeApi
+      .readAll({ params: { district_id: districtId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, ["name", "area_type_name"]));
+        setAreaTypes(mergeWithScopeOptionExtra(fetched, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAreaTypes((prev) => mergeWithScopeOptionExtra(prev, "area_type", scopedDistrictId ? { districtId: scopedDistrictId } : {}));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.districtId, scopedDistrictId]);
+
+  // Local body — only the selected level's table, only once District + Area
+  // Type are both chosen, scoped by both ids. This is the big win: instead of
+  // downloading corporation + municipality + town_panchayat + panchayat_union
+  // + panchayat in full (the panchayat table alone runs to ~12,500+ rows
+  // statewide), only the one relevant table is fetched, and only once it's
+  // actually needed.
+  useEffect(() => {
+    const level = value.localBodyLevel;
+    const districtId = value.districtId || scopedDistrictId;
+    const areaTypeId = value.areaTypeId;
+    if (!level || !districtId || !areaTypeId) {
+      setLocalBodies((prev) => (prev === emptyLocalBodies ? prev : emptyLocalBodies));
+      return;
+    }
+    let cancelled = false;
+    const api = LOCAL_BODY_API[level];
+    const labelKeys = LOCAL_BODY_LABEL_KEYS[level];
+    const scopeLevel = LOCAL_BODY_LEVELS.find((item) => item.value === level)?.sourceType as
+      | "corporation"
+      | "municipality"
+      | "town_panchayat"
+      | "panchayat_union"
+      | "panchayat"
+      | undefined;
+    api
+      .readAll({ params: { district_id: districtId, area_type_id: areaTypeId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const fetched = activeOnly(normalizeList(res)).map((item) => toOption(item, labelKeys));
+        setLocalBodies({
+          ...emptyLocalBodies,
+          [level]: scopeLevel
+            ? mergeWithScopeOptionExtra(fetched, scopeLevel, scopedDistrictId ? { districtId: scopedDistrictId } : {})
+            : fetched,
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLocalBodies((prev) => ({
+          ...emptyLocalBodies,
+          [level]: scopeLevel
+            ? mergeWithScopeOptionExtra(prev[level], scopeLevel, scopedDistrictId ? { districtId: scopedDistrictId } : {})
+            : prev[level],
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.localBodyLevel, value.districtId, value.areaTypeId, scopedDistrictId]);
+
   const filteredDistricts = useMemo(
-    () => districts.filter((item) => !value.stateId || item.stateId === value.stateId),
-    [districts, value.stateId],
+    () => ensureOption(districts.filter((item) => !value.stateId || item.stateId === value.stateId), value.districtId),
+    [districts, value.stateId, value.districtId],
+  );
+  const filteredStates = useMemo(
+    () => ensureOption(states.filter((item) => !value.countryId || item.countryId === value.countryId), value.stateId),
+    [states, value.countryId, value.stateId],
   );
   const filteredAreaTypes = useMemo(
-    () => areaTypes.filter((item) => !value.districtId || item.districtId === value.districtId),
-    [areaTypes, value.districtId],
+    () => ensureOption(areaTypes.filter((item) => !value.districtId || item.districtId === value.districtId), value.areaTypeId),
+    [areaTypes, value.districtId, value.areaTypeId],
   );
   const filteredLocalBodies = value.localBodyLevel
-    ? localBodies[value.localBodyLevel].filter((item) => !value.districtId || item.districtId === value.districtId)
+    ? ensureOption(
+        localBodies[value.localBodyLevel].filter((item) => !value.districtId || item.districtId === value.districtId),
+        value.localBodyId,
+      )
     : [];
 
   const emit = (patch: Partial<GeoLocationValue>) => {
@@ -202,39 +411,46 @@ export default function LocationFields({
   return (
     <>
       <div>
+        <Label>Country *</Label>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.countryId} onChange={(event) => emit({ countryId: event.target.value, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={countryLocked}>
+          <option value="">Select Country</option>
+          {ensureOption(countries, value.countryId).map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
+        </select>
+      </div>
+      <div>
         <Label>State *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId || stateScope.mode === "locked"}>
           <option value="">Select State</option>
-          {states.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredStates.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>District *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId || districtScope.mode === "locked"}>
           <option value="">Select District</option>
-          {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>Area Type *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId || areaTypeScope.mode === "locked"}>
           <option value="">Select Area Type</option>
-          {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
         </select>
       </div>
       <div>
         <Label>Local Body *</Label>
-        <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyLevel} onChange={(event) => emit({ localBodyLevel: event.target.value as LocalBodyLevel, localBodyId: "" })} disabled={!value.areaTypeId}>
+        <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.localBodyLevel} onChange={(event) => emit({ localBodyLevel: event.target.value as LocalBodyLevel, localBodyId: "" })} disabled={!value.areaTypeId || scopedLocalBodyLevels.length === 1}>
           <option value="">Select Local Body</option>
-          {allowedLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {scopedLocalBodyLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
       </div>
       {value.localBodyLevel && (
         <div>
           <Label>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label} *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })}>
+          <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })} disabled={localBodyScope?.mode === "locked"}>
             <option value="">Select</option>
-            {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
           </select>
         </div>
       )}

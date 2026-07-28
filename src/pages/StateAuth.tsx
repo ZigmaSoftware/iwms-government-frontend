@@ -9,6 +9,23 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
+import { toSwalMessage } from "@/lib/zodErrors";
+import { loginSchema } from "@/schemas/auth.schema";
+
+const getAuthErrorMessage = (error: unknown) => {
+  if (error && typeof error === "object" && "response" in error) {
+    const response = (error as { response?: { data?: unknown } }).response?.data;
+    if (response && typeof response === "object") {
+      const data = response as Record<string, unknown>;
+      if (Array.isArray(data.non_field_errors) && data.non_field_errors[0]) {
+        return String(data.non_field_errors[0]);
+      }
+      if (typeof data.detail === "string") return data.detail;
+    }
+  }
+  if (error instanceof Error) return error.message;
+  return "Invalid credentials";
+};
 
 export default function StateAuth() {
   const [username, setUsername] = useState("");
@@ -27,16 +44,21 @@ export default function StateAuth() {
 
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      toast({ title: "Required", description: "Enter username and password.", variant: "destructive" });
+    const validation = loginSchema.safeParse({ username, password });
+    if (!validation.success) {
+      toast({
+        title: "Required",
+        description: toSwalMessage(validation.error),
+        variant: "destructive",
+      });
       return;
     }
     setLoading(true);
 
     try {
       const res = await api.post<LoginEnvelope>("/login/login-user/", {
-        username,
-        password,
+        username: validation.data.username,
+        password: validation.data.password,
         login_type: "state_leader",
       });
 
@@ -44,13 +66,13 @@ export default function StateAuth() {
       // DO NOT call persistLoginSession here — that would overwrite the
       // admin's access_token in localStorage and break the admin session.
       // Instead, store the state token under its own dedicated key.
-      const stToken = (payload as any).access_token ?? (payload as any).access ?? "";
+      const stToken = payload.access_token ?? payload.access ?? "";
       if (stToken) {
         localStorage.setItem("st_access_token", stToken);
       }
 
       // Store state context for the dashboard
-      const profile = (payload as any).profile ?? {};
+      const profile = payload.profile ?? {};
       if (profile.state_unique_id) {
         localStorage.setItem("st_state_unique_id", profile.state_unique_id);
         localStorage.setItem("st_state_name", profile.state_name ?? "");
@@ -59,12 +81,8 @@ export default function StateAuth() {
       localStorage.setItem("st_role", "state_leader");
 
       navigate("/state/dashboard", { replace: true });
-    } catch (error: any) {
-      const message =
-        error?.response?.data?.non_field_errors?.[0] ||
-        error?.response?.data?.detail ||
-        error?.message ||
-        "Invalid credentials";
+    } catch (error: unknown) {
+      const message = getAuthErrorMessage(error);
       toast({ title: "Login Failed", description: message, variant: "destructive" });
     } finally {
       setLoading(false);

@@ -48,6 +48,7 @@ const hiResource = {
         expected_life_years: "अनुमानित आयु (वर्ष)",
         color_code: "रंग कोड",
         last_collected: "अंतिम संग्रह",
+        collected_weight_kg: "एकत्रित वजन (किग्रा)",
         beat_worker: "बीट कार्यकर्ता",
         status_open: "खुला",
         status_in_progress: "प्रगति में",
@@ -216,6 +217,7 @@ const hiResource = {
           "grievances_none": "कोई शिकायत उपलब्ध नहीं।",
           "complaint_fallback": "शिकायत",
           "total_households_label": "कुल घर",
+          "total_bins_label": "कुल बिन",
           "bin_info_title": "बिन जानकारी",
           "location_title": "स्थान",
           "lifecycle_title": "जीवनचक्र",
@@ -267,7 +269,7 @@ const hiResource = {
           "map_summaries": {
             "all": "फ्लीट, रूट और लाइव कवरेज।",
             "vehicle": "फ्लीट, रूट और लाइव कवरेज।",
-            "bins": "स्मार्ट बिन भराव स्तर और प्राथमिकता हॉटस्पॉट।",
+            "bins": "वार्ड अनुसार बिन संग्रह स्थिति।",
             "households": "वार्ड अनुसार डोर-टू-डोर संग्रह स्थिति।"
           }
         },
@@ -809,6 +811,7 @@ const hiResource = {
           "staff_master": "स्टाफ मास्टर",
           "staff_creation": "स्टाफ निर्माण",
           "staff_access_configuration": "Staff Access Configuration",
+          "staff_access_dashboard": "Staff Access Dashboard",
           "staff_template": "स्टाफ टेम्पलेट",
           "alternative_staff_template": "वैकल्पिक स्टाफ टेम्पलेट",
           "staff_template_audit": "स्टाफ टेम्पलेट ऑडिट",
@@ -879,7 +882,23 @@ const hiResource = {
           "leader_login": "नेता लॉगिन",
           "plb_leader_creation": "PLB नेता निर्माण",
           "district_leader_creation": "ज़िला नेता निर्माण",
-          "state_leader_creation": "राज्य नेता निर्माण"
+          "state_leader_creation": "राज्य नेता निर्माण",
+
+          "group_dashboard": "डैशबोर्ड",
+          "group_super_admin": "सुपर एडमिन",
+          "group_masters": "मास्टर्स",
+          "group_core_modules": "कोर मॉड्यूल",
+          "group_reports": "रिपोर्ट्स",
+          "location_masters": "लोकेशन मास्टर्स",
+          "asset_masters": "एसेट मास्टर्स",
+          "waste_properties": "कचरा गुण",
+          "waste_masters": "कचरा मास्टर्स",
+          "role_management": "भूमिका प्रबंधन",
+          "user_management": "उपयोगकर्ता प्रबंधन",
+          "audits": "ऑडिट",
+          "leader_management": "नेता प्रबंधन",
+          "screen_management": "स्क्रीन प्रबंधन",
+          "complaint_management": "शिकायत प्रबंधन"
         },
         "project": {
           "company_id": "कंपनी आईडी",
@@ -1349,6 +1368,7 @@ const hiResource = {
           "driving_licence_upload": "ड्राइविंग लाइसेंस अपलोड",
           "driving_licence_choose": "फ़ाइल चुनें",
           "driving_licence_no_file": "कोई फ़ाइल नहीं चुनी गई",
+          "driving_experience_years": "ड्राइविंग अनुभव (वर्ष)",
           "password": "पासवर्ड",
           "password_placeholder": "पासवर्ड दर्ज करें",
           "password_edit_placeholder": "मौजूदा पासवर्ड रखने के लिए खाली छोड़ दें",

@@ -31,6 +31,7 @@ export const corporationApi = adminApi.corporations;
 export const municipalityApi = adminApi.municipalities;
 export const townPanchayatApi = adminApi.townPanchayats;
 export const panchayatUnionApi = adminApi.panchayatUnions;
+export const wardApi = adminApi.wards;
 
 /* =========================
    WASTE TYPES
@@ -79,6 +80,7 @@ export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
    AUTHENTICATION
 ========================= */
 export const loginApi = adminApi.loginUser;
+export const dashboardSummaryApi = adminApi.dashboardSummary;
 
 /* =========================
    CUSTOMERS
@@ -130,6 +132,7 @@ export const tripExceptionLogApi = adminApi.tripExceptionLogs;
 export const binLoadLogApi = adminApi.binLoadLogs;
 export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
+export const staffAuditApi = adminApi.staffAudits;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================

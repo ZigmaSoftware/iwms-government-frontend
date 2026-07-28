@@ -1,7 +1,10 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
+import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +12,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/form/FieldError";
 import {
   Select,
   SelectContent,
@@ -25,7 +29,9 @@ import GeoFenceCoordinates, {
   serializeCoordinateDrafts,
   type GeoCoordinateDraft,
 } from "../shared/GeoFenceCoordinates";
-import { mergeWithScopeOption } from "../shared/dataScopeOptions";
+import { mergeWithScopeOption, scopeFieldState } from "../shared/dataScopeOptions";
+import { districtSchema, type DistrictFormValues } from "@/schemas/masters/district.schema";
+import { requireWhenVisible } from "@/schemas/shared/visibility";
 
 type StateOption = {
   value: string;
@@ -121,74 +127,91 @@ function DistrictEditor({
   states,
 }: DistrictEditorProps) {
   const { t } = useTranslation();
-  const { showField, filterPayload, getMissingRequiredFields } =
-    useFieldVisibility("masters", "districts", DISTRICT_FIELDS);
+  const { showField, filterPayload } = useFieldVisibility(
+    "masters",
+    "districts",
+    DISTRICT_FIELDS
+  );
 
-  const [name, setName] = useState(initialPayload.name);
-  const [code, setCode] = useState(initialPayload.district_code);
-  const [stateId, setStateId] = useState(initialPayload.state_id);
-  const [coordinates, setCoordinates] = useState(initialPayload.coordinates);
-  const [isActive, setIsActive] = useState(initialPayload.is_active);
+  const schema = useMemo(() => requireWhenVisible(districtSchema, showField), [showField]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<DistrictFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      district_name: initialPayload.name,
+      district_code: initialPayload.district_code,
+      state_id: initialPayload.state_id,
+      coordinates: initialPayload.coordinates,
+      is_active: initialPayload.is_active,
+    },
+  });
 
-    const fieldValues: Record<string, unknown> = {
-      district_name: name.trim(),
-      state_id: stateId,
-    };
+  const stateId = watch("state_id");
 
-    if (
-      getMissingRequiredFields(
-        ["district_name", "state_id"],
-        (fieldKey) => fieldValues[fieldKey]
-      ).length > 0
-    ) {
-      Swal.fire({
-        icon: "warning",
-        title: t("common.warning"),
-        text: t("common.missing_fields"),
-        confirmButtonColor: "#3085d6",
-      });
-      return;
+  // When the logged-in user's own Data Scope pins state to exactly one
+  // value, that field shows pre-filled and non-editable rather than an
+  // editable dropdown. Several scoped values (or none) leave the field
+  // editable as before.
+  const stateScope = scopeFieldState("state");
+
+  useEffect(() => {
+    if (stateScope.mode === "locked" && !stateId) {
+      setValue("state_id", stateScope.options[0].value);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stateScope.mode, stateId]);
 
+  const onValid = async (values: DistrictFormValues) => {
     const rawPayload: DistrictPayload = {
-      name: name.trim(),
-      district_name: name.trim(),
-      state_id: stateId,
-      coordinates: serializeCoordinateDrafts(coordinates),
-      is_active: isActive,
+      name: values.district_name.trim(),
+      district_name: values.district_name.trim(),
+      state_id: values.state_id,
+      coordinates: serializeCoordinateDrafts(values.coordinates ?? []),
+      is_active: values.is_active,
     };
-    if (code.trim()) rawPayload.district_code = code.trim();
+    if (values.district_code?.trim()) rawPayload.district_code = values.district_code.trim();
 
     await onSubmit(filterPayload(rawPayload) as DistrictPayload);
   };
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
+    <form onSubmit={handleSubmit(onValid)} noValidate>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {showField("state_id") && (
           <div>
             <Label htmlFor="stateId">
               State <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={stateId}
-              onValueChange={(value) => setStateId(value)}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="stateId">
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="state_id"
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  disabled={isSubmitting || stateScope.mode === "locked"}
+                >
+                  <SelectTrigger className="input-validate w-full" id="stateId">
+                    <SelectValue placeholder="Select State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {states.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {capitalize(item.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <FieldError message={errors.state_id?.message} />
           </div>
         )}
 
@@ -200,13 +223,12 @@ function DistrictEditor({
             <Input
               id="districtName"
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
               placeholder="Enter District Name"
               className="input-validate w-full"
               disabled={isSubmitting}
-              required
+              {...register("district_name")}
             />
+            <FieldError message={errors.district_name?.message} />
           </div>
         )}
 
@@ -216,17 +238,32 @@ function DistrictEditor({
             <Input
               id="districtCode"
               type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
               placeholder="Enter District Code"
               className="w-full"
               disabled={isSubmitting}
+              {...register("district_code")}
             />
+            <FieldError message={errors.district_code?.message} />
           </div>
         )}
 
         {showField("coordinates") && (
-          <GeoFenceCoordinates coordinates={coordinates} onChange={setCoordinates} />
+          <Controller
+            control={control}
+            name="coordinates"
+            render={({ field }) => (
+              <GeoFenceCoordinates
+                coordinates={field.value ?? []}
+                onChange={field.onChange}
+                errors={(Array.isArray(errors.coordinates) ? errors.coordinates : []).map(
+                  (entry) => ({
+                    latitude: entry?.latitude?.message,
+                    longitude: entry?.longitude?.message,
+                  })
+                )}
+              />
+            )}
+          />
         )}
 
         {showField("is_active") && (
@@ -234,19 +271,25 @@ function DistrictEditor({
             <Label htmlFor="isActive">
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
-            <Select
-              value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Controller
+              control={control}
+              name="is_active"
+              render={({ field }) => (
+                <Select
+                  value={field.value ? "true" : "false"}
+                  onValueChange={(value) => field.onChange(value === "true")}
+                  disabled={isSubmitting}
+                >
+                  <SelectTrigger className="input-validate w-full" id="isActive">
+                    <SelectValue placeholder={t("common.select_status")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">{t("common.active")}</SelectItem>
+                    <SelectItem value="false">{t("common.inactive")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </div>
         )}
       </div>

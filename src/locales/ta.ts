@@ -48,6 +48,7 @@ const taResource = {
         expected_life_years: "எதிர்பார்க்கப்படும் ஆயுள் (ஆண்டு)",
         color_code: "நிற குறியீடு",
         last_collected: "கடைசியாக சேகரிக்கப்பட்டது",
+        collected_weight_kg: "சேகரிக்கப்பட்ட எடை (கிகி)",
         beat_worker: "பீட் பணியாளர்",
         status_open: "திறந்திருக்கும்",
         status_in_progress: "நடைபெறுகிறது",
@@ -216,6 +217,7 @@ const taResource = {
           "grievances_none": "புகார்கள் இல்லை.",
           "complaint_fallback": "புகார்",
           "total_households_label": "மொத்த வீடுகள்",
+          "total_bins_label": "மொத்த குப்பைத்தொட்டிகள்",
           "bin_info_title": "குப்பைத்தொட்டி தகவல்",
           "location_title": "இடம்",
           "lifecycle_title": "ஆயுள் சுழற்சி",
@@ -267,7 +269,7 @@ const taResource = {
           "map_summaries": {
             "all": "வாகனங்கள், பாதைகள் மற்றும் நேரடி காட்சி.",
             "vehicle": "வாகனங்கள், பாதைகள் மற்றும் நேரடி காட்சி.",
-            "bins": "குப்பைத்தொட்டி நிரப்பு நிலை மற்றும் முக்கிய பகுதிகள்.",
+            "bins": "வார்டு அடிப்படையிலான குப்பைத்தொட்டி சேகரிப்பு நிலை.",
             "households": "வார்டு அடிப்படையிலான வீடு-வீடு சேகரிப்பு நிலை."
           }
         },
@@ -809,6 +811,7 @@ const taResource = {
           "staff_master": "பணியாளர் மாஸ்டர்",
           "staff_creation": "பணியாளர் உருவாக்கம்",
           "staff_access_configuration": "Staff Access Configuration",
+          "staff_access_dashboard": "Staff Access Dashboard",
           "staff_template": "பணியாளர் டெம்ப்ளேட்",
           "alternative_staff_template": "மாற்று பணியாளர் டெம்ப்ளேட்",
           "staff_template_audit": "பணியாளர் டெம்ப்ளேட் ஆய்வு",
@@ -880,7 +883,23 @@ const taResource = {
           "leader_login": "தலைவர் உள்நுழைவு",
           "plb_leader_creation": "PLB தலைவர் உருவாக்கம்",
           "district_leader_creation": "மாவட்ட தலைவர் உருவாக்கம்",
-          "state_leader_creation": "மாநில தலைவர் உருவாக்கம்"
+          "state_leader_creation": "மாநில தலைவர் உருவாக்கம்",
+
+          "group_dashboard": "டாஷ்போர்டு",
+          "group_super_admin": "சூப்பர் நிர்வாகி",
+          "group_masters": "மாஸ்டர்கள்",
+          "group_core_modules": "முக்கிய தொகுதிகள்",
+          "group_reports": "அறிக்கைகள்",
+          "location_masters": "இருப்பிட மாஸ்டர்கள்",
+          "asset_masters": "சொத்து மாஸ்டர்கள்",
+          "waste_properties": "கழிவு பண்புகள்",
+          "waste_masters": "கழிவு மாஸ்டர்கள்",
+          "role_management": "பங்கு மேலாண்மை",
+          "user_management": "பயனர் மேலாண்மை",
+          "audits": "ஆய்வுகள்",
+          "leader_management": "தலைவர் மேலாண்மை",
+          "screen_management": "திரை மேலாண்மை",
+          "complaint_management": "புகார் மேலாண்மை"
         },
         "project": {
           "company_id": "நிறுவன ஐடி",
@@ -1350,6 +1369,7 @@ const taResource = {
           "driving_licence_upload": "ஓட்டுநர் உரிமம் பதிவேற்றம்",
           "driving_licence_choose": "கோப்பைத் தேர்ந்தெடுக்கவும்",
           "driving_licence_no_file": "கோப்பு தேர்ந்தெடுக்கப்படவில்லை",
+          "driving_experience_years": "ஓட்டுநர் அனுபவம் (ஆண்டுகள்)",
           "password": "கடவுச்சொல்",
           "password_placeholder": "கடவுச்சொல்லை உள்ளிடவும்",
           "password_edit_placeholder": "தற்போதைய கடவுச்சொல்லை வைத்திருக்க காலியாக விடவும்",
