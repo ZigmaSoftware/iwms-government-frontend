@@ -188,6 +188,12 @@ export default function Grievances() {
       g.operational_context?.vehicle_reference,
       g.assigned_staff_name,
       g.assigned_team_name,
+      g.customer_name,
+      g.profile_name,
+      g.reporter_name,
+      g.raised_by_name,
+      g.contact_no,
+      g.email,
       created,
     ].join(" ").toLowerCase();
     const createdDay = getDateOnly(g.created) || "";
@@ -776,7 +782,7 @@ export default function Grievances() {
                           )}
                           style={{ animationDelay: `${index * 0.03}s` }}
                         >
-                          <div className="relative grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-6">
+                          <div className="relative grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-8">
                             <InfoField label={t("dashboard.grievances.fields.id")} value={g.unique_id} />
                             <InfoField
                               label={t("dashboard.grievances.fields.category")}
@@ -785,6 +791,11 @@ export default function Grievances() {
 
                             <InfoField label={t("dashboard.grievances.fields.zone")} value={g.zone_name || (g.zone_id ? g.zone_id.split('-').pop() : '-')} />
                             <InfoField label={t("dashboard.grievances.fields.ward")} value={g.ward_name || (g.ward_id ? g.ward_id.split('-').pop() : '-')} />
+                            <InfoField
+                              label={g.reporter_type === "Customer" ? "Customer name" : "Public grievance name"}
+                              value={g.reporter_name || "Anonymous"}
+                            />
+                            <InfoField label="Contact" value={g.contact_no || "—"} />
 
                             <div>
                               <p className="text-xs text-muted-foreground">{t("dashboard.grievances.fields.status")}</p>
@@ -809,6 +820,8 @@ export default function Grievances() {
                               {(g.assigned_staff_name || g.assigned_team_name) && (
                                 <Badge variant="outline">Assigned: {g.assigned_staff_name || g.assigned_team_name}</Badge>
                               )}
+                              <Badge variant="outline">{g.reporter_type || "Public Grievance"}</Badge>
+                              {g.raised_by_name && <Badge variant="outline">Raised by: {g.raised_by_name}</Badge>}
                             </div>
                             <Button
                               onClick={() => {
@@ -866,15 +879,44 @@ export default function Grievances() {
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <InfoField label={t("dashboard.grievances.detail.complaint_no")} value={selectedComplaint.unique_id} />
+                    <InfoField label="Reporter type" value={selectedComplaint.reporter_type || "Public Grievance"} />
+                    <InfoField
+                      label={selectedComplaint.reporter_type === "Customer" ? "Customer name" : "Public grievance name"}
+                      value={selectedComplaint.reporter_name || "Anonymous"}
+                    />
+                    <InfoField label="Raised person name" value={selectedComplaint.raised_by_name || "Anonymous"} />
                     <InfoField label={t("dashboard.grievances.fields.zone")} value={selectedComplaint.zone_name || (selectedComplaint.zone_id ? selectedComplaint.zone_id.split('-').pop() : '-')} />
                     <InfoField label={t("dashboard.grievances.detail.contact")} value={selectedComplaint.contact_no} />
+                    <InfoField label="Email" value={selectedComplaint.email || "—"} />
+                    <InfoField label="Gender" value={selectedComplaint.gender ? capitalize(selectedComplaint.gender) : "—"} />
                     <InfoField label={t("dashboard.grievances.detail.closed_at")} value={formatDateTime(selectedComplaint.complaint_closed_at)} />
                     <InfoField label={t("dashboard.grievances.detail.address")} value={selectedComplaint.address} />
                   </div>
 
                   <div className="space-y-6">
                     <InfoField label={t("dashboard.grievances.fields.category")} value={capitalize(selectedComplaint.category)} />
+                    <InfoField label="Subcategory" value={selectedComplaint.subcategory_name || "—"} />
+                    <InfoField label="Complaint module" value={selectedComplaint.module_name || "—"} />
+                    <InfoField label="Source" value={selectedComplaint.source_code?.replaceAll("_", " ") || "—"} />
+                    <InfoField label="Waste types" value={selectedComplaint.waste_type_names?.join(", ") || "—"} />
                     <InfoField label={t("dashboard.grievances.fields.ward")} value={selectedComplaint.ward_name || (selectedComplaint.ward_id ? selectedComplaint.ward_id.split('-').pop() : '-')} />
+                    <InfoField
+                      label="Geography"
+                      value={[
+                        selectedComplaint.state_name,
+                        selectedComplaint.district_name,
+                        selectedComplaint.area_type_name,
+                        selectedComplaint.city_name,
+                      ].filter(Boolean).join(" · ") || "—"}
+                    />
+                    <InfoField
+                      label="Coordinates"
+                      value={
+                        selectedComplaint.latitude != null && selectedComplaint.longitude != null
+                          ? `${selectedComplaint.latitude}, ${selectedComplaint.longitude}`
+                          : "—"
+                      }
+                    />
                     <InfoField label={t("dashboard.grievances.detail.created")} value={formatDateTime(selectedComplaint.created)} />
 
                     <div>
