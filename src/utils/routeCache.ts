@@ -47,6 +47,7 @@ export type EncryptedRoutes = {
   encReport: string;
   encStaffCreation: string;
   encStaffAccessConfiguration: string;
+  encStaffAccessDashboard: string;
   encStaffUserType: string;
   encStates: string;
   encSubProperties: string;
@@ -184,6 +185,7 @@ const plainRoutes: EncryptedRoutes = {
   encReport: "reports",
   encStaffCreation: "staff-creation",
   encStaffAccessConfiguration: "staff-access-configuration",
+  encStaffAccessDashboard: "staff-access-dashboard",
   encStaffUserType: "staff-user-type",
   encStates: "states",
   encSubProperties: "sub-properties",

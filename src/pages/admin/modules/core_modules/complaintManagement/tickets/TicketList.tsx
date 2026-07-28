@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -167,7 +166,6 @@ export default function TicketList() {
   // itself changes, so the user isn't left stranded on an out-of-range page.
   useEffect(() => {
     setFirst(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, ordering, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
 
   useEffect(() => {
@@ -315,6 +313,30 @@ export default function TicketList() {
       return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>;
     }
     return <span className="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">On Track</span>;
+  };
+
+  const contextTemplate = (row: ComplaintTicket) => {
+    const context = row.operational_context;
+    if (!context) return <span className="text-xs text-slate-400">Other</span>;
+    const references = [
+      context.trip_reference && `Trip: ${context.trip_reference}`,
+      context.vehicle_reference && `Vehicle: ${context.vehicle_reference}`,
+      context.driver_reference && `Driver: ${context.driver_reference}`,
+      context.operator_reference && `Operator: ${context.operator_reference}`,
+      context.other_reference,
+    ].filter(Boolean);
+    return (
+      <div className="min-w-44">
+        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold capitalize text-indigo-700">
+          {context.incident_type || "other"}
+        </span>
+        {references.length > 0 && (
+          <p className="mt-1 max-w-56 truncate text-xs text-slate-500" title={references.join(" · ")}>
+            {references.join(" · ")}
+          </p>
+        )}
+      </div>
+    );
   };
 
   const kanbanColumns = useMemo(() => {
@@ -479,6 +501,7 @@ export default function TicketList() {
           <Column header="Customer" body={(row) => row.customer_name || row.profile_name || "-"} />
           <Column field="wa_phone" header="Phone" />
           <Column field="category_name" header="Category" />
+          <Column header="Operational Context" body={contextTemplate} />
           <Column field="waste_type_name" header="Waste Type" />
           <Column field="subcategory_name" header="Subcategory" />
           <Column header="District" body={(row) => row.district_name || "-"} />
@@ -540,6 +563,11 @@ export default function TicketList() {
                       {row.priority_code && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                           {row.priority_code}
+                        </span>
+                      )}
+                      {row.operational_context?.incident_type && (
+                        <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold capitalize text-indigo-700">
+                          {row.operational_context.incident_type}
                         </span>
                       )}
                       {row.sla_breached && (

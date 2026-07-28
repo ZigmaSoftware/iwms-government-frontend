@@ -300,7 +300,11 @@ const WasteTypeLegend = ({ payload }: any) => (
 /* ══════════════════════════════════════════════════════════════════
     MAIN PAGE
 ══════════════════════════════════════════════════════════════════ */
-export default function MonthlyWasteComparisonListPage() {
+export default function MonthlyWasteComparisonListPage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t } = useTranslation();
 
   const [monthValue, setMonthValue] = useState(currentMonth());
@@ -766,7 +770,13 @@ export default function MonthlyWasteComparisonListPage() {
       RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen space-y-5 bg-[#F5F7FB] p-5 font-sans text-slate-900">
+    <div
+      className={
+        embedded
+          ? "space-y-5 overflow-hidden rounded-2xl bg-[#F5F7FB] font-sans text-slate-900"
+          : "min-h-screen space-y-5 bg-[#F5F7FB] p-5 font-sans text-slate-900"
+      }
+    >
       {/* ── Header ── */}
       <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#0F2744] via-[#115E6D] to-[#0F766E] shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]">
         <div

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { capitalize } from "@/utils/capitalize";
 
 import {
   Select as ShadSelect,
@@ -35,6 +36,10 @@ export default function Select({
   disabled,
   required,
 }: SelectProps) {
+  const displayLabel = (label: ReactNode): ReactNode =>
+    typeof label === "string" || typeof label === "number"
+      ? capitalize(label)
+      : label;
   const normalizedId = id?.replace(/[^a-z]/gi, "").toLowerCase();
   if (
     normalizedId &&
@@ -46,7 +51,8 @@ export default function Select({
     return null;
   }
 
-  const normalizedValue = value === null || value === undefined ? "" : String(value);
+  const normalizedValue =
+    value === null || value === undefined ? "" : String(value);
   const finalPlaceholder = placeholder ?? "Select an option";
   const optionValues = options.map((option) => String(option.value));
   let placeholderValue = "__placeholder__";
@@ -85,7 +91,7 @@ export default function Select({
     >
       <SelectTrigger id={id} className={className} aria-required={required}>
         {selectedLabel ? (
-          <span className="truncate">{selectedLabel}</span>
+          <span className="truncate">{displayLabel(selectedLabel)}</span>
         ) : (
           <SelectValue placeholder={finalPlaceholder} />
         )}
@@ -97,8 +103,12 @@ export default function Select({
           </SelectItem>
         )}
         {options.map((option) => (
-          <SelectItem key={option.value} value={String(option.value)} disabled={option.disabled}>
-            {option.label}
+          <SelectItem
+            key={option.value}
+            value={String(option.value)}
+            disabled={option.disabled}
+          >
+            {displayLabel(option.label)}
           </SelectItem>
         ))}
       </SelectContent>

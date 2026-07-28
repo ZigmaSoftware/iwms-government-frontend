@@ -1,5 +1,6 @@
 import type { AxiosRequestConfig } from "axios";
 import { api } from "@/api";
+import { capitalizeApiFormData } from "@/utils/capitalize";
 /* -----------------------------------------
    Normalize API path (idempotent)
 ----------------------------------------- */
@@ -13,7 +14,9 @@ const isRemovedScopeKey = (key: string): boolean => {
   if (normalized === "company" || normalized === "project") return true;
   return (
     (normalized.startsWith("company") || normalized.startsWith("project")) &&
-    (normalized.endsWith("id") || normalized.endsWith("uniqueid") || normalized.endsWith("idinput"))
+    (normalized.endsWith("id") ||
+      normalized.endsWith("uniqueid") ||
+      normalized.endsWith("idinput"))
   );
 };
 
@@ -39,7 +42,9 @@ const stripTenancyKeys = <T>(value: T): T => {
   return cleaned as T;
 };
 
-const cleanConfig = (config?: AxiosRequestConfig): AxiosRequestConfig | undefined => {
+const cleanConfig = (
+  config?: AxiosRequestConfig,
+): AxiosRequestConfig | undefined => {
   if (!config) return config;
   return {
     ...config,
@@ -133,8 +138,11 @@ export const createCrudHelpers = <T = any>(
     url: string,
     config?: AxiosRequestConfig,
   ) => {
-    const { data } = await api.get<T[] | PaginatedResponse<T>>(url, cleanConfig(config));
-    return data;
+    const { data } = await api.get<T[] | PaginatedResponse<T>>(
+      url,
+      cleanConfig(config),
+    );
+    return capitalizeApiFormData(data);
   };
 
   const readAllPages = async (config?: AxiosRequestConfig) => {
@@ -197,16 +205,19 @@ export const createCrudHelpers = <T = any>(
     readAllForExport: readAllPages,
 
     readAllwithPaginated: async (page = 1, limit = 5, config) => {
-      const { data } = await api.get<PaginatedResponse<T>>(resource, cleanConfig({
-        ...config,
-        params: {
-          page,
-          limit,
-          ...config?.params,
-        },
-      }));
+      const { data } = await api.get<PaginatedResponse<T>>(
+        resource,
+        cleanConfig({
+          ...config,
+          params: {
+            page,
+            limit,
+            ...config?.params,
+          },
+        }),
+      );
 
-      return data;
+      return capitalizeApiFormData(data);
     },
 
     /* ---------- READ ONE ---------- */
@@ -218,14 +229,18 @@ export const createCrudHelpers = <T = any>(
       const url = isRaw ? `${resource}${path}` : `${resource}${path}/`;
 
       const { data } = await api.get<T>(url, cleanConfig(config));
-      return data;
+      return capitalizeApiFormData(data);
     },
 
     /* ---------- MUTATIONS ---------- */
 
     create: async (payload, config) => {
-      const { data } = await api.post<T>(resource, stripTenancyKeys(payload), cleanConfig(config));
-      return data;
+      const { data } = await api.post<T>(
+        resource,
+        stripTenancyKeys(payload),
+        cleanConfig(config),
+      );
+      return capitalizeApiFormData(data);
     },
 
     update: async (id, payload, config) => {
@@ -234,7 +249,7 @@ export const createCrudHelpers = <T = any>(
         stripTenancyKeys(payload),
         cleanConfig(config),
       );
-      return data;
+      return capitalizeApiFormData(data);
     },
 
     delete: async (id, config) => {
@@ -242,8 +257,11 @@ export const createCrudHelpers = <T = any>(
     },
 
     metadata: async (config) => {
-      const { data } = await api.options<CrudMetadata>(resource, cleanConfig(config));
-      return data;
+      const { data } = await api.options<CrudMetadata>(
+        resource,
+        cleanConfig(config),
+      );
+      return capitalizeApiFormData(data);
     },
 
     /* ---------- CUSTOM ACTION ---------- */
@@ -258,7 +276,7 @@ export const createCrudHelpers = <T = any>(
         ? await api.post(url, stripTenancyKeys(payload), cleanConfig(config))
         : await api.get(url, cleanConfig(config));
 
-      return data;
+      return capitalizeApiFormData(data);
     },
 
     /* ---------- FILE UPLOADS ---------- */
@@ -271,18 +289,22 @@ export const createCrudHelpers = <T = any>(
           ...config?.headers,
         },
       });
-      return data;
+      return capitalizeApiFormData(data);
     },
 
     uploadUpdate: async (id, payload, config) => {
-      const { data } = await api.patch(`${resource}${id}/`, stripTenancyKeys(payload), {
-        ...cleanConfig(config),
-        headers: {
-          "Content-Type": "multipart/form-data",
-          ...config?.headers,
+      const { data } = await api.patch(
+        `${resource}${id}/`,
+        stripTenancyKeys(payload),
+        {
+          ...cleanConfig(config),
+          headers: {
+            "Content-Type": "multipart/form-data",
+            ...config?.headers,
+          },
         },
-      });
-      return data;
+      );
+      return capitalizeApiFormData(data);
     },
   };
 };

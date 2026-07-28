@@ -76,7 +76,14 @@ const APP_SIDEBAR_PERMISSION_CATALOG: Array<{ module: string; screens: string[] 
     ],
   },
   { module: "role-assigns", screens: ["user-type", "staff-user-type"] },
-  { module: "user-creations", screens: ["staffcreation", "staff-access-configuration"] },
+  {
+    module: "user-creations",
+    screens: [
+      "staffcreation",
+      "staff-access-configuration",
+      "staff-access-dashboard",
+    ],
+  },
   { module: "customers", screens: ["customercreations", "feedbacks"] },
   {
     module: "complaint-ticket",
@@ -168,6 +175,30 @@ export type StaffAccessConfigRecord = Record<string, unknown> & {
     localBodyLevel?: LocalBodyLevel | null;
     localBodyId?: string | null;
   };
+};
+
+export type ScopeAdminRecord = {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+  roleLevel: string;
+  scope: {
+    stateId: string | null;
+    districtId: string | null;
+    areaTypeId: string | null;
+    localBodies: Record<
+      LocalBodyLevel,
+      Array<{ id: string; name: string; level: LocalBodyLevel }>
+    >;
+    wards: Array<{ id: string; name: string }>;
+  };
+  hierarchy: Array<{
+    level: string;
+    id: string;
+    name: string;
+    label?: string;
+  }>;
 };
 
 type BackendPreviewResponse = {
@@ -316,6 +347,7 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
       doj: payload.basicInfo.doj || null,
       active_status: payload.basicInfo.activeStatus,
       contact_mobile: payload.basicInfo.mobileNumber,
+      staff_head_id: payload.basicInfo.scopeAdminId || null,
     },
     loginConfig: {
       username: payload.loginConfig.username,
@@ -424,6 +456,13 @@ export async function updateStaffAccess(
 export async function fetchStaffAccess(id: string): Promise<StaffAccessConfigRecord> {
   const { data } = await api.get(`/user-creations/staff-access-configuration/${id}/`);
   return data as StaffAccessConfigRecord;
+}
+
+export async function fetchScopeAdmins(): Promise<ScopeAdminRecord[]> {
+  const { data } = await api.get(
+    "/user-creations/staff-access-configuration/scope-admins/",
+  );
+  return getPayload<ScopeAdminRecord>(data);
 }
 
 export async function previewStaffAccess(
