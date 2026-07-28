@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -33,10 +33,6 @@ type StaffAccessRecord = {
   [key: string]: unknown;
 };
 
-type TableFilters = {
-  global: { value: string | null; matchMode: FilterMatchMode };
-};
-
 const getRows = (payload: unknown): StaffAccessRecord[] => {
   if (Array.isArray(payload)) return payload as StaffAccessRecord[];
   if (!payload || typeof payload !== "object") return [];
@@ -55,6 +51,8 @@ const textOf = (...values: unknown[]) => {
   return value === undefined ? "-" : String(value);
 };
 
+const SORTABLE_FIELDS = new Set(["employee_name", "staff_unique_id"]);
+
 export default function StaffAccessConfigList() {
   const navigate = useNavigate();
   const { encUserManagement, encStaffAccessConfiguration } = getEncryptedRoute();
@@ -64,53 +62,68 @@ export default function StaffAccessConfigList() {
   );
 
   const [records, setRecords] = useState<StaffAccessRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
+    setLoading(true);
+    try {
+      const response = await adminApi.staffAccessConfiguration.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      const rows = getRows(response);
+      setRecords(rows);
+      setTotalRecords(
+        typeof (response as { count?: number })?.count === "number"
+          ? (response as { count: number }).count
+          : rows.length,
+      );
+    } catch {
+      Swal.fire("Error", "Failed to load staff access configurations.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const payload = await adminApi.staffAccessConfiguration.readAll();
-        if (mounted) setRecords(getRows(payload));
-      } catch {
-        if (mounted) Swal.fire("Error", "Failed to load staff access configurations.", "error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    void load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
-  const globalFilterFields = useMemo(
-    () => [
-      "employee_name",
-      "staff_name",
-      "username",
-      "user_name",
-      "role_label",
-      "role_name",
-      "governmentusertype_name",
-      "government_user_type_name",
-    ],
-    [],
-  );
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setGlobalFilterValue(value);
-    setFilters({
-      ...filters,
-      global: { ...filters.global, value },
-    });
+    setGlobalFilterValue(event.target.value);
   };
 
   const idTemplate = (row: StaffAccessRecord) => textOf(row.unique_id, row.id);
@@ -170,7 +183,7 @@ export default function StaffAccessConfigList() {
         />
       </div>
       <span className="p-input-icon-left w-full md:w-80">
-      
+
         <InputText
           value={globalFilterValue}
           onChange={onGlobalFilterChange}
@@ -186,22 +199,27 @@ export default function StaffAccessConfigList() {
       <DataTable
         value={records}
         loading={loading}
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         dataKey="unique_id"
         header={header}
-        filters={filters}
-        globalFilterFields={globalFilterFields}
         emptyMessage="No staff access configurations found."
         responsiveLayout="scroll"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-        <Column header="ID" body={idTemplate} sortable />
-        <Column header="Name" body={nameTemplate} sortable />
-        <Column header="Username" body={usernameTemplate} sortable />
-        <Column header="Role" body={roleTemplate} sortable />
-        <Column header="Permissions" body={permissionTemplate} sortable />
-        <Column header="Status" body={statusTemplate} sortable />
+        <Column header="ID" body={idTemplate} />
+        <Column field="employee_name" header="Name" body={nameTemplate} sortable />
+        <Column header="Username" body={usernameTemplate} />
+        <Column header="Role" body={roleTemplate} />
+        <Column header="Permissions" body={permissionTemplate} />
+        <Column header="Status" body={statusTemplate} />
         <Column header="Action" body={actionTemplate} style={{ width: "100px", textAlign: "center" }} />
       </DataTable>
     </ComponentCard>

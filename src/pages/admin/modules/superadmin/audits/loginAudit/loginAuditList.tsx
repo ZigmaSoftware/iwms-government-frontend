@@ -6,13 +6,21 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
 
+const toRecordList = (value: unknown): LoginAuditRecord[] => {
+  if (Array.isArray(value)) return value as LoginAuditRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: LoginAuditRecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["username", "timestamp"]);
 
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
 
@@ -37,32 +45,61 @@ export default function LoginAuditList() {
   const [rows, setRows] = useState<LoginAuditRecord[]>([]);
   const [selectedAudit, setSelectedAudit] = useState<LoginAuditRecord | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await adminApi.loginAudits.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(normalizeList(toRecordList(response)) as LoginAuditRecord[]);
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (err: unknown) {
+      Swal.fire(t("common.error"), String(err), "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
   useEffect(() => {
-    let mounted = true;
-    setIsLoading(true);
-    adminApi.loginAudits
-      .readAll()
-      .then((data: LoginAuditRecord[]) => {
-        if (!mounted) return;
-        setRows(normalizeList(data) as LoginAuditRecord[]);
-      })
-      .catch((err: unknown) => {
-        if (!mounted) return;
-        Swal.fire(t("common.error"), String(err), "error");
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
-      });
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [t]);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const openDetails = useCallback((record: LoginAuditRecord) => {
     setSelectedAudit(record);
@@ -71,9 +108,7 @@ export default function LoginAuditList() {
   const closeDetails = useCallback(() => setSelectedAudit(null), []);
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+    setGlobalFilterValue(e.target.value);
   };
 
   const actionTemplate = useCallback(
@@ -117,39 +152,39 @@ export default function LoginAuditList() {
       <DataTable
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && rows.length === 0}
-        filters={filters}
-        onFilter={(e) => setFilters(e.filters as DataTableFilterMeta)}
         header={header}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_records")}
-        globalFilterFields={["unique_id", "username", "ip_address", "user_agent", "reason"]}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 70 }} />
-        <Column field="unique_id" header="ID" sortable filter showFilterMatchModes={false} />
-        <Column field="username" header="Username" sortable filter showFilterMatchModes={false} />
-        <Column field="ip_address" header="IP Address" filter showFilterMatchModes={false} />
-        <Column field="user_agent" header="User Agent" filter showFilterMatchModes={false} />
+        <Column field="unique_id" header="ID" />
+        <Column field="username" header="Username" sortable />
+        <Column field="ip_address" header="IP Address" />
+        <Column field="user_agent" header="User Agent" />
         <Column
           field="success"
           header="Success"
           body={(row: LoginAuditRecord) => formatAuditValue(row.success)}
-          filter
-          showFilterMatchModes={false}
         />
-        <Column field="reason" header="Reason" filter showFilterMatchModes={false} />
+        <Column field="reason" header="Reason" />
         <Column
           field="timestamp"
           header="Timestamp"
           body={(row: LoginAuditRecord) => formatDateTime(row.timestamp)}
           sortable
-          filter
-          showFilterMatchModes={false}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 120 }} />
       </DataTable>

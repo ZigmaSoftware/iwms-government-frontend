@@ -1,4 +1,4 @@
-import type { CollectionPointRecord, TableFilters } from "./types";
+import type { CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
@@ -6,13 +6,13 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import Swal from "@/lib/notify";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
@@ -25,6 +25,14 @@ const toDisplay = (value: unknown): string =>
 
 const toOptionalString = (value: unknown): string | null =>
   value === null || value === undefined ? null : String(value);
+
+const toRecordList = (value: unknown): CollectionPointRecord[] => {
+  if (Array.isArray(value)) return value as CollectionPointRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: CollectionPointRecord[] }).results;
+  }
+  return [];
+};
 
 const COLLECTION_POINT_COLUMN_FIELDS: Record<string, string[]> = {
   cp_name: ["cp_name", "collection_point_name", "name"],
@@ -64,23 +72,22 @@ const resolveLocalBody = (row: CollectionPointRecord, levels: Array<{ field: str
   return null;
 };
 
+const SORTABLE_FIELDS = new Set(["cp_name"]);
+
 export default function CollectionPointListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [records, setRecords] = useState<CollectionPointRecord[]>([]);
+  const [rows, setRows] = useState<CollectionPointRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    cp_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    state_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    ulb_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    rlb_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_names: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -94,29 +101,40 @@ export default function CollectionPointListPage() {
     COLLECTION_POINT_COLUMN_FIELDS,
   );
 
+  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+    setIsLoading(true);
+    try {
+      const response = await collectionPointApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error: any) {
+      Swal.fire(
+        "Error",
+        String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Collection Points"),
+        "error",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
-    let mounted = true;
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-    const loadCollectionPoints = async () => {
-      setIsLoading(true);
-      try {
-        const data = await collectionPointApi.readAll();
-        if (mounted) setRecords(data as CollectionPointRecord[]);
-      } catch (error) {
-        console.error("Failed to fetch collection points", error);
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    };
-
-    void loadCollectionPoints();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const rows = (Array.isArray(records) ? records : []).map((row) => {
+  const displayRows = rows.map((row) => {
     const ulb = resolveLocalBody(row, ULB_LEVELS);
     const rlb = resolveLocalBody(row, RLB_LEVELS);
     return {
@@ -129,18 +147,28 @@ export default function CollectionPointListPage() {
     };
   });
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const renderHeader = () =>
     renderListSearchHeader({
@@ -172,13 +200,17 @@ export default function CollectionPointListPage() {
           row.unique_id,
           filterPayload({ is_active: value }) as { is_active: boolean }
         );
-        setRecords((current) =>
+        setRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
         );
-      } catch (error) {
-        console.error("Failed to update collection point status", error);
+      } catch (error: any) {
+        Swal.fire(
+          "Error",
+          String(error?.response?.data?.detail ?? error?.message ?? "Failed to update collection point status"),
+          "error",
+        );
       } finally {
         setPendingStatusId(null);
         setIsUpdating(false);
@@ -215,29 +247,23 @@ export default function CollectionPointListPage() {
       </div>
 
       <DataTable
-        value={rows}
+        value={displayRows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        filters={filters}
-        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        globalFilterFields={[
-          "unique_id",
-          "cp_name",
-          "state_id",
-          "state_name",
-          "district_id",
-          "district_name",
-          "_ulb_name",
-          "_rlb_name",
-          "_ward_names",
-        ]}
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -245,9 +271,7 @@ export default function CollectionPointListPage() {
           <Column
             field="cp_name"
             header={t("admin.nav.collection_point")}
-            sortable
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has("cp_name")}
             body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.cp_name ?? row.collection_point_name))}
           />
         )}
@@ -255,9 +279,6 @@ export default function CollectionPointListPage() {
           <Column
             field="state_name"
             header={t("common.state")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.state_name))}
           />
         )}
@@ -265,9 +286,6 @@ export default function CollectionPointListPage() {
           <Column
             field="district_name"
             header={t("common.district")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.district_name))}
           />
         )}
@@ -275,9 +293,6 @@ export default function CollectionPointListPage() {
           <Column
             field="_ulb_name"
             header="ULB"
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) =>
               row._ulb_name ? (
                 <span>
@@ -294,9 +309,6 @@ export default function CollectionPointListPage() {
           <Column
             field="_rlb_name"
             header="RLB"
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) =>
               row._rlb_name ? (
                 <span>
@@ -313,9 +325,6 @@ export default function CollectionPointListPage() {
           <Column
             field="_ward_names"
             header="Wards"
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: CollectionPointRecord) => toDisplay(row._ward_names)}
           />
         )}

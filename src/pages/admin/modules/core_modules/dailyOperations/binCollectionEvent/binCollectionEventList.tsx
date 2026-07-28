@@ -1,16 +1,14 @@
 import type { BinCERecord } from "./types";
-import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
 import { PencilIcon } from "@/icons";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -55,8 +53,6 @@ const formatCollectionDateTime = (row: BinCERecord) => {
   return time ? `${date}, ${time}` : date;
 };
 
-const today = new Date().toISOString().split("T")[0];
-
 const STATUS_STYLES: Record<string, string> = {
   Collected: "bg-green-100 text-green-800",
   "Not Collected": "bg-red-100 text-red-800",
@@ -69,6 +65,32 @@ const StatusBadge = ({ value }: { value?: string }) => (
   </span>
 );
 
+const toRecordList = (value: unknown): BinCERecord[] => {
+  if (Array.isArray(value)) return value as BinCERecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: BinCERecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["collection_date", "status"]);
+
+type SummaryState = { overallWeight: string; dailyWeight: string; count: number };
+const EMPTY_SUMMARY: SummaryState = { overallWeight: "0", dailyWeight: "0", count: 0 };
+
+const enrichRow = (r: BinCERecord) => ({
+  ...r,
+  _trip_plan: r.trip_plan?.display_code ?? r.trip_assignment_id ?? "-",
+  _collection_point: r.collection_point?.cp_name ?? r.collection_point_id ?? "-",
+  _bin: r.bin?.bin_name ?? "-",
+  _waste_type: r.waste_type?.waste_type_name ?? "-",
+  _vehicle: r.vehicle?.vehicle_no ?? "-",
+  _location: r.location_name ?? r.panchayat_name ?? r.panchayat_id ?? "-",
+  _ward: r.ward_name ?? r.ward_id ?? "-",
+  _status: r.status ?? "-",
+  collection_date: r.collection_date ?? "",
+});
+
 export default function BinCollectionEventList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -80,118 +102,133 @@ export default function BinCollectionEventList() {
     encBinCollectionEvent,
   );
 
-  const [records, setRecords] = useState<BinCERecord[]>([]);
+  const [rawRows, setRawRows] = useState<BinCERecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _trip_plan: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_point: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _bin: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    collection_date: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
-  const loadRecords = useCallback(() => {
+  const [collectionDateFilter, setCollectionDateFilter] = useState("");
+  const [summary, setSummary] = useState<SummaryState>(EMPTY_SUMMARY);
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const filterParams = {
+    ...hierarchyParams,
+    ...(collectionDateFilter ? { collection_date: collectionDateFilter } : {}),
+  };
+
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
     setLoading(true);
-    const params: Record<string, string> = { ...hierarchyParams };
-    const dateFilter = filters.collection_date?.value;
-    if (dateFilter) params.collection_date = dateFilter;
-    binCollectionEventApi
-      .readAll({ params })
-      .then((data) => setRecords(Array.isArray(data) ? (data as BinCERecord[]) : []))
-      .catch((error) => {
-        setRecords([]);
-        Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
-      })
-      .finally(() => setLoading(false));
-  }, [filters.collection_date?.value, hierarchyParams, t]);
-
-  useEffect(() => { loadRecords(); }, [loadRecords]);
-
-  const rows = useMemo(
-    () =>
-      records.map((r) => ({
-        ...r,
-        _trip_plan: r.trip_plan?.display_code ?? r.trip_assignment_id ?? "-",
-        _collection_point: r.collection_point?.cp_name ?? r.collection_point_id ?? "-",
-        _bin: r.bin?.bin_name ?? "-",
-        _waste_type: r.waste_type?.waste_type_name ?? "-",
-        _vehicle: r.vehicle?.vehicle_no ?? "-",
-        _location: r.location_name ?? r.panchayat_name ?? r.panchayat_id ?? "-",
-        _ward: r.ward_name ?? r.ward_id ?? "-",
-        _status: r.status ?? "-",
-        collection_date: r.collection_date ?? "",
-      })),
-    [records],
-  );
-
-  /* ── apply filters locally to get the visible subset ─────────────────────
-     PrimeReact filters internally but doesn't expose the result. We replicate
-     the same CONTAINS logic so the summary pills always match what's on screen. */
-  const GLOBAL_FIELDS = ["_trip_plan", "_collection_point", "_bin", "_waste_type", "_location", "_ward", "_status", "collection_date"] as const;
-  type FilterableField = (typeof GLOBAL_FIELDS)[number];
-  const isFilterableField = (field: string): field is FilterableField =>
-    (GLOBAL_FIELDS as readonly string[]).includes(field);
-
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      for (const [field, filter] of Object.entries(filters)) {
-        const val = filter.value;
-        if (!val) continue;
-        const needle = String(val).toLowerCase();
-        if (field === "global") {
-          const hit = GLOBAL_FIELDS.some((f) => String(row[f] ?? "").toLowerCase().includes(needle));
-          if (!hit) return false;
-        } else if (isFilterableField(field)) {
-          if (!String(row[field] ?? "").toLowerCase().includes(needle)) return false;
-        }
-      }
-      return true;
-    });
-  }, [rows, filters]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ── summary stats — computed from filtered rows only ── */
-  const { dailyWeight, overallWeight, totalRecords } = useMemo(() => {
-    let daily = 0;
-    let overall = 0;
-    filteredRows.forEach((r) => {
-      const w = Number(r.collected_weight_kg ?? 0);
-      overall += w;
-      if (r.collection_date === today) daily += w;
-    });
-    return {
-      dailyWeight: daily.toFixed(2),
-      overallWeight: overall.toFixed(2),
-      totalRecords: filteredRows.length,
-    };
-  }, [filteredRows]);
-
-  const exportRows = filteredRows.map((row) => ({
-    "Trip Plan": row._trip_plan,
-    "Collection Point": row._collection_point,
-    "Local Body": row._location,
-    Ward: row._ward,
-    Bin: row._bin,
-    "Waste Type": row._waste_type,
-    Vehicle: row._vehicle,
-    Status: row._status,
-    Reason: row.status_reason || row.notes || "-",
-    "Weight (kg)": row.collected_weight_kg ?? "-",
-    "Collection Date": formatCollectionDateTime(row),
-  }));
-
-  const handleExcelDownload = () =>
-    exportRecordsToExcel(
-      exportRows,
-      getAdminScreenExcelFilename("all"),
-      "Bin Collection Events",
-    );
-
-  const handlePdfDownload = () => {
     try {
+      const response = await binCollectionEventApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...filterParams,
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (error) {
+      setRawRows([]);
+      Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSummary = async () => {
+    try {
+      const response = await binCollectionEventApi.action<SummaryState>("summary", undefined, {
+        params: {
+          ...filterParams,
+          ...(searchTerm ? { search: searchTerm } : {}),
+        },
+      });
+      setSummary({
+        overallWeight: response?.overallWeight ?? "0",
+        dailyWeight: response?.dailyWeight ?? "0",
+        count: response?.count ?? 0,
+      });
+    } catch {
+      setSummary(EMPTY_SUMMARY);
+    }
+  };
+
+  // Reset to page 1 whenever a non-pagination filter changes.
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyParams, collectionDateFilter]);
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, collectionDateFilter]);
+
+  useEffect(() => {
+    void loadSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyParams, collectionDateFilter, searchTerm]);
+
+  const rows = useMemo(() => rawRows.map(enrichRow), [rawRows]);
+
+  const handleExcelDownload = async () => {
+    setIsExporting(true);
+    try {
+      const all = await binCollectionEventApi.readAllForExport({ params: filterParams });
+      const exportRows = toRecordList(all).map(enrichRow).map((row) => ({
+        "Trip Plan": row._trip_plan,
+        "Collection Point": row._collection_point,
+        "Local Body": row._location,
+        Ward: row._ward,
+        Bin: row._bin,
+        "Waste Type": row._waste_type,
+        Vehicle: row._vehicle,
+        Status: row._status,
+        Reason: row.status_reason || row.notes || "-",
+        "Weight (kg)": row.collected_weight_kg ?? "-",
+        "Collection Date": formatCollectionDateTime(row),
+      }));
+      exportRecordsToExcel(
+        exportRows,
+        getAdminScreenExcelFilename("all"),
+        "Bin Collection Events",
+      );
+    } catch (error) {
+      Swal.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePdfDownload = async () => {
+    setIsExporting(true);
+    try {
+      const all = await binCollectionEventApi.readAllForExport({ params: filterParams });
+      const exportRows = toRecordList(all).map(enrichRow).map((row) => ({
+        "Trip Plan": row._trip_plan,
+        "Collection Point": row._collection_point,
+        "Local Body": row._location,
+        Ward: row._ward,
+        Bin: row._bin,
+        "Waste Type": row._waste_type,
+        Vehicle: row._vehicle,
+        Status: row._status,
+        Reason: row.status_reason || row.notes || "-",
+        "Weight (kg)": row.collected_weight_kg ?? "-",
+        "Collection Date": formatCollectionDateTime(row),
+      }));
       downloadRecordsPdf({
         title: "Secondary Bin Collection Events",
         filename: "secondary_bin_collection_events.pdf",
@@ -200,8 +237,33 @@ export default function BinCollectionEventList() {
       });
     } catch (error) {
       Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+    } finally {
+      setIsExporting(false);
     }
   };
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setGlobalFilterValue(event.target.value);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const header = (
     <div className="space-y-4">
@@ -215,15 +277,15 @@ export default function BinCollectionEventList() {
             label="Download Excel"
             icon="pi pi-file-excel"
             className="p-button-outlined p-button-sm"
-            disabled={exportRows.length === 0}
-            onClick={handleExcelDownload}
+            disabled={isExporting}
+            onClick={() => void handleExcelDownload()}
           />
           <Button
             label="Download PDF"
             icon="pi pi-file-pdf"
             className="p-button-outlined p-button-sm"
-            disabled={exportRows.length === 0}
-            onClick={handlePdfDownload}
+            disabled={isExporting}
+            onClick={() => void handlePdfDownload()}
           />
           <Button
             label="Add Bin Collection Event"
@@ -237,33 +299,26 @@ export default function BinCollectionEventList() {
       {/* Hierarchy filter — capped to the caller's own corporation subtree */}
       <HierarchyFilterBar onChange={setHierarchyParams} />
 
-      {/* Daily / Overall / Records — same pattern as Panchayat Base Collection */}
+      {/* Daily / Overall / Records — server-computed via the summary action so
+          totals stay correct once the list itself is paginated. */}
       <div className="flex gap-3 text-sm">
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Daily: {dailyWeight}</span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Overall: {overallWeight}</span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {totalRecords}</span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">Daily: {Number(summary.dailyWeight).toFixed(2)}</span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">Overall: {Number(summary.overallWeight).toFixed(2)}</span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {summary.count}</span>
       </div>
 
       <div className="flex justify-end">
         <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
           <InputText
             type="date"
-            value={filters.collection_date.value ?? ""}
-            onChange={(e) =>
-              setFilters((f) => ({
-                ...f,
-                collection_date: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS },
-              }))
-            }
+            value={collectionDateFilter}
+            onChange={(e) => setCollectionDateFilter(e.target.value)}
             className="p-inputtext-sm border-none text-sm"
           />
           <i className="pi pi-search text-gray-500" />
           <InputText
             value={globalFilterValue}
-            onChange={(e) => {
-              setGlobalFilterValue(e.target.value);
-              setFilters((f) => ({ ...f, global: { value: e.target.value, matchMode: FilterMatchMode.CONTAINS } }));
-            }}
+            onChange={onGlobalFilterChange}
             placeholder={t("common.search_placeholder")}
             className="border-none text-sm"
           />
@@ -278,12 +333,16 @@ export default function BinCollectionEventList() {
         exportable={false}
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={loading}
-        filters={filters}
-        onFilter={(e: DataTableFilterEvent) => setFilters(e.filters as TableFilters)}
-        globalFilterFields={["_trip_plan", "_collection_point", "_bin", "_waste_type", "_location", "_status", "collection_date"]}
         header={header}
         stripedRows
         showGridlines
@@ -291,8 +350,8 @@ export default function BinCollectionEventList() {
         emptyMessage="No bin collection events found"
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="_trip_plan" header="Trip Plan" filter showFilterMatchModes={false} />
-        <Column field="_collection_point" header="Collection Point" filter showFilterMatchModes={false} />
+        <Column field="_trip_plan" header="Trip Plan" />
+        <Column field="_collection_point" header="Collection Point" />
         <Column
           field="_location"
           header="Local Body"
@@ -301,15 +360,14 @@ export default function BinCollectionEventList() {
               ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
               : "-"
           }
-          filter
-          showFilterMatchModes={false}
         />
-        <Column field="_bin" header="Bin" filter showFilterMatchModes={false} />
-        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
+        <Column field="_bin" header="Bin" />
+        <Column field="_waste_type" header="Waste Type" />
         <Column field="_vehicle" header="Vehicle" />
         <Column
-          field="_status"
+          field="status"
           header="Status"
+          sortable={SORTABLE_FIELDS.has("status")}
           body={(row: BinCERecord) => <StatusBadge value={row.status} />}
           style={{ minWidth: 130 }}
         />
@@ -327,8 +385,7 @@ export default function BinCollectionEventList() {
         <Column
           field="collection_date"
           header="Collection Date"
-          filter
-          showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("collection_date")}
           body={formatCollectionDateTime}
           style={{ width: 170 }}
         />

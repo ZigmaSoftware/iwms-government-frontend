@@ -1,4 +1,4 @@
-import type { TableFilters, TripPlanRecord } from "./types";
+import type { TripPlanRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -7,16 +7,17 @@ import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+
+const SORTABLE_FIELDS = new Set(["display_code", "approval_status"]);
 
 // Local body can live on any one of these fields depending on the plan's
 // area type (urban → corporation/municipality/town panchayat, rural →
@@ -70,35 +71,74 @@ export default function TripPlanList() {
   const { newPath: newPath } = createCrudRoutePaths(encScheduleSetup, encTripPlans);
   const { editPath } = createCrudRoutePaths(encScheduleSetup, encTripPlans);
 
-  const [records, setRecords] = useState<TripPlanRecord[]>([]);
+  const [rawRows, setRawRows] = useState<TripPlanRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    display_code: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _staff: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _vehicle: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    _waste_type: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null, matchMode: FilterMatchMode.CONTAINS },
-  });
+
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  useEffect(() => {
+    setFirst(0);
+  }, [hierarchyParams]);
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = (page: number, limit: number, search: string, orderingParam?: string) => {
     let mounted = true;
     setLoading(true);
-    tripPlanApi.readAll({ params: hierarchyParams })
-      .then((data) => {
-        if (mounted) setRecords(normalizeList(data) as TripPlanRecord[]);
+    tripPlanApi.readAllwithPaginated(page, limit, {
+      params: {
+        ...hierarchyParams,
+        ...(search ? { search } : {}),
+        ...(orderingParam ? { ordering: orderingParam } : {}),
+      },
+    })
+      .then((response) => {
+        if (!mounted) return;
+        setRawRows(normalizeList(response) as TripPlanRecord[]);
+        setTotalRecords(typeof response?.count === "number" ? response.count : normalizeList(response).length);
       })
       .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
       .finally(() => {
         if (mounted) setLoading(false);
       });
     return () => { mounted = false; };
-  }, [t, hierarchyParams]);
+  };
 
-  const rows = useMemo(() => records.map((record) => ({
+  useEffect(() => {
+    const cleanup = loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  const rows = useMemo(() => rawRows.map((record) => ({
     ...record,
     _location: resolveLocation(record),
     _collection_type:
@@ -114,14 +154,14 @@ export default function TripPlanList() {
     _waste_type: Array.isArray(record.waste_types_detail)
       ? record.waste_types_detail.map((wt: any) => wt.waste_type_name).filter(Boolean).join(", ")
       : "",
-  })), [records]);
+  })), [rawRows]);
 
   const statusBody = (row: TripPlanRecord) => {
     const updateStatus = async (checked: boolean) => {
       setUpdating(true);
       try {
         await tripPlanApi.update(row.unique_id, { status: checked ? "ACTIVE" : "INACTIVE" });
-        setRecords((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item));
+        setRawRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item));
       } catch (error) {
         Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.update_status_failed"), "error");
       } finally {
@@ -148,9 +188,7 @@ export default function TripPlanList() {
         <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
           <i className="pi pi-search text-gray-500" />
           <InputText value={globalFilterValue} onChange={(event) => {
-            const value = event.target.value;
-            setGlobalFilterValue(value);
-            setFilters((current) => ({ ...current, global: { value, matchMode: FilterMatchMode.CONTAINS } }));
+            setGlobalFilterValue(event.target.value);
           }} placeholder={t("common.search_placeholder")} className="border-none text-sm" />
         </div>
       </div>
@@ -163,12 +201,16 @@ export default function TripPlanList() {
         exportable={false}
         value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         loading={loading}
-        filters={filters}
-        onFilter={(event: DataTableFilterEvent) => setFilters(event.filters as TableFilters)}
-        globalFilterFields={["display_code", "_location", "_collection_type", "_staff", "_vehicle", "_waste_type", "approval_status", "status"]}
         header={header}
         stripedRows
         showGridlines
@@ -176,14 +218,14 @@ export default function TripPlanList() {
         emptyMessage="No trip plans found"
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        <Column field="display_code" header="Plan Code" filter showFilterMatchModes={false} />
-        <Column field="_location" header="Location" filter showFilterMatchModes={false} />
-        <Column field="_collection_type" header="Collection Type" filter showFilterMatchModes={false} />
-        <Column field="_staff" header="Staff Template" filter showFilterMatchModes={false} />
-        <Column field="_vehicle" header="Vehicle" filter showFilterMatchModes={false} />
-        <Column field="_waste_type" header="Waste Type" filter showFilterMatchModes={false} />
+        <Column field="display_code" header="Plan Code" sortable={SORTABLE_FIELDS.has("display_code")} />
+        <Column field="_location" header="Location" />
+        <Column field="_collection_type" header="Collection Type" />
+        <Column field="_staff" header="Staff Template" />
+        <Column field="_vehicle" header="Vehicle" />
+        <Column field="_waste_type" header="Waste Type" />
         <Column field="scheduled_time" header="Time" body={(row: TripPlanRecord) => formatTime12Hour(row.scheduled_time)} />
-        <Column field="approval_status" header="Approval" />
+        <Column field="approval_status" header="Approval" sortable={SORTABLE_FIELDS.has("approval_status")} />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
           <button title={t("common.edit")} onClick={() => navigate(editPath(row.unique_id), { state: { record: row } })} className="text-blue-600 hover:text-blue-800">

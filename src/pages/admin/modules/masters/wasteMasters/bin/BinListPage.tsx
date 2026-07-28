@@ -1,12 +1,11 @@
-import type { Bin, BinApiRow, TableFilters } from "./types";
+import type { Bin, BinApiRow } from "./types";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
@@ -42,23 +41,30 @@ const BIN_COLUMN_FIELDS: Record<string, string[]> = {
   is_active: ["is_active"],
 };
 
+const toRecordList = (value: unknown): BinApiRow[] => {
+  if (Array.isArray(value)) return value as BinApiRow[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: BinApiRow[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["bin_name", "bin_capacity"]);
+
 export default function BinList() {
   const { t } = useTranslation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [selectedQr, setSelectedQr] = useState<string | null>(null);
 
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    bin_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    bin_capacity: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    ward_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-    waste_type_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
-
   const navigate = useNavigate();
-  const [binRows, setBinRows] = useState<BinApiRow[]>([]);
+  const [rows, setRows] = useState<BinApiRow[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
@@ -67,14 +73,28 @@ export default function BinList() {
     BIN_COLUMN_FIELDS,
   );
 
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
   useEffect(() => {
     let mounted = true;
 
-    const loadBins = async () => {
+    const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
       setIsLoading(true);
       try {
-        const data = await binApi.readAll();
-        if (mounted) setBinRows(data as BinApiRow[]);
+        const response = await binApi.readAllwithPaginated(page, limit, {
+          params: {
+            ...(search ? { search } : {}),
+            ...(orderingParam ? { ordering: orderingParam } : {}),
+          },
+        });
+        if (mounted) {
+          setRows(toRecordList(response));
+          setTotalRecords(
+            typeof response?.count === "number" ? response.count : toRecordList(response).length,
+          );
+        }
       } catch (error) {
         if (mounted) {
           const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -85,16 +105,38 @@ export default function BinList() {
       }
     };
 
-    void loadBins();
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
 
     return () => {
       mounted = false;
     };
-  }, [t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, t]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await binApi.readAllForExport());
 
   const bins = (() => {
-    const rows = Array.isArray(binRows) ? binRows : [];
-    const mapped: Bin[] = rows.map((row) => ({
+    const list = Array.isArray(rows) ? rows : [];
+    const mapped: Bin[] = list.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
       bin_capacity: Number(row.bin_capacity ?? 0),
@@ -122,17 +164,8 @@ export default function BinList() {
     return mapped;
   })();
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
-  };
-
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   const statusBodyTemplate = (row: Bin) => {
@@ -148,7 +181,7 @@ export default function BinList() {
             is_active: checked,
           }) as { bin_name: string; bin_capacity: number; is_active: boolean }
         );
-        setBinRows((current) =>
+        setRows((current) =>
           current.map((item) =>
             String(item.unique_id ?? "") === row.unique_id
               ? { ...item, is_active: checked }
@@ -234,26 +267,21 @@ export default function BinList() {
       <DataTable
         value={bins}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        filters={filters}
-        onFilter={onFilter}
-        globalFilterFields={[
-          "bin_name",
-          "panchayat_name",
-          "panchayat",
-          "ward_name",
-          "waste_type_name",
-          "wastetype_name",
-          "waste_type",
-          "latitude",
-          "longitude",
-        ]}
         header={header}
         stripedRows
         showGridlines
         loading={isLoading}
+        onExportRequest={onExportRequest}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -262,8 +290,6 @@ export default function BinList() {
             field="bin_name"
             header={t("common.item_name", { item: t("admin.nav.bin_master") })}
             sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: Bin) => capitalize(row.bin_name)}
             style={{ minWidth: "200px" }}
           />
@@ -273,8 +299,6 @@ export default function BinList() {
             field="bin_capacity"
             header={t("common.bin_capacity")}
             sortable
-            filter
-            showFilterMatchModes={false}
             style={{ minWidth: "150px" }}
           />
         )}
@@ -283,9 +307,6 @@ export default function BinList() {
             field="panchayat_name"
             header={t("admin.nav.panchayat")}
             body={(row: Bin) => capitalize(row.panchayat_name || row.panchayat || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             style={{ minWidth: "140px" }}
           />
         )}
@@ -294,9 +315,6 @@ export default function BinList() {
             field="ward_name"
             header="Ward"
             body={(row: Bin) => capitalize(row.ward_name || "-")}
-            sortable
-            filter
-            showFilterMatchModes={false}
             style={{ minWidth: "140px" }}
           />
         )}
@@ -305,9 +323,6 @@ export default function BinList() {
             field="waste_type_name"
             header={t("common.waste_type")}
             body={(row: Bin) => capitalize(wasteTypeTemplate(row))}
-            sortable
-            filter
-            showFilterMatchModes={false}
             style={{ minWidth: "160px" }}
           />
         )}

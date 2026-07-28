@@ -5,12 +5,10 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
@@ -80,25 +78,49 @@ const extractError = (error: unknown): string | null => {
   return null;
 };
 
+/* ── backend's manual `?ordering=` allowlist (see daily_trip_household_collection_viewset.py) ── */
+const SORTABLE_FIELDS = new Set(["sequence", "status", "collected_at"]);
+
+const toRecordList = (value: unknown): DailyTripHouseholdCollectionRecord[] => {
+  if (Array.isArray(value)) return value as DailyTripHouseholdCollectionRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: DailyTripHouseholdCollectionRecord[] }).results;
+  }
+  return [];
+};
+
+/* ── client-side enrichment applied to every raw API row (unchanged logic) ── */
+const enrichRow = (rec: DailyTripHouseholdCollectionRecord) => ({
+  ...rec,
+  _assignment:
+    nestedText(rec.trip_assignment as NamedRef, [
+      "trip_plan_display_code",
+      "unique_id",
+    ]) || rec.trip_assignment_id || "",
+  _customer: nestedText(rec.customer as NamedRef, ["customer_name"]) || "",
+  _trip_date: nestedText(rec.trip_assignment as NamedRef, ["trip_date"]),
+  _collection_type:
+    COLLECTION_TYPE_LABELS[String(rec.collection_type ?? "")] ??
+    text(rec.collection_type),
+  _location: rec.hierarchy?.location_name
+    ?? nestedText(rec.customer as NamedRef, ["location_name"]),
+});
+
 export default function DailyTripHouseholdCollectionList() {
   const { t } = useTranslation();
 
-  const [allRecords, setAllRecords] = useState<
-    DailyTripHouseholdCollectionRecord[]
-  >([]);
+  const [rawRows, setRawRows] = useState<DailyTripHouseholdCollectionRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
   const [dateFilter, setDateFilter] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    unique_id: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _assignment: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_type: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _customer: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _location: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    status: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
 
   const buildParams = useCallback(() => {
     const params: Record<string, string> = { ...hierarchyParams };
@@ -106,99 +128,124 @@ export default function DailyTripHouseholdCollectionList() {
     return params;
   }, [dateFilter, hierarchyParams]);
 
-  useEffect(() => {
-    let mounted = true;
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
     setIsLoading(true);
-    (
-      dailyTripHouseholdCollectionApi.readAll({
-        params: buildParams(),
-      }) as Promise<DailyTripHouseholdCollectionRecord[]>
-    )
-      .then((data) => {
-        if (mounted) setAllRecords(Array.isArray(data) ? data : []);
-      })
-      .catch((err) => {
-        if (mounted)
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: extractError(err) ?? String(err),
-          });
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
+    try {
+      const response = await dailyTripHouseholdCollectionApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...buildParams(),
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
       });
-    return () => {
-      mounted = false;
-    };
-  }, [buildParams, t]);
-
-  const rows = useMemo(() => allRecords.map((rec) => ({
-    ...rec,
-    _assignment:
-      nestedText(rec.trip_assignment as NamedRef, [
-        "trip_plan_display_code",
-        "unique_id",
-      ]) || rec.trip_assignment_id || "",
-    _customer: nestedText(rec.customer as NamedRef, ["customer_name"]) || "",
-    _trip_date: nestedText(rec.trip_assignment as NamedRef, ["trip_date"]),
-    _collection_type:
-      COLLECTION_TYPE_LABELS[String(rec.collection_type ?? "")] ??
-      text(rec.collection_type),
-    _location: rec.hierarchy?.location_name
-      ?? nestedText(rec.customer as NamedRef, ["location_name"]),
-  })), [allRecords]);
-
-  const data = rows;
-
-  const globalFields = [
-    "unique_id", "_assignment", "_collection_type", "_customer", "_location",
-    "status", "_trip_date",
-  ] as const;
-
-  const filteredRows = useMemo(() => rows.filter((row) => {
-    const search = globalFilterValue.trim().toLowerCase();
-    if (search && !globalFields.some((field) => String(row[field] ?? "").toLowerCase().includes(search))) {
-      return false;
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
+      );
+    } catch (err) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: extractError(err) ?? String(err),
+      });
+    } finally {
+      setIsLoading(false);
     }
-    return Object.entries(filters).every(([field, filter]) => {
-      const filterValue = "value" in filter ? filter.value : null;
-      if (field === "global" || !filterValue) return true;
-      return String((row as Record<string, unknown>)[field] ?? "")
-        .toLowerCase()
-        .includes(String(filterValue).toLowerCase());
-    });
-  }), [filters, globalFilterValue, rows]);
+  };
 
+  /* ── reset to first page whenever a non-pagination filter changes ── */
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyParams, dateFilter]);
+
+  /* ── load rows (re-runs whenever pagination/sort/search/hierarchy/date filters change) ── */
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, dateFilter]);
+
+  /* ── debounce the global search box into the server-side `?search=` param ── */
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  /* ── enrich rows (current page only) ── */
+  const rows = useMemo(() => rawRows.map(enrichRow), [rawRows]);
+
+  /* ── KPI pills: computed from the CURRENT PAGE only — there is no dedicated
+     backend summary aggregate for this resource, so these are deliberately
+     labeled "(page)" rather than implying dataset-wide totals. ── */
   const today = new Date().toISOString().slice(0, 10);
   const summary = useMemo(() => {
-    const total = filteredRows.reduce((sum, row) => sum + Number(row.collected_weight_kg ?? 0), 0);
-    const daily = filteredRows.reduce(
+    const total = rows.reduce((sum, row) => sum + Number(row.collected_weight_kg ?? 0), 0);
+    const daily = rows.reduce(
       (sum, row) => sum + (row._trip_date === today ? Number(row.collected_weight_kg ?? 0) : 0),
       0,
     );
-    return { daily: daily.toFixed(2), overall: total.toFixed(2), records: filteredRows.length };
-  }, [filteredRows, today]);
+    return { daily: daily.toFixed(2), overall: total.toFixed(2), records: rows.length };
+  }, [rows, today]);
 
-  const exportRows = filteredRows.map((row) => ({
-    ID: row.unique_id,
-    "Trip Assignment": row._assignment,
-    "Trip Date": row._trip_date,
-    "Collection Type": row._collection_type,
-    Customer: row._customer,
-    "Local Body": row._location,
-    Sequence: row.sequence ?? "-",
-    "Weight (kg)": row.collected_weight_kg ?? "-",
-    Status: row.status ?? "-",
-    Reason: row.status_reason ?? "-",
-    "Collected At": row.collected_at ?? "-",
-  }));
+  const buildExportRows = (list: DailyTripHouseholdCollectionRecord[]) =>
+    list.map((row) => ({
+      ID: row.unique_id,
+      "Trip Assignment": row._assignment,
+      "Trip Date": row._trip_date,
+      "Collection Type": row._collection_type,
+      Customer: row._customer,
+      "Local Body": row._location,
+      Sequence: row.sequence ?? "-",
+      "Weight (kg)": row.collected_weight_kg ?? "-",
+      Status: row.status ?? "-",
+      Reason: row.status_reason ?? "-",
+      "Collected At": row.collected_at ?? "-",
+    }));
 
-  const handleExcelDownload = () =>
-    exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
-
-  const handlePdfDownload = () => {
+  /* ── download: fetch the FULL hierarchy/date/search-filtered dataset fresh
+     from the server (independent of whatever page is currently on screen),
+     then apply the same enrichment to build the export rows. ── */
+  const handleExcelDownload = async () => {
+    setIsExporting(true);
     try {
+      const all = toRecordList(
+        await dailyTripHouseholdCollectionApi.readAllForExport({
+          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+        }),
+      );
+      const exportRows = buildExportRows(all.map(enrichRow));
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.error"), "No household collection records to export.", "warning");
+        return;
+      }
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
+    } catch (error) {
+      Swal.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePdfDownload = async () => {
+    setIsExporting(true);
+    try {
+      const all = toRecordList(
+        await dailyTripHouseholdCollectionApi.readAllForExport({
+          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+        }),
+      );
+      const exportRows = buildExportRows(all.map(enrichRow));
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.error"), "No household collection records to export.", "warning");
+        return;
+      }
       downloadRecordsPdf({
         title: "Household Collection Events",
         filename: "household_collection_events.pdf",
@@ -207,20 +254,28 @@ export default function DailyTripHouseholdCollectionList() {
       });
     } catch (error) {
       Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const onFilter = (e: DataTableFilterEvent) =>
-    setFilters(e.filters as DataTableFilterMeta);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   const updateRecord = (uniqueId: string, patch: Partial<DailyTripHouseholdCollectionRecord>) => {
-    setAllRecords((records) =>
+    setRawRows((records) =>
       records.map((record) =>
         record.unique_id === uniqueId
           ? { ...record, ...patch }
@@ -254,14 +309,26 @@ export default function DailyTripHouseholdCollectionList() {
     <div className="space-y-4">
       <HierarchyFilterBar onChange={setHierarchyParams} />
       <div className="flex flex-wrap gap-3 text-sm">
-        <span className="rounded-full bg-slate-100 px-4 py-2">Daily: {summary.daily}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Overall: {summary.overall}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Records: {summary.records}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {summary.daily}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall (page): {summary.overall}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records (page): {summary.records}</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
-          <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handleExcelDownload} />
-          <Button label="Download PDF" icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handlePdfDownload} />
+          <Button
+            label={isExporting ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined p-button-sm"
+            disabled={isExporting || totalRecords === 0}
+            onClick={() => void handleExcelDownload()}
+          />
+          <Button
+            label={isExporting ? "Generating…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined p-button-sm"
+            disabled={isExporting || totalRecords === 0}
+            onClick={() => void handlePdfDownload()}
+          />
         </div>
         <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
           <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
@@ -287,27 +354,23 @@ export default function DailyTripHouseholdCollectionList() {
 
       <DataTable
         exportable={false}
-        value={data}
+        value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && data.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage="No household collection records found."
-        globalFilterFields={[
-          "unique_id",
-          "_assignment",
-          "_collection_type",
-          "_customer",
-          "_location",
-          "status",
-          "_trip_date",
-        ]}
         className="p-datatable-sm"
       >
         <Column
@@ -318,17 +381,11 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="unique_id"
           header="ID"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 150 }}
         />
         <Column
           field="_assignment"
           header="Trip Assignment"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 170 }}
           body={(row) =>
             nestedText(row.trip_assignment as NamedRef, [
@@ -340,17 +397,11 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="_collection_type"
           header="Collection Type"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
         />
         <Column
           field="_customer"
           header="Customer"
-          sortable
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 160 }}
           body={(row) =>
             nestedText(row.customer as NamedRef, ["customer_name"])
@@ -359,8 +410,6 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="_location"
           header="Location"
-          filter
-          showFilterMatchModes={false}
           style={{ minWidth: 180 }}
           body={(row: DailyTripHouseholdCollectionRecord) => {
             const locationName = row.hierarchy?.location_name
@@ -380,18 +429,17 @@ export default function DailyTripHouseholdCollectionList() {
             return <span className="text-sm text-gray-400">—</span>;
           }}
         />
-        <Column field="_trip_date" header="Trip Date" sortable filter showFilterMatchModes={false} style={{ minWidth: 110 }} />
+        <Column field="_trip_date" header="Trip Date" style={{ minWidth: 110 }} />
         <Column
           field="sequence"
           header="Seq"
-          sortable
+          sortable={SORTABLE_FIELDS.has("sequence")}
           style={{ width: 70 }}
           body={(row) => text(row.sequence)}
         />
         <Column
           field="collected_weight_kg"
           header="Weight (kg)"
-          sortable
           style={{ minWidth: 110 }}
           body={(row: DailyTripHouseholdCollectionRecord) =>
             row.collected_weight_kg != null ? (
@@ -406,9 +454,7 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="status"
           header="Status"
-          sortable
-          filter
-          showFilterMatchModes={false}
+          sortable={SORTABLE_FIELDS.has("status")}
           style={{ minWidth: 180 }}
           body={(row: DailyTripHouseholdCollectionRecord) => (
             <div className="flex items-center gap-2">
@@ -459,7 +505,7 @@ export default function DailyTripHouseholdCollectionList() {
         <Column
           field="collected_at"
           header="Collected At"
-          sortable
+          sortable={SORTABLE_FIELDS.has("collected_at")}
           style={{ minWidth: 150 }}
           body={(row: DailyTripHouseholdCollectionRecord) =>
             text(row.collected_at)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTableFilterMeta, DataTablePageEvent } from "primereact/datatable";
 import { InputText } from "primereact/inputtext";
 
 import { api } from "@/api";
@@ -11,26 +11,32 @@ import Select from "@/components/form/Select";
 import Swal from "@/lib/notify";
 import { staffCreationApi } from "@/helpers/admin";
 
-type DailyAttendanceRecord = Record<string, unknown>;
-
-type DailyAttendanceResponse = {
-  count: number;
-  records: DailyAttendanceRecord[];
-};
-
-type DailyAttendanceGroup = {
+// One already-grouped (emp_id, recognition_date) row, as returned directly by
+// GET /attendance/records/ — the backend now performs the punch grouping via
+// SQL aggregation before pagination, so the frontend no longer groups raw punches.
+type DailyAttendanceRow = {
   key: string;
   emp_id: string;
   name: string;
   recognition_date: string;
-  first_in_time: string;
-  last_out_time: string;
+  first_in_time: string | null;
+  last_out_time: string | null;
   punch_count: number;
-  latitude: unknown;
-  longitude: unknown;
-  captured_image: unknown;
+  latitude: string | null;
+  longitude: string | null;
+  captured_image: string | null;
+};
+
+// A row after the client-added staff-type annotations (from a separate
+// staff-type lookup, unrelated to the attendance endpoint) are attached.
+type DailyAttendanceGroup = DailyAttendanceRow & {
   user_type: string;
   staff_user_type: string;
+};
+
+type DailyAttendanceResponse = {
+  count: number;
+  records: DailyAttendanceRow[];
 };
 
 type ApiError = {
@@ -44,7 +50,7 @@ type ApiError = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const text = (row: DailyAttendanceRecord, ...keys: string[]) => {
+const text = (row: Record<string, unknown>, ...keys: string[]) => {
   for (const key of keys) {
     const value = row[key];
     if (value !== null && value !== undefined && value !== "") return String(value);
@@ -54,12 +60,9 @@ const text = (row: DailyAttendanceRecord, ...keys: string[]) => {
 
 const ALL_STAFF_TYPES = "__all__";
 
-const IN_PATTERN = /^(in|check[-_ ]?in)$/i;
-const OUT_PATTERN = /^(out|check[-_ ]?out)$/i;
-
 // Formats a "HH:mm" / "HH:mm:ss" 24-hour time string as 12-hour with AM/PM (IST, as reported by the device).
-const formatTime12h = (value: string): string => {
-  const match = /^(\d{1,2}):(\d{2})/.exec(value);
+const formatTime12h = (value: string | null): string => {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value ?? "");
   if (!match) return value || "-";
   const hours24 = Number(match[1]);
   const minutes = match[2];
@@ -69,8 +72,9 @@ const formatTime12h = (value: string): string => {
 };
 
 // Worked hours = Last Out - First In, both "HH:mm[:ss]" strings on the same day.
-const getWorkedHours = (firstIn: string, lastOut: string): string => {
-  const parse = (value: string): number | null => {
+const getWorkedHours = (firstIn: string | null, lastOut: string | null): string => {
+  const parse = (value: string | null): number | null => {
+    if (!value) return null;
     const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(value);
     if (!match) return null;
     return Number(match[1]) * 60 + Number(match[2]) + Number(match[3] ?? 0) / 60;
@@ -84,53 +88,14 @@ const getWorkedHours = (firstIn: string, lastOut: string): string => {
   return `${hours}h ${minutes}m`;
 };
 
-// Merges raw per-punch records into one row per staff per day (first-in / last-out).
-// `punch_type` values aren't confirmed from the frontend, so classification falls back
-// to "first punch chronologically = in, last punch = out" when nothing matches.
-const groupDailyAttendance = (rows: DailyAttendanceRecord[]): DailyAttendanceGroup[] => {
-  const buckets = new Map<string, DailyAttendanceRecord[]>();
-
-  rows.forEach((row) => {
-    const empId = text(row, "emp_id");
-    const date = text(row, "recognition_date");
-    const key = `${empId}__${date}`;
-    const bucket = buckets.get(key);
-    if (bucket) bucket.push(row);
-    else buckets.set(key, [row]);
-  });
-
-  return Array.from(buckets.entries()).map(([key, punches]) => {
-    const sorted = [...punches].sort((a, b) =>
-      text(a, "recognition_time").localeCompare(text(b, "recognition_time"))
-    );
-
-    const inPunch = sorted.find((row) => IN_PATTERN.test(text(row, "punch_type")));
-    const outPunch = [...sorted].reverse().find((row) => OUT_PATTERN.test(text(row, "punch_type")));
-
-    const firstIn = inPunch ?? sorted[0];
-    const lastOut = outPunch ?? sorted[sorted.length - 1];
-
-    return {
-      key,
-      emp_id: text(firstIn, "emp_id"),
-      name: text(firstIn, "name"),
-      recognition_date: text(firstIn, "recognition_date"),
-      first_in_time: text(firstIn, "recognition_time"),
-      last_out_time: text(lastOut, "recognition_time"),
-      punch_count: sorted.length,
-      latitude: firstIn.latitude,
-      longitude: firstIn.longitude,
-      captured_image: firstIn.captured_image,
-      user_type: "-",
-      staff_user_type: "-",
-    };
-  });
-};
-
 export default function DailyAttendanceRegList() {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
-  const [rows, setRows] = useState<DailyAttendanceRecord[]>([]);
+  // One page of already-grouped (emp_id, recognition_date) rows from the backend.
+  const [rawRows, setRawRows] = useState<DailyAttendanceRow[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [filters, setFilters] = useState<DataTableFilterMeta>({
@@ -173,14 +138,15 @@ export default function DailyAttendanceRegList() {
       });
   }, []);
 
+  // rawRows is already grouped (one row per staff per day) by the backend —
+  // just attach the client-side staff-type annotations.
   const groupedRows = useMemo(() => {
-    const groups = groupDailyAttendance(rows);
-    return groups.map((row) => ({
+    return rawRows.map((row): DailyAttendanceGroup => ({
       ...row,
       user_type: userTypeById.get(row.emp_id) ?? "-",
       staff_user_type: staffUserTypeById.get(row.emp_id) ?? "-",
     }));
-  }, [rows, userTypeById, staffUserTypeById]);
+  }, [rawRows, userTypeById, staffUserTypeById]);
 
   const staffUserTypeOptions = useMemo(() => {
     const distinct = Array.from(new Set(staffUserTypeById.values())).sort();
@@ -202,11 +168,15 @@ export default function DailyAttendanceRegList() {
         params: {
           from_date: fromDate,
           to_date: toDate,
+          page: first / rowsPerPage + 1,
+          limit: rowsPerPage,
         },
       });
-      setRows(Array.isArray(data.records) ? data.records : []);
+      setRawRows(Array.isArray(data.records) ? data.records : []);
+      setTotalRecords(typeof data.count === "number" ? data.count : 0);
     } catch (error: unknown) {
-      setRows([]);
+      setRawRows([]);
+      setTotalRecords(0);
       Swal.fire(
         "Attendance load failed",
         (error as ApiError).response?.data?.detail ?? "Unable to load attendance records.",
@@ -215,11 +185,16 @@ export default function DailyAttendanceRegList() {
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate]);
+  }, [fromDate, toDate, first, rowsPerPage]);
 
   useEffect(() => {
     fetchAttendance();
   }, [fetchAttendance]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
 
   const header = (
       <div className="space-y-4">
@@ -234,7 +209,10 @@ export default function DailyAttendanceRegList() {
               <input
                 type="date"
                 value={fromDate}
-                onChange={(event) => setFromDate(event.target.value)}
+                onChange={(event) => {
+                  setFromDate(event.target.value);
+                  setFirst(0);
+                }}
                 className="h-10 rounded-md border px-3"
               />
             </label>
@@ -243,7 +221,10 @@ export default function DailyAttendanceRegList() {
               <input
                 type="date"
                 value={toDate}
-                onChange={(event) => setToDate(event.target.value)}
+                onChange={(event) => {
+                  setToDate(event.target.value);
+                  setFirst(0);
+                }}
                 className="h-10 rounded-md border px-3"
               />
             </label>
@@ -283,8 +264,12 @@ export default function DailyAttendanceRegList() {
       <DataTable
         value={filteredGroupedRows}
         dataKey="key"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         filters={filters}
