@@ -188,17 +188,18 @@ export default function DailyTripAssignmentForm() {
   // the geo cascade selects and the waste type multiselect. wasteTypeApi has
   // no backend filtering support at all, so it stays a plain unfiltered fetch.
   useEffect(() => {
+    const liteConfig = { params: { lite: 1 } };
     Promise.all([
-      wasteTypeApi.readAll(),
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-      wardApi.readAll(),
+      wasteTypeApi.readAll(liteConfig),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      panchayatApi.readAll(liteConfig),
+      wardApi.readAll(liteConfig),
     ]).then(([
       wasteTypeRes,
       stateRes, districtRes, areaTypeRes, corporationRes, municipalityRes, townPanchayatRes, panchayatUnionRes, panchayatRes,

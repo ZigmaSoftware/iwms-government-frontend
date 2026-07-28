@@ -120,7 +120,3 @@ export const api = createApi({
   tokenStorageKey: "access_token",
   loginPathIncludes: ["/login/"],
 });
-
-// Debug: expose base URL for troubleshooting (prints once on module load)
-// eslint-disable-next-line no-console
-console.debug("[api] API_ROOT", { API_ROOT });

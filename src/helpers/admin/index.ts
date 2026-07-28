@@ -90,7 +90,6 @@ export const customerCreationApi = adminApi.customerCreations;
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
 export const feedbackApi = adminApi.feedbacks;
-// export const collectionMonitoringApi = adminApi.pointCollections;
 
 /* =========================
    COMPLAINT TICKETING

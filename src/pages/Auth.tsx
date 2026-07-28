@@ -128,8 +128,6 @@ export default function Auth() {
         password: validation.data.password,
       });
 
-      console.log("[Auth] Login response received:", res.data);
-
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
 
@@ -154,12 +152,6 @@ export default function Auth() {
         isAdmin(normalizedRole) ||
         hasAnyPermission(freshPermissions) ||
         hasAnyPermission((payload.permissions ?? {}) as Record<string, unknown>);
-
-      console.log(
-        "[Auth] Role:", normalizedRole,
-        "| permissions:", freshPermissions,
-        "| hasAdminAccess:", hasAdminAccess
-      );
 
       if (hasAdminAccess) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);

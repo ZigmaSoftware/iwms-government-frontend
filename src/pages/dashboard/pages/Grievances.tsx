@@ -57,7 +57,6 @@ export default function Grievances() {
         setError(null);
         setLoading(true);
         const data = await fetchGrievances(signal);
-        console.log("data", data)
         setComplaints(data);
       } catch (err) {
         if (signal?.aborted) return;
@@ -541,7 +540,6 @@ export default function Grievances() {
                 ) : (
                   <div className="grid gap-4">
                     {tabItems.map((g, index) => {
-                      console.log("Rendering grievance", g);
                       const statusStyles = getStatusStyles(g.status);
                       return (
                         <Card
