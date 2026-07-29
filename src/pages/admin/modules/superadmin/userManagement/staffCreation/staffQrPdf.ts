@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 
-import type { Staff } from "./types";
+import type { Staff, StaffAddress } from "./types";
 
 export const PAGE_WIDTH = 1240;
 export const PAGE_HEIGHT = 1754;
@@ -50,10 +50,46 @@ export const wrapText = (
 export const safeFilename = (value: string): string =>
   value.trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "staff";
 
-type StaffAddress = { city?: string; state?: string; district?: string };
+export const addressTextOf = (
+  staff: Staff,
+  prefix: "present" | "permanent",
+): string => {
+  const rawAddress: unknown = staff[`${prefix}_address`];
+  let address: StaffAddress = {};
 
-export const presentAddressOf = (staff: Staff): StaffAddress | undefined =>
-  staff.present_address as StaffAddress | undefined;
+  if (rawAddress && typeof rawAddress === "object") {
+    address = rawAddress as StaffAddress;
+  } else if (typeof rawAddress === "string" && rawAddress.trim()) {
+    try {
+      const parsed = JSON.parse(rawAddress);
+      if (parsed && typeof parsed === "object") address = parsed as StaffAddress;
+    } catch {
+      return rawAddress.trim();
+    }
+  }
+
+  return [
+    address.building_no ?? staff[`${prefix}_building_no`],
+    address.street ?? staff[`${prefix}_street`],
+    address.area ?? staff[`${prefix}_area`],
+    address.city ?? staff[`${prefix}_city`],
+    address.district ?? staff[`${prefix}_district`],
+    address.state ?? staff[`${prefix}_state`],
+    address.country ?? staff[`${prefix}_country`],
+    address.pincode ?? staff[`${prefix}_pincode`],
+  ]
+    .map((part) => String(part ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+};
+
+export const localBodyNameOf = (staff: Staff): unknown =>
+  staff.local_body_name ??
+  staff.corporation_name ??
+  staff.municipality_name ??
+  staff.town_panchayat_name ??
+  staff.panchayat_union_name ??
+  staff.panchayat_name;
 
 const createStaffQrPdf = async (staff: Staff): Promise<jsPDF> => {
   if (!staff.qr_code) throw new Error("QR code is not available for this staff member.");
@@ -103,7 +139,7 @@ const createStaffQrPdf = async (staff: Staff): Promise<jsPDF> => {
     ["Zigma ID", staff.unique_id ?? staff.staff_unique_id],
     ["Employee ID", staff.emp_id],
     ["Status", staff.active_status ? "Active" : "Inactive"],
-    ["Designation", staff.designation],
+    ["Contact", staff.contact_mobile],
   ];
   summaryY += 18;
   for (const [label, value] of summary) {
@@ -123,37 +159,50 @@ const createStaffQrPdf = async (staff: Staff): Promise<jsPDF> => {
   context.lineTo(PAGE_WIDTH - 74, 570);
   context.stroke();
 
-  const presentAddress = presentAddressOf(staff);
   const details: Array<[string, unknown]> = [
-    ["User Type", staff.user_type_name],
-    ["Government User Type", staff.governmentusertype_name],
+    ["Staff Type", staff.staff_type_name ?? staff.user_type_name],
+    ["Government Staff Type", staff.government_staff_type_name ?? staff.governmentusertype_name],
+    ["Government Level", staff.governmentusertype_level],
+    ["Staff Configuration", staff.staff_config_name],
     ["Date of Joining", staff.doj],
-    ["Contact", staff.contact_mobile],
-    ["Department", staff.department],
     ["Email", staff.contact_email ?? staff.office_email],
+    ["Username", staff.username],
+    ["Login Enabled", staff.login_enabled ? "Yes" : "No"],
+    ["Staff Head", staff.staff_head],
     ["Gender", staff.gender],
     ["Date of Birth", staff.dob],
+    ["Age", staff.age],
     ["Blood Group", staff.blood_group],
-    ["City", presentAddress?.city],
-    ["State", presentAddress?.state],
-    ["District", presentAddress?.district],
+    ["Marital Status", staff.marital_status],
+    ["Physically Challenged", staff.physically_challenged],
+    ["State", staff.state_name],
+    ["District", staff.district_name],
+    ["Area Type", staff.area_type_name],
+    ["Local Body", localBodyNameOf(staff)],
+    ["Present Address", addressTextOf(staff, "present")],
+    ["Permanent Address", addressTextOf(staff, "permanent")],
+    ["Driving Licence", staff.driving_licence_no],
+    ["Licence Expiry", staff.driving_licence_expiry_date],
+    ["Driving Experience", staff.driving_experience_years],
+    ["Created At", staff.created_at],
+    ["Updated At", staff.updated_at],
   ];
 
   const left = 82;
   const columnWidth = 550;
-  const rowHeight = 82;
+  const rowHeight = 64;
   let y = 625;
   details.forEach(([label, value], index) => {
     const column = index % 2;
     const x = left + column * columnWidth;
     if (index > 0 && column === 0) y += rowHeight;
     context.fillStyle = "#64748b";
-    context.font = "700 18px Arial, sans-serif";
+    context.font = "700 16px Arial, sans-serif";
     context.fillText(label.toUpperCase(), x, y);
     context.fillStyle = "#0f172a";
-    context.font = "23px Arial, sans-serif";
+    context.font = "19px Arial, sans-serif";
     const valueLines = wrapText(context, text(value), columnWidth - 45).slice(0, 2);
-    valueLines.forEach((line, lineIndex) => context.fillText(line, x, y + 31 + lineIndex * 27));
+    valueLines.forEach((line, lineIndex) => context.fillText(line, x, y + 25 + lineIndex * 21));
   });
   y += rowHeight;
 
