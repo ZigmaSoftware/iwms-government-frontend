@@ -27,6 +27,7 @@ import {
 } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -1822,6 +1823,16 @@ function CustomerEditor({
                 type="number"
                 step="0.0001"
               />
+            )}
+            {(showField("latitude") || showField("longitude")) && (
+              <div className="flex items-end">
+                <AutoDetectLocationButton
+                  onDetected={({ latitude, longitude }) => {
+                    update("latitude", latitude);
+                    update("longitude", longitude);
+                  }}
+                />
+              </div>
             )}
           </FormSection>
 

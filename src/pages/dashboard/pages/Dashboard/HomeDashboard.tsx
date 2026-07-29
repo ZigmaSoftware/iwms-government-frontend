@@ -39,6 +39,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import {
@@ -1174,22 +1180,38 @@ function VehicleStatusRing({
               <span className="text-xs font-bold text-slate-900 dark:text-white">{formatTons(totalWasteTons)}</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {wasteSegments.map((item) => (
-              <div
-                key={item.label}
-                className={`flex min-w-0 items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-[10px] font-semibold ${item.rowClass}`}
-              >
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className={`h-2 w-2 shrink-0 rounded-sm ${item.color}`} />
-                  <span className="truncate">{item.label}</span>
-                </span>
-                <span className="shrink-0 whitespace-nowrap text-[9px]">
-                  {item.value.toFixed(2)} Ton ({((item.value / totalWasteForBreakdown) * 100).toFixed(0)}%)
-                </span>
-              </div>
-            ))}
-          </div>
+          <TooltipProvider delayDuration={150}>
+            <div className="grid grid-cols-2 gap-2">
+              {wasteSegments.map((item) => {
+                const percentage = (item.value / totalWasteForBreakdown) * 100;
+
+                return (
+                  <Tooltip key={item.label}>
+                    <TooltipTrigger asChild>
+                      <div
+                        tabIndex={0}
+                        className={`flex min-w-0 cursor-help items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-[10px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${item.rowClass}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={`h-2 w-2 shrink-0 rounded-sm ${item.color}`} />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        <span className="shrink-0 whitespace-nowrap text-[9px]">
+                          {item.value.toFixed(2)} Ton ({percentage.toFixed(0)}%)
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-64 px-3 py-2 text-xs">
+                      <p className="font-bold">{item.label}</p>
+                      <p className="mt-0.5">
+                        {item.value.toFixed(2)} Ton ({percentage.toFixed(0)}%)
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </TooltipProvider>
         </div>
       </div>
     </DashboardPanel>

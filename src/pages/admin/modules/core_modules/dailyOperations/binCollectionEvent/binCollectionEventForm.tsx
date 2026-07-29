@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
@@ -782,6 +783,14 @@ function BinCollectionEventEditor({
         <div>
           <Label>Driver Longitude</Label>
           <Input value={driverLongitude} onChange={(e) => setDriverLongitude(e.target.value)} />
+        </div>
+        <div className="flex justify-end md:col-span-2">
+          <AutoDetectLocationButton
+            onDetected={({ latitude, longitude }) => {
+              setDriverLatitude(latitude);
+              setDriverLongitude(longitude);
+            }}
+          />
         </div>
         <div className="md:col-span-2">
           <Label>Notes</Label>

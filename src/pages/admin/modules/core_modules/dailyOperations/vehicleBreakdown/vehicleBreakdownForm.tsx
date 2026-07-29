@@ -6,6 +6,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
@@ -520,6 +521,14 @@ export default function VehicleBreakdownForm() {
               value={form.breakdown_lng}
               onChange={(e) => setField("breakdown_lng", e.target.value)}
               placeholder="e.g. 77.2090"
+            />
+          </div>
+          <div className="flex justify-end md:col-span-2">
+            <AutoDetectLocationButton
+              onDetected={({ latitude, longitude }) => {
+                setField("breakdown_lat", latitude);
+                setField("breakdown_lng", longitude);
+              }}
             />
           </div>
 

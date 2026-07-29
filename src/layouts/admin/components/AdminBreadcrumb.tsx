@@ -47,11 +47,26 @@ const AdminBreadcrumb: React.FC = () => {
     items.push({ label: t(matched.nameKey), isActive: true });
 
     if (location.pathname.endsWith("/new")) {
-      items[items.length - 1].isActive = false;
+      items[items.length - 1] = {
+        ...items[items.length - 1],
+        path: matched.path,
+        isActive: false,
+      };
       items.push({ label: t("common.add"), isActive: true });
     } else if (location.pathname.endsWith("/edit")) {
-      items[items.length - 1].isActive = false;
+      items[items.length - 1] = {
+        ...items[items.length - 1],
+        path: matched.path,
+        isActive: false,
+      };
       items.push({ label: t("common.edit"), isActive: true });
+    } else if (location.pathname.endsWith("/report")) {
+      items[items.length - 1] = {
+        ...items[items.length - 1],
+        path: matched.path,
+        isActive: false,
+      };
+      items.push({ label: t("common.view"), isActive: true });
     }
 
     return items;
