@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldError } from "@/components/form/FieldError";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 
 export type GeoCoordinateDraft = {
   latitude: string;
@@ -121,7 +122,7 @@ export default function GeoFenceCoordinates({
 
       <div className="space-y-3">
         {coordinates.map((point, index) => (
-          <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+          <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
             <div>
               <Input
                 inputMode="decimal"
@@ -140,6 +141,18 @@ export default function GeoFenceCoordinates({
               />
               <FieldError message={errors?.[index]?.longitude} />
             </div>
+            <AutoDetectLocationButton
+              label="Auto detect"
+              onDetected={({ latitude, longitude }) => {
+                onChange(
+                  coordinates.map((currentPoint, currentIndex) =>
+                    currentIndex === index
+                      ? { ...currentPoint, latitude, longitude }
+                      : currentPoint,
+                  ),
+                );
+              }}
+            />
             <Button
               type="button"
               variant="destructive"
