@@ -1,6 +1,6 @@
 import { DataCard } from "@/components/ui/DataCard";
 import Label from "@/components/form/Label";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, WheelEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -782,9 +782,13 @@ function WardTicker({
 }: {
   wards: WardPerformance[];
 }) {
-  const displayWards =
-    wards.length > 0
-      ? wards
+  const displayWards = useMemo(() => {
+    const uniqueWards = Array.from(
+      new Map(wards.map((ward) => [ward.ward_id, ward])).values(),
+    );
+
+    return uniqueWards.length > 0
+      ? uniqueWards
       : Array.from({ length: 8 }, (_, index) => ({
           ward_id: `ward-${index + 1}`,
           ward_name: `Ward ${String(index + 1).padStart(2, "0")}`,
@@ -804,14 +808,18 @@ function WardTicker({
           bins_total: 0,
           completion_pct: 0,
         }));
+  }, [wards]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
+  const renderedWards = hasOverflow
+    ? [...displayWards, ...displayWards, ...displayWards]
+    : displayWards;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     const track = trackRef.current;
     if (!container || !track) return;
@@ -821,7 +829,7 @@ function WardTicker({
       const repeatedFirstCard = track.children[displayWards.length] as HTMLElement | undefined;
       const loopWidth = firstCard && repeatedFirstCard
         ? repeatedFirstCard.offsetLeft - firstCard.offsetLeft
-        : track.scrollWidth / 3;
+        : track.scrollWidth;
       const overflow = loopWidth > container.clientWidth + 1;
       setHasOverflow(overflow);
       if (overflow && (container.scrollLeft < 1 || container.scrollLeft >= loopWidth * 2)) {
@@ -836,7 +844,7 @@ function WardTicker({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [displayWards]);
+  }, [displayWards, hasOverflow]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -929,7 +937,7 @@ function WardTicker({
           ref={trackRef}
           className="flex w-max gap-3 pr-1"
         >
-          {[...displayWards, ...displayWards, ...displayWards].map((ward, index) => {
+          {renderedWards.map((ward, index) => {
             const isDelayed = ward.status === "delayed";
             const isNoVehicle = ward.status === "no_vehicle";
             const color = colorForDistrict(ward.district_name);
