@@ -43,13 +43,8 @@ const {
   encMonthlyWasteComparison,
   encComplaintTicket,
   encComplaint,
-  encFeedback,
   encComplaintModules,
   encComplaintCategories,
-  encComplaintSubcategories,
-  encComplaintPriorities,
-  encComplaintStatuses,
-  encComplaintSources,
   encComplaintTeams,
   encComplaintSlaRules,
   encTransportMaster,
@@ -104,11 +99,20 @@ type NavItem = {
   path?: string;
   module?: string;
   screen?: string;
+  /**
+   * A nav item that stands in for several merged screens (e.g. "Reference
+   * Data" covers modules/priorities/sources/statuses) is visible if the
+   * staff has view permission on ANY of these — not just one arbitrarily
+   * chosen anchor screen. Optional; when absent, `screen` alone gates
+   * visibility as before.
+   */
+  screens?: string[];
   subItems?: Array<{
     nameKey: string;
     path: string;
     module?: string;
     screen?: string;
+    screens?: string[];
   }>;
 };
 
@@ -458,6 +462,13 @@ const complaintTicketItems: NavItem[] = [
     icon: <AlertTriangle size={18} />,
     module: "complaint-ticket",
     screen: "complaint-ticket",
+    // 10 sub-items collapsed to 5: Modules/Priorities/Sources/Statuses are now
+    // tabs on one "Reference Data" screen, Categories/Subcategories are one
+    // master-detail screen, and Feedback (read-only, ticket-scoped) moved
+    // into Tickets as a column/filter — see ReferenceDataScreen.tsx,
+    // CategoryManagementScreen.tsx and TicketList.tsx. The 10 underlying
+    // routes/permissions are unchanged, so `screens` lists every merged
+    // screen a staff member might individually hold permission for.
     subItems: [
       {
         nameKey: "admin.nav.complaint_tickets",
@@ -466,40 +477,16 @@ const complaintTicketItems: NavItem[] = [
         screen: "tickets",
       },
       {
-        nameKey: "admin.nav.modules",
+        nameKey: "admin.nav.reference_data",
         path: `/${encComplaintTicket}/${encComplaintModules}`,
         module: "complaint-ticket",
-        screen: "modules",
+        screens: ["modules", "priorities", "sources", "statuses"],
       },
       {
         nameKey: "admin.nav.categories",
         path: `/${encComplaintTicket}/${encComplaintCategories}`,
         module: "complaint-ticket",
-        screen: "categories",
-      },
-      {
-        nameKey: "admin.nav.subcategories",
-        path: `/${encComplaintTicket}/${encComplaintSubcategories}`,
-        module: "complaint-ticket",
-        screen: "subcategories",
-      },
-      {
-        nameKey: "admin.nav.priorities",
-        path: `/${encComplaintTicket}/${encComplaintPriorities}`,
-        module: "complaint-ticket",
-        screen: "priorities",
-      },
-      {
-        nameKey: "admin.nav.statuses",
-        path: `/${encComplaintTicket}/${encComplaintStatuses}`,
-        module: "complaint-ticket",
-        screen: "statuses",
-      },
-      {
-        nameKey: "admin.nav.sources",
-        path: `/${encComplaintTicket}/${encComplaintSources}`,
-        module: "complaint-ticket",
-        screen: "sources",
+        screens: ["categories", "subcategories"],
       },
       {
         nameKey: "admin.nav.teams",
@@ -512,12 +499,6 @@ const complaintTicketItems: NavItem[] = [
         path: `/${encComplaintTicket}/${encComplaintSlaRules}`,
         module: "complaint-ticket",
         screen: "sla-rules",
-      },
-      {
-        nameKey: "admin.nav.feedback",
-        path: `/${encComplaintTicket}/${encFeedback}`,
-        module: "complaint-ticket",
-        screen: "feedback",
       },
     ],
   },
@@ -758,6 +739,21 @@ const AppSidebar: React.FC = () => {
     [hasPermission]
   );
 
+  // A merged nav item (e.g. "Reference Data" standing in for
+  // modules/priorities/sources/statuses) is visible if the staff has view
+  // permission on ANY of its `screens` — collapsing 4 sidebar entries into 1
+  // must not hide it from someone who only had permission for one of the 4.
+  const checkAnyPermission = useCallback(
+    (module: string | undefined, screen: string | undefined, screens: string[] | undefined): boolean => {
+      if (screens && screens.length > 0) {
+        if (!module) return true;
+        return screens.some((s) => hasPermission(module, s, "view"));
+      }
+      return checkPermission(module, screen);
+    },
+    [checkPermission, hasPermission]
+  );
+
   // Filter sub-items: only show items with permission
   const filterSubItems = useCallback((
     subItems: NavItem["subItems"]
@@ -769,13 +765,13 @@ const AppSidebar: React.FC = () => {
 
     // Regular users: only show items they have permission for
     return subItems.filter((sub) => {
-      const allowed = checkPermission(sub.module, sub.screen);
+      const allowed = checkAnyPermission(sub.module, sub.screen, sub.screens);
       console.log(
-        `[Filter SubItem] ${sub.nameKey} (${sub.module}/${sub.screen}) = ${allowed}`
+        `[Filter SubItem] ${sub.nameKey} (${sub.module}/${sub.screen ?? sub.screens?.join("|")}) = ${allowed}`
       );
       return allowed;
     });
-  }, [checkPermission, isSuperAdmin]);
+  }, [checkAnyPermission, isSuperAdmin]);
 
   // Check if menu item should be shown
   const hasVisibleContent = useCallback((
@@ -788,10 +784,10 @@ const AppSidebar: React.FC = () => {
   }
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
-      if (!item.module || !item.screen) return true;
-      const allowed = checkPermission(item.module, item.screen);
+      if (!item.module || (!item.screen && !item.screens)) return true;
+      const allowed = checkAnyPermission(item.module, item.screen, item.screens);
       console.log(
-        `[Show Item] ${item.nameKey} (no children, ${item.module}/${item.screen}) = ${allowed}`
+        `[Show Item] ${item.nameKey} (no children, ${item.module}/${item.screen ?? item.screens?.join("|")}) = ${allowed}`
       );
       return allowed;
     }
@@ -802,7 +798,7 @@ const AppSidebar: React.FC = () => {
       `[Show Item] ${item.nameKey} (parent, has ${filteredSubItems?.length || 0} children) = ${hasChildren}`
     );
     return hasChildren;
-  }, [checkPermission]);
+  }, [checkAnyPermission]);
 
   // Build sidebar sections with strict filtering
   const sidebarSections = useMemo(

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
@@ -9,45 +9,20 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import {
   complaintCategoryApi,
-  complaintModuleApi,
   complaintPriorityApi,
-  complaintSlaRuleApi,
   complaintSourceApi,
-  complaintStatusApi,
   complaintSubcategoryApi,
   complaintTeamApi,
 } from "@/features/complaintTicketing/api";
+import { departmentApi, staffCreationApi } from "@/helpers/admin";
 import { asArray, errorText, idOf } from "../utils";
 import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
-
-type MasterKind = "module" | "category" | "subcategory" | "priority" | "status" | "source" | "team" | "slaRule";
+import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
 
 type Props = {
   kind: MasterKind;
-};
-
-const routeModule: Record<MasterKind, keyof ReturnType<typeof getEncryptedRoute>> = {
-  module: "encComplaintModules",
-  category: "encComplaintCategories",
-  subcategory: "encComplaintSubcategories",
-  priority: "encComplaintPriorities",
-  status: "encComplaintStatuses",
-  source: "encComplaintSources",
-  team: "encComplaintTeams",
-  slaRule: "encComplaintSlaRules",
-};
-
-const title: Record<MasterKind, string> = {
-  module: "Complaint Module",
-  category: "Complaint Category",
-  subcategory: "Complaint Subcategory",
-  priority: "Complaint Priority",
-  status: "Complaint Status",
-  source: "Complaint Source",
-  team: "Complaint Team",
-  slaRule: "Complaint SLA Rule",
 };
 
 const emptyForm = {
@@ -84,34 +59,49 @@ export default function MasterForm({ kind }: Props) {
   const navigate = useNavigate();
   const { id } = useParams();
   const routes = getEncryptedRoute();
-  const { listPath } = createCrudRoutePaths(routes.encComplaintTicket, routes[routeModule[kind]]);
-  const [form, setForm] = useState(emptyForm);
+  const config = MASTER_CONFIG[kind];
+  const { listPath } = createCrudRoutePaths(routes.encComplaintTicket, routes[config.routeKey]);
+  const [searchParams] = useSearchParams();
+  // A subcategory created via the merged Categories & Subcategories screen's
+  // "Add Subcategory" button (which links here with `?category=<id>`) should
+  // return there with that category still selected, not to the standalone
+  // Subcategories list.
+  const prefillCategoryId = kind === "subcategory" ? searchParams.get("category") : null;
+  const returnPath = prefillCategoryId
+    ? `${createCrudRoutePaths(routes.encComplaintTicket, routes.encComplaintCategories).listPath}?selected=${prefillCategoryId}`
+    : listPath;
+  // The merged Categories & Subcategories screen links "Add Subcategory" here
+  // with `?category=<id>` so the driver doesn't have to re-pick the category
+  // they were already looking at. Only applies to a fresh subcategory (an
+  // edit load below overwrites `category` with the record's own value).
+  const [form, setForm] = useState(() =>
+    kind === "subcategory" && searchParams.get("category")
+      ? { ...emptyForm, category: searchParams.get("category") ?? "" }
+      : emptyForm,
+  );
   const [categories, setCategories] = useState<any[]>([]);
   const [modules, setModules] = useState<any[]>([]);
   const [priorities, setPriorities] = useState<any[]>([]);
   const [subcategories, setSubcategories] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [staffOptions, setStaffOptions] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const api = useMemo(() => {
-    if (kind === "module") return complaintModuleApi;
-    if (kind === "category") return complaintCategoryApi;
-    if (kind === "subcategory") return complaintSubcategoryApi;
-    if (kind === "priority") return complaintPriorityApi;
-    if (kind === "status") return complaintStatusApi;
-    if (kind === "source") return complaintSourceApi;
-    if (kind === "slaRule") return complaintSlaRuleApi;
-    return complaintTeamApi;
-  }, [kind]);
+  const api = useMemo(() => config.api(), [config]);
 
   useEffect(() => {
-    complaintModuleApi.readAll().then((res) => setModules(asArray(res))).catch(() => {});
+    MASTER_CONFIG.module.api().readAll().then((res) => setModules(asArray(res))).catch(() => {});
     complaintCategoryApi.readAll().then((res) => setCategories(asArray(res))).catch(() => {});
     complaintPriorityApi.readAll().then((res) => setPriorities(asArray(res))).catch(() => {});
     complaintSubcategoryApi.readAll().then((res) => setSubcategories(asArray(res))).catch(() => {});
     complaintSourceApi.readAll().then((res) => setSources(asArray(res))).catch(() => {});
     complaintTeamApi.readAll().then((res) => setTeams(asArray(res))).catch(() => {});
+    // Department/Lead Staff pickers only matter for the Team form, but they're
+    // cheap enough to preload alongside everything else above.
+    departmentApi.readAll().then((res) => setDepartments(asArray(res))).catch(() => {});
+    staffCreationApi.readAll({ params: { active_status: 1 } }).then((res) => setStaffOptions(asArray(res))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -225,8 +215,8 @@ export default function MasterForm({ kind }: Props) {
     try {
       if (id) await api.update(id, payload);
       else await api.create(payload);
-      Swal.fire("Saved", `${title[kind]} saved successfully.`, "success");
-      navigate(listPath);
+      Swal.fire("Saved", `${config.title} saved successfully.`, "success");
+      navigate(returnPath);
     } catch (err) {
       Swal.fire("Error", errorText(err, "Save failed"), "error");
     } finally {
@@ -235,7 +225,7 @@ export default function MasterForm({ kind }: Props) {
   };
 
   return (
-    <ComponentCard title={`${id ? "Edit" : "Add"} ${title[kind]}`}>
+    <ComponentCard title={`${id ? "Edit" : "Add"} ${config.title}`}>
       <form onSubmit={save} className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {kind === "slaRule" && (
           <>
@@ -339,6 +329,24 @@ export default function MasterForm({ kind }: Props) {
         {kind === "team" && (
           <>
             <div>
+              <Label>Department</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.department} onChange={(e) => setValue("department", e.target.value)}>
+                <option value="">None</option>
+                {departments.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.department_name)}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Lead Staff</Label>
+              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.lead_staff} onChange={(e) => setValue("lead_staff", e.target.value)}>
+                <option value="">None</option>
+                {staffOptions.map((item) => (
+                  <option key={item.staff_unique_id ?? item.unique_id} value={item.staff_unique_id ?? item.unique_id}>
+                    {item.employee_name ?? item.staff_name ?? item.username ?? item.staff_unique_id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <Label>Escalates To</Label>
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalates_to} onChange={(e) => setValue("escalates_to", e.target.value)}>
                 <option value="">None</option>
@@ -367,7 +375,7 @@ export default function MasterForm({ kind }: Props) {
           {kind === "slaRule" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.working_hours_only} onChange={(e) => setValue("working_hours_only", e.target.checked)} /> Working hours only</label>}
         </div>
         <div className="md:col-span-2 flex justify-end gap-3">
-          <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(listPath)}>Cancel</button>
+          <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(returnPath)}>Cancel</button>
           <button type="submit" disabled={saving} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60">{saving ? "Saving..." : "Save"}</button>
         </div>
       </form>

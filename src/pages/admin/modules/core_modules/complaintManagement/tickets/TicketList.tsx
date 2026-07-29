@@ -10,8 +10,8 @@ import { FilterMatchMode } from "primereact/api";
 import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
-import type { ComplaintTicket, GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
+import { complaintFeedbackApi, complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
+import type { ComplaintFeedback, ComplaintTicket, GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
@@ -29,7 +29,7 @@ const STATUS_COLUMN_ORDER = [
   "CANCELLED",
 ];
 
-type SourceFilter = "all" | "public" | "internal";
+type SourceFilter = "all" | "public" | "internal" | "feedback";
 type ViewMode = "table" | "kanban";
 
 const LOCAL_BODY_TYPE_LABELS: Record<LocalBodyType, string> = {
@@ -73,6 +73,10 @@ export default function TicketList() {
   });
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  // Feedback used to be its own top-level screen; it's read-only and
+  // ticket-scoped (also viewable per-ticket via the Detail screen's Feedback
+  // tab), so it lives here now as a column + quick-filter instead.
+  const [feedbackByTicket, setFeedbackByTicket] = useState<Map<string, ComplaintFeedback>>(new Map());
 
   const [states, setStates] = useState<GeoOption[]>([]);
   const [districts, setDistricts] = useState<GeoOption[]>([]);
@@ -88,6 +92,12 @@ export default function TicketList() {
     complaintTicketApi.readAll({ params: { all: 1 } })
       .then((response) => setRecords(asArray<ComplaintTicket>(response)))
       .catch((err) => Swal.fire("Error", errorText(err, "Unable to load tickets"), "error"));
+    complaintFeedbackApi.readAll({ params: { all: 1 } })
+      .then((response) => {
+        const rows = asArray<ComplaintFeedback>(response);
+        setFeedbackByTicket(new Map(rows.map((row) => [String(row.ticket), row])));
+      })
+      .catch(() => setFeedbackByTicket(new Map()));
     geoApi.states()
       .then(setStates)
       .catch(() => setStates([]));
@@ -157,15 +167,30 @@ export default function TicketList() {
     let rows = records;
     if (sourceFilter === "public") rows = rows.filter(isPublic);
     else if (sourceFilter === "internal") rows = rows.filter((row) => !isPublic(row));
+    else if (sourceFilter === "feedback") rows = rows.filter((row) => feedbackByTicket.has(String(row.unique_id)));
     if (stateFilter) rows = rows.filter((row) => String(row.state_id ?? row.state ?? "") === stateFilter);
     if (districtFilter) rows = rows.filter((row) => String(row.district_id ?? "") === districtFilter);
     if (areaTypeFilter) rows = rows.filter((row) => String(row.area_type_id ?? row.area_type ?? "") === areaTypeFilter);
     if (localBodyTypeFilter) rows = rows.filter((row) => String(row.city_type ?? "") === localBodyTypeFilter);
     if (cityFilter) rows = rows.filter((row) => String(row.city_id ?? "") === cityFilter);
     return rows;
-  }, [records, sourceFilter, stateFilter, districtFilter, areaTypeFilter, localBodyTypeFilter, cityFilter]);
+  }, [records, sourceFilter, feedbackByTicket, stateFilter, districtFilter, areaTypeFilter, localBodyTypeFilter, cityFilter]);
 
   const publicCount = useMemo(() => records.filter(isPublic).length, [records]);
+  const feedbackCount = feedbackByTicket.size;
+
+  const feedbackTemplate = (row: ComplaintTicket) => {
+    const feedback = feedbackByTicket.get(String(row.unique_id));
+    if (!feedback) return <span className="text-xs text-slate-400">-</span>;
+    return (
+      <span
+        className="whitespace-nowrap rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700"
+        title={feedback.feedback_text ?? undefined}
+      >
+        {typeof feedback.rating === "number" ? `★ ${feedback.rating}` : "Feedback"}
+      </span>
+    );
+  };
 
   const statusTemplate = (row: ComplaintTicket) => (
     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
@@ -224,6 +249,7 @@ export default function TicketList() {
               { key: "all", label: `All (${records.length})` },
               { key: "public", label: `Public Grievances (${publicCount})` },
               { key: "internal", label: `Internal (${records.length - publicCount})` },
+              { key: "feedback", label: `With Feedback (${feedbackCount})` },
             ] as { key: SourceFilter; label: string }[]
           ).map((tab) => (
             <button
@@ -371,6 +397,7 @@ export default function TicketList() {
           <Column field="assigned_team_name" header="Assigned Team" />
           <Column header="SLA Due" body={(row) => formatDateTime(row.sla_due_at)} />
           <Column header="SLA" body={slaTemplate}  style={{ width: "120px" }}/>
+          <Column header="Feedback" body={feedbackTemplate} />
           <Column
             header="Actions"
             body={(row) => (
@@ -427,6 +454,11 @@ export default function TicketList() {
                       {row.sla_breached && (
                         <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
                           SLA Breached
+                        </span>
+                      )}
+                      {feedbackByTicket.has(String(row.unique_id)) && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                          ★ Feedback
                         </span>
                       )}
                       {(row.district_name || row.city_name) && (

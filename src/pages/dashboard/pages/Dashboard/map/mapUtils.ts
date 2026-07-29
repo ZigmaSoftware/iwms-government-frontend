@@ -2,7 +2,7 @@ import L from "leaflet";
 import type { LatLngTuple } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-export type MapTabKey = "vehicle" | "bins" | "households";
+export type MapTabKey = "vehicle" | "bins" | "households" | "wards";
 
 export type HouseholdStatus = "collected" | "not_collected";
 
@@ -31,7 +31,23 @@ export const MAP_TABS: { key: MapTabKey; labelKey: string; summaryKey: string }[
     labelKey: "dashboard.home.map_tabs.households",
     summaryKey: "dashboard.home.map_summaries.households",
   },
+  {
+    key: "wards",
+    labelKey: "dashboard.home.map_tabs.wards",
+    summaryKey: "dashboard.home.map_summaries.wards",
+  },
 ];
+
+// Ward-geofence polygon styling, shared by every map panel that can draw
+// wards (WardMapPanel, and the ward-geofence overlay on Vehicle/Bin/Household
+// panels) — one place to add a district's color instead of four.
+export const DISTRICT_COLORS: Record<string, { fill: string; stroke: string }> = {
+  Erode: { fill: "rgba(56, 189, 248, 0.25)", stroke: "#0ea5e9" },
+  Coimbatore: { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },
+  Salem: { fill: "rgba(168, 85, 247, 0.25)", stroke: "#a855f7" },
+};
+
+export const DEFAULT_WARD_STYLE = { fill: "rgba(99, 102, 241, 0.25)", stroke: "#6366f1" };
 
 export const HOUSEHOLD_POINTS: HouseholdPoint[] = [
   { id: "HH-210", name: "House 210", lat: 11.0176, lng: 76.9561, status: "collected", ward: "Ward 23" },

@@ -1,4 +1,4 @@
-import MasterList from "./MasterList";
+import ReferenceDataScreen from "./ReferenceDataScreen";
 export default function PriorityList() {
-  return <MasterList kind="priority" />;
+  return <ReferenceDataScreen kind="priority" />;
 }

@@ -264,14 +264,18 @@ const hiResource = {
             "all": "वाहन",
             "vehicle": "वाहन",
             "bins": "बिन",
-            "households": "घर"
+            "households": "घर",
+            "wards": "वार्ड"
           },
           "map_summaries": {
             "all": "फ्लीट, रूट और लाइव कवरेज।",
             "vehicle": "फ्लीट, रूट और लाइव कवरेज।",
             "bins": "वार्ड अनुसार बिन संग्रह स्थिति।",
-            "households": "वार्ड अनुसार डोर-टू-डोर संग्रह स्थिति।"
-          }
+            "households": "वार्ड अनुसार डोर-टू-डोर संग्रह स्थिति।",
+            "wards": "वार्ड सीमाएँ, फिट होने के लिए फ़्रेम की गईं।"
+          },
+          "wards_loading": "वार्ड लोड हो रहे हैं...",
+          "wards_empty": "वर्तमान फ़िल्टर के लिए कोई वार्ड सीमा नहीं मिली।"
         },
         "overview": {
           "title": "डैशबोर्ड अवलोकन",
@@ -858,6 +862,7 @@ const hiResource = {
           "ward_base_collection": "वार्ड बेस कलेक्शन",
           "complaint_ticket": "शिकायत टिकटिंग",
           "complaint_tickets": "शिकायत टिकट",
+          "reference_data": "Reference Data",
           "modules": "Modules",
           "categories": "श्रेणियां",
           "subcategories": "उप श्रेणियां",
