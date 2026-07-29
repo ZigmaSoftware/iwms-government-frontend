@@ -21,6 +21,12 @@ import { PencilIcon } from "@/icons";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+import { createBinQrPdfBlob, downloadBinQrPdf } from "./binQrPdf";
+import { downloadAllBinsPdf } from "./binAllDetailsPdf";
 
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
@@ -55,7 +61,11 @@ export default function BinList() {
   const { t } = useTranslation();
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [selectedQr, setSelectedQr] = useState<string | null>(null);
+  const [selectedQrBin, setSelectedQrBin] = useState<Bin | null>(null);
+  const [isPrintingQr, setIsPrintingQr] = useState(false);
+  const [isPreviewingQr, setIsPreviewingQr] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const navigate = useNavigate();
   const [rows, setRows] = useState<BinApiRow[]>([]);
@@ -134,6 +144,122 @@ export default function BinList() {
 
   const onExportRequest = async () => toRecordList(await binApi.readAllForExport());
 
+  const fetchExportBins = async (): Promise<Bin[]> => {
+    const rowsForExport = toRecordList(await binApi.readAllForExport());
+    return rowsForExport.map((row) => ({
+      unique_id: String(row.unique_id ?? ""),
+      bin_name: String(row.bin_name ?? ""),
+      bin_capacity: Number(row.bin_capacity ?? 0),
+      bin_qr: row.bin_qr ? String(row.bin_qr) : null,
+      state_name: row.state_name ? String(row.state_name) : undefined,
+      district_name: row.district_name ? String(row.district_name) : undefined,
+      area_type_name: row.area_type_name ? String(row.area_type_name) : undefined,
+      corporation_name: row.corporation_name ? String(row.corporation_name) : undefined,
+      municipality_name: row.municipality_name ? String(row.municipality_name) : undefined,
+      town_panchayat_name: row.town_panchayat_name ? String(row.town_panchayat_name) : undefined,
+      panchayat_union_name: row.panchayat_union_name ? String(row.panchayat_union_name) : undefined,
+      panchayat_name: row.panchayat_name ? String(row.panchayat_name) : undefined,
+      ward_id: row.ward_id ? String(row.ward_id) : undefined,
+      ward_name: row.ward_name ? String(row.ward_name) : undefined,
+      collection_point_name: row.collection_point_name ? String(row.collection_point_name) : undefined,
+      bin_type: row.bin_type ? String(row.bin_type) : undefined,
+      wastetype_name: row.wastetype_name ? String(row.wastetype_name) : undefined,
+      latitude: row.latitude as number | string | undefined,
+      longitude: row.longitude as number | string | undefined,
+      is_active: Boolean(row.is_active),
+    }));
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const exportRows = await fetchExportBins();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No bins to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Bins");
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to export bins.",
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const exportRows = await fetchExportBins();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No bins to export", "warning");
+        return;
+      }
+      await downloadAllBinsPdf(exportRows);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the bins PDF.",
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handlePrintQr = async () => {
+    if (!selectedQrBin) return;
+    setIsPrintingQr(true);
+    try {
+      await downloadBinQrPdf(selectedQrBin);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the bin QR PDF.",
+      });
+    } finally {
+      setIsPrintingQr(false);
+    }
+  };
+
+  const handlePreviewQr = async () => {
+    if (!selectedQrBin) return;
+
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      Swal.fire({
+        icon: "warning",
+        title: "Preview blocked",
+        text: "Please allow pop-ups for this site to preview the PDF.",
+      });
+      return;
+    }
+
+    previewWindow.document.title = "Preparing bin QR PDF";
+    previewWindow.document.body.innerHTML =
+      '<p style="font-family:Arial,sans-serif;padding:24px;color:#475569">Preparing PDF preview…</p>';
+    setIsPreviewingQr(true);
+    try {
+      const pdfBlob = await createBinQrPdfBlob(selectedQrBin);
+      const previewUrl = URL.createObjectURL(pdfBlob);
+      previewWindow.location.replace(previewUrl);
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
+    } catch (error) {
+      previewWindow.close();
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to preview the bin QR PDF.",
+      });
+    } finally {
+      setIsPreviewingQr(false);
+    }
+  };
+
   const bins = (() => {
     const list = Array.isArray(rows) ? rows : [];
     const mapped: Bin[] = list.map((row) => ({
@@ -141,21 +267,22 @@ export default function BinList() {
       bin_name: String(row.bin_name ?? ""),
       bin_capacity: Number(row.bin_capacity ?? 0),
       bin_qr: row.bin_qr ? String(row.bin_qr) : null,
-      company_id: row.company_id ? String(row.company_id) : null,
-      company_unique_id: row.company_unique_id ? String(row.company_unique_id) : null,
-      company_name: row.company_name ? String(row.company_name) : null,
-      project_id: row.project_id ? String(row.project_id) : null,
-      project_unique_id: row.project_unique_id ? String(row.project_unique_id) : null,
-      project_name: row.project_name ? String(row.project_name) : null,
+      state_name: row.state_name ? String(row.state_name) : undefined,
+      district_name: row.district_name ? String(row.district_name) : undefined,
+      area_type_name: row.area_type_name ? String(row.area_type_name) : undefined,
+      corporation_name: row.corporation_name ? String(row.corporation_name) : undefined,
+      municipality_name: row.municipality_name ? String(row.municipality_name) : undefined,
+      town_panchayat_name: row.town_panchayat_name ? String(row.town_panchayat_name) : undefined,
+      panchayat_union_name: row.panchayat_union_name ? String(row.panchayat_union_name) : undefined,
       panchayat_name: row.panchayat_name ? String(row.panchayat_name) : undefined,
       panchayat: row.panchayat ? String(row.panchayat) : undefined,
       ward_id: row.ward_id ? String(row.ward_id) : undefined,
       ward_name: row.ward_name ? String(row.ward_name) : undefined,
+      collection_point_name: row.collection_point_name ? String(row.collection_point_name) : undefined,
       bin_type: row.bin_type ? String(row.bin_type) : undefined,
       waste_type_name: row.waste_type_name ? String(row.waste_type_name) : undefined,
       wastetype_name: row.wastetype_name ? String(row.wastetype_name) : undefined,
       waste_type: row.waste_type ? String(row.waste_type) : undefined,
-      bin_status: row.bin_status ? String(row.bin_status) : undefined,
       latitude: row.latitude as number | string | undefined,
       longitude: row.longitude as number | string | undefined,
       is_active: Boolean(row.is_active),
@@ -232,7 +359,7 @@ export default function BinList() {
     return (
       <button
         className="p-1 border rounded bg-white shadow-sm hover:bg-gray-50"
-        onClick={() => setSelectedQr(bin.bin_qr!)}
+        onClick={() => setSelectedQrBin(bin)}
         title={t("admin.bin.qr_show")}
       >
         <img src={bin.bin_qr} alt="QR" className="w-12 h-12 object-contain" />
@@ -255,6 +382,20 @@ export default function BinList() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            label={isExportingExcel ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+          <Button
+            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined"
+            disabled={isExportingPdf}
+            onClick={handleDownloadPdf}
+          />
           <Button
             label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
             icon="pi pi-plus"
@@ -366,15 +507,42 @@ export default function BinList() {
         />
       </DataTable>
 
-      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+      <Dialog
+        open={Boolean(selectedQrBin)}
+        onOpenChange={(open) => !open && setSelectedQrBin(null)}
+      >
         <DialogContent className="w-auto max-w-[90vw] p-4">
           <DialogTitle className="sr-only">{t("admin.bin.qr_title")}</DialogTitle>
-          {selectedQr && (
-            <img
-              src={selectedQr}
-              alt={t("admin.bin.qr_title")}
-              className="h-auto w-[min(75vw,320px)] object-contain"
-            />
+          {selectedQrBin?.bin_qr && (
+            <div className="flex flex-col items-center gap-4">
+              <img
+                src={selectedQrBin.bin_qr}
+                alt={t("admin.bin.qr_title")}
+                className="h-auto w-[min(75vw,320px)] object-contain"
+              />
+              <div className="text-center">
+                <p className="font-semibold text-gray-800">{selectedQrBin.bin_name}</p>
+                <p className="text-sm text-gray-500">{selectedQrBin.unique_id}</p>
+              </div>
+              <div className="flex w-full gap-2">
+                <Button
+                  label={isPreviewingQr ? "Preparing…" : "Preview"}
+                  icon="pi pi-eye"
+                  loading={isPreviewingQr}
+                  disabled={isPreviewingQr || isPrintingQr}
+                  onClick={handlePreviewQr}
+                  className="flex-1 p-button-outlined"
+                />
+                <Button
+                  label={isPrintingQr ? "Preparing PDF…" : "Print"}
+                  icon="pi pi-print"
+                  loading={isPrintingQr}
+                  disabled={isPrintingQr || isPreviewingQr}
+                  onClick={handlePrintQr}
+                  className="flex-1"
+                />
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

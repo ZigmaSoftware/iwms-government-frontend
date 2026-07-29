@@ -19,6 +19,12 @@ import { capitalize } from "@/utils/capitalize";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+import { createStaffQrPdfBlob, downloadStaffQrPdf } from "./staffQrPdf";
+import { downloadAllStaffPdf } from "./staffAllDetailsPdf";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
@@ -80,7 +86,11 @@ export default function StaffCreationList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
-  const [selectedQr, setSelectedQr] = useState<string | null>(null);
+  const [selectedQrStaff, setSelectedQrStaff] = useState<Staff | null>(null);
+  const [isPrintingQr, setIsPrintingQr] = useState(false);
+  const [isPreviewingQr, setIsPreviewingQr] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
@@ -201,12 +211,105 @@ export default function StaffCreationList() {
     return (
       <button
         className="p-1 border rounded hover:bg-gray-50 flex justify-center"
-        onClick={() => setSelectedQr(row.qr_code!)}
+        onClick={() => setSelectedQrStaff(row)}
         title={t("admin.staff_creation.qr_show")}
       >
         <img src={row.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
+  };
+
+  const fetchExportStaff = async (): Promise<Staff[]> =>
+    toRecordList(await adminApi.staffCreation.readAllForExport());
+
+  const handleDownloadExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const exportRows = await fetchExportStaff();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Staff");
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to export staff.",
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const exportRows = await fetchExportStaff();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+        return;
+      }
+      await downloadAllStaffPdf(exportRows);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the staff PDF.",
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handlePrintQr = async () => {
+    if (!selectedQrStaff) return;
+    setIsPrintingQr(true);
+    try {
+      await downloadStaffQrPdf(selectedQrStaff);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the staff QR PDF.",
+      });
+    } finally {
+      setIsPrintingQr(false);
+    }
+  };
+
+  const handlePreviewQr = async () => {
+    if (!selectedQrStaff) return;
+
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      Swal.fire({
+        icon: "warning",
+        title: "Preview blocked",
+        text: "Please allow pop-ups for this site to preview the PDF.",
+      });
+      return;
+    }
+
+    previewWindow.document.title = "Preparing staff QR PDF";
+    previewWindow.document.body.innerHTML =
+      '<p style="font-family:Arial,sans-serif;padding:24px;color:#475569">Preparing PDF preview…</p>';
+    setIsPreviewingQr(true);
+    try {
+      const pdfBlob = await createStaffQrPdfBlob(selectedQrStaff);
+      const previewUrl = URL.createObjectURL(pdfBlob);
+      previewWindow.location.replace(previewUrl);
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
+    } catch (error) {
+      previewWindow.close();
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to preview the staff QR PDF.",
+      });
+    } finally {
+      setIsPreviewingQr(false);
+    }
   };
 
   const actionTemplate = (row: Staff) => (
@@ -237,6 +340,20 @@ export default function StaffCreationList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button
+            label={isExportingExcel ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined p-button-sm"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+          <Button
+            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined p-button-sm"
+            disabled={isExportingPdf}
+            onClick={handleDownloadPdf}
+          />
           <Button
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
@@ -412,15 +529,42 @@ export default function StaffCreationList() {
         </DataTable>
       </div>
 
-      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+      <Dialog
+        open={Boolean(selectedQrStaff)}
+        onOpenChange={(open) => !open && setSelectedQrStaff(null)}
+      >
         <DialogContent className="w-auto max-w-[90vw] p-4">
           <DialogTitle className="sr-only">{t("admin.staff_creation.qr_title")}</DialogTitle>
-          {selectedQr && (
-            <img
-              src={selectedQr}
-              alt={t("admin.staff_creation.qr_title")}
-              className="h-auto w-[min(75vw,320px)] object-contain"
-            />
+          {selectedQrStaff?.qr_code && (
+            <div className="flex flex-col items-center gap-4">
+              <img
+                src={selectedQrStaff.qr_code}
+                alt={t("admin.staff_creation.qr_title")}
+                className="h-auto w-[min(75vw,320px)] object-contain"
+              />
+              <div className="text-center">
+                <p className="font-semibold text-gray-800">{selectedQrStaff.employee_name}</p>
+                <p className="text-sm text-gray-500">{selectedQrStaff.staff_unique_id}</p>
+              </div>
+              <div className="flex w-full gap-2">
+                <Button
+                  label={isPreviewingQr ? "Preparing…" : "Preview"}
+                  icon="pi pi-eye"
+                  loading={isPreviewingQr}
+                  disabled={isPreviewingQr || isPrintingQr}
+                  onClick={handlePreviewQr}
+                  className="flex-1 p-button-outlined"
+                />
+                <Button
+                  label={isPrintingQr ? "Preparing PDF…" : "Print"}
+                  icon="pi pi-print"
+                  loading={isPrintingQr}
+                  disabled={isPrintingQr || isPreviewingQr}
+                  onClick={handlePrintQr}
+                  className="flex-1"
+                />
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>
