@@ -185,7 +185,6 @@ import {
   staffUserTypeApi,
   contractorUserTypeApi,
   departmentApi,
-  designationApi,
 } from "@/helpers/admin/index";
 
 type LocalBodyLevel =
@@ -332,9 +331,7 @@ const initialFormData = {
   // employee_id: "",
   doj: "",
   department: "",
-  designation: "",
   department_id: "",
-  designation_id: "",
 
   staff_head: "",
   staff_head_id: "",
@@ -353,6 +350,7 @@ const initialFormData = {
   office_email: "",
   marital_status: "",
   dob: "",
+  age: "",
   blood_group: "",
   gender: "",
   physically_challenged: "",
@@ -385,9 +383,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   employee_name: ["employee_name", "name"],
   doj: ["doj", "date_of_joining"],
   department: ["department"],
-  designation: ["designation"],
   department_id: ["department_id"],
-  designation_id: ["designation_id"],
   staff_head: ["staff_head"],
   staff_head_id: ["staff_head_id"],
   active_status: ["active_status", "is_active"],
@@ -401,6 +397,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   attendance_reg_image: ["attendance_reg_image"],
   marital_status: ["marital_status"],
   dob: ["dob", "date_of_birth"],
+  age: ["age"],
   blood_group: ["blood_group"],
   gender: ["gender"],
   physically_challenged: ["physically_challenged"],
@@ -494,9 +491,6 @@ export default function StaffCreationForm() {
   const [departmentOptions, setDepartmentOptions] = useState<
     { value: string; label: string; name: string; code?: string }[]
   >([]);
-  const [designationOptions, setDesignationOptions] = useState<
-    { value: string; label: string; name: string; group?: string; departmentId?: string }[]
-  >([]);
   const [staffHeadOptions, setStaffHeadOptions] = useState<
     { value: string; label: string; name: string }[]
   >([]);
@@ -506,7 +500,6 @@ export default function StaffCreationForm() {
   const [pendingContractorUserTypeId, setPendingContractorUserTypeId] = useState<string | null>(null);
   const [pendingGovernmentUserTypeId, setPendingGovernmentUserTypeId] = useState<string | null>(null);
   const [pendingDepartmentId, setPendingDepartmentId] = useState<string | null>(null);
-  const [pendingDesignationId, setPendingDesignationId] = useState<string | null>(null);
 
   // Government geo cascade pending prefill — applied once each level's option
   // list arrives. Without these, the values set at edit-load can be lost to the
@@ -556,28 +549,6 @@ export default function StaffCreationForm() {
       ...departmentOptions,
     ];
   }, [departmentOptions, formData.department, formData.department_id]);
-
-  const designationOptionsWithCurrent = useMemo(() => {
-    if (!formData.designation_id) return designationOptions;
-    if (designationOptions.some((option) => option.value === formData.designation_id)) {
-      return designationOptions;
-    }
-    const label = formData.designation || formData.designation_id;
-    return [
-      {
-        value: formData.designation_id,
-        label,
-        name: formData.designation || label,
-        departmentId: formData.department_id || undefined,
-      },
-      ...designationOptions,
-    ];
-  }, [
-    designationOptions,
-    formData.department_id,
-    formData.designation,
-    formData.designation_id,
-  ]);
 
   // Govt staff type options filtered by the level derived from the geo cascade
   const filteredGovtStaffTypeOptions = useMemo(() => {
@@ -914,33 +885,6 @@ export default function StaffCreationForm() {
   }, []);
 
   useEffect(() => {
-    if (!formData.department_id) {
-      setDesignationOptions([]);
-      return;
-    }
-    const normalizeResponse = (res: any) =>
-      Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : res?.data?.results ?? [];
-
-    designationApi
-      .readAll({ params: { status: "active", department_id: formData.department_id } })
-      .then((res: any) => {
-        const list = normalizeResponse(res).filter(
-          (d: any) => d?.is_active !== false && d?.is_deleted !== true,
-        );
-        setDesignationOptions(
-          list.map((d: any) => ({
-            value: String(d?.unique_id ?? d?.id ?? ""),
-            label: d.designation_name,
-            name: d.designation_name,
-            group: d.designation_group,
-            departmentId: normalizeEntityId(d.department_id),
-          })),
-        );
-      })
-      .catch(() => setDesignationOptions([]));
-  }, [formData.department_id]);
-
-  useEffect(() => {
     if (!isEdit || !id) return;
     setFetching(true);
 
@@ -953,9 +897,7 @@ export default function StaffCreationForm() {
           employee_name: staff.employee_name ?? "",
           doj: staff.doj ?? "",
           department: staff.department ?? "",
-          designation: staff.designation ?? "",
           department_id: normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id),
-          designation_id: normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id),
           staff_head: staff.staff_head ?? "",
           staff_head_id: staff.staff_head_id ?? "",
           active_status: staff.active_status ? "1" : "0",
@@ -971,6 +913,7 @@ export default function StaffCreationForm() {
             staff.personal_details?.marital_status ??
             "",
           dob: staff.dob ?? staff.personal_details?.dob ?? "",
+          age: String(staff.age ?? staff.personal_details?.age ?? ""),
           blood_group:
             staff.blood_group ?? staff.personal_details?.blood_group ?? "",
           gender: staff.gender ?? staff.personal_details?.gender ?? "",
@@ -1023,7 +966,6 @@ export default function StaffCreationForm() {
         const staffTypeId = normalizeEntityId(staff.staffusertype_id);
         const contractorTypeId = normalizeEntityId(staff.contractorusertype_id);
         const departmentId = normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id);
-        const designationId = normalizeEntityId(staff.designation_id ?? staff.designation_obj ?? staff.designation_unique_id);
 
         const governmentTypeId = normalizeEntityId(staff.governmentusertype_id);
         if (staffTypeId) setPendingStaffUserTypeId(staffTypeId);
@@ -1049,7 +991,6 @@ export default function StaffCreationForm() {
         if (geoLocalBodyLevel) setPendingLocalBodyLevel(geoLocalBodyLevel);
         if (geoLocalBodyId) setPendingLocalBodyId(geoLocalBodyId);
         if (departmentId) setPendingDepartmentId(departmentId);
-        if (designationId) setPendingDesignationId(designationId);
 
         if (staff.driving_licence_file) {
           setLicencePreview(
@@ -1231,19 +1172,6 @@ export default function StaffCreationForm() {
     }
   }, [pendingDepartmentId, departmentOptions]);
 
-  useEffect(() => {
-    if (!pendingDesignationId || designationOptions.length === 0) return;
-    const match = designationOptions.find((o) => o.value === pendingDesignationId);
-    if (match) {
-      setFormData((prev) => ({
-        ...prev,
-        designation_id: pendingDesignationId,
-        designation: match.name,
-      }));
-      setPendingDesignationId(null);
-    }
-  }, [pendingDesignationId, designationOptions]);
-
   // ── Government geo cascade pending-prefill resolution ────────────────────────
   // Each level resolves only after its option list (which itself depends on the
   // parent level's value) is available, so State → District → Area Type →
@@ -1306,14 +1234,8 @@ export default function StaffCreationForm() {
       if (field === "department_id") {
         const department = departmentOptionsWithCurrent.find((item) => item.value === value);
         next.department = department?.name ?? "";
-        next.designation_id = "";
-        next.designation = "";
         next.staff_head = "";
         next.staff_head_id = "";
-      }
-      if (field === "designation_id") {
-        const designation = designationOptionsWithCurrent.find((item) => item.value === value);
-        next.designation = designation?.name ?? "";
       }
       if (
         field === "staffusertype_id" ||
@@ -1375,20 +1297,6 @@ export default function StaffCreationForm() {
       local_body_level: "",
       local_body_id: "",
     }));
-  };
-
-  const calculateAge = (dobValue: string) => {
-    const birthDate = new Date(dobValue);
-    const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
-    const dayDiff = today.getDate() - birthDate.getDate();
-
-    if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-      age -= 1;
-    }
-
-    return age >= 0 ? age : 0;
   };
 
   const buildAddressPayload = (prefix: "present" | "permanent") => {
@@ -1484,10 +1392,6 @@ export default function StaffCreationForm() {
       const rawPayload: Record<string, any> = {
         employee_name: formData.employee_name,
         doj: formData.doj || null,
-        department: formData.department,
-        // Designation is free text now (no FK); `designation_id` is not sent.
-        designation: formData.designation,
-        department_id: formData.department_id,
         staff_head: formData.staff_head,
         staff_head_id: formData.staff_head_id,
         active_status: formData.active_status === "1",
@@ -1532,6 +1436,7 @@ export default function StaffCreationForm() {
         // Personal
         marital_status: formData.marital_status,
         dob: formData.dob || null,
+        age: formData.age === "" ? null : Number(formData.age),
         blood_group: formData.blood_group,
         gender: formData.gender,
         physically_challenged: formData.physically_challenged,
@@ -1666,7 +1571,7 @@ export default function StaffCreationForm() {
         <>
           {/* Category selector */}
           <div>
-            <Label htmlFor="userTypeCategory">User Type</Label>
+            <Label htmlFor="userTypeCategory">Staff Type</Label>
             <Select
               id="userTypeCategory"
               value={userTypeCategory}
@@ -1681,7 +1586,7 @@ export default function StaffCreationForm() {
               options={[
                 { value: "government", label: "Government" },
               ]}
-              placeholder="Select User Type"
+              placeholder="Select Staff Type"
             />
           </div>
 
@@ -1702,7 +1607,7 @@ export default function StaffCreationForm() {
 
           {userTypeCategory === "contractor" && (
             <div>
-              <Label htmlFor="contractorusertype_id">Contractor User Type</Label>
+              <Label htmlFor="contractorusertype_id">Contractor Staff Type</Label>
               <Select
                 id="contractorusertype_id"
                 value={formData.contractorusertype_id}
@@ -1775,9 +1680,9 @@ export default function StaffCreationForm() {
                 </div>
               )}
 
-              {/* Government Staff User Type — filtered by the level derived from State/District/Local Body above */}
+              {/* Government Staff Type — filtered by the level derived from State/District/Local Body above */}
               <div>
-                <Label htmlFor="governmentusertype_id">Government Staff User Type</Label>
+                <Label htmlFor="governmentusertype_id">Government Staff Type</Label>
                 <Select
                   id="governmentusertype_id"
                   value={formData.governmentusertype_id}
@@ -1785,7 +1690,7 @@ export default function StaffCreationForm() {
                   options={filteredGovtStaffTypeOptions}
                   placeholder={
                     governmentLevel
-                      ? "Select Staff User Type"
+                      ? "Select Staff Type"
                       : "Select State/District or a Local Body first"
                   }
                 />
@@ -2033,7 +1938,7 @@ export default function StaffCreationForm() {
             options={staffHeadOptions}
             placeholder={
               userTypeCategory === "government" && !formData.governmentusertype_id
-                ? "Select Government Staff User Type first"
+                ? "Select Government Staff Type first"
                 : t("common.select_item_placeholder", {
                     item: t("admin.staff_creation.staff_head"),
                   })
@@ -2205,8 +2110,13 @@ export default function StaffCreationForm() {
             <Label htmlFor="age">{t("admin.staff_creation.age")}</Label>
             <Input
               id="age"
-              value={formData.dob ? calculateAge(formData.dob) : ""}
-              placeholder={t("admin.staff_creation.age_auto")}
+              type="number"
+              min="0"
+              max="120"
+              inputMode="numeric"
+              value={formData.age}
+              onChange={handleInputChange}
+              placeholder={t("admin.staff_creation.age_placeholder")}
             />
           </div>
         )}

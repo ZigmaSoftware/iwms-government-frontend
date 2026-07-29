@@ -4,8 +4,9 @@ import type { Staff } from "./types";
 import {
   PAGE_HEIGHT,
   PAGE_WIDTH,
+  addressTextOf,
   loadQrImage,
-  presentAddressOf,
+  localBodyNameOf,
   safeFilename,
   text,
   wrapText,
@@ -79,39 +80,52 @@ const drawStaffDetailsPage = async (context: CanvasRenderingContext2D, staff: St
   context.stroke();
   y += 45;
 
-  const presentAddress = presentAddressOf(staff);
   const details: Array<[string, unknown]> = [
     ["Employee ID", staff.emp_id],
     ["Status", staff.active_status ? "Active" : "Inactive"],
-    ["User Type", staff.user_type_name],
-    ["Government User Type", staff.governmentusertype_name],
-    ["Designation", staff.designation],
+    ["Staff Type", staff.staff_type_name ?? staff.user_type_name],
+    ["Government Staff Type", staff.government_staff_type_name ?? staff.governmentusertype_name],
+    ["Government Level", staff.governmentusertype_level],
+    ["Staff Configuration", staff.staff_config_name],
     ["Date of Joining", staff.doj],
     ["Contact", staff.contact_mobile],
-    ["Department", staff.department],
     ["Email", staff.contact_email ?? staff.office_email],
+    ["Username", staff.username],
+    ["Login Enabled", staff.login_enabled ? "Yes" : "No"],
+    ["Staff Head", staff.staff_head],
     ["Gender", staff.gender],
     ["Date of Birth", staff.dob],
+    ["Age", staff.age],
     ["Blood Group", staff.blood_group],
-    ["City", presentAddress?.city],
-    ["State", presentAddress?.state],
-    ["District", presentAddress?.district],
+    ["Marital Status", staff.marital_status],
+    ["Physically Challenged", staff.physically_challenged],
+    ["State", staff.state_name],
+    ["District", staff.district_name],
+    ["Area Type", staff.area_type_name],
+    ["Local Body", localBodyNameOf(staff)],
+    ["Present Address", addressTextOf(staff, "present")],
+    ["Permanent Address", addressTextOf(staff, "permanent")],
+    ["Driving Licence", staff.driving_licence_no],
+    ["Licence Expiry", staff.driving_licence_expiry_date],
+    ["Driving Experience", staff.driving_experience_years],
+    ["Created At", staff.created_at],
+    ["Updated At", staff.updated_at],
   ];
 
   const left = 82;
   const columnWidth = 550;
-  const rowHeight = 82;
+  const rowHeight = 70;
   details.forEach(([label, value], index) => {
     const column = index % 2;
     const x = left + column * columnWidth;
     if (index > 0 && column === 0) y += rowHeight;
     context.fillStyle = "#64748b";
-    context.font = "700 17px Arial, sans-serif";
+    context.font = "700 16px Arial, sans-serif";
     context.fillText(label.toUpperCase(), x, y);
     context.fillStyle = "#0f172a";
-    context.font = "21px Arial, sans-serif";
+    context.font = "19px Arial, sans-serif";
     const valueLines = wrapText(context, text(value), columnWidth - 45).slice(0, 2);
-    valueLines.forEach((line, lineIndex) => context.fillText(line, x, y + 29 + lineIndex * 25));
+    valueLines.forEach((line, lineIndex) => context.fillText(line, x, y + 25 + lineIndex * 21));
   });
   y += rowHeight + 20;
 
