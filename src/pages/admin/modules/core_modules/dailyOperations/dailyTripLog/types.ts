@@ -57,6 +57,7 @@ export type DailyTripLogRecord = {
     collected_weight_kg?: string | number | null;
     waste_type_name?: string | null;
     waste_type_breakdown?: WasteTypeBreakdownItem[];
+    capture_images?: TripLogCaptureImage[];
   }[];
   waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
   waste_type_breakdown?: WasteTypeBreakdownItem[];
@@ -70,6 +71,7 @@ export type DailyTripLogRecord = {
   household_collected_weight_kg?: string | number | null;
   household_collections?: {
     unique_id?: string;
+    waste_collection_id?: string | null;
     sequence?: number;
     customer_name?: string | null;
     customer_unique_id?: string | null;
@@ -78,6 +80,7 @@ export type DailyTripLogRecord = {
     waste_type_breakdown?: WasteTypeBreakdownItem[];
     collected_at?: string | null;
     status?: string;
+    capture_images?: TripLogCaptureImage[];
   }[];
   vehicle?: NamedRef & { vehicle_no?: string };
   bin_ids?: string[];
@@ -97,4 +100,12 @@ export type TripLogCaptureImage = {
   url: string;
   waste_type_id?: string;
   weight?: number | string;
+  collection_id?: string;
+  waste_collection_id?: string;
+  household_collection_id?: string;
+  trip_household_collection_id?: string;
+  collection_point_id?: string;
+  trip_collection_point_id?: string;
+  bin_collection_event_id?: string;
+  [key: string]: unknown;
 };

@@ -7,6 +7,7 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
@@ -485,6 +486,16 @@ export default function TripAttendanceForm() {
                 placeholder={t("admin.trip_attendance.longitude")}
               />
             </div>
+            )}
+
+            {(showField("latitude") || showField("longitude")) && (
+              <div className="flex items-end">
+                <AutoDetectLocationButton
+                  onDetected={({ latitude, longitude }) =>
+                    setFormData((prev) => ({ ...prev, latitude, longitude }))
+                  }
+                />
+              </div>
             )}
 
             {showField("source") && (
