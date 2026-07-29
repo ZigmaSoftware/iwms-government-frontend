@@ -1,4 +1,4 @@
-import type { Staff } from "./types";
+import type { Staff, StaffAddress } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,11 +19,20 @@ import { capitalize } from "@/utils/capitalize";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import {
+  exportRecordsToExcel,
+  getAdminScreenExcelFilename,
+} from "@/utils/exportExcel";
+import {
+  createStaffQrPdfBlob,
+  downloadStaffQrPdf,
+  localBodyNameOf,
+} from "./staffQrPdf";
+import { downloadAllStaffPdf } from "./staffAllDetailsPdf";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
   employee_name: ["employee_name", "name"],
-  designation: ["designation"],
   governmentusertype_id: ["governmentusertype_id", "government_user_type", "governmentusertype"],
   doj: ["doj", "date_of_joining"],
   contact_mobile: ["contact_mobile", "mobile"],
@@ -58,6 +67,89 @@ const humanizeGovUserType = (val?: string | null) => {
     .join(" ");
 };
 
+const staffTypeName = (staff: Staff) =>
+  staff.staff_type_name ?? staff.user_type_name ?? "";
+
+const governmentStaffTypeName = (staff: Staff) =>
+  staff.government_staff_type_name ?? staff.governmentusertype_name ?? "";
+
+const addressText = (
+  address: StaffAddress | string | null | undefined,
+  prefix: "present" | "permanent",
+  staff: Staff,
+) => {
+  let parsedAddress: StaffAddress = {};
+
+  if (address && typeof address === "object") {
+    parsedAddress = address;
+  } else if (typeof address === "string" && address.trim()) {
+    try {
+      const parsed = JSON.parse(address);
+      if (parsed && typeof parsed === "object") parsedAddress = parsed;
+    } catch {
+      return address.trim();
+    }
+  }
+
+  const value = (field: keyof StaffAddress) =>
+    parsedAddress[field] ?? staff[`${prefix}_${field}`] ?? "";
+
+  return [
+    value("building_no"),
+    value("street"),
+    value("area"),
+    value("city"),
+    value("district"),
+    value("state"),
+    value("country"),
+    value("pincode"),
+  ]
+    .map((part) => String(part).trim())
+    .filter(Boolean)
+    .join(", ");
+};
+
+const staffExcelRow = (staff: Staff) => ({
+  "Zigma ID": staff.unique_id,
+  "Staff Unique ID": staff.staff_unique_id,
+  "Employee ID": staff.emp_id,
+  "Employee Name": staff.employee_name,
+  "Staff Type": staffTypeName(staff),
+  "Government Staff Type": governmentStaffTypeName(staff),
+  "Government Level": staff.governmentusertype_level,
+  "Staff Configuration": staff.staff_config_name,
+  "Staff Head": staff.staff_head,
+  "Date of Joining": staff.doj,
+  Status: staff.active_status ? "Active" : "Inactive",
+  Username: staff.username,
+  "Login Enabled": staff.login_enabled ? "Yes" : "No",
+  "Contact Mobile": staff.contact_mobile,
+  "Contact Email": staff.contact_email,
+  "Office Email": staff.office_email,
+  Gender: staff.gender,
+  "Date of Birth": staff.dob,
+  Age: staff.age,
+  "Marital Status": staff.marital_status,
+  "Blood Group": staff.blood_group,
+  "Physically Challenged": staff.physically_challenged,
+  State: staff.state_name,
+  District: staff.district_name,
+  "Area Type": staff.area_type_name,
+  "Local Body": localBodyNameOf(staff),
+  "Present Address": addressText(staff.present_address, "present", staff),
+  "Permanent Address": addressText(staff.permanent_address, "permanent", staff),
+  "Driving Licence Number": staff.driving_licence_no,
+  "Driving Licence Expiry": staff.driving_licence_expiry_date,
+  "Driving Experience (Years)": staff.driving_experience_years,
+  "Driving Licence File": staff.driving_licence_file,
+  "Photo URL": staff.photo,
+  "Attendance Image URL": staff.attendance_reg_image,
+  "QR Code URL": staff.qr_code,
+  "Last Login At": staff.last_login_at,
+  "Created At": staff.created_at,
+  "Updated At": staff.updated_at,
+});
+
 export default function StaffCreationList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -80,7 +172,11 @@ export default function StaffCreationList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
-  const [selectedQr, setSelectedQr] = useState<string | null>(null);
+  const [selectedQrStaff, setSelectedQrStaff] = useState<Staff | null>(null);
+  const [isPrintingQr, setIsPrintingQr] = useState(false);
+  const [isPreviewingQr, setIsPreviewingQr] = useState(false);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
@@ -201,12 +297,137 @@ export default function StaffCreationList() {
     return (
       <button
         className="p-1 border rounded hover:bg-gray-50 flex justify-center"
-        onClick={() => setSelectedQr(row.qr_code!)}
+        onClick={() => setSelectedQrStaff(row)}
         title={t("admin.staff_creation.qr_show")}
       >
         <img src={row.qr_code} alt="QR" className="w-12 h-12 object-contain" />
       </button>
     );
+  };
+
+  const fetchStaffDetail = async (staff: Staff): Promise<Staff> => {
+    const detail = await adminApi.staffCreation.read(staff.unique_id) as Staff;
+    return {
+      ...staff,
+      ...detail,
+      qr_code: detail.qr_code ?? staff.qr_code,
+    };
+  };
+
+  const hydrateStaff = async (staffRows: Staff[]): Promise<Staff[]> => {
+    const hydrated: Staff[] = [];
+    const batchSize = 8;
+    for (let index = 0; index < staffRows.length; index += batchSize) {
+      const batch = staffRows.slice(index, index + batchSize);
+      const details = await Promise.all(
+        batch.map((staff) => fetchStaffDetail(staff).catch(() => staff)),
+      );
+      hydrated.push(...details);
+    }
+    return hydrated;
+  };
+
+  const fetchExportStaff = async (): Promise<Staff[]> => {
+    const staffRows = toRecordList(await adminApi.staffCreation.readAllForExport());
+    return hydrateStaff(staffRows);
+  };
+
+  const handleDownloadExcel = async () => {
+    setIsExportingExcel(true);
+    try {
+      const exportRows = await fetchExportStaff();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+        return;
+      }
+      exportRecordsToExcel(
+        exportRows.map(staffExcelRow),
+        getAdminScreenExcelFilename("all"),
+        "Staff",
+      );
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to export staff.",
+      });
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    setIsExportingPdf(true);
+    try {
+      const exportRows = await fetchExportStaff();
+      if (exportRows.length === 0) {
+        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+        return;
+      }
+      await downloadAllStaffPdf(exportRows);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the staff PDF.",
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const handlePrintQr = async () => {
+    if (!selectedQrStaff) return;
+    setIsPrintingQr(true);
+    try {
+      const detailedStaff = await fetchStaffDetail(selectedQrStaff);
+      setSelectedQrStaff(detailedStaff);
+      await downloadStaffQrPdf(detailedStaff);
+    } catch (error) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to generate the staff QR PDF.",
+      });
+    } finally {
+      setIsPrintingQr(false);
+    }
+  };
+
+  const handlePreviewQr = async () => {
+    if (!selectedQrStaff) return;
+
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      Swal.fire({
+        icon: "warning",
+        title: "Preview blocked",
+        text: "Please allow pop-ups for this site to preview the PDF.",
+      });
+      return;
+    }
+
+    previewWindow.document.title = "Preparing staff QR PDF";
+    previewWindow.document.body.innerHTML =
+      '<p style="font-family:Arial,sans-serif;padding:24px;color:#475569">Preparing PDF preview…</p>';
+    setIsPreviewingQr(true);
+    try {
+      const detailedStaff = await fetchStaffDetail(selectedQrStaff);
+      setSelectedQrStaff(detailedStaff);
+      const pdfBlob = await createStaffQrPdfBlob(detailedStaff);
+      const previewUrl = URL.createObjectURL(pdfBlob);
+      previewWindow.location.replace(previewUrl);
+      window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
+    } catch (error) {
+      previewWindow.close();
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: error instanceof Error ? error.message : "Failed to preview the staff QR PDF.",
+      });
+    } finally {
+      setIsPreviewingQr(false);
+    }
   };
 
   const actionTemplate = (row: Staff) => (
@@ -237,6 +458,20 @@ export default function StaffCreationList() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Button
+            label={isExportingExcel ? "Downloading…" : "Download Excel"}
+            icon="pi pi-file-excel"
+            className="p-button-outlined p-button-sm"
+            disabled={isExportingExcel}
+            onClick={handleDownloadExcel}
+          />
+          <Button
+            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+            icon="pi pi-file-pdf"
+            className="p-button-outlined p-button-sm"
+            disabled={isExportingPdf}
+            onClick={handleDownloadPdf}
+          />
           <Button
             label={t("admin.staff_creation.create")}
             icon="pi pi-plus"
@@ -355,14 +590,14 @@ export default function StaffCreationList() {
 
           <Column
             field="user_type_name"
-            header="User Type"
-            body={(row: Staff) => capitalize(row.user_type_name) || "-"}
+            header="Staff Type"
+            body={(row: Staff) => capitalize(staffTypeName(row)) || "-"}
           />
 
           <Column
             field="governmentusertype_name"
-            header="Government User Type"
-            body={(row: Staff) => row.governmentusertype_name || "-"}
+            header="Government Staff Type"
+            body={(row: Staff) => governmentStaffTypeName(row) || "-"}
           />
 
 
@@ -370,7 +605,7 @@ export default function StaffCreationList() {
             <Column
               field="governmentusertype_name"
               header={t("admin.staff_creation.government_user_type")}
-              body={(row: Staff) => humanizeGovUserType(row.governmentusertype_name as string) || "-"}
+              body={(row: Staff) => humanizeGovUserType(governmentStaffTypeName(row)) || "-"}
             />
           )}
 
@@ -412,15 +647,42 @@ export default function StaffCreationList() {
         </DataTable>
       </div>
 
-      <Dialog open={Boolean(selectedQr)} onOpenChange={(open) => !open && setSelectedQr(null)}>
+      <Dialog
+        open={Boolean(selectedQrStaff)}
+        onOpenChange={(open) => !open && setSelectedQrStaff(null)}
+      >
         <DialogContent className="w-auto max-w-[90vw] p-4">
           <DialogTitle className="sr-only">{t("admin.staff_creation.qr_title")}</DialogTitle>
-          {selectedQr && (
-            <img
-              src={selectedQr}
-              alt={t("admin.staff_creation.qr_title")}
-              className="h-auto w-[min(75vw,320px)] object-contain"
-            />
+          {selectedQrStaff?.qr_code && (
+            <div className="flex flex-col items-center gap-4">
+              <img
+                src={selectedQrStaff.qr_code}
+                alt={t("admin.staff_creation.qr_title")}
+                className="h-auto w-[min(75vw,320px)] object-contain"
+              />
+              <div className="text-center">
+                <p className="font-semibold text-gray-800">{selectedQrStaff.employee_name}</p>
+                <p className="text-sm text-gray-500">{selectedQrStaff.staff_unique_id}</p>
+              </div>
+              <div className="flex w-full gap-2">
+                <Button
+                  label={isPreviewingQr ? "Preparing…" : "Preview"}
+                  icon="pi pi-eye"
+                  loading={isPreviewingQr}
+                  disabled={isPreviewingQr || isPrintingQr}
+                  onClick={handlePreviewQr}
+                  className="flex-1 p-button-outlined"
+                />
+                <Button
+                  label={isPrintingQr ? "Preparing PDF…" : "Print"}
+                  icon="pi pi-print"
+                  loading={isPrintingQr}
+                  disabled={isPrintingQr || isPreviewingQr}
+                  onClick={handlePrintQr}
+                  className="flex-1"
+                />
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

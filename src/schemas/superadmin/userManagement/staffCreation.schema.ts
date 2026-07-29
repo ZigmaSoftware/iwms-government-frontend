@@ -25,9 +25,6 @@ export const buildStaffCreationSchema = (isEdit: boolean) =>
     .object({
       employee_name: requiredString("Employee Name"),
       doj: optionalString,
-      department: optionalString,
-      designation: optionalString,
-      department_id: optionalString,
       staff_head: optionalString,
       staff_head_id: optionalString,
       active_status: optionalString,
@@ -44,6 +41,14 @@ export const buildStaffCreationSchema = (isEdit: boolean) =>
       login_enabled: optionalString,
       marital_status: optionalString,
       dob: optionalString,
+      age: z
+        .string()
+        .refine(
+          (value) =>
+            value === "" ||
+            (/^\d+$/.test(value) && Number(value) >= 0 && Number(value) <= 120),
+          "Age must be a whole number between 0 and 120.",
+        ),
       blood_group: optionalString,
       gender: optionalString,
       physically_challenged: optionalString,

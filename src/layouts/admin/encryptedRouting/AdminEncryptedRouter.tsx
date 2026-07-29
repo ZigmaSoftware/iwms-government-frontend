@@ -319,7 +319,7 @@ const MODULE_ALIASES: Record<string, string[]> = {
   "staff-user-type": ["staff-user-type"],
   staffusertypes: ["staff-user-type"],
 
-  // User management
+  // Staff management
   staffcreation: ["staff-creation"],
   "staff-creation": ["staff-creation"],
   "staff-access-configuration": ["staff-access-configuration"],
