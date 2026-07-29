@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2, ClipboardList, Loader2, MapPinned, UserRound } from "lucide-react";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -697,6 +698,14 @@ export default function TicketWizardForm() {
             <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
             <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>
             <div><Label>Longitude</Label><Input value={form.longitude} onChange={(e) => setValue("longitude", e.target.value)} /></div>
+            <div className="flex items-end">
+              <AutoDetectLocationButton
+                onDetected={({ latitude, longitude }) => {
+                  setValue("latitude", latitude);
+                  setValue("longitude", longitude);
+                }}
+              />
+            </div>
           </div>
         )}
 

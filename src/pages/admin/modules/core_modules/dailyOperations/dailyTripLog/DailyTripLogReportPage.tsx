@@ -1,4 +1,8 @@
-import type { DailyTripLogRecord, WasteTypeBreakdownItem } from "./types";
+import type {
+  DailyTripLogRecord,
+  TripLogCaptureImage,
+  WasteTypeBreakdownItem,
+} from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -65,6 +69,126 @@ const WasteChips = ({ items }: { items?: WasteTypeBreakdownItem[] }) => {
   );
 };
 
+const CollectionImageLinks = ({ images }: { images?: TripLogCaptureImage[] }) => {
+  const availableImages = (images ?? []).filter((image) => Boolean(image.url));
+  if (availableImages.length === 0) {
+    return <span className="text-xs text-gray-400">—</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {availableImages.map((image, index) => (
+        <a
+          key={`${image.url}-${index}`}
+          href={image.url}
+          target="_blank"
+          rel="noreferrer"
+          title="Open collection image"
+          className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 hover:text-emerald-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+        >
+          <i className="pi pi-image text-xs" aria-hidden="true" />
+          {availableImages.length === 1 ? "View image" : `Image ${index + 1}`}
+        </a>
+      ))}
+    </div>
+  );
+};
+
+type ImageCollectionRow = {
+  unique_id?: string;
+  waste_collection_id?: string | null;
+  waste_type_breakdown?: WasteTypeBreakdownItem[];
+  capture_images?: TripLogCaptureImage[];
+};
+
+const imageCollectionIds = (image: TripLogCaptureImage): string[] =>
+  [
+    image.collection_id,
+    image.waste_collection_id,
+    image.household_collection_id,
+    image.trip_household_collection_id,
+    image.collection_point_id,
+    image.trip_collection_point_id,
+    image.bin_collection_event_id,
+  ]
+    .filter((value): value is string => value !== null && value !== undefined)
+    .map(String);
+
+const sameWeight = (
+  imageWeight: TripLogCaptureImage["weight"],
+  breakdownWeight: WasteTypeBreakdownItem["collected_weight_kg"],
+) => {
+  const left = Number(imageWeight);
+  const right = Number(breakdownWeight);
+  return Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) < 0.001;
+};
+
+/**
+ * Newer API responses can return capture_images on each collection row.
+ * Older responses aggregate them at trip level, so allocate those images back
+ * to their collection using IDs first and waste type/weight as a fallback.
+ */
+const mapImagesToCollections = (
+  rows: ImageCollectionRow[],
+  tripImages?: TripLogCaptureImage[],
+): Map<string, TripLogCaptureImage[]> => {
+  const images = tripImages ?? [];
+  const usedImageIndexes = new Set<number>();
+  const result = new Map<string, TripLogCaptureImage[]>();
+
+  rows.forEach((collection, rowIndex) => {
+    const rowKey = collection.unique_id ?? `collection-${rowIndex}`;
+    const nestedImages = (collection.capture_images ?? []).filter((image) => Boolean(image.url));
+    if (nestedImages.length > 0) {
+      result.set(rowKey, nestedImages);
+      const nestedUrls = new Set(nestedImages.map((image) => image.url));
+      images.forEach((image, imageIndex) => {
+        if (nestedUrls.has(image.url)) usedImageIndexes.add(imageIndex);
+      });
+      return;
+    }
+
+    const collectionIds = new Set(
+      [collection.unique_id, collection.waste_collection_id]
+        .filter((value): value is string => Boolean(value))
+        .map(String),
+    );
+    const explicitlyLinked = images
+      .map((image, imageIndex) => ({ image, imageIndex }))
+      .filter(
+        ({ image, imageIndex }) =>
+          !usedImageIndexes.has(imageIndex) &&
+          imageCollectionIds(image).some((id) => collectionIds.has(id)),
+      );
+
+    if (explicitlyLinked.length > 0) {
+      explicitlyLinked.forEach(({ imageIndex }) => usedImageIndexes.add(imageIndex));
+      result.set(rowKey, explicitlyLinked.map(({ image }) => image));
+      return;
+    }
+
+    const matchedImages: TripLogCaptureImage[] = [];
+    (collection.waste_type_breakdown ?? []).forEach((waste) => {
+      const matchingIndex = images.findIndex((image, imageIndex) => {
+        if (usedImageIndexes.has(imageIndex)) return false;
+        const sameWasteType =
+          !waste.waste_type_id ||
+          !image.waste_type_id ||
+          String(image.waste_type_id) === String(waste.waste_type_id);
+        return sameWasteType && sameWeight(image.weight, waste.collected_weight_kg);
+      });
+      if (matchingIndex >= 0) {
+        usedImageIndexes.add(matchingIndex);
+        matchedImages.push(images[matchingIndex]);
+      }
+    });
+
+    result.set(rowKey, matchedImages);
+  });
+
+  return result;
+};
+
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-700",
   Submitted: "bg-blue-100 text-blue-800",
@@ -129,8 +253,8 @@ export default function DailyTripLogReportPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
 
-  const { encScheduleMasters, encDailyTripLog } = getEncryptedRoute();
-  const { listPath } = createCrudRoutePaths(encScheduleMasters, encDailyTripLog);
+  const { encDailyOperations, encDailyTripLog } = getEncryptedRoute();
+  const { listPath } = createCrudRoutePaths(encDailyOperations, encDailyTripLog);
 
   const [row, setRow] = useState<DailyTripLogRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -180,6 +304,8 @@ export default function DailyTripLogReportPage() {
   const wasteTypeBreakdown = Array.isArray(row.waste_type_breakdown) ? row.waste_type_breakdown : [];
   const collectedWeightFromPoints = computeCollectedWeight(cps);
   const overallTotal = collectedWeightFromPoints + Number(row.household_collected_weight_kg ?? 0);
+  const householdImages = mapImagesToCollections(hhCollections, row.capture_images);
+  const collectionPointImages = mapImagesToCollections(cps, row.capture_images);
 
   return (
     <div className="p-3">
@@ -298,6 +424,15 @@ export default function DailyTripLogReportPage() {
               body={(hh: any) => formatCollectionTime(hh.collected_at)}
             />
             <Column
+              header="Image"
+              style={{ width: 140 }}
+              body={(hh: any) => (
+                <CollectionImageLinks
+                  images={householdImages.get(hh.unique_id) ?? hh.capture_images}
+                />
+              )}
+            />
+            <Column
               header="Status"
               style={{ width: 130 }}
               body={(hh: any) => <StopStatusBadge value={hh.status} />}
@@ -334,6 +469,15 @@ export default function DailyTripLogReportPage() {
               header="Collection Time"
               style={{ width: 140 }}
               body={(cp: any) => formatCollectionTime(cp.collected_at)}
+            />
+            <Column
+              header="Image"
+              style={{ width: 140 }}
+              body={(cp: any) => (
+                <CollectionImageLinks
+                  images={collectionPointImages.get(cp.unique_id) ?? cp.capture_images}
+                />
+              )}
             />
             <Column
               header="Status"

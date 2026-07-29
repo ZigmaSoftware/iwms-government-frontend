@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type Re
 import { useNavigate, useParams } from "react-router-dom";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -367,6 +368,14 @@ function CollectionMonitoringForm() {
             onChange={(e) => setDriverLongitude(e.target.value)}
             isRequired={false}
           />
+          <div className="flex items-end">
+            <AutoDetectLocationButton
+              onDetected={({ latitude, longitude }) => {
+                setDriverLatitude(latitude);
+                setDriverLongitude(longitude);
+              }}
+            />
+          </div>
           <FormInput
             label="Notes"
             value={notes}
