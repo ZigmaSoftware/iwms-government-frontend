@@ -5,10 +5,9 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
@@ -45,10 +44,20 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const toRecordList = (value: unknown): PropertyRecord[] => {
+  if (Array.isArray(value)) return value as PropertyRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: PropertyRecord[] }).results;
+  }
+  return [];
+};
+
 const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
   property_name: ["property_name"],
   is_active: ["is_active"],
 };
+
+const SORTABLE_FIELDS = new Set(["property_name"]);
 
 export default function PropertyList() {
   const { t } = useTranslation();
@@ -56,11 +65,12 @@ export default function PropertyList() {
   const [properties, setProperties] = useState<PropertyRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [filters, setFilters] = useState<any>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    property_name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
   const navigate = useNavigate();
 
@@ -77,14 +87,24 @@ export default function PropertyList() {
     PROPERTY_COLUMN_FIELDS,
   );
 
-  const loadProperties = async () => {
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const loadProperties = async (page: number, limit: number, search: string, order?: string) => {
     setIsLoading(true);
     try {
-      const response = await adminApi.properties.readAll();
-      const list = Array.isArray(response)
-        ? response
-        : ((response as { results?: PropertyRecord[] })?.results ?? []);
-      setProperties(list as PropertyRecord[]);
+      const response = await adminApi.properties.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(order ? { ordering: order } : {}),
+        },
+      });
+      const list = toRecordList(response);
+      setProperties(list);
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : list.length,
+      );
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -97,19 +117,36 @@ export default function PropertyList() {
   };
 
   useEffect(() => {
-    void loadProperties();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    void loadProperties(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const _filters = { ...filters };
-    _filters.global.value = value;
-    setFilters(_filters);
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
+  };
+
+  const onExportRequest = async () => {
+    const all = await adminApi.properties.readAllForExport();
+    return toRecordList(all);
   };
 
   const renderHeader = () =>
@@ -204,19 +241,24 @@ export default function PropertyList() {
         <DataTable
           value={properties}
           dataKey="unique_id"
+          lazy
           paginator
-          rows={10}
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={isLoading}
-          filters={filters}
-          onFilter={onFilter}
           header={renderHeader()}
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.property"),
           })}
-          globalFilterFields={["property_name"]}
+          onExportRequest={onExportRequest}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
@@ -225,9 +267,7 @@ export default function PropertyList() {
             <Column
               field="property_name"
               header={t("common.item_name", { item: t("admin.nav.property") })}
-              sortable
-              filter
-              showFilterMatchModes={false}
+              sortable={SORTABLE_FIELDS.has("property_name")}
               body={(row: PropertyRecord) => capitalize(row.property_name)}
             />
           )}

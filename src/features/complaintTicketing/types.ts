@@ -24,8 +24,13 @@ export type ComplaintTicket = {
   module_name?: string | null;
   customer?: ApiId | null;
   customer_name?: string | null;
+  reporter_type?: "Customer" | "Public Grievance" | null;
+  reporter_name?: string | null;
+  raised_by_name?: string | null;
   wa_phone?: string | null;
   profile_name?: string | null;
+  email?: string | null;
+  gender?: string | null;
   language?: ApiId | null;
   category: ApiId;
   category_name?: string | null;
@@ -86,6 +91,27 @@ export type ComplaintTicket = {
   comments?: ComplaintComment[];
   attachments?: ComplaintAttachment[];
   public_timeline?: ComplaintTimelineItem[];
+  image_url?: string | null;
+  close_image_url?: string | null;
+  operational_context?: OperationalContext;
+};
+
+export type IncidentType =
+  | "trip"
+  | "driver"
+  | "operator"
+  | "vehicle"
+  | "public"
+  | "other"
+  | string;
+
+export type OperationalContext = {
+  incident_type: IncidentType;
+  trip_reference?: string;
+  driver_reference?: string;
+  operator_reference?: string;
+  vehicle_reference?: string;
+  other_reference?: string;
 };
 
 export type ComplaintCategory = {
@@ -369,6 +395,14 @@ export interface Grievance {
   closed_at?: string;
   contact_no?: string;
   wa_phone?: string;
+  customer_id?: string;
+  customer_name?: string;
+  profile_name?: string;
+  reporter_type?: "Customer" | "Public Grievance";
+  reporter_name?: string;
+  raised_by_name?: string;
+  email?: string;
+  gender?: string;
   address?: string;
   location_text?: string;
   image_url?: string;
@@ -378,6 +412,20 @@ export interface Grievance {
   category_name?: string;
   sub_category?: string;
   subcategory_name?: string;
+  priority?: string;
+  priority_code?: string;
+  source_code?: string;
+  module_name?: string;
+  waste_type_names?: string[];
+  state_name?: string;
+  area_type_name?: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  assigned_team_name?: string;
+  assigned_staff_name?: string;
+  district_name?: string;
+  city_name?: string;
+  operational_context?: OperationalContext;
 }
 
 export interface InfoFieldProps {

@@ -127,15 +127,16 @@ export function useGeoHierarchy() {
 
   useEffect(() => {
     let mounted = true;
+    const liteConfig = { params: { lite: 1 } };
     Promise.all([
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      panchayatApi.readAll(liteConfig),
     ])
       .then(([stateRes, districtRes, areaTypeRes, corpRes, muniRes, townRes, unionRes, panRes]) => {
         if (!mounted) return;

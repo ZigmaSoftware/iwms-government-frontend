@@ -7,6 +7,8 @@ export type BasicInfoForm = {
   designation: string;
   doj: string;
   activeStatus: boolean;
+  scopeAdminId: string;
+  scopeAdminName?: string;
 };
 
 export type LoginConfigForm = {

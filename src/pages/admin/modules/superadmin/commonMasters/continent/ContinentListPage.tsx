@@ -1,17 +1,15 @@
-import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { PencilIcon } from "@/icons";
 import { Button } from "primereact/button";
 import { Column } from "primereact/column";
-import { FilterMatchMode } from "primereact/api";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -36,6 +34,16 @@ const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
 const CONTINENT_COLUMN_FIELDS: Record<string, string[]> = {
   name: ["name"],
   is_active: ["is_active"],
+};
+
+const SORTABLE_FIELDS = new Set(["name"]);
+
+const toRecordList = (value: unknown): ContinentRecord[] => {
+  if (Array.isArray(value)) return value as ContinentRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: ContinentRecord[] }).results;
+  }
+  return [];
 };
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
@@ -71,21 +79,36 @@ export default function ContinentList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [continents, setContinents] = useState<ContinentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filters, setFilters] = useState<TableFilters>({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "common-masters",
     "continents",
     CONTINENT_COLUMN_FIELDS,
   );
 
-  const loadContinents = async () => {
+  const loadContinents = async (
+    page: number,
+    limit: number,
+    search: string,
+    ordering?: string,
+  ) => {
     setIsLoading(true);
     try {
-      const response = await adminApi.continents.readAll();
-      setContinents(Array.isArray(response) ? response : []);
+      const response = await adminApi.continents.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
+      });
+      setContinents(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
     } catch (error) {
       Swal.fire(
         t("common.error"),
@@ -97,22 +120,39 @@ export default function ContinentList() {
     }
   };
 
-  useEffect(() => {
-    void loadContinents();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
-  const onFilter = (e: DataTableFilterEvent) => {
-    setFilters(e.filters as TableFilters);
+  useEffect(() => {
+    void loadContinents(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const updatedFilters = { ...filters };
-
-    updatedFilters.global.value = value;
-    setFilters(updatedFilters);
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () => toRecordList(await adminApi.continents.readAllForExport());
 
   const updateStatus = async (
     continent: ContinentRecord,
@@ -212,16 +252,21 @@ export default function ContinentList() {
       <DataTable
         value={continents}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && continents.length === 0}
-        filters={filters}
-        onFilter={onFilter}
-        globalFilterFields={["name"]}
         header={header}
         stripedRows
         showGridlines
+        onExportRequest={onExportRequest}
         className="p-datatable-sm"
       >
         <Column
@@ -235,9 +280,7 @@ export default function ContinentList() {
             field="name"
             header={t("common.item_name", { item: t("admin.nav.continent") })}
             body={(record: ContinentRecord) => record.name}
-            sortable
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has("name")}
             style={{ minWidth: "200px" }}
           />
         )}

@@ -26,9 +26,11 @@ import {
   wardApi,
 } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { capitalize } from "@/utils/capitalize";
 import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
+
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -864,15 +866,16 @@ export default function WasteCollectedForm() {
   /* ── load small/cheap geo master lists (not customers/trip-assignments —
      those are large and fetched by the editor itself, scoped by geo) ── */
   useEffect(() => {
-    stateApi.readAll().then((r: any) => setMasters((m) => ({ ...m, states: toList(r) }))).catch(() => {});
-    districtApi.readAll().then((r: any) => setMasters((m) => ({ ...m, districts: toList(r) }))).catch(() => {});
-    areaTypeApi.readAll().then((r: any) => setMasters((m) => ({ ...m, areaTypes: toList(r) }))).catch(() => {});
-    corporationApi.readAll().then((r: any) => setMasters((m) => ({ ...m, corporations: toList(r) }))).catch(() => {});
-    municipalityApi.readAll().then((r: any) => setMasters((m) => ({ ...m, municipalities: toList(r) }))).catch(() => {});
-    townPanchayatApi.readAll().then((r: any) => setMasters((m) => ({ ...m, townPanchayats: toList(r) }))).catch(() => {});
-    panchayatUnionApi.readAll().then((r: any) => setMasters((m) => ({ ...m, panchayatUnions: toList(r) }))).catch(() => {});
-    panchayatApi.readAll().then((r: any) => setMasters((m) => ({ ...m, panchayats: toList(r) }))).catch(() => {});
-    wardApi.readAll().then((r: any) => setMasters((m) => ({ ...m, wards: toList(r) }))).catch(() => {});
+    const liteConfig = { params: { lite: 1 } };
+    stateApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, states: toList(r) }))).catch(() => {});
+    districtApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, districts: toList(r) }))).catch(() => {});
+    areaTypeApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, areaTypes: toList(r) }))).catch(() => {});
+    corporationApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, corporations: toList(r) }))).catch(() => {});
+    municipalityApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, municipalities: toList(r) }))).catch(() => {});
+    townPanchayatApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, townPanchayats: toList(r) }))).catch(() => {});
+    panchayatUnionApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, panchayatUnions: toList(r) }))).catch(() => {});
+    panchayatApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, panchayats: toList(r) }))).catch(() => {});
+    wardApi.readAll(liteConfig).then((r: any) => setMasters((m) => ({ ...m, wards: toList(r) }))).catch(() => {});
   }, []);
 
   /* ── edit mode: load the single record ── */

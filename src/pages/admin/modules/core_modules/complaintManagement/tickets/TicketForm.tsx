@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { CheckCircle2, ClipboardList, Loader2, MapPinned, UserRound } from "lucide-react";
 import Swal from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -115,6 +116,12 @@ export default function TicketWizardForm() {
     status: "",
     title: "",
     description: "",
+    incident_type: "other",
+    trip_reference: "",
+    driver_reference: "",
+    operator_reference: "",
+    vehicle_reference: "",
+    other_reference: "",
     location_text: "",
     latitude: "",
     longitude: "",
@@ -407,6 +414,12 @@ export default function TicketWizardForm() {
         status: form.status,
         title: form.title,
         description: form.description,
+        incident_type: form.incident_type,
+        trip_reference: form.trip_reference,
+        driver_reference: form.driver_reference,
+        operator_reference: form.operator_reference,
+        vehicle_reference: form.vehicle_reference,
+        other_reference: form.other_reference,
         location_text: form.location_text,
         customer: form.customer || null,
         latitude: form.latitude || null,
@@ -457,6 +470,12 @@ export default function TicketWizardForm() {
           {reviewRow("Status", capitalize(findLabel(statuses, form.status, "status_name")))}
           {reviewRow("Title", form.title)}
           {reviewRow("Description", form.description)}
+          {reviewRow("Incident type", capitalize(form.incident_type))}
+          {reviewRow("Trip", form.trip_reference)}
+          {reviewRow("Driver", form.driver_reference)}
+          {reviewRow("Operator", form.operator_reference)}
+          {reviewRow("Vehicle", form.vehicle_reference)}
+          {reviewRow("Other context", form.other_reference)}
         </>,
       )}
 
@@ -602,6 +621,26 @@ export default function TicketWizardForm() {
             </div>
             <div className="md:col-span-3"><Label>Title</Label><Input value={form.title} onChange={(e) => setValue("title", e.target.value)} required /></div>
             <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
+            <div>
+              <Label>Complaint / Incident Type</Label>
+              <select
+                className="h-11 w-full rounded-md border px-3 text-sm"
+                value={form.incident_type}
+                onChange={(e) => setValue("incident_type", e.target.value)}
+              >
+                <option value="public">Public Grievance</option>
+                <option value="trip">Trip Related</option>
+                <option value="driver">Driver Related</option>
+                <option value="operator">Operator Related</option>
+                <option value="vehicle">Vehicle Related</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div><Label>Trip Reference</Label><Input placeholder="Trip ID / trip plan code" value={form.trip_reference} onChange={(e) => setValue("trip_reference", e.target.value)} /></div>
+            <div><Label>Vehicle Reference</Label><Input placeholder="Vehicle number / ID" value={form.vehicle_reference} onChange={(e) => setValue("vehicle_reference", e.target.value)} /></div>
+            <div><Label>Driver Reference</Label><Input placeholder="Driver name / staff ID" value={form.driver_reference} onChange={(e) => setValue("driver_reference", e.target.value)} /></div>
+            <div><Label>Operator Reference</Label><Input placeholder="Operator name / staff ID" value={form.operator_reference} onChange={(e) => setValue("operator_reference", e.target.value)} /></div>
+            <div><Label>Other Context</Label><Input placeholder="Any additional operational reference" value={form.other_reference} onChange={(e) => setValue("other_reference", e.target.value)} /></div>
           </div>
         )}
 
@@ -645,6 +684,14 @@ export default function TicketWizardForm() {
             <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
             <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>
             <div><Label>Longitude</Label><Input value={form.longitude} onChange={(e) => setValue("longitude", e.target.value)} /></div>
+            <div className="flex items-end">
+              <AutoDetectLocationButton
+                onDetected={({ latitude, longitude }) => {
+                  setValue("latitude", latitude);
+                  setValue("longitude", longitude);
+                }}
+              />
+            </div>
           </div>
         )}
 

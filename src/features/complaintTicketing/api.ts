@@ -232,8 +232,61 @@ export const notificationActions = {
 };
 
 export async function fetchGrievances(signal?: AbortSignal) {
-  const data = await complaintTicketApi.readAll({ signal });
-  return data as Grievance[];
+  const data = await complaintTicketApi.readAllForExport({ signal });
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray((data as { results?: unknown })?.results)
+      ? (data as { results: unknown[] }).results
+      : [];
+  return (rows as ComplaintTicket[]).map((ticket, index): Grievance => ({
+    id: index,
+    unique_id: ticket.ticket_no || ticket.unique_id,
+    title: ticket.title || ticket.category_name || "Complaint",
+    category: ticket.category_name || "",
+    main_category: ticket.category_name || "",
+    sub_category: ticket.subcategory_name || "",
+    category_name: ticket.category_name || "",
+    subcategory_name: ticket.subcategory_name || "",
+    description: ticket.description || "",
+    details: ticket.description || "",
+    status: (ticket.status_code || ticket.status_name || "").toLowerCase().replaceAll("_", "-"),
+    status_code: ticket.status_code || "",
+    status_name: ticket.status_name || "",
+    created: ticket.created,
+    complaint_closed_at: ticket.closed_at ?? undefined,
+    closed_at: ticket.closed_at ?? undefined,
+    contact_no: ticket.wa_phone || "",
+    wa_phone: ticket.wa_phone || "",
+    customer_id: ticket.customer ? String(ticket.customer) : "",
+    customer_name: ticket.customer_name || "",
+    profile_name: ticket.profile_name || "",
+    reporter_type: ticket.reporter_type || (ticket.customer ? "Customer" : "Public Grievance"),
+    reporter_name: ticket.reporter_name || ticket.customer_name || ticket.profile_name || "Anonymous",
+    raised_by_name: ticket.raised_by_name || ticket.customer_name || ticket.profile_name || "Anonymous",
+    email: ticket.email || "",
+    gender: ticket.gender || "",
+    address: ticket.location_text || "",
+    location_text: ticket.location_text || "",
+    image_url: ticket.image_url || undefined,
+    close_image_url: ticket.close_image_url || undefined,
+    zone_id: String(ticket.district_id || ""),
+    zone_name: ticket.district_name || ticket.city_name || "",
+    ward_name: ticket.city_name || "",
+    priority: ticket.priority_code || "",
+    priority_code: ticket.priority_code || "",
+    source_code: ticket.source_code || "",
+    module_name: ticket.module_name || "",
+    waste_type_names: ticket.waste_type_names || [],
+    state_name: ticket.state_name || "",
+    area_type_name: ticket.area_type_name || "",
+    latitude: ticket.latitude ?? undefined,
+    longitude: ticket.longitude ?? undefined,
+    assigned_team_name: ticket.assigned_team_name || "",
+    assigned_staff_name: ticket.assigned_staff_name || "",
+    district_name: ticket.district_name || "",
+    city_name: ticket.city_name || "",
+    operational_context: ticket.operational_context,
+  }));
 }
 
 export const publicGrievanceApi = {

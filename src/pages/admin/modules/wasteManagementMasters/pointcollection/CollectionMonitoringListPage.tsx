@@ -1,13 +1,13 @@
 import type { BinCollectionEventRecord } from "./types";
 import type { NestedRef } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
@@ -51,39 +51,54 @@ export default function CollectionMonitoringListPage() {
     encCollectionMonitoring,
   );
 
-  const [records, setRecords] = useState<BinCollectionEventRecord[]>([]);
+  const [rawRows, setRawRows] = useState<BinCollectionEventRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _bin_name: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _waste_type: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _collection_point: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _vehicle: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    _route: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const fetchRows = useCallback(async () => {
+  const ordering = sortField ? `${sortOrder === -1 ? "-" : ""}${sortField}` : undefined;
+
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
     try {
       setLoading(true);
-      const response = await binCollectionEventApi.readAll();
+      const response = await binCollectionEventApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
       const data = normalizeList(response);
-      setRecords(data);
+      setRawRows(data);
+      setTotalRecords(typeof response?.count === "number" ? response.count : data.length);
     } catch (error) {
       console.error("Failed to fetch bin collection events", error);
-      setRecords([]);
+      setRawRows([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchRows();
-  }, [fetchRows]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   const rows = useMemo(
     () =>
-      records.map((row) => ({
+      rawRows.map((row) => ({
         ...row,
         _bin_name: nestedText(row.bin, ["bin_name", "name"]) === "-" ? text(row.bin_id) : nestedText(row.bin, ["bin_name", "name"]),
         _waste_type: nestedText(row.waste_type, ["waste_type_name", "name"]),
@@ -93,20 +108,31 @@ export default function CollectionMonitoringListPage() {
         _vehicle: nestedText(row.vehicle, ["vehicle_no", "name"]),
         _route: nestedText(row.trip_plan, ["display_code", "unique_id"]),
       })),
-    [records],
+    [rawRows],
   );
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
+  };
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
   };
 
   const statusTemplate = (row: BinCollectionEventRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
         await binCollectionEventApi.update(row.unique_id, { is_active: value });
-        fetchRows();
+        setRawRows((current) =>
+          current.map((item) => (item.unique_id === row.unique_id ? { ...item, is_active: value } : item)),
+        );
       } catch (error) {
         console.error("Status update failed:", error);
       }
@@ -125,8 +151,6 @@ export default function CollectionMonitoringListPage() {
       </button>
     </div>
   );
-
-  if (loading) return <div className="p-6">{t("common.loading")}</div>;
 
   return (
     <div className="p-3">
@@ -149,17 +173,17 @@ export default function CollectionMonitoringListPage() {
 
       <DataTable
         value={rows}
+        dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
-        filters={filters}
-        globalFilterFields={[
-          "unique_id",
-          "_bin_name",
-          "_waste_type",
-          "_collection_point",
-          "_vehicle",
-          "_route",
-        ]}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
+        loading={loading}
         rowsPerPageOptions={[5, 10, 25, 50]}
         header={
           <div className="flex justify-end items-center">
@@ -180,13 +204,13 @@ export default function CollectionMonitoringListPage() {
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "80px" }} />
-        <Column field="_bin_name" header={t("common.item_name", { item: t("admin.nav.bin_master") })} sortable filter showFilterMatchModes={false} />
-        <Column field="_waste_type" header={t("common.waste_type")} sortable filter showFilterMatchModes={false} />
-        <Column field="_collection_point" header={t("admin.nav.collection_point")} sortable filter showFilterMatchModes={false} />
-        <Column field="_route" header="Route" sortable filter showFilterMatchModes={false} />
-        <Column field="_vehicle" header="Vehicle" sortable filter showFilterMatchModes={false} />
-        <Column field="collected_weight_kg" header="Weight (kg)" sortable body={(row: BinCollectionEventRecord) => text(row.collected_weight_kg)} />
-        <Column field="created_at" header={t("common.date")} sortable body={(row: BinCollectionEventRecord) => text(row.created_at).slice(0, 10)} />
+        <Column field="_bin_name" header={t("common.item_name", { item: t("admin.nav.bin_master") })} />
+        <Column field="_waste_type" header={t("common.waste_type")} />
+        <Column field="_collection_point" header={t("admin.nav.collection_point")} />
+        <Column field="_route" header="Route" />
+        <Column field="_vehicle" header="Vehicle" />
+        <Column field="collected_weight_kg" header="Weight (kg)" body={(row: BinCollectionEventRecord) => text(row.collected_weight_kg)} />
+        <Column field="created_at" header={t("common.date")} body={(row: BinCollectionEventRecord) => text(row.created_at).slice(0, 10)} />
         <Column field="is_active" header={t("common.status")} body={statusTemplate} style={{ width: "130px" }} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: "120px" }} />
       </DataTable>

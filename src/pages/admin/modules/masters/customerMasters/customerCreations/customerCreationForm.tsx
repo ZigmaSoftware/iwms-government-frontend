@@ -27,6 +27,7 @@ import {
 } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -1823,6 +1824,16 @@ function CustomerEditor({
                 step="0.0001"
               />
             )}
+            {(showField("latitude") || showField("longitude")) && (
+              <div className="flex items-end">
+                <AutoDetectLocationButton
+                  onDetected={({ latitude, longitude }) => {
+                    update("latitude", latitude);
+                    update("longitude", longitude);
+                  }}
+                />
+              </div>
+            )}
           </FormSection>
 
           {/* PROPERTY INFORMATION */}
@@ -2220,19 +2231,20 @@ export default function CustomerCreationForm() {
 
     applyScopeFallback();
 
+    const liteConfig = { params: { lite: 1 } };
     Promise.all([
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      stateApi.readAll(),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      stateApi.readAll(liteConfig),
       countryApi.readAll(),
       propertiesApi.readAll(),
       subPropertiesApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-      wasteTypeApi.readAll(),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      panchayatApi.readAll(liteConfig),
+      wasteTypeApi.readAll(liteConfig),
     ])
       .then(
         ([

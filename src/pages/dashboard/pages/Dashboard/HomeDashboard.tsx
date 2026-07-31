@@ -1,10 +1,13 @@
 import { DataCard } from "@/components/ui/DataCard";
 import Label from "@/components/form/Label";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode, WheelEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Activity,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   Home,
   Maximize2,
   Route,
@@ -23,15 +26,31 @@ import { BinMapPanel } from "./map/BinMapPanel";
 import { HouseholdMapPanel } from "./map/HouseholdMapPanel";
 import VehicleMapPanel from "./map/VehicleMapPanel";
 import { WardMapPanel } from "./map/WardMapPanel";
+import { useWardGeofences } from "./map/WardGeofenceLayer";
 import { MapTabs } from "./map/MapTabs";
 import { MAP_TABS, type MapTabKey } from "./map/mapUtils";
-import { useWardGeofences } from "./map/WardGeofenceLayer";
-import { dashboardSummaryApi } from "@/helpers/admin";
+import { dashboardSummaryApi, wasteTypeApi } from "@/helpers/admin";
+import { complaintTicketApi } from "@/features/complaintTicketing/api";
+import type { ComplaintTicket } from "@/features/complaintTicketing/types";
 import { useTranslation } from "react-i18next";
 import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
 import Select from "@/components/form/Select";
 import { HoverCard, HoverCardArrow, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
+import { getEncryptedRoute } from "@/utils/routeCache";
 import {
   AreaChart,
   Area,
@@ -74,6 +93,53 @@ type WardPerformance = {
 
 type FilterItem = { id: string; name: string };
 
+type WasteTypeMasterRecord = {
+  unique_id: string;
+  waste_type_name?: string;
+  is_active?: boolean;
+};
+
+type CriticalAlert = {
+  id: string;
+  kind: "grievance" | "vehicle_breakdown";
+  title: string;
+  description?: string;
+  status: string;
+  severity: "critical" | "warning";
+  created?: string | null;
+  updated?: string | null;
+  priority?: string;
+  category?: string;
+  subcategory?: string;
+  source?: string;
+  incident_type?: string;
+  collection_type?: string;
+  reporter_type?: "Customer" | "Public Grievance";
+  reporter_name?: string;
+  raised_by_name?: string;
+  customer_name?: string;
+  contact_no?: string;
+  email?: string;
+  gender?: string;
+  module?: string;
+  waste_types?: string[];
+  assigned_to?: string;
+  location?: string;
+  trip?: string;
+  trip_date?: string;
+  scheduled_time?: string;
+  vehicle?: string;
+  replacement_vehicle?: string;
+  driver?: string;
+  operator?: string;
+  replacement_driver?: string;
+  replacement_operator?: string;
+  breakdown_time?: string;
+  approval_status?: string;
+  collected_weight_kg?: string;
+  remarks?: string;
+};
+
 type DashboardSummary = {
   filters: {
     states: FilterItem[];
@@ -92,12 +158,44 @@ type DashboardSummary = {
     attendance: { total: number; present: number; absent: number; leave: number };
     waste: {
       total_tons: number;
+      household_kg: number;
+      bin_kg: number;
       wet_tons: number;
       dry_tons: number;
       other_tons: number;
+      waste_type_breakdown: Array<{
+        waste_type_id: string;
+        waste_type_name: string;
+        weight_kg: number;
+        tons: number;
+        percentage: number;
+      }>;
       collections: number;
+      household_collections: number;
+      bin_collections: number;
     };
     bins: { total: number; collected: number; not_collected: number };
+    operations: {
+      available: boolean;
+      household: {
+        trips_completed: number;
+        trips_total: number;
+        collections: number;
+        weight_kg: number;
+        wards_completed: number;
+      };
+      bin: {
+        trips_completed: number;
+        trips_total: number;
+        collections: number;
+        weight_kg: number;
+        wards_completed: number;
+      };
+      bulk: { trips_completed: number; trips_total: number };
+      trips_completed: number;
+      trips_total: number;
+      wards_completed: number;
+    };
     vehicles: { total: number; active: number; inactive: number };
     grievances: { total: number; open: number; in_progress: number; resolved: number };
     masters: {
@@ -115,6 +213,7 @@ type DashboardSummary = {
     priority: string;
     created?: string | null;
   }>;
+  critical_alerts: CriticalAlert[];
   vehicle_performance: Array<{
     registration_no: string;
     vehicle_type: string;
@@ -148,6 +247,10 @@ type DashboardSummary = {
     value: number;
     pct: number;
     total_kg: number;
+    household_count?: number;
+    household_kg?: number;
+    bin_count?: number;
+    bin_kg?: number;
   }>;
   vehicle_status_detail: {
     idle: number;
@@ -162,13 +265,34 @@ const emptyDashboard: DashboardSummary = {
   summary: {
     households: { total_customers: 0, collected: 0, not_available: 0, not_collected: 0 },
     attendance: { total: 0, present: 0, absent: 0, leave: 0 },
-    waste: { total_tons: 0, wet_tons: 0, dry_tons: 0, other_tons: 0, collections: 0 },
+    waste: {
+      total_tons: 0,
+      household_kg: 0,
+      bin_kg: 0,
+      wet_tons: 0,
+      dry_tons: 0,
+      other_tons: 0,
+      waste_type_breakdown: [],
+      collections: 0,
+      household_collections: 0,
+      bin_collections: 0,
+    },
     bins: { total: 0, collected: 0, not_collected: 0 },
+    operations: {
+      available: false,
+      household: { trips_completed: 0, trips_total: 0, collections: 0, weight_kg: 0, wards_completed: 0 },
+      bin: { trips_completed: 0, trips_total: 0, collections: 0, weight_kg: 0, wards_completed: 0 },
+      bulk: { trips_completed: 0, trips_total: 0 },
+      trips_completed: 0,
+      trips_total: 0,
+      wards_completed: 0,
+    },
     vehicles: { total: 0, active: 0, inactive: 0 },
     grievances: { total: 0, open: 0, in_progress: 0, resolved: 0 },
     masters: { states: 0, districts: 0, area_types: 0, local_bodies: 0, wards: 0 },
   },
   recent_grievances: [],
+  critical_alerts: [],
   vehicle_performance: [],
   trip_performance: [],
   team_performance: [],
@@ -177,6 +301,252 @@ const emptyDashboard: DashboardSummary = {
   vehicle_status_detail: { idle: 0, breakdown: 0, offline_gps: 0 },
   as_of: "",
 };
+
+const meaningfulName = (...values: Array<string | null | undefined>) =>
+  values.find((value) => {
+    const normalized = value?.trim().toLowerCase();
+    return normalized && !["anonymous", "system", "-", "—"].includes(normalized);
+  })?.trim() || "";
+
+const complaintRows = (value: unknown): ComplaintTicket[] =>
+  Array.isArray(value)
+    ? value as ComplaintTicket[]
+    : Array.isArray((value as { results?: unknown })?.results)
+      ? (value as { results: ComplaintTicket[] }).results
+      : [];
+
+const wasteTypeRows = (value: unknown): WasteTypeMasterRecord[] =>
+  (Array.isArray(value)
+    ? value
+    : Array.isArray((value as { results?: unknown })?.results)
+      ? (value as { results: unknown[] }).results
+      : []
+  ).filter((row): row is WasteTypeMasterRecord => (
+    Boolean(row)
+    && typeof row === "object"
+    && typeof (row as WasteTypeMasterRecord).unique_id === "string"
+    && typeof (row as WasteTypeMasterRecord).waste_type_name === "string"
+  ));
+
+const mergeWasteTypeMasters = (
+  waste: DashboardSummary["summary"]["waste"],
+  masters: WasteTypeMasterRecord[],
+) => {
+  const activeMasters = masters.filter((item) => item.is_active !== false);
+  if (activeMasters.length === 0) return waste.waste_type_breakdown;
+
+  const supplied = waste.waste_type_breakdown ?? [];
+  const suppliedById = new Map(
+    supplied.map((item) => [String(item.waste_type_id), item]),
+  );
+  const suppliedByName = new Map(
+    supplied.map((item) => [item.waste_type_name.trim().toLocaleLowerCase(), item]),
+  );
+  const matchedIds = new Set<string>();
+  const matchedNames = new Set<string>();
+
+  const breakdown = activeMasters.map((master) => {
+    const masterId = String(master.unique_id);
+    const masterName = master.waste_type_name?.trim() || "Unnamed Waste Type";
+    const normalizedName = masterName.toLocaleLowerCase();
+    const matched = suppliedById.get(masterId) || suppliedByName.get(normalizedName);
+    if (matched) {
+      matchedIds.add(String(matched.waste_type_id));
+      matchedNames.add(matched.waste_type_name.trim().toLocaleLowerCase());
+    }
+
+    let tons = Number(matched?.tons || 0);
+    if (!matched && supplied.length === 0) {
+      if (normalizedName === "wet waste") tons = Number(waste.wet_tons || 0);
+      if (normalizedName === "dry waste") tons = Number(waste.dry_tons || 0);
+    }
+
+    return {
+      waste_type_id: masterId,
+      waste_type_name: masterName,
+      weight_kg: matched ? Number(matched.weight_kg || 0) : tons * 1000,
+      tons,
+      percentage: 0,
+    };
+  });
+
+  const unmatchedSuppliedTons = supplied.reduce((total, item) => {
+    const matched =
+      matchedIds.has(String(item.waste_type_id))
+      || matchedNames.has(item.waste_type_name.trim().toLocaleLowerCase());
+    return total + (matched ? 0 : Number(item.tons || 0));
+  }, 0);
+  const othersTons = supplied.length > 0
+    ? unmatchedSuppliedTons
+    : Number(waste.other_tons || 0);
+
+  if (othersTons > 0) {
+    breakdown.push({
+      waste_type_id: "others",
+      waste_type_name: "Others",
+      weight_kg: othersTons * 1000,
+      tons: othersTons,
+      percentage: 0,
+    });
+  }
+
+  return breakdown;
+};
+
+const enrichCriticalAlerts = (
+  alerts: CriticalAlert[] | undefined,
+  tickets: ComplaintTicket[],
+): CriticalAlert[] => {
+  const ticketById = new Map<string, ComplaintTicket>();
+  tickets.forEach((ticket) => {
+    ticketById.set(ticket.unique_id, ticket);
+    if (ticket.ticket_no) ticketById.set(ticket.ticket_no, ticket);
+  });
+
+  return (alerts || []).map((alert) => {
+    if (alert.kind !== "grievance") return alert;
+    const ticket = ticketById.get(alert.id);
+    if (!ticket) return alert;
+
+    const customerName = meaningfulName(ticket.customer_name);
+    const submittedName = meaningfulName(ticket.profile_name, ticket.reporter_name);
+    const raisedPersonName = meaningfulName(
+      customerName,
+      submittedName,
+      ticket.raised_by_name,
+      alert.customer_name,
+      alert.reporter_name,
+      alert.raised_by_name,
+    ) || "Anonymous";
+    const reporterName = meaningfulName(
+      customerName,
+      submittedName,
+      alert.reporter_name,
+    ) || "Anonymous";
+
+    return {
+      ...alert,
+      reporter_type: customerName || ticket.customer ? "Customer" : "Public Grievance",
+      reporter_name: reporterName,
+      raised_by_name: raisedPersonName,
+      customer_name: customerName,
+      contact_no: ticket.wa_phone || alert.contact_no,
+      email: ticket.email || alert.email,
+      gender: ticket.gender || alert.gender,
+      module: ticket.module_name || alert.module,
+      waste_types: ticket.waste_type_names || alert.waste_types,
+    };
+  });
+};
+
+const alertDateTime = (value?: string | null) =>
+  value
+    ? new Date(value).toLocaleString([], {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
+
+function CriticalAlertDrillDown({ alert }: { alert: CriticalAlert }) {
+  const fields = alert.kind === "vehicle_breakdown"
+    ? [
+        ["Collection type", alert.collection_type],
+        ["Trip", alert.trip],
+        ["Trip date", alert.trip_date],
+        ["Scheduled", alert.scheduled_time],
+        ["Breakdown time", alert.breakdown_time],
+        ["Broken vehicle", alert.vehicle],
+        ["Replacement vehicle", alert.replacement_vehicle],
+        ["Original driver", alert.driver],
+        ["Original operator", alert.operator],
+        ["Replacement driver", alert.replacement_driver],
+        ["Replacement operator", alert.replacement_operator],
+        ["Approval", alert.approval_status],
+        ["Collected before breakdown", alert.collected_weight_kg ? `${alert.collected_weight_kg} kg` : ""],
+        ["Raised person name", alert.raised_by_name],
+      ]
+    : [
+        ["Reported as", alert.reporter_type],
+        ["Reporter name", alert.reporter_name || "Anonymous"],
+        ["Raised person name", alert.raised_by_name || "Anonymous"],
+        ["Contact", alert.contact_no],
+        ["Email", alert.email],
+        ["Gender", alert.gender],
+        ["Complaint module", alert.module],
+        ["Waste types", alert.waste_types?.join(", ")],
+        ["Collection type", alert.collection_type],
+        ["Complaint type", alert.incident_type],
+        ["Category", alert.category],
+        ["Subcategory", alert.subcategory],
+        ["Source", alert.source],
+        ["Priority", alert.priority],
+        ["Assigned to", alert.assigned_to],
+        ["Trip", alert.trip],
+        ["Vehicle", alert.vehicle],
+        ["Driver", alert.driver],
+        ["Operator", alert.operator],
+      ];
+
+  return (
+    <div className="text-xs">
+      <div className={`border-b px-4 py-3 ${
+        alert.severity === "critical"
+          ? "border-rose-100 bg-rose-50 dark:border-rose-500/20 dark:bg-rose-500/10"
+          : "border-amber-100 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10"
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-bold text-slate-950 dark:text-white">{alert.id}</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-800 dark:text-slate-100">{alert.title}</p>
+          </div>
+          <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase ${
+            alert.severity === "critical"
+              ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-200"
+              : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200"
+          }`}>
+            {alert.kind === "vehicle_breakdown" ? "Breakdown" : "Grievance"}
+          </span>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">{alert.status || "Open"}</span>
+          {alert.priority && <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">{alert.priority}</span>}
+          <span className="rounded-full bg-white px-2 py-0.5 font-semibold text-slate-600 shadow-sm dark:bg-slate-900 dark:text-slate-300">{alertDateTime(alert.created)}</span>
+        </div>
+      </div>
+      <div className="max-h-[55vh] space-y-3 overflow-y-auto p-4">
+        {alert.description && (
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 dark:border-[#243954] dark:bg-[#14243a]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Description</p>
+            <p className="mt-1 leading-5 text-slate-700 dark:text-slate-200">{alert.description}</p>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          {fields.filter(([, value]) => Boolean(value)).map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-[#243954]">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+              <p className="mt-1 break-words font-semibold text-slate-800 dark:text-slate-100">{value}</p>
+            </div>
+          ))}
+        </div>
+        {alert.location && (
+          <div className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-[#243954]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Location</p>
+            <p className="mt-1 font-semibold text-slate-800 dark:text-slate-100">{alert.location}</p>
+          </div>
+        )}
+        {alert.remarks && alert.remarks !== alert.description && (
+          <div className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-[#243954]">
+            <p className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Remarks</p>
+            <p className="mt-1 text-slate-700 dark:text-slate-200">{alert.remarks}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Every geo filter (State/District/Area Type/Local Body) is backed by a
 // plain "" = unselected value in useGeoHierarchy. The shared Select
@@ -197,7 +567,7 @@ const formatNumber = (value: number) => Math.round(value || 0).toLocaleString();
 const formatTons = (value: number) =>
   `${Number(value || 0).toLocaleString(undefined, {
     maximumFractionDigits: 2,
-  })} T`;
+  })} Ton`;
 
 function MetricTile({
   label,
@@ -422,9 +792,13 @@ function WardTicker({
 }: {
   wards: WardPerformance[];
 }) {
-  const displayWards =
-    wards.length > 0
-      ? wards
+  const displayWards = useMemo(() => {
+    const uniqueWards = Array.from(
+      new Map(wards.map((ward) => [ward.ward_id, ward])).values(),
+    );
+
+    return uniqueWards.length > 0
+      ? uniqueWards
       : Array.from({ length: 8 }, (_, index) => ({
           ward_id: `ward-${index + 1}`,
           ward_name: `Ward ${String(index + 1).padStart(2, "0")}`,
@@ -444,28 +818,69 @@ function WardTicker({
           bins_total: 0,
           completion_pct: 0,
         }));
+  }, [wards]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  // Only scroll when the (single, non-duplicated) row of cards is actually
-  // wider than the visible panel — a handful of wards that already fit
-  // should just sit still instead of pointlessly sliding.
-  const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const [isInteracting, setIsInteracting] = useState(false);
+  const renderedWards = hasOverflow
+    ? [...displayWards, ...displayWards, ...displayWards]
+    : displayWards;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     const track = trackRef.current;
     if (!container || !track) return;
 
-    const measure = () => setShouldAnimate(track.scrollWidth > container.clientWidth);
+    const measure = () => {
+      const firstCard = track.children[0] as HTMLElement | undefined;
+      const repeatedFirstCard = track.children[displayWards.length] as HTMLElement | undefined;
+      const loopWidth = firstCard && repeatedFirstCard
+        ? repeatedFirstCard.offsetLeft - firstCard.offsetLeft
+        : track.scrollWidth;
+      const overflow = loopWidth > container.clientWidth + 1;
+      setHasOverflow(overflow);
+      if (overflow && (container.scrollLeft < 1 || container.scrollLeft >= loopWidth * 2)) {
+        container.scrollLeft = loopWidth;
+      }
+    };
     measure();
 
     const resizeObserver = new ResizeObserver(measure);
     resizeObserver.observe(container);
     resizeObserver.observe(track);
-    return () => resizeObserver.disconnect();
-  }, [displayWards]);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [displayWards, hasOverflow]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const track = trackRef.current;
+    if (!container || !track || !hasOverflow) return;
+
+    let animationFrame = 0;
+    let previousTime = performance.now();
+    const animate = (time: number) => {
+      const firstCard = track.children[0] as HTMLElement | undefined;
+      const repeatedFirstCard = track.children[displayWards.length] as HTMLElement | undefined;
+      const loopWidth = firstCard && repeatedFirstCard
+        ? repeatedFirstCard.offsetLeft - firstCard.offsetLeft
+        : track.scrollWidth / 3;
+      if (!hoveredKey && !isInteracting) {
+        const elapsed = Math.min(time - previousTime, 50);
+        container.scrollLeft += elapsed * 0.09;
+      }
+      if (container.scrollLeft >= loopWidth * 2) container.scrollLeft -= loopWidth;
+      if (container.scrollLeft < 1) container.scrollLeft += loopWidth;
+      previousTime = time;
+      animationFrame = requestAnimationFrame(animate);
+    };
+    animationFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [displayWards.length, hasOverflow, hoveredKey, isInteracting]);
 
   const districtNames = useMemo(
     () => Array.from(new Set(displayWards.map((w) => w.district_name).filter(Boolean))),
@@ -477,50 +892,62 @@ function WardTicker({
     return WARD_DISTRICT_PALETTE[idx % WARD_DISTRICT_PALETTE.length];
   };
 
-  // Duplicate the list only while actually animating, so the track can loop
-  // seamlessly: once scrolled exactly one copy's width (-50%), it's visually
-  // identical to the start and the animation can jump back to 0 unnoticed.
-  // While static (no overflow), render the single copy the width-measuring
-  // ref expects.
-  const trackWards = shouldAnimate ? [...displayWards, ...displayWards] : displayWards;
-  // Keep a consistent per-card speed regardless of how many wards the
-  // current filter returns.
-  const durationSeconds = Math.max(displayWards.length * 2.5, 12);
+  const scrollOneCard = (direction: -1 | 1) => {
+    containerRef.current?.scrollBy({
+      left: direction * 222,
+      behavior: "smooth",
+    });
+  };
+
+  const handleTickerWheel = (event: WheelEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    if (!container || !hasOverflow) return;
+    event.preventDefault();
+    event.stopPropagation();
+    container.scrollLeft += Math.abs(event.deltaX) > Math.abs(event.deltaY)
+      ? event.deltaX
+      : event.deltaY;
+  };
 
   return (
     <DashboardPanel
       title="Ward Collection Live Ticker"
       action={
-        <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-          Live
-        </span>
+        <div className="flex items-center gap-2">
+
+          <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            Live
+          </span>
+        </div>
       }
       className="py-2"
     >
       <style>{`
-        @keyframes ward-ticker-scroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
+        .ward-ticker-scroll {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+          overscroll-behavior: contain;
+          touch-action: pan-x;
         }
-        .ward-ticker-track:hover {
-          animation-play-state: paused;
+        .ward-ticker-scroll::-webkit-scrollbar {
+          display: none;
         }
       `}</style>
-      <div ref={containerRef} className="overflow-hidden">
+      <div
+        ref={containerRef}
+        onWheelCapture={handleTickerWheel}
+        onPointerDown={() => setIsInteracting(true)}
+        onPointerUp={() => setIsInteracting(false)}
+        onPointerCancel={() => setIsInteracting(false)}
+        onPointerLeave={() => setIsInteracting(false)}
+        className="ward-ticker-scroll overflow-x-auto overflow-y-hidden scroll-smooth"
+      >
         <div
           ref={trackRef}
-          className="ward-ticker-track flex w-max gap-3"
-          style={
-            shouldAnimate
-              ? {
-                  animation: `ward-ticker-scroll ${durationSeconds}s linear infinite`,
-                  animationPlayState: hoveredKey ? "paused" : undefined,
-                }
-              : undefined
-          }
+          className="flex w-max gap-3 pr-1"
         >
-          {trackWards.map((ward, index) => {
+          {renderedWards.map((ward, index) => {
             const isDelayed = ward.status === "delayed";
             const isNoVehicle = ward.status === "no_vehicle";
             const color = colorForDistrict(ward.district_name);
@@ -677,16 +1104,33 @@ function VehicleStatusRing({
   idle: number;
   breakdown: number;
   offlineGps: number;
-  wasteSegments: Array<{ label: string; value: number; color: string }>;
+  wasteSegments: Array<{
+    label: string;
+    value: number;
+    color: string;
+    hex: string;
+    rowClass: string;
+  }>;
   totalWasteTons: number;
   totalWasteForBreakdown: number;
 }) {
   const activePct = total > 0 ? (active / total) * 100 : 0;
   const idlePct = total > 0 ? (idle / total) * 100 : 0;
   const breakdownPct = total > 0 ? (breakdown / total) * 100 : 0;
+  let wasteOffset = 0;
+  const wasteGradientStops = wasteSegments.map((segment) => {
+    const start = wasteOffset;
+    wasteOffset += totalWasteTons > 0 ? (segment.value / totalWasteTons) * 100 : 0;
+    return `${segment.hex} ${start}% ${wasteOffset}%`;
+  });
+  const wasteGradient =
+    totalWasteTons > 0 && wasteGradientStops.length > 0
+      ? `conic-gradient(${wasteGradientStops.join(", ")})`
+      : "conic-gradient(#e2e8f0 0% 100%)";
 
   return (
-    <DashboardPanel title="Vehicle Status" className="h-full" accent="blue">
+    <div className="flex h-full min-h-[430px] flex-col gap-3">
+    <DashboardPanel title="Vehicle Status" accent="blue">
       <div className="grid grid-cols-[1fr_auto] items-center gap-3">
         <div className="space-y-2 text-[11px]">
           {[
@@ -723,37 +1167,59 @@ function VehicleStatusRing({
           </div>
         </div>
       </div>
+    </DashboardPanel>
 
-      <div className="mt-4 border-t border-slate-100 pt-3 dark:border-[#243954]">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          Waste Type Breakdown (MT)
-        </p>
+    <DashboardPanel
+      title="Waste Type Breakdown (Ton)"
+      className="min-h-[220px] flex-1"
+      accent="green"
+    >
+      <div>
         <div className="grid grid-cols-[96px_1fr] items-center gap-3">
-          <div className="grid h-24 w-24 place-items-center rounded-full bg-[conic-gradient(#22c55e_0_58%,#0ea5e9_58%_83%,#f59e0b_83%_100%)]">
+          <div
+            className="grid h-24 w-24 place-items-center rounded-full"
+            style={{ background: wasteGradient }}
+          >
             <div className="grid h-16 w-16 place-items-center rounded-full bg-white text-center dark:bg-[#101d2c]">
               <span className="text-xs font-bold text-slate-900 dark:text-white">{formatTons(totalWasteTons)}</span>
             </div>
           </div>
-          <div className="space-y-2">
-            {wasteSegments.map((item, index) => (
-              <div
-                key={item.label}
-                className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-[10px] font-semibold ${
-                  index === 0
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                    : index === 1
-                      ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
-                      : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
-                }`}
-              >
-                <span className="flex items-center gap-1.5"><span className={`h-2 w-2 rounded-sm ${item.color}`} />{item.label}</span>
-                <span>{item.value.toFixed(2)} MT ({((item.value / totalWasteForBreakdown) * 100).toFixed(0)}%)</span>
-              </div>
-            ))}
-          </div>
+          <TooltipProvider delayDuration={150}>
+            <div className="grid grid-cols-2 gap-2">
+              {wasteSegments.map((item) => {
+                const percentage = (item.value / totalWasteForBreakdown) * 100;
+
+                return (
+                  <Tooltip key={item.label}>
+                    <TooltipTrigger asChild>
+                      <div
+                        tabIndex={0}
+                        className={`flex min-w-0 cursor-help items-center justify-between gap-1.5 rounded-md border px-2 py-1.5 text-[10px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 ${item.rowClass}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={`h-2 w-2 shrink-0 rounded-sm ${item.color}`} />
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        <span className="shrink-0 whitespace-nowrap text-[9px]">
+                          {item.value.toFixed(2)} Ton ({percentage.toFixed(0)}%)
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-64 px-3 py-2 text-xs">
+                      <p className="font-bold">{item.label}</p>
+                      <p className="mt-0.5">
+                        {item.value.toFixed(2)} Ton ({percentage.toFixed(0)}%)
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          </TooltipProvider>
         </div>
       </div>
     </DashboardPanel>
+    </div>
   );
 }
 
@@ -763,7 +1229,16 @@ function CollectionProgressTooltip({
   label,
 }: {
   active?: boolean;
-  payload?: Array<{ payload: { value: number; total_kg: number } }>;
+  payload?: Array<{
+    payload: {
+      value: number;
+      total_kg: number;
+      household_count?: number;
+      household_kg?: number;
+      bin_count?: number;
+      bin_kg?: number;
+    };
+  }>;
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
@@ -771,8 +1246,15 @@ function CollectionProgressTooltip({
   return (
     <div className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[10px] shadow-lg dark:border-[#28425f] dark:bg-[#101d2c]">
       <p className="mb-1 font-semibold text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="font-bold text-slate-900 dark:text-white">{point.total_kg.toFixed(1)} kg</p>
-      <p className="text-slate-500 dark:text-slate-400">{point.value} collections</p>
+      <p className="font-bold text-emerald-600">
+        Household: {(point.household_kg || 0).toFixed(1)} kg · {point.household_count || 0} records
+      </p>
+      <p className="font-bold text-sky-600">
+        Bin: {(point.bin_kg || 0).toFixed(1)} kg · {point.bin_count || 0} events
+      </p>
+      <p className="mt-1 text-slate-500 dark:text-slate-400">
+        Total: {point.total_kg.toFixed(1)} kg · {point.value} collections
+      </p>
     </div>
   );
 }
@@ -851,6 +1333,7 @@ function CompactTable({
 
 export function HomeDashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [dashboard, setDashboard] = useState<DashboardSummary>(emptyDashboard);
   const [loading, setLoading] = useState(true);
   const geo = useGeoHierarchy();
@@ -860,6 +1343,7 @@ export function HomeDashboard() {
   const [activeMapTab, setActiveMapTab] = useState<MapTabKey>("vehicle");
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
+  const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
   const [showWardGeofences, setShowWardGeofences] = useState(false);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -890,28 +1374,77 @@ export function HomeDashboard() {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
-    dashboardSummaryApi
-      .readAllwithPaginated(1, 1, { params })
-      .then((response: any) => {
-        if (!isMounted) return;
-        setDashboard({
-          ...emptyDashboard,
-          ...response,
-          summary: { ...emptyDashboard.summary, ...response.summary },
-          filters: { ...emptyDashboard.filters, ...response.filters },
+    let requestInFlight = false;
+
+    const loadDashboard = (showLoading: boolean) => {
+      if (requestInFlight || document.visibilityState === "hidden") return;
+      requestInFlight = true;
+      if (showLoading) setLoading(true);
+      Promise.all([
+        dashboardSummaryApi.readAllwithPaginated(1, 1, { params }),
+        complaintTicketApi.readAllForExport().catch(() => []),
+        wasteTypeApi.readAllForExport().catch(() => []),
+      ])
+        .then(([response, ticketResult, wasteTypeResult]: [any, unknown, unknown]) => {
+          if (!isMounted) return;
+          const criticalAlerts = enrichCriticalAlerts(
+            response.critical_alerts,
+            complaintRows(ticketResult),
+          );
+          const responseSummary = response.summary || {};
+          const responseOperations = responseSummary.operations || {};
+          const responseWaste = {
+            ...emptyDashboard.summary.waste,
+            ...responseSummary.waste,
+          };
+          responseWaste.waste_type_breakdown = mergeWasteTypeMasters(
+            responseWaste,
+            wasteTypeRows(wasteTypeResult),
+          );
+          setDashboard({
+            ...emptyDashboard,
+            ...response,
+            critical_alerts: criticalAlerts,
+            summary: {
+              ...emptyDashboard.summary,
+              ...responseSummary,
+              waste: responseWaste,
+              operations: {
+                ...emptyDashboard.summary.operations,
+                ...responseOperations,
+                household: {
+                  ...emptyDashboard.summary.operations.household,
+                  ...responseOperations.household,
+                },
+                bin: {
+                  ...emptyDashboard.summary.operations.bin,
+                  ...responseOperations.bin,
+                },
+                bulk: {
+                  ...emptyDashboard.summary.operations.bulk,
+                  ...responseOperations.bulk,
+                },
+              },
+            },
+            filters: { ...emptyDashboard.filters, ...response.filters },
+          });
+          if (response.as_of) setAsOf(response.as_of);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch dashboard summary:", error);
+          if (isMounted && showLoading) setDashboard(emptyDashboard);
+        })
+        .finally(() => {
+          requestInFlight = false;
+          if (isMounted && showLoading) setLoading(false);
         });
-        if (response.as_of) setAsOf(response.as_of);
-      })
-      .catch((error) => {
-        console.error("Failed to fetch dashboard summary:", error);
-        if (isMounted) setDashboard(emptyDashboard);
-      })
-      .finally(() => {
-        if (isMounted) setLoading(false);
-      });
+    };
+
+    loadDashboard(true);
+    const refreshTimer = window.setInterval(() => loadDashboard(false), 10_000);
     return () => {
       isMounted = false;
+      window.clearInterval(refreshTimer);
     };
   }, [params]);
 
@@ -1022,17 +1555,43 @@ export function HomeDashboard() {
       : 0;
   const vehicleActivePct =
     summary.vehicles.total > 0 ? (summary.vehicles.active / summary.vehicles.total) * 100 : 0;
-  const wardCompletionPct =
-    summary.masters.wards > 0
-      ? ((summary.masters.wards - summary.bins.not_collected) / summary.masters.wards) * 100
-      : 0;
   const binsCollectedPct =
     summary.bins.total > 0 ? (summary.bins.collected / summary.bins.total) * 100 : 0;
-  const tripsCompleted = summary.waste.collections || summary.households.collected || summary.bins.collected;
-  const tripsTarget = Math.max(tripsCompleted + summary.bins.not_collected, tripsCompleted, 1);
+  const hasCollectionTypeMetrics = summary.operations.available;
+  const legacyTripsCompleted =
+    summary.waste.collections || summary.households.collected || summary.bins.collected;
+  const tripsCompleted = hasCollectionTypeMetrics
+    ? summary.operations.trips_completed
+    : legacyTripsCompleted;
+  const tripsTarget = hasCollectionTypeMetrics
+    ? Math.max(summary.operations.trips_total, tripsCompleted, 1)
+    : Math.max(tripsCompleted + summary.bins.not_collected, tripsCompleted, 1);
   const tripsPct = (tripsCompleted / tripsTarget) * 100;
-  const completedWards = Math.max(summary.masters.wards - summary.bins.not_collected, 0);
-  const alerts = dashboard.recent_grievances.slice(0, 6);
+  const completedWards = hasCollectionTypeMetrics
+    ? summary.operations.wards_completed
+    : Math.max(summary.masters.wards - summary.bins.not_collected, 0);
+  const wardCompletionPct =
+    summary.masters.wards > 0
+      ? (completedWards / summary.masters.wards) * 100
+      : 0;
+  const collectionProgressSource: DashboardSummary["collection_progress"] =
+    dashboard.collection_progress.length > 0
+      ? dashboard.collection_progress
+      : Array.from({ length: 31 }, (_, i) => ({
+          label: String(i + 1),
+          value: 0,
+          pct: 0,
+          total_kg: 0,
+        }));
+  const collectionProgressData = collectionProgressSource.map((point) => ({
+    ...point,
+    household_kg: point.household_kg ?? point.total_kg,
+    bin_kg: point.bin_kg ?? 0,
+    household_count: point.household_count ?? point.value,
+    bin_count: point.bin_count ?? 0,
+  }));
+  const alerts = dashboard.critical_alerts.slice(0, 6);
+  const grievancesPath = `/dashboard/${getEncryptedRoute().encDashboardGrievances}`;
   const vehicleRows = dashboard.vehicle_performance.slice(0, 5).map((v) => [
     v.registration_no,
     v.vehicle_type,
@@ -1065,12 +1624,54 @@ export function HomeDashboard() {
       {team.score}
     </span>,
   ]);
-  const wasteSegments = [
-    { label: "Wet Waste", value: summary.waste.wet_tons, color: "bg-emerald-500" },
-    { label: "Dry Waste", value: summary.waste.dry_tons, color: "bg-sky-500" },
-    { label: "Other Waste", value: summary.waste.other_tons, color: "bg-amber-500" },
+  const wastePalette = [
+    {
+      color: "bg-emerald-500",
+      hex: "#10b981",
+      rowClass: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
+    },
+    {
+      color: "bg-sky-500",
+      hex: "#0ea5e9",
+      rowClass: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300",
+    },
+    {
+      color: "bg-amber-500",
+      hex: "#f59e0b",
+      rowClass: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
+    },
+    {
+      color: "bg-violet-500",
+      hex: "#8b5cf6",
+      rowClass: "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300",
+    },
+    {
+      color: "bg-rose-500",
+      hex: "#f43f5e",
+      rowClass: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300",
+    },
+    {
+      color: "bg-cyan-500",
+      hex: "#06b6d4",
+      rowClass: "border-cyan-200 bg-cyan-50 text-cyan-800 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-300",
+    },
   ];
-  const totalWasteForBreakdown = Math.max(summary.waste.total_tons, 1);
+  const dynamicWasteTypes = summary.waste.waste_type_breakdown ?? [];
+  const wasteSource = dynamicWasteTypes.length > 0
+    ? dynamicWasteTypes.map((item) => ({
+        label: item.waste_type_name,
+        value: item.tons,
+      }))
+    : [
+        { label: "Wet Waste", value: summary.waste.wet_tons },
+        { label: "Dry Waste", value: summary.waste.dry_tons },
+        { label: "Others", value: summary.waste.other_tons },
+      ];
+  const wasteSegments = wasteSource.map((item, index) => ({
+    ...item,
+    ...wastePalette[index % wastePalette.length],
+  }));
+  const totalWasteForBreakdown = summary.waste.total_tons > 0 ? summary.waste.total_tons : 1;
 
   return (
     <div className="min-w-0 bg-slate-50 p-3 text-slate-900 dark:bg-[#020912] dark:text-slate-100 lg:min-h-[calc(100vh-7.5rem)]">
@@ -1172,10 +1773,32 @@ export function HomeDashboard() {
 
           <div className="grid gap-3 xl:grid-cols-12">
             <div className="xl:col-span-2">
-              <OverviewMetric label="Today's Waste Collected" value={formatTons(summary.waste.total_tons)} detail={`${formatNumber(summary.waste.collections)} collections`} tone="green" progress={Math.min(summary.waste.total_tons, 100)} icon={<Scale className="h-4 w-4" />} />
+              <OverviewMetric
+                label="Today's Waste Collected"
+                value={formatTons(summary.waste.total_tons)}
+                detail={
+                  hasCollectionTypeMetrics
+                    ? `Household ${(summary.waste.household_kg / 1000).toFixed(2)} Ton · Bin ${(summary.waste.bin_kg / 1000).toFixed(2)} Ton`
+                    : `${formatNumber(summary.waste.collections)} collections`
+                }
+                tone="green"
+                progress={Math.min(summary.waste.total_tons, 100)}
+                icon={<Scale className="h-4 w-4" />}
+              />
             </div>
             <div className="xl:col-span-2">
-              <OverviewMetric label="Trips Completed" value={`${formatNumber(tripsCompleted)} / ${formatNumber(tripsTarget)}`} detail={`${tripsPct.toFixed(1)}% complete`} tone="blue" progress={tripsPct} icon={<Route className="h-4 w-4" />} />
+              <OverviewMetric
+                label="Trips Completed"
+                value={`${formatNumber(tripsCompleted)} / ${formatNumber(tripsTarget)}`}
+                detail={
+                  hasCollectionTypeMetrics
+                    ? `Household ${summary.operations.household.trips_completed} · Bin ${summary.operations.bin.trips_completed}`
+                    : `${tripsPct.toFixed(1)}% complete`
+                }
+                tone="blue"
+                progress={tripsPct}
+                icon={<Route className="h-4 w-4" />}
+              />
             </div>
             <div className="xl:col-span-2">
               <OverviewMetric label="Vehicles Active" value={`${formatNumber(summary.vehicles.active)} / ${formatNumber(summary.vehicles.total)}`} detail={`${vehicleActivePct.toFixed(1)}% active`} tone="green" progress={vehicleActivePct} icon={<Truck className="h-4 w-4" />} />
@@ -1184,10 +1807,32 @@ export function HomeDashboard() {
               <OverviewMetric label="Wards Completed" value={`${formatNumber(completedWards)} / ${formatNumber(summary.masters.wards)}`} detail={`${Math.max(wardCompletionPct, 0).toFixed(1)}% clear`} tone="purple" progress={wardCompletionPct} icon={<Building2 className="h-4 w-4" />} />
             </div>
             <div className="xl:col-span-2">
-              <OverviewMetric label="Households Covered" value={`${formatNumber(summary.households.collected)} / ${formatNumber(summary.households.total_customers)}`} detail={`${householdCoveragePct.toFixed(1)}% collected`} tone="amber" progress={householdCoveragePct} icon={<Home className="h-4 w-4" />} />
+              <OverviewMetric
+                label="Households Covered"
+                value={`${formatNumber(summary.households.collected)} / ${formatNumber(summary.households.total_customers)}`}
+                detail={
+                  hasCollectionTypeMetrics
+                    ? `${householdCoveragePct.toFixed(1)}% · Household records only`
+                    : `${householdCoveragePct.toFixed(1)}% collected`
+                }
+                tone="amber"
+                progress={householdCoveragePct}
+                icon={<Home className="h-4 w-4" />}
+              />
             </div>
             <div className="xl:col-span-2">
-              <OverviewMetric label="Bins Collected" value={`${formatNumber(summary.bins.collected)} / ${formatNumber(summary.bins.total)}`} detail={`${binsCollectedPct.toFixed(1)}% collected`} tone="blue" progress={binsCollectedPct} icon={<Trash2 className="h-4 w-4" />} />
+              <OverviewMetric
+                label="Bins Collected"
+                value={`${formatNumber(summary.bins.collected)} / ${formatNumber(summary.bins.total)}`}
+                detail={
+                  hasCollectionTypeMetrics
+                    ? `${binsCollectedPct.toFixed(1)}% · Bin events only`
+                    : `${binsCollectedPct.toFixed(1)}% collected`
+                }
+                tone="blue"
+                progress={binsCollectedPct}
+                icon={<Trash2 className="h-4 w-4" />}
+              />
             </div>
           </div>
 
@@ -1214,37 +1859,103 @@ export function HomeDashboard() {
               </div>
             </div>
             <div className="xl:col-span-3">
-              <DashboardPanel title="Critical Alerts" action={<button className="text-[10px] font-semibold text-sky-600 dark:text-sky-300">View All</button>} className="h-full" accent="orange">
+              <DashboardPanel title="Critical Alerts" action={<button type="button" onClick={() => navigate(grievancesPath)} className="text-[10px] font-semibold text-sky-600 dark:text-sky-300">View All</button>} className="h-full" accent="orange">
                 <div className="space-y-2">
                   {alerts.map((item, index) => (
-                    <div
-                      key={`${item.id}-${index}`}
-                      className={`flex items-start gap-2 rounded-md border px-2 py-1.5 ${
-                        index < 2
-                          ? "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"
-                          : "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
-                      }`}
-                    >
-                      <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 ${index < 2 ? "text-rose-500" : "text-amber-500"}`} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">{item.id}</p>
-                        <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">{item.title || item.status}</p>
-                      </div>
-                      <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${index < 2 ? "bg-white text-rose-600 dark:bg-rose-500/20" : "bg-white text-amber-600 dark:bg-amber-500/20"}`}>
-                        10:{String(index + 1).padStart(2, "0")}
-                      </span>
-                    </div>
+                    <HoverCard key={`${item.id}-${index}`} openDelay={100} closeDelay={160}>
+                      <HoverCardTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAlert(item)}
+                          className={`w-full rounded-md border px-2 py-1.5 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                            item.severity === "critical"
+                              ? "border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10"
+                              : "border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10"
+                          }`}
+                          aria-label={`Open details for ${item.id}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {item.kind === "vehicle_breakdown" ? (
+                              <Truck className={`mt-0.5 h-3.5 w-3.5 ${item.severity === "critical" ? "text-rose-500" : "text-amber-500"}`} />
+                            ) : (
+                              <ShieldAlert className={`mt-0.5 h-3.5 w-3.5 ${item.severity === "critical" ? "text-rose-500" : "text-amber-500"}`} />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[11px] font-semibold text-slate-800 dark:text-slate-100">
+                                {item.id}
+                                {item.kind === "vehicle_breakdown" && <span className="ml-1 text-[9px] text-rose-500">BREAKDOWN</span>}
+                              </p>
+                              <p className="truncate text-[10px] text-slate-500 dark:text-slate-400">{item.title || item.status}</p>
+                            </div>
+                            <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${item.severity === "critical" ? "bg-white text-rose-600 dark:bg-rose-500/20" : "bg-white text-amber-600 dark:bg-amber-500/20"}`}>
+                              {item.created ? new Date(item.created).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Now"}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-1 pl-5 text-[9px] font-semibold text-slate-600 dark:text-slate-300">
+                            {item.kind === "grievance" && item.reporter_type && (
+                              <span className="rounded bg-white/80 px-1.5 py-0.5 dark:bg-slate-900/60">
+                                {item.reporter_type}: {item.reporter_name || "Anonymous"}
+                              </span>
+                            )}
+                            {item.raised_by_name && (
+                              <span className="rounded bg-white/80 px-1.5 py-0.5 dark:bg-slate-900/60">
+                                Raised by: {item.raised_by_name}
+                              </span>
+                            )}
+                            {item.collection_type && (
+                              <span className="rounded bg-white/80 px-1.5 py-0.5 dark:bg-slate-900/60">
+                                {item.collection_type}
+                              </span>
+                            )}
+                            {item.driver && (
+                              <span className="rounded bg-white/80 px-1.5 py-0.5 dark:bg-slate-900/60">
+                                Driver: {item.driver}
+                              </span>
+                            )}
+                            {item.vehicle && (
+                              <span className="rounded bg-white/80 px-1.5 py-0.5 dark:bg-slate-900/60">
+                                Vehicle: {item.vehicle}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="left"
+                        align="start"
+                        sideOffset={12}
+                        className="z-[1500] w-[390px] overflow-hidden rounded-xl border border-slate-200 bg-white p-0 shadow-2xl dark:border-[#28425f] dark:bg-[#101d2c]"
+                      >
+                        <HoverCardArrow className="fill-white stroke-slate-200 dark:fill-[#101d2c] dark:stroke-[#28425f]" width={18} height={9} />
+                        <CriticalAlertDrillDown alert={item} />
+                        <p className="border-t px-4 py-2 text-[10px] font-semibold text-sky-600 dark:border-[#243954] dark:text-sky-300">
+                          Click alert to keep these details open
+                        </p>
+                      </HoverCardContent>
+                    </HoverCard>
                   ))}
                   {alerts.length === 0 && (
                     <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-6 text-center text-xs font-semibold text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                       No critical alerts available.
                     </p>
                   )}
-                  <div className="pt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">Total Alerts: {formatNumber(summary.grievances.open)}</div>
+                  <div className="pt-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    Total Alerts: {formatNumber(summary.grievances.open + dashboard.vehicle_status_detail.breakdown)}
+                  </div>
                 </div>
               </DashboardPanel>
             </div>
           </div>
+
+          <Dialog open={Boolean(selectedAlert)} onOpenChange={(open) => !open && setSelectedAlert(null)}>
+            <DialogContent className="max-w-2xl overflow-hidden p-0">
+              <DialogHeader className="sr-only">
+                <DialogTitle>{selectedAlert?.id || "Critical alert"} details</DialogTitle>
+                <DialogDescription>Operational details for the selected critical alert.</DialogDescription>
+              </DialogHeader>
+              {selectedAlert && <CriticalAlertDrillDown alert={selectedAlert} />}
+            </DialogContent>
+          </Dialog>
 
           {/* <div className="mt-3 grid gap-3 xl:grid-cols-12">
             <div className="xl:col-span-4" >
@@ -1267,30 +1978,23 @@ export function HomeDashboard() {
             />
             <DashboardPanel title="Collection Progress (31 days)" className="xl:col-span-3">
               <ResponsiveContainer width="100%" height={140}>
-                <AreaChart
-                  data={
-                    dashboard.collection_progress.length > 0
-                      ? dashboard.collection_progress
-                      : Array.from({ length: 31 }, (_, i) => ({
-                          label: String(i + 1),
-                          value: 0,
-                          pct: 0,
-                          total_kg: 0,
-                        }))
-                  }
-                  margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
-                >
+                <AreaChart data={collectionProgressData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="gradCollectionProgress" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="gradHouseholdProgress" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradBinProgress" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="currentColor" className="text-slate-200 dark:text-[#28425f]" strokeOpacity={0.5} />
                   <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} interval={2} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
                   <RechartsTooltip content={<CollectionProgressTooltip />} />
-                  <Area type="monotone" dataKey="total_kg" name="Weight (kg)" stroke="#10b981" fill="url(#gradCollectionProgress)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="household_kg" name="Household (kg)" stroke="#10b981" fill="url(#gradHouseholdProgress)" strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="bin_kg" name="Bin (kg)" stroke="#0ea5e9" fill="url(#gradBinProgress)" strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </DashboardPanel>

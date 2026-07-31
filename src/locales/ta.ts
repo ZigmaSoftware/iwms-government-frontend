@@ -815,6 +815,7 @@ const taResource = {
           "staff_master": "பணியாளர் மாஸ்டர்",
           "staff_creation": "பணியாளர் உருவாக்கம்",
           "staff_access_configuration": "Staff Access Configuration",
+          "staff_access_dashboard": "Staff Access Dashboard",
           "staff_template": "பணியாளர் டெம்ப்ளேட்",
           "alternative_staff_template": "மாற்று பணியாளர் டெம்ப்ளேட்",
           "staff_template_audit": "பணியாளர் டெம்ப்ளேட் ஆய்வு",

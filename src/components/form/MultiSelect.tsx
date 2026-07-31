@@ -9,6 +9,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
+import { capitalize } from "@/utils/capitalize";
 
 type MultiSelectChangeEvent = {
   value: unknown[];
@@ -90,11 +91,15 @@ export function MultiSelect({
       options.map((option, index) => {
         const rawValue = optionValue ? readField(option, optionValue) : option;
         const rawLabel = readField(option, optionLabel);
+        const displayValue = rawLabel ?? rawValue;
         return {
           option,
           rawValue,
-          label: (rawLabel ?? rawValue ?? "") as ReactNode,
-          searchText: toSearchText(rawLabel ?? rawValue).toLowerCase(),
+          label:
+            typeof displayValue === "string" || typeof displayValue === "number"
+              ? capitalize(displayValue)
+              : ((displayValue ?? "") as ReactNode),
+          searchText: toSearchText(displayValue).toLowerCase(),
           key: `${comparableValue(rawValue)}-${index}`,
         };
       }),

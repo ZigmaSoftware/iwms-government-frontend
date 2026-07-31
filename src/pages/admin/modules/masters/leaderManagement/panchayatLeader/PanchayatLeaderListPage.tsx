@@ -6,10 +6,9 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { panchayatLeaderApi } from "@/helpers/admin";
@@ -47,48 +46,81 @@ export default function PanchayatLeaderListPage() {
   const { newPath: ENC_NEW_PATH } = createCrudRoutePaths(encLeaderLogin, encPlbLeaderCreation);
   const { editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encLeaderLogin, encPlbLeaderCreation);
 
-  const [allRecords, setAllRecords]         = useState<PanchayatLeader[]>([]);
+  const [rows, setRows]                     = useState<PanchayatLeader[]>([]);
+  const [totalRecords, setTotalRecords]     = useState(0);
+  const [first, setFirst]                   = useState(0);
+  const [rowsPerPage, setRowsPerPage]       = useState(10);
   const [isLoading, setIsLoading]           = useState(false);
   const [isUpdating, setIsUpdating]         = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
-    global:        { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    username:      { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    leader_name:   { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name:{ value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+  const [searchTerm, setSearchTerm]         = useState("");
+  const [sortField, setSortField]           = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
+
+  const toRecordList = (value: unknown): PanchayatLeader[] => {
+    if (Array.isArray(value)) return value as PanchayatLeader[];
+    if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+      return (value as { results: PanchayatLeader[] }).results;
+    }
+    return [];
+  };
+
+  const SORTABLE_FIELDS = new Set(["username"]);
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
 
   // ── Load ────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
     setIsLoading(true);
-    panchayatLeaderApi
-      .readAll()
-      .then((data: unknown) => {
-        if (!mounted) return;
-        const rows: PanchayatLeader[] = Array.isArray(data)
-          ? (data as PanchayatLeader[])
-          : ((data as any)?.results ?? []);
-        setAllRecords(rows);
-      })
-      .catch(() => {
-        if (mounted)
-          Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
-      })
-      .finally(() => { if (mounted) setIsLoading(false); });
-    return () => { mounted = false; };
-  }, [t, refetchTrigger]);
+    try {
+      const response = await panchayatLeaderApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRows(toRecordList(response));
+      setTotalRecords(
+        typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
+      );
+    } catch {
+      Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  // ── Filters ─────────────────────────────────────────────────────────────────
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as typeof filters);
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
 
   // ── Excel ────────────────────────────────────────────────────────────────────
   const handleDownloadTemplate = () => {
@@ -99,9 +131,10 @@ export default function PanchayatLeaderListPage() {
     );
   };
 
-  const handleDownloadAll = () => {
+  const handleDownloadAll = async () => {
+    const all = await panchayatLeaderApi.readAllForExport();
     exportRecordsToExcel(
-      allRecords as unknown as Record<string, unknown>[],
+      all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
       "PLB Leaders",
     );
@@ -148,7 +181,7 @@ export default function PanchayatLeaderListPage() {
       setIsUpdating(true);
       try {
         await panchayatLeaderApi.update(row.unique_id, { is_active: checked });
-        setAllRecords((prev) =>
+        setRows((prev) =>
           prev.map((r) => r.unique_id === row.unique_id ? { ...r, is_active: checked } : r)
         );
       } catch {
@@ -223,7 +256,7 @@ export default function PanchayatLeaderListPage() {
           label="Download All Excel"
           icon="pi pi-download"
           className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
-          onClick={handleDownloadAll}
+          onClick={() => void handleDownloadAll()}
         />
       </div>
     </div>
@@ -252,19 +285,23 @@ export default function PanchayatLeaderListPage() {
 
       {/* ── DataTable ── */}
       <DataTable
-        value={allRecords}
+        value={rows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && allRecords.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={isLoading}
         header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage="No PLB Leader found."
-        globalFilterFields={["username", "leader_name", "email", "panchayat_name"]}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={indexTemplate} style={{ width: "70px" }} />
@@ -273,26 +310,18 @@ export default function PanchayatLeaderListPage() {
           field="username"
           header="Username"
           sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: PanchayatLeader) => capitalize(r.username)}
         />
 
         <Column
           field="leader_name"
           header="Leader Name"
-          sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: PanchayatLeader) => capitalize(r.leader_name) || "-"}
         />
 
         <Column
           field="panchayat_name"
           header="PLB (Participating Local Bodies)"
-          sortable
-          filter
-          showFilterMatchModes={false}
           body={(r: PanchayatLeader) => capitalize(r.panchayat_name) || "-"}
         />
 

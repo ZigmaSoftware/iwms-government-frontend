@@ -41,6 +41,8 @@ export type WasteTypeBreakdownRow = {
 };
 
 export type DailyReportResponse = {
+  source?: string;
+  count?: number;
   results: DailyReportRow[];
   date_trends: Array<Record<string, number | string>>;
   location_comparison: LocationComparisonRow[];

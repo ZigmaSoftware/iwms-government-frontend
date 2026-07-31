@@ -8,18 +8,16 @@ import {
 } from "@/components/ui/dialog";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
 
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
@@ -73,6 +71,16 @@ const CollectionStatusBadge = ({ value }: { value?: string }) => (
   </span>
 );
 
+const toRecordList = (value: unknown): WasteCollection[] => {
+  if (Array.isArray(value)) return value as WasteCollection[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: WasteCollection[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["collection_date", "status", "total_quantity"]);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WasteCollectedDataList() {
@@ -84,75 +92,135 @@ export default function WasteCollectedDataList() {
     encWasteCollectedData,
   );
 
-  const [wasteCollections, setWasteCollections] = useState<WasteCollection[]>([]);
+  const [rawRows, setRawRows] = useState<WasteCollection[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [imageRow, setImageRow] = useState<WasteCollection | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
   const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
   const [dateFilter, setDateFilter] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
-    customer_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    contact_no: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    district_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    area_type_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    panchayat_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-    location_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
-  });
+
+  const ordering = sortField && SORTABLE_FIELDS.has(sortField)
+    ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+    : undefined;
+
+  const filterParams = {
+    ...hierarchyParams,
+    ...(dateFilter ? { date: dateFilter } : {}),
+  };
+
   /* ── load data ── */
-  useEffect(() => {
-    let mounted = true;
+  const loadRows = async (page: number, limit: number, search: string, orderingParam?: string) => {
     setLoading(true);
-    adminApi.wasteCollections.readAll({ params: hierarchyParams })
-      .then((res: any) => {
-        if (!mounted) return;
-        const rows: WasteCollection[] = Array.isArray(res) ? res : res?.results ?? [];
-        setWasteCollections(rows);
-      })
-      .catch((err) => { if (mounted) Swal.fire({ icon: "error", title: t("common.error"), text: String(err) }); })
-      .finally(() => { if (mounted) setLoading(false); });
-    return () => { mounted = false; };
-  }, [hierarchyParams, t]);
+    try {
+      const response = await adminApi.wasteCollections.readAllwithPaginated(page, limit, {
+        params: {
+          ...filterParams,
+          ...(search ? { search } : {}),
+          ...(orderingParam ? { ordering: orderingParam } : {}),
+        },
+      });
+      setRawRows(toRecordList(response));
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : toRecordList(response).length,
+      );
+    } catch (err) {
+      Swal.fire({ icon: "error", title: t("common.error"), text: String(err) });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredRows = useMemo(() => wasteCollections.filter((row) => {
-    if (dateFilter && row.collection_date !== dateFilter) return false;
-    const search = globalFilterValue.trim().toLowerCase();
-    if (!search) return true;
-    return [
-      row.customer_name, row.contact_no, row.district_name, row.area_type_name,
-      row.location_name, row.status, row.collection_date, row.vehicle?.vehicle_no,
-      row.ward_name, row.ward_id,
-    ].some((value) => String(value ?? "").toLowerCase().includes(search));
-  }), [dateFilter, globalFilterValue, wasteCollections]);
+  // Reset to page 1 whenever a non-pagination filter changes.
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hierarchyParams, dateFilter]);
 
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, dateFilter]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  /* ── KPI pills: computed from the CURRENT PAGE only — the backend has no
+     dedicated summary aggregate for this resource, so these are deliberately
+     labeled "(page)" rather than implying dataset-wide totals (mirrors
+     dailyTripLogList.tsx). ── */
   const today = new Date().toISOString().slice(0, 10);
-  const overallWeight = filteredRows.reduce((sum, row) => sum + Number(row.total_quantity ?? 0), 0);
-  const dailyWeight = filteredRows.reduce(
+  const overallWeight = rawRows.reduce((sum, row) => sum + Number(row.total_quantity ?? 0), 0);
+  const dailyWeight = rawRows.reduce(
     (sum, row) => sum + (row.collection_date === today ? Number(row.total_quantity ?? 0) : 0),
     0,
   );
-  const exportRows = filteredRows.map((row) => ({
-    Customer: row.customer_name,
-    Mobile: row.contact_no ?? "-",
-    "Collection Date": formatCollectionDateTime(row),
-    "Dry Waste (kg)": row.dry_waste,
-    "Wet Waste (kg)": row.wet_waste,
-    "Mixed Waste (kg)": row.mixed_waste,
-    "Sanitary Waste (kg)": row.sanitary_waste,
-    "Total Quantity (kg)": row.total_quantity,
-    Status: row.status ?? "-",
-    District: row.district_name ?? "-",
-    "Area Type": row.area_type_name ?? "-",
-    "Local Body": row.location_name ?? "-",
-    Ward: row.ward_name ?? row.ward_id ?? "-",
-    Vehicle: row.vehicle?.vehicle_no ?? "-",
-  }));
 
-  const handleExcelDownload = () =>
-    exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
+  const buildExportRows = (records: WasteCollection[]) =>
+    records.map((row) => ({
+      Customer: row.customer_name,
+      Mobile: row.contact_no ?? "-",
+      "Collection Date": formatCollectionDateTime(row),
+      "Dry Waste (kg)": row.dry_waste,
+      "Wet Waste (kg)": row.wet_waste,
+      "Mixed Waste (kg)": row.mixed_waste,
+      "Sanitary Waste (kg)": row.sanitary_waste,
+      "Total Quantity (kg)": row.total_quantity,
+      Status: row.status ?? "-",
+      District: row.district_name ?? "-",
+      "Area Type": row.area_type_name ?? "-",
+      "Local Body": row.location_name ?? "-",
+      Ward: row.ward_name ?? row.ward_id ?? "-",
+      Vehicle: row.vehicle?.vehicle_no ?? "-",
+    }));
 
-  const handlePdfDownload = () => {
+  const handleExcelDownload = async () => {
+    setIsExporting(true);
     try {
+      const all = await adminApi.wasteCollections.readAllForExport({
+        params: {
+          ...filterParams,
+          ...(searchTerm ? { search: searchTerm } : {}),
+        },
+      });
+      const exportRows = buildExportRows(toRecordList(all));
+      if (!exportRows.length) {
+        Swal.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
+        return;
+      }
+      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
+    } catch (error) {
+      Swal.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handlePdfDownload = async () => {
+    setIsExporting(true);
+    try {
+      const all = await adminApi.wasteCollections.readAllForExport({
+        params: {
+          ...filterParams,
+          ...(searchTerm ? { search: searchTerm } : {}),
+        },
+      });
+      const exportRows = buildExportRows(toRecordList(all));
+      if (!exportRows.length) {
+        Swal.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
+        return;
+      }
       downloadRecordsPdf({
         title: "Household Collection Events",
         filename: "household_collection_events.pdf",
@@ -161,15 +229,24 @@ export default function WasteCollectedDataList() {
       });
     } catch (error) {
       Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters as DataTableFilterMeta);
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setFilters((prev) => ({ ...prev, global: { ...prev.global, value } }));
-    setGlobalFilterValue(value);
+    setGlobalFilterValue(e.target.value);
   };
 
   /* ── status toggle ── */
@@ -177,7 +254,7 @@ export default function WasteCollectedDataList() {
     const updateStatus = async (value: boolean) => {
       try {
         await adminApi.wasteCollections.update(row.unique_id, { is_active: value });
-        setWasteCollections((prev) =>
+        setRawRows((prev) =>
           prev.map((item) =>
             item.unique_id === row.unique_id ? { ...item, is_active: value } : item
           )
@@ -214,14 +291,14 @@ export default function WasteCollectedDataList() {
     <div className="space-y-4">
       <HierarchyFilterBar onChange={setHierarchyParams} />
       <div className="flex flex-wrap gap-3 text-sm">
-        <span className="rounded-full bg-slate-100 px-4 py-2">Daily: {dailyWeight.toFixed(2)}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Overall: {overallWeight.toFixed(2)}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Records: {filteredRows.length}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {dailyWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall (page): {overallWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records (page): {rawRows.length}</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
-          <Button label="Download Excel" icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handleExcelDownload} />
-          <Button label="Download PDF" icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={!exportRows.length} onClick={handlePdfDownload} />
+          <Button label={isExporting ? "Downloading…" : "Download Excel"} icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={isExporting || totalRecords === 0} onClick={() => void handleExcelDownload()} />
+          <Button label={isExporting ? "Generating…" : "Download PDF"} icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={isExporting || totalRecords === 0} onClick={() => void handlePdfDownload()} />
         </div>
         <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
           <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
@@ -255,83 +332,79 @@ export default function WasteCollectedDataList() {
 
       <DataTable
         exportable={false}
-        value={filteredRows}
+        value={rawRows}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={loading && wasteCollections.length === 0}
-        filters={filters}
-        onFilter={onFilter}
+        loading={loading && rawRows.length === 0}
         header={renderHeader()}
         stripedRows
         showGridlines
         emptyMessage={t("admin.household_collection_event.empty_message")}
         className="p-datatable-sm"
-        globalFilterFields={["customer_name", "contact_no", "district_name", "area_type_name", "panchayat_name", "location_name"]}
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
         <Column
           field="customer_name"
           header={t("admin.household_collection_event.customer_name")}
           body={(row: WasteCollection) => capitalize(row.customer_name) || "-"}
-          sortable filter showFilterMatchModes={false}
         />
         <Column
           field="contact_no"
           header={t("common.mobile")}
           body={(row: WasteCollection) => row.contact_no || "-"}
-          sortable filter showFilterMatchModes={false}
         />
         <Column
           field="collection_date"
           header={t("admin.household_collection_event.collection_date", "Collection Date")}
           body={formatCollectionDateTime}
-          sortable
+          sortable={SORTABLE_FIELDS.has("collection_date")}
           style={{ minWidth: 170 }}
         />
         <Column
           field="dry_waste"
           header={t("admin.household_collection_event.dry_waste")}
-          sortable
         />
         <Column
           field="wet_waste"
           header={t("admin.household_collection_event.wet_waste")}
-          sortable
         />
         <Column
           field="mixed_waste"
           header={t("admin.household_collection_event.mixed_waste")}
-          sortable
         />
         <Column
           field="sanitary_waste"
           header={t("admin.household_collection_event.sanitary_waste")}
-          sortable
         />
         <Column
           field="total_quantity"
           header={t("admin.household_collection_event.quantity")}
-          sortable
+          sortable={SORTABLE_FIELDS.has("total_quantity")}
         />
         <Column
           field="status"
           header={t("admin.household_collection_event.status")}
           body={(row: WasteCollection) => <CollectionStatusBadge value={row.status} />}
-          sortable
+          sortable={SORTABLE_FIELDS.has("status")}
         />
         <Column
           field="district_name"
           header={t("common.district")}
           body={(row: WasteCollection) => capitalize(row.district_name) || "-"}
-          sortable filter showFilterMatchModes={false}
         />
         <Column
           field="area_type_name"
           header={t("common.area_type")}
           body={(row: WasteCollection) => row.area_type_name || "-"}
-          sortable filter showFilterMatchModes={false}
         />
         <Column
           field="location_name"
@@ -341,7 +414,6 @@ export default function WasteCollectedDataList() {
               ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
               : "-"
           }
-          sortable filter showFilterMatchModes={false}
         />
         <Column
           field="vehicle"

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Label from "@/components/form/Label";
@@ -783,6 +784,14 @@ function BinCollectionEventEditor({
           <Label>Driver Longitude</Label>
           <Input value={driverLongitude} onChange={(e) => setDriverLongitude(e.target.value)} />
         </div>
+        <div className="flex justify-end md:col-span-2">
+          <AutoDetectLocationButton
+            onDetected={({ latitude, longitude }) => {
+              setDriverLatitude(latitude);
+              setDriverLongitude(longitude);
+            }}
+          />
+        </div>
         <div className="md:col-span-2">
           <Label>Notes</Label>
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -825,16 +834,17 @@ export default function BinCollectionEventForm() {
   // tables are large and their serializers are heavy, so the editor below
   // fetches them itself, scoped to the selected Local Body.
   useEffect(() => {
+    const liteConfig = { params: { lite: 1 } };
     Promise.all([
-      panchayatApi.readAll(),
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      wardApi.readAll(),
+      panchayatApi.readAll(liteConfig),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      wardApi.readAll(liteConfig),
     ]).then(([
       panchayatRes,
       stateRes,

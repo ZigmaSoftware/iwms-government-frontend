@@ -61,6 +61,7 @@ export default function LocalBodyAuth() {
         password: validation.data.password,
         login_type: "panchayat_leader",
       });
+      console.log("Login response:", res.data);
 
       const payload = unwrapLoginPayload(res.data);
       // DO NOT call persistLoginSession here — that would overwrite the

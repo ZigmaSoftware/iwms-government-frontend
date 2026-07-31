@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { MultiSelect } from "primereact/multiselect";
 
 import {
   Card,
@@ -25,10 +26,23 @@ import {
   CheckCircle2,
   Sparkles,
   ShieldAlert,
+  BusFront,
+  Car,
+  Route,
+  UserRound,
+  UsersRound,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchGrievances } from "@/features/complaintTicketing/api";
+import { vehicleBreakdownApi } from "@/helpers/admin";
+import {
+  BREAKDOWN_REASON_LABELS,
+  type VehicleBreakdownRecord,
+} from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/types";
 import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
 import { InfoField } from "@/features/complaintTicketing/components/InfoField";
 import type { Grievance } from "@/features/complaintTicketing/types";
@@ -41,12 +55,22 @@ import type { SummaryCard, SummaryFilter, SummaryTab } from "./types/Grievances/
 export default function Grievances() {
   const { t, i18n } = useTranslation();
   const [complaints, setComplaints] = useState<Grievance[]>([]);
+  const [breakdowns, setBreakdowns] = useState<VehicleBreakdownRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SummaryTab>("all");
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>("none");
+  const [statusFilters, setStatusFilters] = useState<string[]>([]);
+  const [priorityFilters, setPriorityFilters] = useState<string[]>([]);
+  const [incidentFilters, setIncidentFilters] = useState<string[]>([]);
+  const [sourceFilters, setSourceFilters] = useState<string[]>([]);
+  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
+  const [assigneeFilters, setAssigneeFilters] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
 
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Grievance | null>(null);
@@ -56,9 +80,17 @@ export default function Grievances() {
       try {
         setError(null);
         setLoading(true);
-        const data = await fetchGrievances(signal);
-        console.log("data", data)
+        const [data, breakdownResult] = await Promise.all([
+          fetchGrievances(signal),
+          vehicleBreakdownApi.readAll({ signal }).catch(() => []),
+        ]);
         setComplaints(data);
+        const breakdownRows = Array.isArray(breakdownResult)
+          ? breakdownResult
+          : Array.isArray((breakdownResult as { results?: unknown })?.results)
+            ? (breakdownResult as { results: VehicleBreakdownRecord[] }).results
+            : [];
+        setBreakdowns(breakdownRows as VehicleBreakdownRecord[]);
       } catch (err) {
         if (signal?.aborted) return;
         console.error("Unable to load complaints", err);
@@ -98,6 +130,14 @@ export default function Grievances() {
   const normalizeStatus = (raw?: string | null) =>
     (raw ?? "").toLowerCase().trim();
 
+  const isResolvedStatus = (raw?: string | null) =>
+    ["resolved", "closed", "rejected", "cancelled"].includes(normalizeStatus(raw));
+
+  const isProgressStatus = (raw?: string | null) =>
+    ["assigned", "processing", "progressing", "in-progress", "escalated"].includes(
+      normalizeStatus(raw),
+    );
+
   const normalizePriority = (raw?: unknown) => {
     const value = String(raw ?? "").toLowerCase();
     if (value.includes("high") || value.includes("critical")) return "High";
@@ -113,18 +153,67 @@ export default function Grievances() {
       ? new Date(value).toLocaleDateString(i18n.language).replace(/\//g, "-")
       : "";
 
-  // SEARCH
+  const optionList = (values: Array<string | undefined>, label?: (value: string) => string) =>
+    [...new Set(values.filter((value): value is string => Boolean(value?.trim())))]
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ value, label: label ? label(value) : capitalize(value.replaceAll("_", " ")) }));
+
+  const filterOptions = useMemo(() => ({
+    statuses: optionList(complaints.map((item) => item.status_code || item.status)),
+    priorities: optionList(complaints.map((item) => item.priority_code || item.priority)),
+    incidents: optionList(complaints.map((item) => item.operational_context?.incident_type || "other")),
+    sources: optionList(
+      complaints.map((item) => item.source_code || "INTERNAL"),
+      (value) => value === "PUBLIC_GRIEVANCE" ? "Public Grievance" : capitalize(value.replaceAll("_", " ")),
+    ),
+    categories: optionList(complaints.map((item) => item.category_name || item.category)),
+    assignees: optionList(complaints.map((item) => item.assigned_staff_name || item.assigned_team_name)),
+  }), [complaints]);
+
+  // SEARCH + MULTI-SELECT FILTERS
   const filtered = complaints.filter((g) => {
     const s = searchQuery.toLowerCase();
     const created = formatDateForSearch(g.created);
+    const searchable = [
+      g.title,
+      g.category,
+      g.category_name,
+      g.zone_name,
+      g.city_name,
+      g.description,
+      g.unique_id,
+      g.operational_context?.trip_reference,
+      g.operational_context?.driver_reference,
+      g.operational_context?.operator_reference,
+      g.operational_context?.vehicle_reference,
+      g.assigned_staff_name,
+      g.assigned_team_name,
+      g.customer_name,
+      g.profile_name,
+      g.reporter_name,
+      g.raised_by_name,
+      g.contact_no,
+      g.email,
+      created,
+    ].join(" ").toLowerCase();
+    const createdDay = getDateOnly(g.created) || "";
+    const status = g.status_code || g.status || "";
+    const priority = g.priority_code || g.priority || "";
+    const incident = g.operational_context?.incident_type || "other";
+    const source = g.source_code || "INTERNAL";
+    const category = g.category_name || g.category || "";
+    const assignee = g.assigned_staff_name || g.assigned_team_name || "";
 
     return (
-      g.title?.toLowerCase().includes(s) ||
-      g.category?.toLowerCase().includes(s) ||
-      g.zone_name?.toLowerCase().includes(s) ||
-      g.description?.toLowerCase().includes(s) ||
-      g.unique_id?.toLowerCase().includes(s) ||
-      created.toLowerCase().includes(s)
+      searchable.includes(s) &&
+      (!statusFilters.length || statusFilters.includes(status)) &&
+      (!priorityFilters.length || priorityFilters.includes(priority)) &&
+      (!incidentFilters.length || incidentFilters.includes(incident)) &&
+      (!sourceFilters.length || sourceFilters.includes(source)) &&
+      (!categoryFilters.length || categoryFilters.includes(category)) &&
+      (!assigneeFilters.length || assigneeFilters.includes(assignee)) &&
+      (!dateFrom || createdDay >= dateFrom) &&
+      (!dateTo || createdDay <= dateTo)
     );
   });
 
@@ -137,38 +226,22 @@ export default function Grievances() {
 
   const openCount = complaints.filter((g) => {
     const st = normalizeStatus(g.status);
-    const created = getDateOnly(g.created) ?? "";
-    if (st === "open") return true;
-
-    if (
-      ["processing", "progressing", "in-progress"].includes(st) &&
-      created < todayISO
-    )
-      return true;
-
-    return false;
+    return !isResolvedStatus(st) && !isProgressStatus(st);
   }).length;
 
   const inProgressCount = complaints.filter((g) => {
     const st = normalizeStatus(g.status);
-    const created = getDateOnly(g.created) ?? "";
-
-    return (
-      ["processing", "progressing", "in-progress"].includes(st) &&
-      created === todayISO
-    );
+    return isProgressStatus(st);
   }).length;
 
   const resolvedCount = complaints.filter((g) =>
-    ["resolved", "closed"].includes(normalizeStatus(g.status))
+    isResolvedStatus(g.status)
   ).length;
 
   const highPriorityCount = complaints.filter((g) => {
     const st = normalizeStatus(g.status);
-    if (["resolved", "closed"].includes(st)) return false;
-    const priority = normalizePriority(
-      (g as any).priority ?? (g as any).risk ?? (g as any).severity
-    );
+    if (isResolvedStatus(st)) return false;
+    const priority = normalizePriority(g.priority_code || g.priority);
     return priority === "High";
   }).length;
 
@@ -181,14 +254,10 @@ export default function Grievances() {
       if (tab === "new") return created === todayISO;
 
       if (tab === "open") {
-        return (
-          st === "open" ||
-          (["processing", "progressing", "in-progress"].includes(st) &&
-            created < todayISO)
-        );
+        return !isResolvedStatus(st) && !isProgressStatus(st);
       }
 
-      if (tab === "resolved") return ["resolved", "closed"].includes(st);
+      if (tab === "resolved") return isResolvedStatus(st);
 
       return true;
     });
@@ -198,10 +267,8 @@ export default function Grievances() {
     if (summaryFilter === "priority_high") {
       return rows.filter((g) => {
         const st = normalizeStatus(g.status);
-        if (["resolved", "closed"].includes(st)) return false;
-        const priority = normalizePriority(
-          (g as any).priority ?? (g as any).risk ?? (g as any).severity
-        );
+        if (isResolvedStatus(st)) return false;
+        const priority = normalizePriority(g.priority_code || g.priority);
         return priority === "High";
       });
     }
@@ -209,11 +276,7 @@ export default function Grievances() {
     if (summaryFilter === "in_progress") {
       return rows.filter((g) => {
         const st = normalizeStatus(g.status);
-        const created = getDateOnly(g.created) ?? "";
-        return (
-          ["processing", "progressing", "in-progress"].includes(st) &&
-          created === todayISO
-        );
+        return isProgressStatus(st);
       });
     }
 
@@ -307,6 +370,20 @@ export default function Grievances() {
   };
 
   const handleRefresh = () => loadComplaints();
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setStatusFilters([]);
+    setPriorityFilters([]);
+    setIncidentFilters([]);
+    setSourceFilters([]);
+    setCategoryFilters([]);
+    setAssigneeFilters([]);
+    setDateFrom("");
+    setDateTo("");
+    setSummaryFilter("none");
+    setPage(1);
+  };
 
   const { theme } = useTheme();
   const isDarkMode = theme === "dark";
@@ -420,7 +497,37 @@ export default function Grievances() {
   const handleSummaryClick = (tab: SummaryTab, filter: SummaryFilter) => {
     setActiveTab(tab);
     setSummaryFilter(filter);
+    setPage(1);
   };
+
+  const incidentBreakdown = [
+    { key: "trip", label: "Trip related", icon: Route, tone: "border-blue-200 bg-blue-50 text-blue-700" },
+    { key: "driver", label: "Driver related", icon: UserRound, tone: "border-violet-200 bg-violet-50 text-violet-700" },
+    { key: "operator", label: "Operator related", icon: UsersRound, tone: "border-cyan-200 bg-cyan-50 text-cyan-700" },
+    { key: "vehicle", label: "Vehicle related", icon: Car, tone: "border-amber-200 bg-amber-50 text-amber-700" },
+    { key: "public", label: "Public grievance", icon: MessageSquare, tone: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+    { key: "other", label: "Other", icon: BusFront, tone: "border-slate-200 bg-slate-50 text-slate-700" },
+  ].map((item) => ({
+    ...item,
+    count: complaints.filter(
+      (complaint) => (complaint.operational_context?.incident_type || "other") === item.key,
+    ).length,
+  }));
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    activeTab,
+    searchQuery,
+    statusFilters,
+    priorityFilters,
+    incidentFilters,
+    sourceFilters,
+    categoryFilters,
+    assigneeFilters,
+    dateFrom,
+    dateTo,
+  ]);
 
   // MAIN UI --------------------------------------------------------
   return (
@@ -484,27 +591,146 @@ export default function Grievances() {
           })}
         </div>
 
-        <Card className={cn(surfaceCardClass, "p-4 flex flex-col gap-3 lg:flex-row lg:items-center")}>
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={t("dashboard.grievances.search_placeholder")}
-              className={cn(
-                "pl-10",
-                isDarkMode ? "bg-slate-900/60 border-slate-800" : "bg-white/90"
-              )}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        <Card className={cn(surfaceCardClass, "p-4")}>
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="font-semibold">Complaint breakup</p>
+              <p className="text-xs text-muted-foreground">Operational context attached to each complaint ticket</p>
+            </div>
+            <Badge variant="outline">{complaints.length} records</Badge>
           </div>
-          <Button
-            variant="secondary"
-            onClick={handleRefresh}
-            disabled={loading}
-            className="w-full lg:w-auto bg-gradient-to-r from-sky-400 to-indigo-500 text-white hover:from-sky-500 hover:to-indigo-600"
-          >
-            {t("dashboard.grievances.reload")}
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+            {incidentBreakdown.map(({ key, label, icon: Icon, tone, count }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setIncidentFilters([key])}
+                className={cn("flex items-center justify-between rounded-xl border p-3 text-left transition hover:-translate-y-0.5", tone)}
+              >
+                <div>
+                  <p className="text-xs font-semibold">{label}</p>
+                  <p className="mt-1 text-xl font-bold">{count}</p>
+                </div>
+                <Icon className="h-5 w-5 opacity-75" />
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card className={cn(surfaceCardClass, "p-4")}>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="relative xl:col-span-2">
+              <label className="mb-1 block text-xs font-semibold text-muted-foreground">Search complaints and references</label>
+              <Search className="pointer-events-none absolute left-3 top-[34px] h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Ticket, trip, driver, operator, vehicle, category…"
+                className={cn(
+                  "pl-10",
+                  isDarkMode ? "bg-slate-900/60 border-slate-800" : "bg-white/90"
+                )}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {[
+              ["Status", statusFilters, setStatusFilters, filterOptions.statuses],
+              ["Priority", priorityFilters, setPriorityFilters, filterOptions.priorities],
+              ["Incident type", incidentFilters, setIncidentFilters, filterOptions.incidents],
+              ["Source", sourceFilters, setSourceFilters, filterOptions.sources],
+              ["Category", categoryFilters, setCategoryFilters, filterOptions.categories],
+              ["Assigned staff / team", assigneeFilters, setAssigneeFilters, filterOptions.assignees],
+            ].map(([label, value, setter, options]) => (
+              <div key={label as string}>
+                <label className="mb-1 block text-xs font-semibold text-muted-foreground">{label as string}</label>
+                <MultiSelect
+                  value={value as string[]}
+                  options={options as Array<{ value: string; label: string }>}
+                  onChange={(event) => (setter as (values: string[]) => void)(event.value as string[])}
+                  optionLabel="label"
+                  optionValue="value"
+                  display="chip"
+                  maxSelectedLabels={2}
+                  placeholder={`All ${(label as string).toLowerCase()}`}
+                  className="h-10 w-full text-sm"
+                />
+              </div>
+            ))}
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-muted-foreground">From date</label>
+              <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-muted-foreground">To date</label>
+              <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {filtered.length} of {complaints.length} complaints
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={resetFilters}>
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Reset filters
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={loading}
+                className="bg-gradient-to-r from-sky-400 to-indigo-500 text-white"
+              >
+                {t("dashboard.grievances.reload")}
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <Card className={cn(surfaceCardClass, "border-rose-200/80")}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Car className="h-5 w-5 text-rose-500" />
+                Vehicle Breakdown Alerts
+              </CardTitle>
+              <CardDescription>
+                Trip, vehicle, driver, and operator context for active operational incidents
+              </CardDescription>
+            </div>
+            <Badge className="bg-rose-100 text-rose-700 hover:bg-rose-100">
+              {breakdowns.filter((item) => item.status !== "REJECTED").length} active
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {breakdowns
+                .filter((item) => item.status !== "REJECTED")
+                .slice(0, 6)
+                .map((item) => (
+                  <div key={item.unique_id} className="rounded-xl border border-rose-100 bg-gradient-to-r from-rose-50 to-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold">{item.unique_id}</p>
+                        <p className="text-xs text-rose-600">{BREAKDOWN_REASON_LABELS[item.breakdown_reason]}</p>
+                      </div>
+                      <Badge variant={item.status === "REPORTED" ? "destructive" : "secondary"}>
+                        {item.status.replaceAll("_", " ")}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      <InfoField label="Trip" value={item.trip_assignment_detail?.trip_plan_display_code || item.trip_assignment_id} />
+                      <InfoField label="Vehicle" value={item.breakdown_vehicle_detail?.vehicle_no || item.breakdown_vehicle_id} />
+                      <InfoField label="Driver" value={item.original_driver_detail?.name || item.replacement_driver_detail?.name || "—"} />
+                      <InfoField label="Operator" value={item.original_operator_detail?.name || item.replacement_operator_detail?.name || "—"} />
+                    </div>
+                  </div>
+                ))}
+              {breakdowns.filter((item) => item.status !== "REJECTED").length === 0 && (
+                <p className="col-span-full rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center text-sm font-semibold text-emerald-700">
+                  No active vehicle breakdown alerts.
+                </p>
+              )}
+            </div>
+          </CardContent>
         </Card>
 
         {error && (
@@ -530,6 +756,9 @@ export default function Grievances() {
 
           {["all", "new", "open", "resolved"].map((tab) => {
             const tabItems = applySummaryFilter(tabFiltered(tab));
+            const totalPages = Math.max(1, Math.ceil(tabItems.length / 10));
+            const safePage = Math.min(page, totalPages);
+            const pageItems = tabItems.slice((safePage - 1) * 10, safePage * 10);
             return (
               <TabsContent key={tab} value={tab} className="space-y-4">
                 {tabItems.length === 0 ? (
@@ -540,9 +769,9 @@ export default function Grievances() {
                   </Card>
                 ) : (
                   <div className="grid gap-4">
-                    {tabItems.map((g, index) => {
-                      console.log("Rendering grievance", g);
+                    {pageItems.map((g, index) => {
                       const statusStyles = getStatusStyles(g.status);
+                      const context = g.operational_context;
                       return (
                         <Card
                           key={g.id}
@@ -553,7 +782,7 @@ export default function Grievances() {
                           )}
                           style={{ animationDelay: `${index * 0.03}s` }}
                         >
-                          <div className="relative grid gap-4 text-sm md:grid-cols-5">
+                          <div className="relative grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-8">
                             <InfoField label={t("dashboard.grievances.fields.id")} value={g.unique_id} />
                             <InfoField
                               label={t("dashboard.grievances.fields.category")}
@@ -562,6 +791,11 @@ export default function Grievances() {
 
                             <InfoField label={t("dashboard.grievances.fields.zone")} value={g.zone_name || (g.zone_id ? g.zone_id.split('-').pop() : '-')} />
                             <InfoField label={t("dashboard.grievances.fields.ward")} value={g.ward_name || (g.ward_id ? g.ward_id.split('-').pop() : '-')} />
+                            <InfoField
+                              label={g.reporter_type === "Customer" ? "Customer name" : "Public grievance name"}
+                              value={g.reporter_name || "Anonymous"}
+                            />
+                            <InfoField label="Contact" value={g.contact_no || "—"} />
 
                             <div>
                               <p className="text-xs text-muted-foreground">{t("dashboard.grievances.fields.status")}</p>
@@ -569,22 +803,56 @@ export default function Grievances() {
                                 {formatStatusLabel(g.status)}
                               </Badge>
                             </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Complaint type</p>
+                              <Badge variant="outline" className="mt-1 capitalize">
+                                {context?.incident_type || "other"}
+                              </Badge>
+                            </div>
                           </div>
 
-                          <Button
-                            onClick={() => {
-                              setSelectedComplaint(g);
-                              setOpenDialog(true);
-                            }}
-                            size="sm"
-                            variant="outline"
-                            className="mt-4"
-                          >
-                            {t("dashboard.grievances.view_details")}
-                          </Button>
+                          <div className="mt-4 flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {context?.trip_reference && <Badge variant="secondary">Trip: {context.trip_reference}</Badge>}
+                              {context?.vehicle_reference && <Badge variant="secondary">Vehicle: {context.vehicle_reference}</Badge>}
+                              {context?.driver_reference && <Badge variant="secondary">Driver: {context.driver_reference}</Badge>}
+                              {context?.operator_reference && <Badge variant="secondary">Operator: {context.operator_reference}</Badge>}
+                              {(g.assigned_staff_name || g.assigned_team_name) && (
+                                <Badge variant="outline">Assigned: {g.assigned_staff_name || g.assigned_team_name}</Badge>
+                              )}
+                              <Badge variant="outline">{g.reporter_type || "Public Grievance"}</Badge>
+                              {g.raised_by_name && <Badge variant="outline">Raised by: {g.raised_by_name}</Badge>}
+                            </div>
+                            <Button
+                              onClick={() => {
+                                setSelectedComplaint(g);
+                                setOpenDialog(true);
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {t("dashboard.grievances.view_details")}
+                            </Button>
+                          </div>
                         </Card>
                       );
                     })}
+                  </div>
+                )}
+                {tabItems.length > 0 && (
+                  <div className="flex flex-col gap-2 rounded-xl border bg-white p-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between dark:bg-slate-900">
+                    <span>
+                      Showing {(safePage - 1) * 10 + 1}–{Math.min(safePage * 10, tabItems.length)} of {tabItems.length} · 10 per page
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" disabled={safePage === 1} onClick={() => setPage(safePage - 1)}>
+                        <ChevronLeft className="h-4 w-4" /> Previous
+                      </Button>
+                      <Badge variant="secondary">Page {safePage} of {totalPages}</Badge>
+                      <Button size="sm" variant="outline" disabled={safePage === totalPages} onClick={() => setPage(safePage + 1)}>
+                        Next <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </TabsContent>
@@ -611,15 +879,44 @@ export default function Grievances() {
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-6">
                     <InfoField label={t("dashboard.grievances.detail.complaint_no")} value={selectedComplaint.unique_id} />
+                    <InfoField label="Reporter type" value={selectedComplaint.reporter_type || "Public Grievance"} />
+                    <InfoField
+                      label={selectedComplaint.reporter_type === "Customer" ? "Customer name" : "Public grievance name"}
+                      value={selectedComplaint.reporter_name || "Anonymous"}
+                    />
+                    <InfoField label="Raised person name" value={selectedComplaint.raised_by_name || "Anonymous"} />
                     <InfoField label={t("dashboard.grievances.fields.zone")} value={selectedComplaint.zone_name || (selectedComplaint.zone_id ? selectedComplaint.zone_id.split('-').pop() : '-')} />
                     <InfoField label={t("dashboard.grievances.detail.contact")} value={selectedComplaint.contact_no} />
+                    <InfoField label="Email" value={selectedComplaint.email || "—"} />
+                    <InfoField label="Gender" value={selectedComplaint.gender ? capitalize(selectedComplaint.gender) : "—"} />
                     <InfoField label={t("dashboard.grievances.detail.closed_at")} value={formatDateTime(selectedComplaint.complaint_closed_at)} />
                     <InfoField label={t("dashboard.grievances.detail.address")} value={selectedComplaint.address} />
                   </div>
 
                   <div className="space-y-6">
                     <InfoField label={t("dashboard.grievances.fields.category")} value={capitalize(selectedComplaint.category)} />
+                    <InfoField label="Subcategory" value={selectedComplaint.subcategory_name || "—"} />
+                    <InfoField label="Complaint module" value={selectedComplaint.module_name || "—"} />
+                    <InfoField label="Source" value={selectedComplaint.source_code?.replaceAll("_", " ") || "—"} />
+                    <InfoField label="Waste types" value={selectedComplaint.waste_type_names?.join(", ") || "—"} />
                     <InfoField label={t("dashboard.grievances.fields.ward")} value={selectedComplaint.ward_name || (selectedComplaint.ward_id ? selectedComplaint.ward_id.split('-').pop() : '-')} />
+                    <InfoField
+                      label="Geography"
+                      value={[
+                        selectedComplaint.state_name,
+                        selectedComplaint.district_name,
+                        selectedComplaint.area_type_name,
+                        selectedComplaint.city_name,
+                      ].filter(Boolean).join(" · ") || "—"}
+                    />
+                    <InfoField
+                      label="Coordinates"
+                      value={
+                        selectedComplaint.latitude != null && selectedComplaint.longitude != null
+                          ? `${selectedComplaint.latitude}, ${selectedComplaint.longitude}`
+                          : "—"
+                      }
+                    />
                     <InfoField label={t("dashboard.grievances.detail.created")} value={formatDateTime(selectedComplaint.created)} />
 
                     <div>
@@ -630,6 +927,20 @@ export default function Grievances() {
                     </div>
 
                     <InfoField label={t("dashboard.grievances.detail.details")} value={selectedComplaint.details} />
+                  </div>
+                </div>
+
+                <hr />
+
+                <div>
+                  <h3 className="mb-3 font-semibold">Operational complaint context</h3>
+                  <div className="grid gap-4 rounded-xl border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <InfoField label="Incident type" value={capitalize(selectedComplaint.operational_context?.incident_type || "other")} />
+                    <InfoField label="Trip" value={selectedComplaint.operational_context?.trip_reference || "—"} />
+                    <InfoField label="Vehicle" value={selectedComplaint.operational_context?.vehicle_reference || "—"} />
+                    <InfoField label="Driver" value={selectedComplaint.operational_context?.driver_reference || "—"} />
+                    <InfoField label="Operator" value={selectedComplaint.operational_context?.operator_reference || "—"} />
+                    <InfoField label="Assigned to" value={selectedComplaint.assigned_staff_name || selectedComplaint.assigned_team_name || "—"} />
                   </div>
                 </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
+import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +101,7 @@ export default function BinForm() {
   useEffect(() => {
     Promise.all([
       collectionPointApi.readAll(),
-      wasteTypeApi.readAll(),
+      wasteTypeApi.readAll({ params: { lite: 1 } }),
     ]).then(([cpRes, wasteTypeRes]) => {
       setCollectionPoints(normalizeList(cpRes).map((item) => optionOf(item, "cp_name")));
       setWasteTypes(normalizeList(wasteTypeRes).map((item) => optionOf(item, "waste_type_name")));
@@ -327,6 +328,14 @@ export default function BinForm() {
             value={longitude}
             onChange={(event) => setLongitude(event.target.value)}
             placeholder="Enter longitude"
+          />
+        </div>
+        <div className="flex justify-end md:col-span-2">
+          <AutoDetectLocationButton
+            onDetected={({ latitude: detectedLatitude, longitude: detectedLongitude }) => {
+              setLatitude(detectedLatitude);
+              setLongitude(detectedLongitude);
+            }}
           />
         </div>
         <label className="flex items-center gap-2 text-sm">

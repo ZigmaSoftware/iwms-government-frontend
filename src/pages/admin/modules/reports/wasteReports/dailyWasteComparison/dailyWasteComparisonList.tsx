@@ -377,7 +377,11 @@ function FilterSelect({
 /* ══════════════════════════════════════════════════════════════════
     MAIN COMPONENT
 ══════════════════════════════════════════════════════════════════ */
-export default function DailyWasteComparisonList() {
+export default function DailyWasteComparisonList({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const { t } = useTranslation();
 
   const [dateValue, setDateValue] = useState("");
@@ -420,6 +424,7 @@ export default function DailyWasteComparisonList() {
   const [error, setError] = useState("");
   const [detailPage, setDetailPage] = useState(1);
   const [detailPageSize, setDetailPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
 
   // When the logged-in user's own Data Scope pins a level to exactly one
   // value, that filter field shows pre-filled and disabled rather than an
@@ -506,16 +511,17 @@ export default function DailyWasteComparisonList() {
       setWards(mergeRecordsWithScope(records.wards, "ward"));
     };
 
+    const liteConfig = { params: { lite: 1 } };
     Promise.allSettled([
-      stateApi.readAll(),
-      districtApi.readAll(),
-      areaTypeApi.readAll(),
-      corporationApi.readAll(),
-      municipalityApi.readAll(),
-      townPanchayatApi.readAll(),
-      panchayatUnionApi.readAll(),
-      panchayatApi.readAll(),
-      wardApi.readAll(),
+      stateApi.readAll(liteConfig),
+      districtApi.readAll(liteConfig),
+      areaTypeApi.readAll(liteConfig),
+      corporationApi.readAll(liteConfig),
+      municipalityApi.readAll(liteConfig),
+      townPanchayatApi.readAll(liteConfig),
+      panchayatUnionApi.readAll(liteConfig),
+      panchayatApi.readAll(liteConfig),
+      wardApi.readAll(liteConfig),
     ]).then((results) => {
       if (cancelled) return;
       const descendants = scopeHierarchyRecords();
@@ -646,7 +652,12 @@ export default function DailyWasteComparisonList() {
     setLoading(true);
     setError("");
     try {
-      const params: Record<string, string> = { sort: sortMode, source };
+      const params: Record<string, string> = {
+        sort: sortMode,
+        source,
+        page: String(detailPage),
+        limit: String(detailPageSize),
+      };
       if (appliedDate) params.date = appliedDate;
       if (stateId) params.state_id = stateId;
       if (districtId) params.district_id = districtId;
@@ -659,6 +670,13 @@ export default function DailyWasteComparisonList() {
         { params },
       );
       setRows(Array.isArray(data?.results) ? data.results : []);
+      setTotalCount(
+        typeof data?.count === "number"
+          ? data.count
+          : Array.isArray(data?.results)
+            ? data.results.length
+            : 0,
+      );
       setDateTrends(Array.isArray(data?.date_trends) ? data.date_trends : []);
       setPlbCompare(
         Array.isArray(data?.location_comparison)
@@ -671,9 +689,9 @@ export default function DailyWasteComparisonList() {
           : [],
       );
       setKpis(data?.kpis ?? initialKpis);
-      setDetailPage(1);
     } catch {
       setRows([]);
+      setTotalCount(0);
       setDateTrends([]);
       setPlbCompare([]);
       setWasteTypeBreakdown([]);
@@ -686,6 +704,27 @@ export default function DailyWasteComparisonList() {
 
   useEffect(() => {
     void fetchReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    appliedDate,
+    sortMode,
+    source,
+    stateId,
+    districtId,
+    areaTypeId,
+    localBodyLevel,
+    localBodyIds,
+    wardIds,
+    detailPage,
+    detailPageSize,
+  ]);
+
+  /* Reset to page 1 whenever a filter OTHER than pagination changes — the
+     server refetch above also fires when detailPage/detailPageSize change
+     (i.e. on a "next page" click), so an unconditional reset there would
+     immediately snap the user back to page 1. */
+  useEffect(() => {
+    setDetailPage(1);
   }, [appliedDate, sortMode, source, stateId, districtId, areaTypeId, localBodyLevel, localBodyIds, wardIds]);
 
   /* ── derived ── */
@@ -737,16 +776,8 @@ export default function DailyWasteComparisonList() {
     .filter((option) => wardIds.includes(option.value))
     .map((option) => option.label)
     .join(", ");
-  const detailPageCount = Math.max(1, Math.ceil(rows.length / detailPageSize));
+  const detailPageCount = Math.max(1, Math.ceil(totalCount / detailPageSize));
   const safeDetailPage = Math.min(detailPage, detailPageCount);
-  const paginatedRows = useMemo(
-    () =>
-      rows.slice(
-        (safeDetailPage - 1) * detailPageSize,
-        safeDetailPage * detailPageSize,
-      ),
-    [rows, safeDetailPage, detailPageSize],
-  );
   const visibleDetailPages = useMemo(() => {
     const visibleCount = Math.min(5, detailPageCount);
     const start = Math.max(
@@ -816,20 +847,22 @@ export default function DailyWasteComparisonList() {
       RENDER
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="dwcr min-h-screen">
+    <div className={embedded ? "dwcr overflow-hidden rounded-2xl" : "dwcr min-h-screen"}>
       <style>{FONTS}</style>
 
       {/* ── breadcrumb rail ── */}
-      <div className="px-6 md:px-10 pt-6 flex items-center gap-1.5 text-xs" style={{ color: C.inkFaint }}>
-        <span>Schedule Masters</span>
-        <ChevronRight className="h-3 w-3" />
-        <span style={{ color: C.primary }} className="font-semibold">
-          Daily Waste Comparison
-        </span>
-      </div>
+      {!embedded && (
+        <div className="px-6 md:px-10 pt-6 flex items-center gap-1.5 text-xs" style={{ color: C.inkFaint }}>
+          <span>Schedule Masters</span>
+          <ChevronRight className="h-3 w-3" />
+          <span style={{ color: C.primary }} className="font-semibold">
+            Daily Waste Comparison
+          </span>
+        </div>
+      )}
 
       {/* ══════════════ HERO ══════════════ */}
-      <div className="px-6 md:px-10 pt-5">
+      <div className={embedded ? "pt-0" : "px-6 md:px-10 pt-5"}>
         <div
           className="relative overflow-hidden rounded-[28px] border border-white/10 shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]"
           style={{ background: `linear-gradient(120deg, ${C.primaryDeep} 0%, #115E6D 58%, ${C.primary} 100%)` }}
@@ -911,7 +944,7 @@ export default function DailyWasteComparisonList() {
                 </Button>
                 <Button
                   onClick={handleDownload}
-                  disabled={!rows.length || exporting}
+                  disabled={!totalCount || exporting}
                   className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 font-semibold text-white shadow-sm transition-colors hover:bg-white/15 lg:ml-auto"
                 >
                   <Download className="h-3.5 w-3.5" /> {exporting ? "Downloading…" : "Download all"}
@@ -1278,7 +1311,7 @@ export default function DailyWasteComparisonList() {
                   <span className="font-semibold" style={{ color: "#B8E6C6" }}>
                     {appliedDate || "All dates"}
                   </span>{" "}
-                  · {rows.length} record{rows.length !== 1 ? "s" : ""} combined
+                  · {totalCount} record{totalCount !== 1 ? "s" : ""} combined
                 </p>
               </div>
             </div>
@@ -1339,7 +1372,7 @@ export default function DailyWasteComparisonList() {
           {rows.length > 0 && (
             <div className="px-6 py-5" style={{ borderTop: `1px solid ${C.line}` }}>
               <p className="text-[11px] font-bold uppercase tracking-widest mb-3" style={{ color: C.inkFaint }}>
-                Breakdown by local body &amp; waste type — {rows.length} row{rows.length !== 1 ? "s" : ""}
+                Breakdown by local body &amp; waste type — {totalCount} row{totalCount !== 1 ? "s" : ""}
               </p>
               <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
                 <Table>
@@ -1355,7 +1388,7 @@ export default function DailyWasteComparisonList() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {paginatedRows.map((r) => (
+                    {rows.map((r) => (
                       <TableRow key={r.unique_id} style={{ borderColor: C.line }}>
                         <TableCell className="whitespace-nowrap font-mono text-xs" style={{ color: C.inkSoft }}>
                           {r.collection_date}
@@ -1400,7 +1433,7 @@ export default function DailyWasteComparisonList() {
                   </select>
                   <span className="font-mono">
                     {(safeDetailPage - 1) * detailPageSize + 1}–
-                    {Math.min(safeDetailPage * detailPageSize, rows.length)} of {rows.length}
+                    {Math.min(safeDetailPage * detailPageSize, totalCount)} of {totalCount}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">

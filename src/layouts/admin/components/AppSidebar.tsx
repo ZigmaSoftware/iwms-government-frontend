@@ -35,6 +35,7 @@ const {
   encSubProperties,
   encStaffCreation,
   encStaffAccessConfiguration,
+  encStaffAccessDashboard,
   encUserScreen,
   encUserType,
   encCustomerMaster,
@@ -61,7 +62,7 @@ const {
   encUserScreenAction,
   encMainScreen,
   encUserScreenPermission,
-  encStaffMasters,
+  encUserManagement,
   encStaffTemplate,
   encAlternativeStaffTemplate,
   encCommonAudit,
@@ -419,15 +420,21 @@ const userCreationMasters: NavItem[] = [
     subItems: [
       {
         nameKey: "admin.nav.staff_creation",
-        path: `/${encStaffMasters}/${encStaffCreation}`,
+        path: `/${encUserManagement}/${encStaffCreation}`,
         module: "user-creations",
         screen: "staffcreation",
       },
       {
         nameKey: "admin.nav.staff_access_configuration",
-        path: `/${encStaffMasters}/${encStaffAccessConfiguration}`,
+        path: `/${encUserManagement}/${encStaffAccessConfiguration}`,
         module: "user-creations",
         screen: "staff-access-configuration",
+      },
+      {
+        nameKey: "admin.nav.staff_access_dashboard",
+        path: `/${encUserManagement}/${encStaffAccessDashboard}`,
+        module: "user-creations",
+        screen: "staff-access-dashboard",
       },
     ],
   },
@@ -765,11 +772,7 @@ const AppSidebar: React.FC = () => {
 
     // Regular users: only show items they have permission for
     return subItems.filter((sub) => {
-      const allowed = checkAnyPermission(sub.module, sub.screen, sub.screens);
-      console.log(
-        `[Filter SubItem] ${sub.nameKey} (${sub.module}/${sub.screen ?? sub.screens?.join("|")}) = ${allowed}`
-      );
-      return allowed;
+      return checkPermission(sub.module, sub.screen);
     });
   }, [checkAnyPermission, isSuperAdmin]);
 
@@ -784,21 +787,13 @@ const AppSidebar: React.FC = () => {
   }
     // If no subItems, check direct permission or show if no permission needed
     if (!item.subItems || item.subItems.length === 0) {
-      if (!item.module || (!item.screen && !item.screens)) return true;
-      const allowed = checkAnyPermission(item.module, item.screen, item.screens);
-      console.log(
-        `[Show Item] ${item.nameKey} (no children, ${item.module}/${item.screen ?? item.screens?.join("|")}) = ${allowed}`
-      );
-      return allowed;
+      if (!item.module || !item.screen) return true;
+      return checkPermission(item.module, item.screen);
     }
 
     // If has subItems, show only if filtered children exist
-    const hasChildren = !!(filteredSubItems && filteredSubItems.length > 0);
-    console.log(
-      `[Show Item] ${item.nameKey} (parent, has ${filteredSubItems?.length || 0} children) = ${hasChildren}`
-    );
-    return hasChildren;
-  }, [checkAnyPermission]);
+    return !!(filteredSubItems && filteredSubItems.length > 0);
+  }, [checkPermission]);
 
   // Build sidebar sections with strict filtering
   const sidebarSections = useMemo(
@@ -825,12 +820,10 @@ const AppSidebar: React.FC = () => {
 
       // If superadmin, show ALL sections with ALL items
       if (isSuperAdmin) {
-        // console.log("[Sidebar] SuperAdmin detected - showing all sections");
         return allSections.filter((section) => section.items.length > 0);
       }
 
       // For regular users: strict filtering
-      console.log("[Sidebar] Regular user - applying permission filters");
       return allSections
         .map((section) => {
           // Filter items within section

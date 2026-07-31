@@ -5,13 +5,11 @@ import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import ExpiryBadge from "@/components/common/ExpiryBadge";
 import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
-import { FilterMatchMode } from "primereact/api";
-import type { DataTableFilterMeta } from "primereact/datatable";
+import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -112,6 +110,16 @@ const isImageUrl = (url?: string | null) => {
   );
 };
 
+const toRecordList = (value: unknown): VehicleCreationRecord[] => {
+  if (Array.isArray(value)) return value as VehicleCreationRecord[];
+  if (value && typeof value === "object" && Array.isArray((value as { results?: unknown }).results)) {
+    return (value as { results: VehicleCreationRecord[] }).results;
+  }
+  return [];
+};
+
+const SORTABLE_FIELDS = new Set(["vehicle_no"]);
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function VehicleCreationListPage() {
@@ -125,34 +133,14 @@ export default function VehicleCreationListPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [modalImage, setModalImage] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState<DataTableFilterMeta>({
-    global: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.CONTAINS,
-    },
-    vehicle_no: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    vehicle_type_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    fuel_type_name: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    vehicle_condition: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-    insurance_expiry_date: {
-      value: null as string | null,
-      matchMode: FilterMatchMode.STARTS_WITH,
-    },
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const [allVehicles, setAllVehicles] = useState<VehicleCreationRecord[]>([]);
+  const [rawRows, setRawRows] = useState<VehicleCreationRecord[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [first, setFirst] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
@@ -166,44 +154,52 @@ export default function VehicleCreationListPage() {
   );
 
   // ── Load data ─────────────────────────────────────────────────────────────
-  useEffect(() => {
-    let mounted = true;
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    ordering?: string,
+  ) => {
     setIsLoading(true);
-    vehicleCreationApi
-      .readAll()
-      .then((data: unknown) => {
-        if (!mounted) return;
-        const list = Array.isArray(data)
-          ? (data as VehicleCreationRecord[])
-          : [];
-        const seen = new Set<string>();
-        setAllVehicles(
-          list.filter((row) => {
-            const key = row.unique_id?.toString();
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          }),
-        );
-      })
-      .catch((error: unknown) => {
-        if (mounted) {
-          Swal.fire({
-            icon: "error",
-            title: t("common.error"),
-            text: String(error),
-          });
-        }
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
+    try {
+      const response = await vehicleCreationApi.readAllwithPaginated(page, limit, {
+        params: {
+          ...(search ? { search } : {}),
+          ...(ordering ? { ordering } : {}),
+        },
       });
-    return () => {
-      mounted = false;
-    };
-  }, [t, refetchTrigger]);
+      const list = toRecordList(response);
+      setRawRows(list);
+      setTotalRecords(
+        typeof response?.count === "number" ? response.count : list.length,
+      );
+    } catch (error: unknown) {
+      Swal.fire({
+        icon: "error",
+        title: t("common.error"),
+        text: String(error),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const rows = allVehicles.map((row) => {
+  const ordering =
+    sortField && SORTABLE_FIELDS.has(sortField)
+      ? `${sortOrder === -1 ? "-" : ""}${sortField}`
+      : undefined;
+
+  useEffect(() => {
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+
+  useEffect(() => {
+    setFirst(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refetchTrigger]);
+
+  const rows = rawRows.map((row) => {
     const ulb = resolveLocalBody(row, ULB_LEVELS);
     const rlb = resolveLocalBody(row, RLB_LEVELS);
     return {
@@ -215,17 +211,32 @@ export default function VehicleCreationListPage() {
     };
   });
 
-  // ── Filter handlers ───────────────────────────────────────────────────────
-  const onFilter = (e: DataTableFilterEvent) => setFilters(e.filters);
+  // ── Pagination / sort / filter handlers ──────────────────────────────────
+  const onPage = (event: DataTablePageEvent) => {
+    setFirst(event.first);
+    setRowsPerPage(event.rows);
+  };
+
+  const onSort = (event: DataTableSortEvent) => {
+    setFirst(0);
+    setSortField(event.sortField);
+    setSortOrder(event.sortOrder);
+  };
 
   const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters((prev) => ({
-      ...prev,
-      global: { value, matchMode: FilterMatchMode.CONTAINS },
-    }));
+    setGlobalFilterValue(e.target.value);
   };
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setFirst(0);
+      setSearchTerm(globalFilterValue);
+    }, 400);
+    return () => clearTimeout(timeout);
+  }, [globalFilterValue]);
+
+  const onExportRequest = async () =>
+    toRecordList(await vehicleCreationApi.readAllForExport());
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const downloadVehicleTemplate = () => {
@@ -309,7 +320,7 @@ export default function VehicleCreationListPage() {
 
     try {
       await vehicleCreationApi.delete(id);
-      setAllVehicles((current) =>
+      setRawRows((current) =>
         current.filter((item) => item.unique_id !== id),
       );
       Swal.fire({
@@ -372,7 +383,7 @@ export default function VehicleCreationListPage() {
             is_active: value,
           }) as Record<string, unknown>,
         );
-        setAllVehicles((current) =>
+        setRawRows((current) =>
           current.map((item) =>
             item.unique_id === row.unique_id
               ? { ...item, is_active: value }
@@ -499,21 +510,22 @@ export default function VehicleCreationListPage() {
         value={rows}
         bulkImportable={false}
         dataKey="unique_id"
+        lazy
         paginator
-        rows={10}
+        first={first}
+        rows={rowsPerPage}
+        totalRecords={totalRecords}
+        onPage={onPage}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && rows.length === 0}
-        filters={filters}
-        onFilter={onFilter}
         header={renderHeader()}
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        globalFilterFields={[
-          ...(showCol("vehicle_no") ? ["vehicle_no"] : []),
-          ...(showCol("vehicle_type_name") ? ["vehicle_type_name"] : []),
-          ...(showCol("fuel_type_name") ? ["fuel_type_name"] : []),
-        ]}
+        onExportRequest={onExportRequest}
         emptyMessage={t("admin.vehicle_creation.empty_message")}
       >
         <Column
@@ -528,36 +540,25 @@ export default function VehicleCreationListPage() {
           <Column
             field="vehicle_no"
             header={t("admin.vehicle_creation.vehicle_no")}
-            sortable
-            filter
-            showFilterMatchModes={false}
+            sortable={SORTABLE_FIELDS.has("vehicle_no")}
           />
         )}
         {showCol("vehicle_type_name") && (
           <Column
             field="vehicle_type_name"
             header={t("admin.vehicle_creation.vehicle_type")}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
         {showCol("fuel_type_name") && (
           <Column
             field="fuel_type_name"
             header={t("admin.vehicle_creation.fuel_type")}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
         {showCol("ulb_name") && (
           <Column
             field="_ulb_name"
             header="ULB"
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: VehicleCreationRecord & { _ulb_name?: string; _ulb_level?: string }) =>
               row._ulb_name ? (
                 <span>
@@ -573,9 +574,6 @@ export default function VehicleCreationListPage() {
           <Column
             field="_rlb_name"
             header="RLB"
-            sortable
-            filter
-            showFilterMatchModes={false}
             body={(row: VehicleCreationRecord & { _rlb_name?: string; _rlb_level?: string }) =>
               row._rlb_name ? (
                 <span>
@@ -591,21 +589,18 @@ export default function VehicleCreationListPage() {
           <Column
             field="capacity"
             header={t("admin.vehicle_creation.capacity")}
-            sortable
           />
         )}
         {showCol("mileage_per_liter") && (
           <Column
             field="mileage_per_liter"
             header={t("admin.vehicle_creation.mileage_per_liter")}
-            sortable
           />
         )}
         {showCol("fuel_tank_capacity") && (
           <Column
             field="fuel_tank_capacity"
             header={t("admin.vehicle_creation.fuel_tank_capacity")}
-            sortable
           />
         )}
         {showCol("vehicle_condition") && (
@@ -615,9 +610,6 @@ export default function VehicleCreationListPage() {
             body={(row: VehicleCreationRecord) =>
               conditionLabel(row.vehicle_condition)
             }
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
         {showCol("insurance_expiry_date") && (
@@ -630,9 +622,6 @@ export default function VehicleCreationListPage() {
                 <ExpiryBadge label="Insurance" date={row.insurance_expiry_date} />
               </div>
             )}
-            sortable
-            filter
-            showFilterMatchModes={false}
           />
         )}
         {showCol("rc_upload") && (

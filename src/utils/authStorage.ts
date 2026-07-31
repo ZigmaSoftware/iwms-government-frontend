@@ -49,6 +49,17 @@ export type AuthUser = {
 export type AuthProfile = {
   company_name?: string;
   branch_name?: string;
+  company_logo?: string | null;
+  name?: string;
+  email?: string;
+  leader_name?: string;
+  user_type?: string;
+  state_unique_id?: string;
+  state_name?: string;
+  district_unique_id?: string;
+  district_name?: string;
+  panchayat_unique_id?: string;
+  panchayat_name?: string;
   project_id?: string;
   project_unique_id?: string;
   project?: {
