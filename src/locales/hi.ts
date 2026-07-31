@@ -899,7 +899,7 @@ const hiResource = {
           "waste_properties": "कचरा गुण",
           "waste_masters": "कचरा मास्टर्स",
           "role_management": "भूमिका प्रबंधन",
-          "user_management": "उपयोगकर्ता प्रबंधन",
+          "staff_management": "उपयोगकर्ता प्रबंधन",
           "audits": "ऑडिट",
           "leader_management": "नेता प्रबंधन",
           "screen_management": "स्क्रीन प्रबंधन",
@@ -1335,7 +1335,7 @@ const hiResource = {
           "marital_divorced": "तलाकशुदा",
           "dob": "जन्म तिथि",
           "age": "आयु",
-          "age_auto": "स्वचालित रूप से गणना",
+          "age_placeholder": "आयु दर्ज करें",
           "blood_group": "रक्त समूह",
           "blood_group_placeholder": "रक्त समूह चुनें",
           "gender": "लिंग",
@@ -1585,7 +1585,7 @@ const hiResource = {
           "empty_permission_or_data": "अनुमति या डेटा उपलब्ध नहीं",
           "empty_permission_restricted": "अनुमति सीमित",
           "section_master_data": "मास्टर डेटा",
-          "section_user_management": "यूज़र प्रबंधन"
+          "section_staff_management": "यूज़र प्रबंधन"
         },
         "reports": {
           "waste_summary": {

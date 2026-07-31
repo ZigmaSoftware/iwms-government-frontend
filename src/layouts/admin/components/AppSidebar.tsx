@@ -413,7 +413,7 @@ const roleAssignsItems: NavItem[] = [
 
 const userCreationMasters: NavItem[] = [
   {
-    nameKey: "admin.nav.user_management",
+    nameKey: "admin.nav.staff_management",
     icon: <Users size={18} />,
     module: "user-creations",
     screen: "user-creations",

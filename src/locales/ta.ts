@@ -900,7 +900,7 @@ const taResource = {
           "waste_properties": "கழிவு பண்புகள்",
           "waste_masters": "கழிவு மாஸ்டர்கள்",
           "role_management": "பங்கு மேலாண்மை",
-          "user_management": "பயனர் மேலாண்மை",
+          "staff_management": "பயனர் மேலாண்மை",
           "audits": "ஆய்வுகள்",
           "leader_management": "தலைவர் மேலாண்மை",
           "screen_management": "திரை மேலாண்மை",
@@ -1336,7 +1336,7 @@ const taResource = {
           "marital_divorced": "விவாகரத்து பெற்றவர்",
           "dob": "பிறந்த தேதி",
           "age": "வயது",
-          "age_auto": "தானாக கணிக்கப்படும்",
+          "age_placeholder": "வயதை உள்ளிடவும்",
           "blood_group": "இரத்தக் குழு",
           "blood_group_placeholder": "இரத்தக் குழுவை தேர்வு செய்க",
           "gender": "பாலினம்",
@@ -1586,7 +1586,7 @@ const taResource = {
           "empty_permission_or_data": "அனுமதி அல்லது தரவு இல்லை",
           "empty_permission_restricted": "அனுமதி வரம்புப்படுத்தப்பட்டது",
           "section_master_data": "மாஸ்டர் தரவு",
-          "section_user_management": "பயனர் மேலாண்மை"
+          "section_staff_management": "பயனர் மேலாண்மை"
         },
         "reports": {
           "waste_summary": {

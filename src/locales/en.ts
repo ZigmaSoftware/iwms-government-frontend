@@ -919,7 +919,7 @@ const enResource = {
           "waste_properties": "Waste Properties",
           "waste_masters": "Waste Masters",
           "role_management": "Role Management",
-          "user_management": "User Management",
+          "staff_management": "Staff Management",
           "audits": "Audits",
           "leader_management": "Leader Management",
           "screen_management": "Screen Management",
@@ -1324,7 +1324,7 @@ const enResource = {
           "doj": "Date of Joining",
           "department_name": "Department Name",
           "designation": "Designation",
-          "government_user_type": "Government User Type",
+          "government_user_type": "Government Staff Type",
           "department_id": "Department ID",
           "designation_id": "Designation ID",
           "grade": "Grade",
@@ -1363,7 +1363,7 @@ const enResource = {
           "marital_divorced": "Divorced",
           "dob": "Date of Birth",
           "age": "Age",
-          "age_auto": "Auto-calculated",
+          "age_placeholder": "Enter age",
           "blood_group": "Blood Group",
           "blood_group_placeholder": "Select blood group",
           "gender": "Gender",
@@ -1395,8 +1395,8 @@ const enResource = {
           "save_success_desc": "Details saved successfully.",
           "section_official": "Office Details",
           "section_personal": "Personal Details",
-          "staff_user_type": "Staff User Type",
-          "staff_user_type_placeholder": "Select staff user type",
+          "staff_user_type": "Staff Type",
+          "staff_user_type_placeholder": "Select staff type",
           "driving_licence_no": "Driving Licence Number",
           "driving_licence_upload": "Driving Licence Upload",
           "driving_licence_choose": "Choose file",
@@ -1648,7 +1648,7 @@ const enResource = {
           "empty_permission_or_data": "No permission or data",
           "empty_permission_restricted": "Permission restricted",
           "section_master_data": "Master Data",
-          "section_user_management": "User Management"
+          "section_staff_management": "User Management"
         },
         "reports": {
           "waste_summary": {
