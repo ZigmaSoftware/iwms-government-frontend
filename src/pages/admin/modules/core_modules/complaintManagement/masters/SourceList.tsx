@@ -1,4 +1,4 @@
-import MasterList from "./MasterList";
+import ReferenceDataScreen from "./ReferenceDataScreen";
 export default function SourceList() {
-  return <MasterList kind="source" />;
+  return <ReferenceDataScreen kind="source" />;
 }

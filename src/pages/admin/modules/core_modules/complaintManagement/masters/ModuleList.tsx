@@ -1,5 +1,5 @@
-import MasterList from "./MasterList";
+import ReferenceDataScreen from "./ReferenceDataScreen";
 
 export default function ModuleList() {
-  return <MasterList kind="module" />;
+  return <ReferenceDataScreen kind="module" />;
 }

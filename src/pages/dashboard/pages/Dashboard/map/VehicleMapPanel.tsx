@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import type { LatLngTuple } from "leaflet";
+import { initBaseMap } from "./mapUtils";
 
-import { DEFAULT_CENTER, initBaseMap } from "./mapUtils";
 import { dailyTripCollectionPointApi, vehicleCreationApi } from "@/helpers/admin";
 
 type ApiVehicle = {
@@ -52,6 +52,15 @@ type TrackingOverviewTrip = {
 
 type TrackingOverviewResponse = {
   trips?: TrackingOverviewTrip[];
+};
+
+type WardGeofence = {
+  id: string;
+  name: string;
+  coordinates: Array<{ latitude: number; longitude: number }>;
+  district_name?: string;
+  local_body_type?: string;
+  local_body_name?: string;
 };
 
 const VEHICLE_STATUS_META: Record<VehicleStatus, { label: string; color: string; bg: string }> = {
@@ -105,10 +114,29 @@ const formatLiveTime = (value?: string) => {
     : parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-export default function VehicleMapPanel({ params = {} }: { params?: Record<string, string> }) {
+// Ward-geofence polygon styling — same palette used by BinMapPanel,
+// HouseholdMapPanel, SharedMapContainer and WardGeofenceLayer.
+const DISTRICT_COLORS: Record<string, { fill: string; stroke: string }> = {
+  Erode: { fill: "rgba(56, 189, 248, 0.25)", stroke: "#0ea5e9" },
+  Coimbatore: { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },
+  Salem: { fill: "rgba(168, 85, 247, 0.25)", stroke: "#a855f7" },
+};
+
+const DEFAULT_STYLE = { fill: "rgba(99, 102, 241, 0.25)", stroke: "#6366f1" };
+
+export default function VehicleMapPanel({
+  params = {},
+  showWardGeofences = false,
+  wardGeofences = [],
+}: {
+  params?: Record<string, string>;
+  showWardGeofences?: boolean;
+  wardGeofences?: WardGeofence[];
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const wardLayerRef = useRef<L.LayerGroup | null>(null);
 
   const [vehicles, setVehicles] = useState<VehicleItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,12 +147,52 @@ export default function VehicleMapPanel({ params = {} }: { params?: Record<strin
   useEffect(() => {
     if (containerRef.current && !mapRef.current) {
       mapRef.current = initBaseMap(containerRef.current);
+      const wardLayer = L.layerGroup().addTo(mapRef.current);
+      wardLayerRef.current = wardLayer;
     }
     return () => {
       mapRef.current?.remove();
       mapRef.current = null;
+      wardLayerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapRef.current || !wardLayerRef.current) return;
+    const layer = wardLayerRef.current;
+    layer.clearLayers();
+
+    if (!showWardGeofences) return;
+
+    const bounds: LatLngTuple[] = [];
+    wardGeofences.forEach((ward) => {
+      if (!ward.coordinates || ward.coordinates.length < 3) return;
+
+      const latLngs: LatLngTuple[] = ward.coordinates.map((c) => [
+        c.latitude,
+        c.longitude,
+      ]);
+      latLngs.forEach((point) => bounds.push(point));
+
+      const districtName = ward.district_name || "";
+      const style = DISTRICT_COLORS[districtName] || DEFAULT_STYLE;
+
+      const polygon = L.polygon(latLngs, {
+        fillColor: style.fill,
+        color: style.stroke,
+        weight: 1.5,
+        fillOpacity: 0.35,
+        opacity: 0.8,
+        className: "ward-geofence-polygon",
+      });
+      polygon.addTo(layer);
+    });
+
+    // Ward polygons are a few hundred meters across — invisible at the fleet's
+    // usual region-wide zoom. Frame the map to them the moment they're turned
+    // on, instead of leaving the user to hunt for the right zoom level.
+    if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+  }, [showWardGeofences, wardGeofences]);
 
   useEffect(() => {
     let cancelled = false;

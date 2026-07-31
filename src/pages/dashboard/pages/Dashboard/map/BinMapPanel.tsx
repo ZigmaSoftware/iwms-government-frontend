@@ -13,6 +13,14 @@ import {
 import { binApi, binCollectionEventApi } from "@/helpers/admin";
 import { useTranslation } from "react-i18next";
 
+const DISTRICT_COLORS: Record<string, { fill: string; stroke: string }> = {
+  Erode: { fill: "rgba(56, 189, 248, 0.25)", stroke: "#0ea5e9" },
+  Coimbatore: { fill: "rgba(34, 197, 94, 0.25)", stroke: "#22c55e" },
+  Salem: { fill: "rgba(168, 85, 247, 0.25)", stroke: "#a855f7" },
+};
+
+const DEFAULT_STYLE = { fill: "rgba(99, 102, 241, 0.25)", stroke: "#6366f1" };
+
 /* ================= TYPES ================= */
 type ApiBin = {
   unique_id: string;
@@ -119,12 +127,26 @@ const buildBin = (
 };
 
 /* ================= COMPONENT ================= */
-export function BinMapPanel({ params = {} }: { params?: Record<string, string> }) {
+export function BinMapPanel({
+  params = {},
+  showWardGeofences = false,
+  wardGeofences = [],
+}: {
+  params?: Record<string, string>;
+  showWardGeofences?: boolean;
+  wardGeofences?: Array<{
+    id: string;
+    name: string;
+    coordinates: Array<{ latitude: number; longitude: number }>;
+    district_name?: string;
+  }>;
+}) {
   const { t } = useTranslation();
   const mapRef = useRef<L.Map | null>(null);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
   const markersRef = useRef<L.LayerGroup | null>(null);
   const markerLookupRef = useRef<Record<string, L.Marker>>({});
+  const wardLayerRef = useRef<L.LayerGroup | null>(null);
 
   const [selectedBin, setSelectedBin] = useState<Bin | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -138,6 +160,70 @@ export function BinMapPanel({ params = {} }: { params?: Record<string, string> }
     collected: true,
     not_collected: true,
   });
+
+  /* ================= MAP INIT ================= */
+  useEffect(() => {
+    if (!mapDivRef.current || mapRef.current) return;
+
+    const map = initBaseMap(mapDivRef.current);
+    markersRef.current = L.layerGroup().addTo(map);
+    const wardLayer = L.layerGroup().addTo(map);
+    wardLayerRef.current = wardLayer;
+    mapRef.current = map;
+
+    const resize = () => map.invalidateSize();
+    const raf = requestAnimationFrame(resize);
+    const timer = setTimeout(resize, 300);
+    window.addEventListener("resize", resize);
+
+    return () => {
+      window.removeEventListener("resize", resize);
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      map.remove();
+      mapRef.current = null;
+      markersRef.current = null;
+      wardLayerRef.current = null;
+    };
+  }, []);
+
+  /* ================= WARD GEOFENCE ================= */
+  useEffect(() => {
+    if (!mapRef.current || !wardLayerRef.current) return;
+    const layer = wardLayerRef.current;
+    layer.clearLayers();
+
+    if (!showWardGeofences) return;
+
+    const bounds: LatLngTuple[] = [];
+    wardGeofences.forEach((ward) => {
+      if (!ward.coordinates || ward.coordinates.length < 3) return;
+
+      const latLngs: LatLngTuple[] = ward.coordinates.map((c) => [
+        c.latitude,
+        c.longitude,
+      ]);
+      latLngs.forEach((point) => bounds.push(point));
+
+      const districtName = ward.district_name || "";
+      const style = DISTRICT_COLORS[districtName] || DEFAULT_STYLE;
+
+      const polygon = L.polygon(latLngs, {
+        fillColor: style.fill,
+        color: style.stroke,
+        weight: 1.5,
+        fillOpacity: 0.35,
+        opacity: 0.8,
+        className: "ward-geofence-polygon",
+      });
+      polygon.addTo(layer);
+    });
+
+    // Ward polygons are a few hundred meters across — invisible at the usual
+    // ward-wide zoom. Frame the map to them the moment they're turned on.
+    if (bounds.length) mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showWardGeofences, wardGeofences]);
 
   /* ================= DATA ================= */
   useEffect(() => {
@@ -153,7 +239,7 @@ export function BinMapPanel({ params = {} }: { params?: Record<string, string> }
         if (!isMounted) return;
         setBinRecords(Array.isArray(binResponse) ? binResponse : []);
         setCollectionRecords(Array.isArray(collectionResponse) ? collectionResponse : []);
-      } catch {
+      } catch (e) {
         if (!isMounted) return;
         setBinRecords([]);
         setCollectionRecords([]);
@@ -234,29 +320,6 @@ export function BinMapPanel({ params = {} }: { params?: Record<string, string> }
       ),
     [bins]
   );
-
-  /* ================= MAP INIT ================= */
-  useEffect(() => {
-    if (!mapDivRef.current || mapRef.current) return;
-
-    const map = initBaseMap(mapDivRef.current);
-    markersRef.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-
-    const resize = () => map.invalidateSize();
-    const raf = requestAnimationFrame(resize);
-    const timer = setTimeout(resize, 300);
-    window.addEventListener("resize", resize);
-
-    return () => {
-      window.removeEventListener("resize", resize);
-      cancelAnimationFrame(raf);
-      clearTimeout(timer);
-      map.remove();
-      mapRef.current = null;
-      markersRef.current = null;
-    };
-  }, []);
 
   /* ================= MARKERS ================= */
   useEffect(() => {

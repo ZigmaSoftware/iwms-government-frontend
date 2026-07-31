@@ -1,4 +1,4 @@
-import MasterList from "./MasterList";
+import ReferenceDataScreen from "./ReferenceDataScreen";
 export default function StatusList() {
-  return <MasterList kind="status" />;
+  return <ReferenceDataScreen kind="status" />;
 }

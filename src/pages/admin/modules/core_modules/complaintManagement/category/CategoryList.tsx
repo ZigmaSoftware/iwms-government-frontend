@@ -1,4 +1,4 @@
-import MasterList from "../masters/MasterList";
+import CategoryManagementScreen from "./CategoryManagementScreen";
 export default function CategoryList() {
-  return <MasterList kind="category" />;
+  return <CategoryManagementScreen />;
 }

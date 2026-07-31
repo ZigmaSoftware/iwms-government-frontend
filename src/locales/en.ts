@@ -269,14 +269,18 @@ const enResource = {
             "all": "Vehicle",
             "vehicle": "Vehicle",
             "bins": "Bins",
-            "households": "Households"
+            "households": "Households",
+            "wards": "Wards"
           },
           "map_summaries": {
             "all": "Fleet, routes, and live coverage.",
             "vehicle": "Fleet, routes, and live coverage.",
             "bins": "Bin collection status by ward.",
-            "households": "Door-to-door collection status by ward."
-          }
+            "households": "Door-to-door collection status by ward.",
+            "wards": "Ward boundaries, framed to fit."
+          },
+          "wards_loading": "Loading wards...",
+          "wards_empty": "No ward boundaries found for the current filters."
         },
         "overview": {
           "title": "Dashboard Overview",
@@ -847,6 +851,7 @@ const enResource = {
           "household_pickup_event": "Household Pickup Event",
           "complaint_ticket": "Complaint Ticketing",
           "complaint_tickets": "Complaint Tickets",
+          "reference_data": "Reference Data",
           "modules": "Modules",
           "categories": "Categories",
           "subcategories": "Subcategories",
