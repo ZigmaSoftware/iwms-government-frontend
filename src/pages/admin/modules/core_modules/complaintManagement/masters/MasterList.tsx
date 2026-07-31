@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -9,44 +10,11 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { PencilIcon } from "@/icons";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import {
-  complaintCategoryApi,
-  complaintModuleApi,
-  complaintPriorityApi,
-  complaintSlaRuleApi,
-  complaintSourceApi,
-  complaintStatusApi,
-  complaintSubcategoryApi,
-  complaintTeamApi,
-} from "@/features/complaintTicketing/api";
 import { asArray, errorText, yesNo } from "../utils";
-
-type MasterKind = "module" | "category" | "subcategory" | "priority" | "status" | "source" | "team" | "slaRule";
+import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
 
 type Props = {
   kind: MasterKind;
-};
-
-const title: Record<MasterKind, string> = {
-  module: "Complaint Modules",
-  category: "Complaint Categories",
-  subcategory: "Complaint Subcategories",
-  priority: "Priorities",
-  status: "Statuses",
-  source: "Sources",
-  team: "Teams",
-  slaRule: "SLA Rules",
-};
-
-const routeModule: Record<MasterKind, keyof ReturnType<typeof getEncryptedRoute>> = {
-  module: "encComplaintModules",
-  category: "encComplaintCategories",
-  subcategory: "encComplaintSubcategories",
-  priority: "encComplaintPriorities",
-  status: "encComplaintStatuses",
-  source: "encComplaintSources",
-  team: "encComplaintTeams",
-  slaRule: "encComplaintSlaRules",
 };
 
 // Mirrors the `ordering_fields` configured on each backend viewset, intersected
@@ -68,7 +36,8 @@ const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
 export default function MasterList({ kind }: Props) {
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
-  const { newPath, editPath } = createCrudRoutePaths(routes.encComplaintTicket, routes[routeModule[kind]]);
+  const config = MASTER_CONFIG[kind];
+  const { newPath, editPath } = createCrudRoutePaths(routes.encComplaintTicket, routes[config.routeKey]);
 
   const [rows, setRows] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -80,16 +49,7 @@ export default function MasterList({ kind }: Props) {
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const api = useMemo(() => {
-    if (kind === "module") return complaintModuleApi;
-    if (kind === "category") return complaintCategoryApi;
-    if (kind === "subcategory") return complaintSubcategoryApi;
-    if (kind === "priority") return complaintPriorityApi;
-    if (kind === "status") return complaintStatusApi;
-    if (kind === "source") return complaintSourceApi;
-    if (kind === "slaRule") return complaintSlaRuleApi;
-    return complaintTeamApi;
-  }, [kind]);
+  const api = useMemo(() => config.api(), [config]);
 
   // Switching kind should restart pagination (and drop any sort tied to the old kind's columns).
   useEffect(() => {
@@ -150,7 +110,7 @@ export default function MasterList({ kind }: Props) {
     <div className="p-3">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">{title[kind]}</h1>
+          <h1 className="text-3xl font-bold text-gray-800">{config.titlePlural}</h1>
           <p className="text-sm text-gray-500">Complaint ticketing setup</p>
         </div>
         <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />

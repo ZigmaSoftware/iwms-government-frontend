@@ -12,7 +12,6 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { adminApi } from "@/helpers/admin/registry";
 import {
   complaintCategoryApi,
-  complaintLanguageApi,
   complaintPriorityApi,
   complaintSourceApi,
   complaintStatusApi,
@@ -98,7 +97,6 @@ export default function TicketWizardForm() {
   const [priorities, setPriorities] = useState<any[]>([]);
   const [statuses, setStatuses] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
-  const [languages, setLanguages] = useState<any[]>([]);
   const [step, setStep] = useState(0);
   const [stepError, setStepError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -111,7 +109,6 @@ export default function TicketWizardForm() {
     wa_phone: "",
     profile_name: "",
     source: "",
-    language: "",
     category: "",
     waste_types: [] as string[],
     subcategory: "",
@@ -143,16 +140,14 @@ export default function TicketWizardForm() {
       complaintPriorityApi.readAll().catch(() => []),
       complaintStatusApi.readAll().catch(() => []),
       complaintSourceApi.readAll().catch(() => []),
-      complaintLanguageApi.readAll().catch(() => []),
       adminApi.wasteTypes.readAll().catch(() => []),
-    ]).then(([customerRows, categoryRows, subcategoryRows, priorityRows, statusRows, sourceRows, languageRows, wasteTypeRows]) => {
+    ]).then(([customerRows, categoryRows, subcategoryRows, priorityRows, statusRows, sourceRows, wasteTypeRows]) => {
       setCustomers(asArray(customerRows));
       setCategories(asArray(categoryRows));
       setSubcategories(asArray(subcategoryRows));
       setPriorities(asArray(priorityRows));
       setStatuses(asArray(statusRows));
       setSources(asArray(sourceRows));
-      setLanguages(asArray(languageRows));
       setWasteTypes(asArray(wasteTypeRows));
       setForm((prev) => ({
         ...prev,
@@ -412,7 +407,6 @@ export default function TicketWizardForm() {
         wa_phone: form.wa_phone,
         profile_name: form.profile_name,
         source: form.source || null,
-        language: form.language || null,
         category: form.category,
         waste_types: form.waste_types,
         subcategory: form.subcategory || null,
@@ -456,7 +450,6 @@ export default function TicketWizardForm() {
           {reviewRow("Phone", form.wa_phone)}
           {reviewRow("Profile name", form.profile_name)}
           {reviewRow("Source", capitalize(findLabel(sources, form.source, "source_name")))}
-          {reviewRow("Language", capitalize(findLabel(languages, form.language, "language_name")))}
         </>,
       )}
 
@@ -567,13 +560,6 @@ export default function TicketWizardForm() {
               <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
                 <option value="">None</option>
                 {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Language</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.language} onChange={(e) => setValue("language", e.target.value)}>
-                <option value="">None</option>
-                {languages.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.language_name)}</option>)}
               </select>
             </div>
           </div>

@@ -19,10 +19,14 @@ import {
   UserCheck,
   UserRoundX,
   Users,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { BinMapPanel } from "./map/BinMapPanel";
 import { HouseholdMapPanel } from "./map/HouseholdMapPanel";
 import VehicleMapPanel from "./map/VehicleMapPanel";
+import { WardMapPanel } from "./map/WardMapPanel";
+import { useWardGeofences } from "./map/WardGeofenceLayer";
 import { MapTabs } from "./map/MapTabs";
 import { MAP_TABS, type MapTabKey } from "./map/mapUtils";
 import { dashboardSummaryApi, wasteTypeApi } from "@/helpers/admin";
@@ -1340,6 +1344,7 @@ export function HomeDashboard() {
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
   const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
+  const [showWardGeofences, setShowWardGeofences] = useState(false);
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
 
   const params = useMemo(() => {
@@ -1352,6 +1357,8 @@ export function HomeDashboard() {
     if (filterDate) next.date = filterDate;
     return next;
   }, [geo.stateId, geo.districtId, geo.areaTypeId, geo.hierarchyLevel, geo.hierarchyId, wardId, filterDate]);
+
+  const { wards: wardGeofences, loading: wardsLoading } = useWardGeofences(params);
 
   useEffect(() => {
     if (wardScope.mode === "locked") {
@@ -1500,14 +1507,43 @@ export function HomeDashboard() {
             >
               <Maximize2 className="h-3.5 w-3.5" />
             </button>
+            {/* Meaningless on the dedicated Wards tab — that tab always shows
+                every loaded ward, so the toggle is hidden there instead of
+                doing nothing. */}
+            {activeMapTab !== "wards" && (
+              <button
+                type="button"
+                onClick={() => setShowWardGeofences(!showWardGeofences)}
+                className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
+                  showWardGeofences ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : ""
+                }`}
+                aria-label={showWardGeofences ? "Hide ward geofences" : "Show ward geofences"}
+                title={showWardGeofences ? "Hide ward geofences" : "Show ward geofences"}
+              >
+                {showWardGeofences ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
-        {activeMapTab === "vehicle" && <VehicleMapPanel params={params} />}
-        {activeMapTab === "bins" && <BinMapPanel params={params} />}
-        {activeMapTab === "households" && <HouseholdMapPanel params={params} />}
+      <div className="flex-1 min-h-0 relative">
+        {activeMapTab === "vehicle" && (
+          <VehicleMapPanel params={params} showWardGeofences={showWardGeofences} wardGeofences={wardGeofences} />
+        )}
+        {activeMapTab === "bins" && (
+          <BinMapPanel params={params} showWardGeofences={showWardGeofences} wardGeofences={wardGeofences} />
+        )}
+        {activeMapTab === "households" && (
+          <HouseholdMapPanel params={params} showWardGeofences={showWardGeofences} wardGeofences={wardGeofences} />
+        )}
+        {activeMapTab === "wards" && (
+          <WardMapPanel wards={wardGeofences} loading={wardsLoading} />
+        )}
       </div>
     </DataCard>
   );
