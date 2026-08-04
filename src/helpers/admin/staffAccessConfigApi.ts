@@ -113,6 +113,7 @@ const APP_SIDEBAR_PERMISSION_CATALOG: Array<{ module: string; screens: string[] 
       "daily-trip-household-collections",
       "bin-collection-events",
       "vehicle-breakdowns",
+      "retrip-requests",
       "daily-trip-logs",
       "wastecollections",
       "daily-waste-comparisons",

@@ -108,6 +108,12 @@ export type DailyTripAssignmentRecord = {
   approval_status?: string;
   actual_start_time?: string | null;
   actual_end_time?: string | null;
+  // Duration actual_start_at -> actual_end_at (or -> now while In Progress),
+  // whole seconds. Null until the trip has been started.
+  total_trip_time_seconds?: number | null;
+  // This assignment's 1-based position among today's assignments for the
+  // same trip plan: 1 normally, 2+ for a Re-Trip continuation.
+  trip_count?: number;
   remarks?: string | null;
   [key: string]: unknown;
 };

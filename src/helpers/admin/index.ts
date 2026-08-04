@@ -121,6 +121,7 @@ export const dailyTripCollectionPointApi = adminApi.dailyTripCollectionPoint;
 export const dailyTripHouseholdCollectionApi = adminApi.dailyTripHouseholdCollection;
 export const binCollectionEventApi = adminApi.binCollectionEvent;
 export const vehicleBreakdownApi = adminApi.vehicleBreakdown;
+export const retripRequestApi = adminApi.tripRetripRequest;
 export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 
 /* =========================

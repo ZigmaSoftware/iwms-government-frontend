@@ -151,6 +151,16 @@ const formatTime12Hour = (time?: string): string => {
   return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
 };
 
+// `total_trip_time_seconds` is null until the trip has been started (see
+// DailyTripAssignment.total_trip_time on the backend).
+const formatDuration = (totalSeconds?: number | null): string => {
+  if (totalSeconds == null || !Number.isFinite(totalSeconds)) return "—";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+};
+
 // Bin-collection stops and household stops are tracked in separate arrays, so
 // the visible "point count" must switch on the trip's actual collection type
 // rather than always reading collection_points (which is empty/irrelevant for
@@ -436,6 +446,8 @@ export default function DailyTripAssignmentList() {
         "Trip Date": row.trip_date,
         "Start Time": formatTime12Hour(row.scheduled_time),
         Status: row.status ?? "-",
+        "Trip Time": formatDuration(row.total_trip_time_seconds),
+        "Trip #": row.trip_count ?? 1,
       }));
       exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
     } catch (err) {
@@ -532,6 +544,8 @@ export default function DailyTripAssignmentList() {
             ["Scheduled Time", formatTime12Hour(row.scheduled_time)],
             ["Actual Start", row.actual_start_time],
             ["Actual End", row.actual_end_time],
+            ["Trip Time", formatDuration(row.total_trip_time_seconds)],
+            ["Trip #", row.trip_count ?? 1],
             ["Status", row.status],
             ["Approval", row.approval_status],
             ["Remarks", row.remarks],
@@ -937,6 +951,18 @@ export default function DailyTripAssignmentList() {
           body={statusTemplate}
           sortable={SORTABLE_FIELDS.has("status")}
           style={{ minWidth: 160 }}
+        />
+        <Column
+          field="_trip_time"
+          header="Trip Time"
+          body={(row: DailyTripAssignmentRecord) => formatDuration(row.total_trip_time_seconds)}
+          style={{ minWidth: 100 }}
+        />
+        <Column
+          field="trip_count"
+          header="Trip #"
+          body={(row: DailyTripAssignmentRecord) => row.trip_count ?? 1}
+          style={{ width: 80 }}
         />
         <Column
           header="Breakdown"
