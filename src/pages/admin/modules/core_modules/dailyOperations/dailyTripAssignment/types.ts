@@ -34,6 +34,20 @@ export type BreakdownInfo = {
   replacement_operator?: string | null;
 };
 
+// The most recent TripRetripRequest for this assignment (there's usually at
+// most one, but a trip can be requested/rejected more than once). Unrelated
+// to BreakdownInfo — a breakdown swaps the vehicle/crew mid-trip, a Re-Trip
+// closes the trip early and carries leftover stops to a continuation.
+export type RetripInfo = {
+  unique_id?: string;
+  status?: "Pending" | "Approved" | "Rejected" | string;
+  reason?: string | null;
+  review_remarks?: string | null;
+  new_assignment_id?: string | null;
+  pending_bin_count?: number;
+  pending_household_count?: number;
+};
+
 export type DailyTripCollectionPointInline = {
   unique_id?: string;
   collection_point_id?: string;
@@ -48,6 +62,10 @@ export type DailyTripCollectionPointInline = {
   collected_weight_kg?: string | number | null;
   status?: string;
   status_reason?: string | null;
+  // Set once this stop is carried over to a Re-Trip continuation — the
+  // continuation's DailyTripAssignment.unique_id. `status` stays whatever it
+  // was (usually Pending); this is purely a "where did it go" pointer.
+  carried_to_assignment?: string | null;
 };
 
 export type DailyTripHouseholdCollectionInline = {
@@ -65,6 +83,10 @@ export type DailyTripHouseholdCollectionInline = {
   sanitary_waste?: number | null;
   status?: string;
   status_reason?: string | null;
+  // Set once this stop is carried over to a Re-Trip continuation — the
+  // continuation's DailyTripAssignment.unique_id. `status` stays whatever it
+  // was (usually Pending); this is purely a "where did it go" pointer.
+  carried_to_assignment?: string | null;
 };
 
 export type DailyTripAssignmentRecord = {
@@ -77,6 +99,7 @@ export type DailyTripAssignmentRecord = {
   collection_points?: DailyTripCollectionPointInline[];
   household_collection_points?: DailyTripHouseholdCollectionInline[];
   breakdown_info?: BreakdownInfo | null;
+  retrip_info?: RetripInfo | null;
   alt_staff_template?: { unique_id?: string; display_code?: string } | null;
   trip_plan?: {
     unique_id?: string;
