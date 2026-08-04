@@ -69,6 +69,7 @@ const {
   encStaffAudit,
   encTripPlans,
   encVehicleBreakdown,
+  encTripRetripRequest,
   encCommonMasters,
   encContinents,
   encCountries,
@@ -613,6 +614,12 @@ const scheduleOperationsItems: NavItem[] = [
         path: `/${encDailyOperations}/${encVehicleBreakdown}`,
         module: "schedule-operations",
         screen: "vehicle-breakdowns",
+      },
+      {
+        nameKey: "admin.nav.trip_retrip_request",
+        path: `/${encDailyOperations}/${encTripRetripRequest}`,
+        module: "schedule-operations",
+        screen: "retrip-requests",
       },
       {
         nameKey: "admin.nav.daily_trip_log",

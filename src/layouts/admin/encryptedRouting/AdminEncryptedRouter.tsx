@@ -121,6 +121,7 @@ import BinCollectionEventList from "@/pages/admin/modules/core_modules/dailyOper
 import BinCollectionEventForm from "@/pages/admin/modules/core_modules/dailyOperations/binCollectionEvent/binCollectionEventForm";
 import VehicleBreakdownList from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownList";
 import VehicleBreakdownForm from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/vehicleBreakdownForm";
+import TripRetripRequestList from "@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList";
 import SchedulerConfigPage from "@/pages/admin/modules/core_modules/dailyOperations/schedulerConfig/SchedulerConfigPage";
 import DailyWasteComparisonList from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList";
 import StaffTemplateAuditList from "@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList";
@@ -223,6 +224,7 @@ const ROUTES: RouteMap = {
     "daily-trip-tracking": { component: DailyTripTracking },
     "bin-collection-event": { list: BinCollectionEventList, form: BinCollectionEventForm },
     "vehicle-breakdowns": { list: VehicleBreakdownList, form: VehicleBreakdownForm },
+    "retrip-requests": { component: TripRetripRequestList },
     "scheduler-config": { component: SchedulerConfigPage },
     "daily-trip-log": { list: DailyTripLogList },
     "waste-collected-data": { list: WasteCollectedDataList, form: WasteCollectedForm },

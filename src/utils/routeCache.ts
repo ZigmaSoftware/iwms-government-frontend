@@ -83,6 +83,7 @@ export type EncryptedRoutes = {
   encDailyTripLog: string;
   encBinCollectionEvent: string;
   encVehicleBreakdown: string;
+  encTripRetripRequest: string;
   encSchedulerConfig: string;
   encDailyWasteComparison: string;
   encBinLoadLog: string;
@@ -221,6 +222,7 @@ const plainRoutes: EncryptedRoutes = {
   encDailyTripLog: "daily-trip-log",
   encBinCollectionEvent: "bin-collection-event",
   encVehicleBreakdown: "vehicle-breakdowns",
+  encTripRetripRequest: "retrip-requests",
   encSchedulerConfig: "scheduler-config",
   encDailyWasteComparison: "daily-waste-comparisons",
   encBinLoadLog: "bin-load-log",
