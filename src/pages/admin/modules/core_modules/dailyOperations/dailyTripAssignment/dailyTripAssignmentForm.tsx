@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Dialog } from "primereact/dialog";
+import { InputTextarea } from "primereact/inputtextarea";
+import { Button } from "primereact/button";
 import { MultiSelect } from "@/components/form/MultiSelect";
+import { api } from "@/api";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -116,6 +120,88 @@ const binLabel = (point: DailyTripCollectionPointInline): string =>
 const wardLabel = (wards?: { ward_name?: string }[]): string =>
   wards?.map((ward) => ward.ward_name).filter(Boolean).join(", ") || "—";
 
+// A stop is still "in play" — neither collected nor written off — if its
+// status isn't Collected/Missed/Not Available. Mirrors
+// DailyTripAssignment.pending_bin_stops()/pending_household_stops() on the
+// backend so the checkbox picker (bins) and the auto-detected count
+// (households) agree with what the server will actually carry over.
+const isStopPending = (status?: string): boolean =>
+  !["Collected", "Missed", "Not Available"].includes(String(status ?? ""));
+
+function ProceedNextTripModal({
+  isHousehold,
+  carryCount,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isHousehold: boolean;
+  carryCount: number;
+  onClose: () => void;
+  onConfirm: (remarks: string) => void;
+  isLoading: boolean;
+}) {
+  const [remarks, setRemarks] = useState("");
+  const canSubmit = remarks.trim().length > 0;
+
+  const footer = (
+    <div className="flex justify-end gap-2 pt-2">
+      <Button label="Cancel" className="p-button-text p-button-secondary" onClick={onClose} disabled={isLoading} />
+      <Button
+        label="Done"
+        icon="pi pi-check"
+        className="p-button-success"
+        loading={isLoading}
+        disabled={!canSubmit}
+        onClick={() => onConfirm(remarks.trim())}
+      />
+    </div>
+  );
+
+  return (
+    <Dialog
+      visible
+      onHide={onClose}
+      header="Proceed with Next Trip"
+      footer={footer}
+      style={{ width: "480px" }}
+      modal
+      draggable={false}
+      resizable={false}
+    >
+      <div className="flex flex-col gap-4 pt-2">
+        <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-800">
+          {isHousehold
+            ? `All ${carryCount} remaining household(s) will move to a new trip for the same staff, vehicle, and date. This trip will be marked ended.`
+            : `${carryCount} selected collection point(s) will move to a new trip for the same staff, vehicle, and date. This trip will be marked ended.`}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-1.5">
+            Remarks <span className="text-red-500">*</span>
+          </p>
+          <InputTextarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={3}
+            className="w-full text-sm"
+            placeholder="Why is this trip proceeding to a next trip? (required)"
+            autoResize
+          />
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+const CARRIED_OVER_STYLE = "bg-blue-100 text-blue-800";
+
+const CarriedOverBadge = ({ assignmentId }: { assignmentId: string }) => (
+  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${CARRIED_OVER_STYLE}`}>
+    <i className="pi pi-arrow-right" style={{ fontSize: "0.65rem" }} />
+    Assigned to Next Trip · {assignmentId}
+  </span>
+);
+
 export default function DailyTripAssignmentForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -133,6 +219,10 @@ export default function DailyTripAssignmentForm() {
   const [scheduledTime, setScheduledTime] = useState("");
   const [status, setStatus] = useState("Scheduled");
   const [approvalStatus, setApprovalStatus] = useState("PENDING");
+  // Read-only — recorded by the driver app's start/end trip actions
+  // (DailyTripAssignment.mark_started()/mark_ended()), never edited here.
+  const [actualStartTime, setActualStartTime] = useState("");
+  const [actualEndTime, setActualEndTime] = useState("");
   const [remarks, setRemarks] = useState("");
   const [wasteTypeBreakdown, setWasteTypeBreakdown] = useState<
     { waste_type_name?: string; collected_weight_kg?: number | string }[]
@@ -183,6 +273,11 @@ export default function DailyTripAssignmentForm() {
   const [cpStops, setCpStops] = useState<DailyTripCollectionPointInline[]>([]);
   const [householdStops, setHouseholdStops] = useState<DailyTripHouseholdCollectionInline[]>([]);
   const [previewCustomers, setPreviewCustomers] = useState<ApiRecord[]>([]);
+
+  // "Proceed with Next Trip" — carry uncollected stops to a continuation trip.
+  const [selectedCpIds, setSelectedCpIds] = useState<Set<string>>(new Set());
+  const [proceedMode, setProceedMode] = useState<"bin" | "household" | null>(null);
+  const [isProceeding, setIsProceeding] = useState(false);
 
   // Cheap, small master lists (5–10 rows each) needed immediately to populate
   // the geo cascade selects and the waste type multiselect. wasteTypeApi has
@@ -302,6 +397,8 @@ export default function DailyTripAssignmentForm() {
       setScheduledTime(String(record.scheduled_time ?? "").slice(0, 5));
       setStatus(String(record.status ?? "Scheduled"));
       setApprovalStatus(String(record.approval_status ?? "PENDING"));
+      setActualStartTime(record.actual_start_time ? String(record.actual_start_time).slice(0, 5) : "");
+      setActualEndTime(record.actual_end_time ? String(record.actual_end_time).slice(0, 5) : "");
       setRemarks(String(record.remarks ?? ""));
 
       setStateId(String(record.state?.unique_id ?? ""));
@@ -693,6 +790,79 @@ export default function DailyTripAssignmentForm() {
       (item.unique_id ?? item.customer_id) === key ? { ...item, ...patch } : item
     ));
 
+  // ── Proceed with Next Trip ───────────────────────────────────────────────
+  // Bins: supervisor ticks which uncollected stops carry over.
+  // Households: every uncollected stop auto-carries — no picker needed.
+  const pendingCpStops = cpStops.filter((point) => isStopPending(point.status));
+  const remainingHouseholdCount = householdStops.filter((stop) => isStopPending(stop.status)).length;
+  const canProceedTrip = isEdit && status === "In Progress";
+
+  const toggleCpSelected = (key: string | undefined) => {
+    if (!key) return;
+    setSelectedCpIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const refreshStopsAfterProceed = async () => {
+    if (!id) return;
+    const record: ApiRecord = await dailyTripAssignmentApi.read(id);
+    setStatus(String(record.status ?? status));
+    setActualStartTime(record.actual_start_time ? String(record.actual_start_time).slice(0, 5) : "");
+    setActualEndTime(record.actual_end_time ? String(record.actual_end_time).slice(0, 5) : "");
+    setCpStops(
+      Array.isArray(record.collection_points)
+        ? record.collection_points.map((point: DailyTripCollectionPointInline) => ({
+            ...point,
+            collected_weight_kg: point.collected_weight_kg ?? "",
+            collected_at: point.collected_at ? String(point.collected_at).slice(0, 16) : "",
+          }))
+        : [],
+    );
+    setHouseholdStops(
+      Array.isArray(record.household_collection_points)
+        ? record.household_collection_points.map((stop: DailyTripHouseholdCollectionInline) => ({
+            ...stop,
+            collected_weight_kg: stop.collected_weight_kg ?? "",
+          }))
+        : [],
+    );
+  };
+
+  const handleProceedConfirm = async (remarks: string) => {
+    if (!id || !proceedMode) return;
+    setIsProceeding(true);
+    try {
+      const isHousehold = proceedMode === "household";
+      const response = await api.post(
+        `/schedule-operations/daily-trip-assignments/${id}/proceed-next-trip/`,
+        {
+          ...(isHousehold ? {} : { collection_point_ids: Array.from(selectedCpIds) }),
+          remarks,
+        },
+      );
+      setProceedMode(null);
+      setSelectedCpIds(new Set());
+      await refreshStopsAfterProceed();
+      Swal.fire({
+        icon: "success",
+        title: "Trip Proceeded",
+        text: `A new trip (${response.data?.new_assignment_id ?? ""}) has been created for the remaining stops.`,
+        timer: 2800,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      const data = err?.response?.data;
+      const message = data?.detail ?? data?.remarks ?? data?.collection_point_ids ?? "Unable to proceed with next trip.";
+      Swal.fire("Error", String(Array.isArray(message) ? message[0] : message), "error");
+    } finally {
+      setIsProceeding(false);
+    }
+  };
+
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const validation = dailyTripAssignmentSchema.safeParse({
@@ -1002,6 +1172,20 @@ export default function DailyTripAssignmentForm() {
               </div>
             )}
 
+            {isEdit && (
+              <div>
+                <Label>Actual Start Time</Label>
+                <Input value={actualStartTime || "—"} disabled className="bg-gray-50" />
+              </div>
+            )}
+
+            {isEdit && (
+              <div>
+                <Label>Actual End Time</Label>
+                <Input value={actualEndTime || "—"} disabled className="bg-gray-50" />
+              </div>
+            )}
+
             <div className="md:col-span-2">
               <Label>Remarks</Label>
               <textarea
@@ -1045,11 +1229,23 @@ export default function DailyTripAssignmentForm() {
                     : "Collection points will be generated from the selected TripPlan after saving."}
                 </p>
               </div>
-              {(cpStops.length > 0 || (!isEdit && tripPlanId)) && (
-                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
-                  {cpStops.length > 0 ? `${cpStops.length} points` : `${previewStops.length} points (preview)`}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {(cpStops.length > 0 || (!isEdit && tripPlanId)) && (
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+                    {cpStops.length > 0 ? `${cpStops.length} points` : `${previewStops.length} points (preview)`}
+                  </span>
+                )}
+                {canProceedTrip && pendingCpStops.length > 0 && (
+                  <Button
+                    type="button"
+                    label={`Proceed with Next Trip${selectedCpIds.size > 0 ? ` (${selectedCpIds.size})` : ""}`}
+                    icon="pi pi-arrow-right"
+                    className="p-button-sm p-button-warning"
+                    disabled={selectedCpIds.size === 0}
+                    onClick={() => setProceedMode("bin")}
+                  />
+                )}
+              </div>
             </div>
 
             {cpStops.length === 0 ? (
@@ -1105,6 +1301,7 @@ export default function DailyTripAssignmentForm() {
                       <th className="px-4 py-3">Weight (kg)</th>
                       <th className="px-4 py-3">Collected</th>
                       <th className="px-4 py-3">Status</th>
+                      {canProceedTrip && <th className="px-4 py-3 text-center">Carry Over</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -1155,7 +1352,26 @@ export default function DailyTripAssignmentForm() {
                               <option value="Skipped">Skipped</option>
                               <option value="Missed">Missed</option>
                             </select>
+                            {point.carried_to_assignment && (
+                              <div className="mt-1.5">
+                                <CarriedOverBadge assignmentId={point.carried_to_assignment} />
+                              </div>
+                            )}
                           </td>
+                          {canProceedTrip && (
+                            <td className="px-4 py-3 text-center">
+                              {isStopPending(point.status) ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedCpIds.has(String(ptKey ?? ""))}
+                                  onChange={() => toggleCpSelected(ptKey)}
+                                  className="h-4 w-4 rounded border-gray-300"
+                                />
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -1178,11 +1394,22 @@ export default function DailyTripAssignmentForm() {
                       : "Household stops will be generated for customers under this Trip Plan's local body after saving."}
                   </p>
                 </div>
-                {householdStops.length > 0 && (
-                  <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
-                    {householdStops.length} stops
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {householdStops.length > 0 && (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+                      {householdStops.length} stops
+                    </span>
+                  )}
+                  {canProceedTrip && remainingHouseholdCount > 0 && (
+                    <Button
+                      type="button"
+                      label={`Proceed with Next Trip (${remainingHouseholdCount} remaining)`}
+                      icon="pi pi-arrow-right"
+                      className="p-button-sm p-button-warning"
+                      onClick={() => setProceedMode("household")}
+                    />
+                  )}
+                </div>
               </div>
 
               {householdStops.length === 0 && !isEdit && previewHouseholdStops.length > 0 ? (
@@ -1266,6 +1493,11 @@ export default function DailyTripAssignmentForm() {
                                 <option value="Not Available">Not Available</option>
                                 <option value="Collect Later">Collect Later</option>
                               </select>
+                              {stop.carried_to_assignment && (
+                                <div className="mt-1.5">
+                                  <CarriedOverBadge assignmentId={stop.carried_to_assignment} />
+                                </div>
+                              )}
                             </td>
                             <td className="px-4 py-3">
                               <Input
@@ -1304,6 +1536,16 @@ export default function DailyTripAssignmentForm() {
           </div>
         </form>
       </ComponentCard>
+
+      {proceedMode && (
+        <ProceedNextTripModal
+          isHousehold={proceedMode === "household"}
+          carryCount={proceedMode === "household" ? remainingHouseholdCount : selectedCpIds.size}
+          onClose={() => setProceedMode(null)}
+          onConfirm={handleProceedConfirm}
+          isLoading={isProceeding}
+        />
+      )}
     </div>
   );
 }

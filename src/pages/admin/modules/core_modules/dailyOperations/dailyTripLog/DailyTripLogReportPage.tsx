@@ -10,13 +10,22 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "primereact/button";
+import { Dialog } from "primereact/dialog";
+import { InputTextarea } from "primereact/inputtextarea";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 
+import { api } from "@/api";
 import { dailyTripLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { formatCollectionTime } from "./collectionTime";
+
+// Same "still in play" definition as DailyTripAssignment.pending_bin_stops()/
+// pending_household_stops() on the backend — everything except Collected and
+// Missed/Not Available is eligible to carry over to a next trip.
+const isStopPending = (status?: string): boolean =>
+  !["Collected", "Missed", "Not Available"].includes(String(status ?? ""));
 
 const extractError = (error: any): string | null => {
   const data = error?.response?.data;
@@ -29,6 +38,19 @@ const extractError = (error: any): string | null => {
     if (typeof first === "string") return first;
   }
   return null;
+};
+
+// actual_start_time/actual_end_time are plain "HH:MM:SS" TimeField strings
+// (no date component), so formatCollectionTime (which parses a full
+// datetime) doesn't apply here.
+const formatTime12Hour = (value?: string | null): string => {
+  if (!value) return "-";
+  const [hourStr, minuteStr = "00"] = value.split(":");
+  const hour = Number(hourStr);
+  if (!Number.isFinite(hour)) return value;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
 };
 
 const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
@@ -245,6 +267,92 @@ const StopStatusBadge = ({ value }: { value?: string }) => (
   </span>
 );
 
+// A stop can carry a plain status (e.g. still "Pending") AND be moved to a
+// continuation trip at the same time — the source stop is deliberately left
+// untouched so trip completion math stays honest (see
+// retrip_service.approve_retrip). This badge is what tells the viewer where
+// it actually went.
+const CarriedToNextTripBadge = ({
+  assignmentId,
+  remarks,
+}: {
+  assignmentId: string;
+  remarks?: string | null;
+}) => (
+  <div className="flex flex-col gap-1">
+    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-800 w-fit">
+      <i className="pi pi-arrow-right" style={{ fontSize: "0.6rem" }} />
+      {assignmentId}
+    </span>
+    {remarks && <span className="text-[11px] italic text-gray-400">"{remarks}"</span>}
+  </div>
+);
+
+function ProceedNextTripModal({
+  isHousehold,
+  carryCount,
+  onClose,
+  onConfirm,
+  isLoading,
+}: {
+  isHousehold: boolean;
+  carryCount: number;
+  onClose: () => void;
+  onConfirm: (remarks: string) => void;
+  isLoading: boolean;
+}) {
+  const [remarks, setRemarks] = useState("");
+  const canSubmit = remarks.trim().length > 0;
+
+  const footer = (
+    <div className="flex justify-end gap-2 pt-2">
+      <Button label="Cancel" className="p-button-text p-button-secondary" onClick={onClose} disabled={isLoading} />
+      <Button
+        label="Done"
+        icon="pi pi-check"
+        className="p-button-success"
+        loading={isLoading}
+        disabled={!canSubmit}
+        onClick={() => onConfirm(remarks.trim())}
+      />
+    </div>
+  );
+
+  return (
+    <Dialog
+      visible
+      onHide={onClose}
+      header="Proceed with Next Trip"
+      footer={footer}
+      style={{ width: "480px" }}
+      modal
+      draggable={false}
+      resizable={false}
+    >
+      <div className="flex flex-col gap-4 pt-2">
+        <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-sm text-blue-800">
+          {isHousehold
+            ? `All ${carryCount} remaining household(s) will move to a new trip for the same staff, vehicle, and date. This trip will be marked ended.`
+            : `${carryCount} selected collection point(s) will move to a new trip for the same staff, vehicle, and date. This trip will be marked ended.`}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-gray-700 mb-1.5">
+            Remarks <span className="text-red-500">*</span>
+          </p>
+          <InputTextarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={3}
+            className="w-full text-sm"
+            placeholder="Why is this trip proceeding to a next trip? (required)"
+            autoResize
+          />
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /* ─────────────────────────────────────────────────────
    Daily Trip Log — detailed report page (single trip)
 ───────────────────────────────────────────────────── */
@@ -259,23 +367,36 @@ export default function DailyTripLogReportPage() {
   const [row, setRow] = useState<DailyTripLogRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // "Proceed with Next Trip" — carry uncollected stops to a continuation trip,
+  // same feature as the Daily Trip Plan form, surfaced here too so a
+  // supervisor reviewing this report doesn't have to navigate away to act on it.
+  const [selectedCpIds, setSelectedCpIds] = useState<Set<string>>(new Set());
+  const [proceedMode, setProceedMode] = useState<"bin" | "household" | null>(null);
+  const [isProceeding, setIsProceeding] = useState(false);
+
+  const loadLog = (mountedRef?: { current: boolean }) => {
     if (!id) return;
-    let mounted = true;
+    setLoading(true);
     (dailyTripLogApi.read(id) as Promise<DailyTripLogRecord>)
       .then((data) => {
-        if (mounted) setRow(data);
+        if (!mountedRef || mountedRef.current) setRow(data);
       })
       .catch((err) => {
-        if (mounted)
+        if (!mountedRef || mountedRef.current)
           Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
       })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (!mountedRef || mountedRef.current) setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    const mountedRef = { current: true };
+    loadLog(mountedRef);
     return () => {
-      mounted = false;
+      mountedRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, t]);
 
   if (loading) {
@@ -307,6 +428,61 @@ export default function DailyTripLogReportPage() {
   const householdImages = mapImagesToCollections(hhCollections, row.capture_images);
   const collectionPointImages = mapImagesToCollections(cps, row.capture_images);
 
+  // Stops moved to a Re-Trip continuation (truck went for weighment before
+  // finishing the route) — surfaced so "Pending" here doesn't read as
+  // "nothing happened". See retrip_service.approve_retrip on the backend.
+  const carriedStops = [...cps, ...hhCollections].filter((stop) => stop.carried_to_assignment);
+  const carriedToAssignmentId = carriedStops[0]?.carried_to_assignment ?? null;
+  const carriedRemarks = carriedStops[0]?.carried_to_assignment_remarks ?? null;
+
+  // Proceed with Next Trip — only meaningful while the trip is still open.
+  const assignmentId = row.trip_assignment_id ?? row.trip_assignment?.unique_id;
+  const assignmentStatus = (row.trip_assignment as any)?.status;
+  const canProceedTrip = assignmentStatus === "In Progress" && Boolean(assignmentId);
+  const pendingCps = cps.filter((cp) => isStopPending(cp.status));
+  const remainingHouseholdCount = hhCollections.filter((hh) => isStopPending(hh.status)).length;
+
+  const toggleCpSelected = (key?: string) => {
+    if (!key) return;
+    setSelectedCpIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const handleProceedConfirm = async (remarks: string) => {
+    if (!assignmentId || !proceedMode) return;
+    setIsProceeding(true);
+    try {
+      const isHouseholdMode = proceedMode === "household";
+      const response = await api.post(
+        `/schedule-operations/daily-trip-assignments/${assignmentId}/proceed-next-trip/`,
+        {
+          ...(isHouseholdMode ? {} : { collection_point_ids: Array.from(selectedCpIds) }),
+          remarks,
+        },
+      );
+      setProceedMode(null);
+      setSelectedCpIds(new Set());
+      loadLog();
+      Swal.fire({
+        icon: "success",
+        title: "Trip Proceeded",
+        text: `A new trip (${response.data?.new_assignment_id ?? ""}) has been created for the remaining stops.`,
+        timer: 2800,
+        showConfirmButton: false,
+      });
+    } catch (err: any) {
+      const data = err?.response?.data;
+      const message = data?.detail ?? data?.remarks ?? data?.collection_point_ids ?? "Unable to proceed with next trip.";
+      Swal.fire(t("common.error"), String(Array.isArray(message) ? message[0] : message), "error");
+    } finally {
+      setIsProceeding(false);
+    }
+  };
+
   return (
     <div className="p-3">
       {/* Header */}
@@ -331,8 +507,8 @@ export default function DailyTripLogReportPage() {
             <InfoRow label="Collection Status" value={row.collection_status} />
             <InfoRow label="Waste Type" value={wasteTypeName} />
             <InfoRow label="Vehicle" value={(row.vehicle as any)?.vehicle_no} />
-            <InfoRow label="Start Time" value={row.actual_start_time} />
-            <InfoRow label="End Time" value={row.actual_end_time} />
+            <InfoRow label="Start Time" value={formatTime12Hour(row.actual_start_time)} />
+            <InfoRow label="End Time" value={formatTime12Hour(row.actual_end_time)} />
           </div>
         </div>
 
@@ -377,6 +553,20 @@ export default function DailyTripLogReportPage() {
         </div>
       </div>
 
+      {carriedStops.length > 0 && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 mb-6 text-sm text-blue-800">
+          <div>
+            <i className="pi pi-arrow-right mr-1.5" style={{ fontSize: "0.8rem" }} />
+            {carriedStops.length} {isHousehold ? "household" : "collection point"}
+            {carriedStops.length === 1 ? "" : "s"} on this trip {carriedStops.length === 1 ? "was" : "were"} moved to
+            trip <span className="font-semibold">{carriedToAssignmentId}</span>.
+          </div>
+          {carriedRemarks && (
+            <p className="mt-1 text-xs italic text-blue-700">Remarks: "{carriedRemarks}"</p>
+          )}
+        </div>
+      )}
+
       {/* Totals */}
       <div className="rounded-xl border p-4 mb-6 flex flex-wrap items-center gap-6">
         <div>
@@ -394,12 +584,23 @@ export default function DailyTripLogReportPage() {
       {/* Collection Points OR Household Collections — never both */}
       {isHousehold ? (
         <div className="mb-6">
-          <SectionLabel>
-            Household Collections
-            <span className="ml-1 normal-case font-normal text-gray-400">
-              — {hhCollections.filter((hh) => hh.is_collected).length} / {hhCollections.length} collected
-            </span>
-          </SectionLabel>
+          <div className="flex items-center justify-between">
+            <SectionLabel>
+              Household Collections
+              <span className="ml-1 normal-case font-normal text-gray-400">
+                — {hhCollections.filter((hh) => hh.is_collected).length} / {hhCollections.length} collected
+              </span>
+            </SectionLabel>
+            {canProceedTrip && remainingHouseholdCount > 0 && (
+              <Button
+                type="button"
+                label={`Proceed with Next Trip (${remainingHouseholdCount} remaining)`}
+                icon="pi pi-arrow-right"
+                className="p-button-sm p-button-warning"
+                onClick={() => setProceedMode("household")}
+              />
+            )}
+          </div>
           <DataTable
             value={hhCollections}
             dataKey="unique_id"
@@ -434,21 +635,43 @@ export default function DailyTripLogReportPage() {
             />
             <Column
               header="Status"
-              style={{ width: 130 }}
-              body={(hh: any) => <StopStatusBadge value={hh.status} />}
+              style={{ width: 160 }}
+              body={(hh: any) => (
+                <div className="flex flex-col gap-1 items-start">
+                  <StopStatusBadge value={hh.status} />
+                  {hh.carried_to_assignment && (
+                    <CarriedToNextTripBadge
+                      assignmentId={hh.carried_to_assignment}
+                      remarks={hh.carried_to_assignment_remarks}
+                    />
+                  )}
+                </div>
+              )}
             />
           </DataTable>
         </div>
       ) : (
         <div className="mb-6">
-          <SectionLabel>
-            Collection Points
-            {cps.length > 0 && (
-              <span className="ml-1 normal-case font-normal text-gray-400">
-                — {cps.filter((cp) => cp.is_collected).length} / {cps.length} collected
-              </span>
+          <div className="flex items-center justify-between">
+            <SectionLabel>
+              Collection Points
+              {cps.length > 0 && (
+                <span className="ml-1 normal-case font-normal text-gray-400">
+                  — {cps.filter((cp) => cp.is_collected).length} / {cps.length} collected
+                </span>
+              )}
+            </SectionLabel>
+            {canProceedTrip && pendingCps.length > 0 && (
+              <Button
+                type="button"
+                label={`Proceed with Next Trip${selectedCpIds.size > 0 ? ` (${selectedCpIds.size})` : ""}`}
+                icon="pi pi-arrow-right"
+                className="p-button-sm p-button-warning"
+                disabled={selectedCpIds.size === 0}
+                onClick={() => setProceedMode("bin")}
+              />
             )}
-          </SectionLabel>
+          </div>
           <DataTable
             value={cps}
             dataKey="unique_id"
@@ -481,9 +704,38 @@ export default function DailyTripLogReportPage() {
             />
             <Column
               header="Status"
-              style={{ width: 130 }}
-              body={(cp: any) => <StopStatusBadge value={cp.status} />}
+              style={{ width: 160 }}
+              body={(cp: any) => (
+                <div className="flex flex-col gap-1 items-start">
+                  <StopStatusBadge value={cp.status} />
+                  {cp.carried_to_assignment && (
+                    <CarriedToNextTripBadge
+                      assignmentId={cp.carried_to_assignment}
+                      remarks={cp.carried_to_assignment_remarks}
+                    />
+                  )}
+                </div>
+              )}
             />
+            {canProceedTrip && (
+              <Column
+                header="Carry Over"
+                style={{ width: 100 }}
+                align="center"
+                body={(cp: any) =>
+                  isStopPending(cp.status) ? (
+                    <input
+                      type="checkbox"
+                      checked={selectedCpIds.has(String(cp.trip_collection_point_id ?? ""))}
+                      onChange={() => toggleCpSelected(cp.trip_collection_point_id)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  ) : (
+                    <span className="text-gray-300">—</span>
+                  )
+                }
+              />
+            )}
           </DataTable>
         </div>
       )}
@@ -496,6 +748,16 @@ export default function DailyTripLogReportPage() {
           onClick={() => navigate(listPath)}
         />
       </div>
+
+      {proceedMode && (
+        <ProceedNextTripModal
+          isHousehold={proceedMode === "household"}
+          carryCount={proceedMode === "household" ? remainingHouseholdCount : selectedCpIds.size}
+          onClose={() => setProceedMode(null)}
+          onConfirm={handleProceedConfirm}
+          isLoading={isProceeding}
+        />
+      )}
     </div>
   );
 }
