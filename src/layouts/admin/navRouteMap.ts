@@ -102,6 +102,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDailyTripTracking,
     encBinCollectionEvent,
     encVehicleBreakdown,
+    encTripRetripRequest,
     encSchedulerConfig,
     encDailyTripLog,
     encDailyWasteComparison,
@@ -215,6 +216,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encDailyOperations}/${encBinCollectionEvent}`, nameKey: "admin.nav.secondary_bin_collection_event", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encDailyOperations}/${encWasteCollectedData}`, nameKey: "admin.nav.household_collection_event", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encDailyOperations}/${encVehicleBreakdown}`, nameKey: "admin.nav.vehicle_breakdown", parentNameKey: "admin.nav.schedule_operations" },
+    { path: `/${encDailyOperations}/${encTripRetripRequest}`, nameKey: "admin.nav.trip_retrip_request", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encDailyOperations}/${encSchedulerConfig}`, nameKey: "admin.nav.scheduler_config", parentNameKey: "admin.nav.schedule_operations" },
     { path: `/${encDailyOperations}/${encDailyTripLog}`, nameKey: "admin.nav.daily_trip_log", parentNameKey: "admin.nav.schedule_operations" },
 

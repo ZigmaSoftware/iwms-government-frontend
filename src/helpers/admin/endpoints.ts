@@ -66,6 +66,7 @@ export const adminEndpoints = {
   dailyTripHouseholdCollection: "schedule-operations/daily-trip-household-collections",
   binCollectionEvent: "schedule-operations/bin-collection-events",
   vehicleBreakdown: "schedule-operations/vehicle-breakdowns",
+  tripRetripRequest: "schedule-operations/retrip-requests",
   schedulerConfig: "schedule-operations/daily-trip-assignments/scheduler-config/",
   dailyWasteComparison: "schedule-masters/daily-waste-comparisons",
   monthlyWasteComparison: "schedule-masters/monthly-waste-comparison",

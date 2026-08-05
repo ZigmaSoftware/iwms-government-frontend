@@ -81,6 +81,19 @@ const extractError = (error: any): string | null => {
   return null;
 };
 
+// actual_start_time/actual_end_time are plain "HH:MM:SS" TimeField strings
+// (no date component), so formatCollectionTime (which parses a full
+// datetime) doesn't apply here.
+const formatTime12Hour = (value?: string | null): string => {
+  if (!value) return "-";
+  const [hourStr, minuteStr = "00"] = value.split(":");
+  const hour = Number(hourStr);
+  if (!Number.isFinite(hour)) return value;
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
+};
+
 const computeCollectedWeight = (collectionPoints?: DailyTripLogRecord["collection_points"]): number => {
   return (collectionPoints ?? []).reduce((sum, cp) => {
     if (cp?.collected_weight_kg === null || cp?.collected_weight_kg === undefined) {
@@ -284,8 +297,8 @@ function TripLogModal({
                 value={`${Number(row.household_collected_weight_kg).toFixed(2)} kg`}
               />
             )}
-            {row.actual_start_time && <InfoRow label="Start Time" value={row.actual_start_time} />}
-            {row.actual_end_time && <InfoRow label="End Time" value={row.actual_end_time} />}
+            {row.actual_start_time && <InfoRow label="Start Time" value={formatTime12Hour(row.actual_start_time)} />}
+            {row.actual_end_time && <InfoRow label="End Time" value={formatTime12Hour(row.actual_end_time)} />}
             {(row.vehicle as any)?.vehicle_no && (
               <InfoRow label="Vehicle" value={(row.vehicle as any).vehicle_no} />
             )}
@@ -387,31 +400,41 @@ function TripLogModal({
           ) : (
             <ul className="flex flex-col gap-2">
               {cps.map((cp) => (
-                <li
-                  key={cp.unique_id}
-                  className="flex items-center justify-between gap-2 text-sm"
-                >
-                  <div className="flex items-center gap-2">
-                    {cp.is_collected ? (
-                      <i className="pi pi-check-circle text-green-500 text-base" />
-                    ) : (
-                      <i className="pi pi-times-circle text-red-400 text-base" />
-                    )}
-                    <span className={cp.is_collected ? "text-gray-800" : "text-gray-400"}>
-                      {cp.sequence != null ? `${cp.sequence}. ` : ""}
-                      {cp.cp_name ?? cp.unique_id}
-                    </span>
-                    {!cp.is_collected && (
-                      <span className="text-xs text-red-400">(Not collected)</span>
-                    )}
+                <li key={cp.unique_id} className="flex flex-col gap-1 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {cp.is_collected ? (
+                        <i className="pi pi-check-circle text-green-500 text-base" />
+                      ) : (
+                        <i className="pi pi-times-circle text-red-400 text-base" />
+                      )}
+                      <span className={cp.is_collected ? "text-gray-800" : "text-gray-400"}>
+                        {cp.sequence != null ? `${cp.sequence}. ` : ""}
+                        {cp.cp_name ?? cp.unique_id}
+                      </span>
+                      {!cp.is_collected && (
+                        <span className="text-xs text-red-400">(Not collected)</span>
+                      )}
+                    </div>
+                    {cp.collected_weight_kg != null ? (
+                      <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
+                        {Number(cp.collected_weight_kg).toFixed(2)} kg
+                      </span>
+                    ) : cp.is_collected ? (
+                      <span className="text-xs text-gray-400 shrink-0">— kg</span>
+                    ) : null}
                   </div>
-                  {cp.collected_weight_kg != null ? (
-                    <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full shrink-0">
-                      {Number(cp.collected_weight_kg).toFixed(2)} kg
-                    </span>
-                  ) : cp.is_collected ? (
-                    <span className="text-xs text-gray-400 shrink-0">— kg</span>
-                  ) : null}
+                  {cp.carried_to_assignment && (
+                    <div className="ml-6 flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800">
+                        <i className="pi pi-arrow-right" style={{ fontSize: "0.6rem" }} />
+                        Assigned to Next Trip · {cp.carried_to_assignment}
+                      </span>
+                      {cp.carried_to_assignment_remarks && (
+                        <span className="italic text-gray-400">"{cp.carried_to_assignment_remarks}"</span>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -431,38 +454,48 @@ function TripLogModal({
               </SectionLabel>
               <ul className="flex flex-col gap-2">
                 {hhCollections.map((hh) => (
-                  <li
-                    key={hh.unique_id}
-                    className="flex items-center justify-between gap-2 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      {hh.is_collected ? (
-                        <i className="pi pi-check-circle text-green-500 text-base" />
-                      ) : (
-                        <i className="pi pi-times-circle text-red-400 text-base" />
-                      )}
-                      <span className={hh.is_collected ? "text-gray-800" : "text-gray-400"}>
-                        {hh.sequence != null ? `${hh.sequence}. ` : ""}
-                        {hh.customer_name ?? hh.customer_unique_id ?? hh.unique_id}
-                      </span>
-                      {!hh.is_collected && (
-                        <span className="text-xs text-red-400">(Not collected)</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {hh.collected_weight_kg != null ? (
-                        <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
-                          {Number(hh.collected_weight_kg).toFixed(2)} kg
+                  <li key={hh.unique_id} className="flex flex-col gap-1 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {hh.is_collected ? (
+                          <i className="pi pi-check-circle text-green-500 text-base" />
+                        ) : (
+                          <i className="pi pi-times-circle text-red-400 text-base" />
+                        )}
+                        <span className={hh.is_collected ? "text-gray-800" : "text-gray-400"}>
+                          {hh.sequence != null ? `${hh.sequence}. ` : ""}
+                          {hh.customer_name ?? hh.customer_unique_id ?? hh.unique_id}
                         </span>
-                      ) : hh.is_collected ? (
-                        <span className="text-xs text-gray-400">— kg</span>
-                      ) : null}
-                      {hh.collected_at && (
-                        <span className="text-xs text-gray-400">
-                          {formatCollectionTime(hh.collected_at)}
-                        </span>
-                      )}
+                        {!hh.is_collected && (
+                          <span className="text-xs text-red-400">(Not collected)</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {hh.collected_weight_kg != null ? (
+                          <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+                            {Number(hh.collected_weight_kg).toFixed(2)} kg
+                          </span>
+                        ) : hh.is_collected ? (
+                          <span className="text-xs text-gray-400">— kg</span>
+                        ) : null}
+                        {hh.collected_at && (
+                          <span className="text-xs text-gray-400">
+                            {formatCollectionTime(hh.collected_at)}
+                          </span>
+                        )}
+                      </div>
                     </div>
+                    {hh.carried_to_assignment && (
+                      <div className="ml-6 flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-800">
+                          <i className="pi pi-arrow-right" style={{ fontSize: "0.6rem" }} />
+                          Assigned to Next Trip · {hh.carried_to_assignment}
+                        </span>
+                        {hh.carried_to_assignment_remarks && (
+                          <span className="italic text-gray-400">"{hh.carried_to_assignment_remarks}"</span>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -717,6 +750,7 @@ export default function DailyTripLogList() {
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
     const isDraft = row.log_status === "Draft";
+    const isInProgress = (row.trip_assignment as any)?.status === "In Progress";
 
     return (
       <div className="flex items-center gap-1.5">
@@ -729,6 +763,20 @@ export default function DailyTripLogList() {
           <i className="pi pi-eye text-xs" />
           View
         </button>
+
+        {/* Proceed — trip still In Progress, so it might have stops left to
+            carry over. The checkbox picker itself lives on the report page,
+            not here, so this is a quick "go act on it" shortcut. */}
+        {isInProgress && (
+          <button
+            title="Proceed with Next Trip"
+            onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+          >
+            <i className="pi pi-arrow-right text-xs" />
+            Proceed
+          </button>
+        )}
 
         {/* Verify — disabled when already Verified */}
         <button
@@ -1128,6 +1176,18 @@ export default function DailyTripLogList() {
           field="trip_date"
           header="Trip Date"
           sortable
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="actual_start_time"
+          header="Actual Start"
+          body={(row: DailyTripLogRecord) => formatTime12Hour(row.actual_start_time)}
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="actual_end_time"
+          header="Actual End"
+          body={(row: DailyTripLogRecord) => formatTime12Hour(row.actual_end_time)}
           style={{ minWidth: 110 }}
         />
         <Column

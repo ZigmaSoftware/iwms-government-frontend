@@ -881,6 +881,7 @@ const enResource = {
           "daily_trip_tracking": "Daily Trip Tracking",
           "secondary_bin_collection_event": "Secondary Bin Collection Event",
           "vehicle_breakdown": "Vehicle Breakdown",
+          "trip_retrip_request": "Re-Trip Requests",
           "scheduler_config": "Auto-Schedule Settings",
           "daily_trip_log": "Daily Trip Logs",
           "audit_items": "Audit Items",

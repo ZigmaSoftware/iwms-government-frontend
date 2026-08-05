@@ -49,6 +49,11 @@ export type DailyTripLogRecord = {
   panchayat?: { unique_id?: string; panchayat_name?: string } | null;
   collection_points?: {
     unique_id?: string;
+    // The DailyTripCollectionPoint (stop) id — distinct from unique_id above,
+    // which is the Collection_point MASTER's id. Use this one for anything
+    // that acts on the stop itself, e.g. the proceed-next-trip carry-over
+    // selection (it matches DailyTripCollectionPoint rows, not Collection_point).
+    trip_collection_point_id?: string;
     cp_name?: string;
     sequence?: number;
     is_collected?: boolean;
@@ -58,6 +63,12 @@ export type DailyTripLogRecord = {
     waste_type_name?: string | null;
     waste_type_breakdown?: WasteTypeBreakdownItem[];
     capture_images?: TripLogCaptureImage[];
+    // Set when this stop was carried over to a Re-Trip continuation trip —
+    // that continuation's unique_id. `status` is left as-is (see backend
+    // retrip_service.approve_retrip).
+    carried_to_assignment?: string | null;
+    // The mandatory remarks given when the trip proceeded to a next trip.
+    carried_to_assignment_remarks?: string | null;
   }[];
   waste_types_detail?: { unique_id?: string; waste_type_name?: string }[];
   waste_type_breakdown?: WasteTypeBreakdownItem[];
@@ -81,6 +92,11 @@ export type DailyTripLogRecord = {
     collected_at?: string | null;
     status?: string;
     capture_images?: TripLogCaptureImage[];
+    // Set when this stop was carried over to a Re-Trip continuation trip —
+    // that continuation's unique_id.
+    carried_to_assignment?: string | null;
+    // The mandatory remarks given when the trip proceeded to a next trip.
+    carried_to_assignment_remarks?: string | null;
   }[];
   vehicle?: NamedRef & { vehicle_no?: string };
   bin_ids?: string[];

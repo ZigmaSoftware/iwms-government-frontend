@@ -840,6 +840,7 @@ const hiResource = {
           "daily_trip_log": "दैनिक ट्रिप लॉग",
           "secondary_bin_collection_event": "बिन कलेक्शन इवेंट",
           "vehicle_breakdown": "वाहन ब्रेकडाउन",
+          "trip_retrip_request": "री-ट्रिप अनुरोध",
           "scheduler_config": "ऑटो-शेड्यूल सेटिंग्स",
           "bin_load_log": "बिन लोड लॉग",
           "trip_instance": "ट्रिप इंस्टेंस",

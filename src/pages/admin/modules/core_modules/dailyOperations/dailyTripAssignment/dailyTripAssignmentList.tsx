@@ -1,4 +1,4 @@
-import type { DailyTripAssignmentRecord } from "./types";
+import type { DailyTripAssignmentRecord, RetripInfo } from "./types";
 import type { CollectionTypeKey } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { renderListSearchHeader } from "@/utils/listSearchHeader";
@@ -81,6 +81,38 @@ const BreakdownCell = ({ row }: { row: DailyTripAssignmentRecord }) => {
 };
 
 
+// A vehicle breakdown swaps out the vehicle/crew mid-trip; a Re-Trip closes
+// the trip early and carries leftover stops to a continuation — two
+// unrelated events, so this is its own cell/column, never merged with
+// BreakdownCell above.
+const RetripCell = ({ retrip }: { retrip?: RetripInfo | null }) => {
+  if (!retrip) return <span className="text-xs text-gray-300">—</span>;
+
+  const isApproved = retrip.status === "Approved";
+  const isPending = retrip.status === "Pending";
+
+  return (
+    <div className="space-y-1">
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+          isApproved
+            ? "bg-green-100 text-green-700"
+            : isPending
+              ? "bg-orange-100 text-orange-700"
+              : "bg-red-100 text-red-700"
+        }`}
+      >
+        {isApproved ? "→ Proceeded" : isPending ? "⚠ Pending" : "✕ Rejected"}
+      </span>
+      {isApproved && retrip.new_assignment_id && (
+        <div className="text-[10px] text-gray-600 leading-tight">
+          <span className="font-medium">Next:</span> {retrip.new_assignment_id}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const COLLECTION_TYPE_STYLES: Record<CollectionTypeKey, string> = {
   bin:       "bg-blue-100 text-blue-800",
   household: "bg-green-100 text-green-800",
@@ -149,6 +181,16 @@ const formatTime12Hour = (time?: string): string => {
   const period = hour >= 12 ? "PM" : "AM";
   const hour12 = hour % 12 === 0 ? 12 : hour % 12;
   return `${String(hour12).padStart(2, "0")}:${minuteStr.padStart(2, "0")} ${period}`;
+};
+
+// `total_trip_time_seconds` is null until the trip has been started (see
+// DailyTripAssignment.total_trip_time on the backend).
+const formatDuration = (totalSeconds?: number | null): string => {
+  if (totalSeconds == null || !Number.isFinite(totalSeconds)) return "—";
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 };
 
 // Bin-collection stops and household stops are tracked in separate arrays, so
@@ -436,6 +478,8 @@ export default function DailyTripAssignmentList() {
         "Trip Date": row.trip_date,
         "Start Time": formatTime12Hour(row.scheduled_time),
         Status: row.status ?? "-",
+        "Trip Time": formatDuration(row.total_trip_time_seconds),
+        "Trip #": row.trip_count ?? 1,
       }));
       exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
     } catch (err) {
@@ -532,6 +576,8 @@ export default function DailyTripAssignmentList() {
             ["Scheduled Time", formatTime12Hour(row.scheduled_time)],
             ["Actual Start", row.actual_start_time],
             ["Actual End", row.actual_end_time],
+            ["Trip Time", formatDuration(row.total_trip_time_seconds)],
+            ["Trip #", row.trip_count ?? 1],
             ["Status", row.status],
             ["Approval", row.approval_status],
             ["Remarks", row.remarks],
@@ -939,9 +985,38 @@ export default function DailyTripAssignmentList() {
           style={{ minWidth: 160 }}
         />
         <Column
+          field="actual_start_time"
+          header="Actual Start"
+          body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.actual_start_time ?? undefined)}
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="actual_end_time"
+          header="Actual End"
+          body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.actual_end_time ?? undefined)}
+          style={{ minWidth: 110 }}
+        />
+        <Column
+          field="_trip_time"
+          header="Trip Time"
+          body={(row: DailyTripAssignmentRecord) => formatDuration(row.total_trip_time_seconds)}
+          style={{ minWidth: 100 }}
+        />
+        <Column
+          field="trip_count"
+          header="Trip #"
+          body={(row: DailyTripAssignmentRecord) => row.trip_count ?? 1}
+          style={{ width: 80 }}
+        />
+        <Column
           header="Breakdown"
           body={(row: DailyTripAssignmentRecord) => <BreakdownCell row={row} />}
           style={{ minWidth: 180 }}
+        />
+        <Column
+          header="Re-Trip"
+          body={(row: DailyTripAssignmentRecord) => <RetripCell retrip={row.retrip_info} />}
+          style={{ minWidth: 150 }}
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
       </DataTable>
