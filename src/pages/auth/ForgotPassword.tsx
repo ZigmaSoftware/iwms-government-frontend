@@ -1,13 +1,11 @@
-import { useState, type FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useRef, type ChangeEvent, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { ArrowLeft, Mail, User, Lock } from "lucide-react";
-import ZigmaLogo from "@/images/logo.png";
+import { Lock, Mail, User, Leaf, AlertCircle } from "lucide-react";
+import Logo from "../../images/logo-zigma.png";
+import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
+import LoginFeatureChain from "@/components/auth/LoginFeatureChain";
+import "@/components/auth/animated-login.css";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { forgotPasswordSchema } from "@/schemas/auth.schema";
 
@@ -29,7 +27,14 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [shake, setShake] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const triggerShake = () => {
+    setShake(false);
+    requestAnimationFrame(() => setShake(true));
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -38,6 +43,7 @@ export default function ForgotPassword() {
     const validation = forgotPasswordSchema.safeParse({ username, email });
     if (!validation.success) {
       setError(toSwalMessage(validation.error));
+      triggerShake();
       return;
     }
 
@@ -51,6 +57,7 @@ export default function ForgotPassword() {
       if (!sessionToken) {
         // Username/email combination not found — show generic message without revealing which
         setError("No account found matching the provided username and email address.");
+        triggerShake();
         return;
       }
       navigate("/auth/verify-otp", {
@@ -62,122 +69,115 @@ export default function ForgotPassword() {
       });
     } catch (err: unknown) {
       setError(getApiErrorMessage(err));
+      triggerShake();
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex items-center justify-center bg-slate-50 p-4">
-      {/* Background blobs */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-96 w-96 rounded-full bg-green-300/55 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-orange-200/55 blur-3xl" />
+    <div className="zigma-login" ref={containerRef}>
+      <AnimatedLoginScene containerRef={containerRef} />
 
-      <div className="relative z-10 w-full max-w-md">
-        <Card className="border border-white/80 shadow-2xl shadow-slate-300/50 rounded-3xl overflow-hidden">
-          <CardHeader className="bg-white px-8 pt-8 pb-4">
-            {/* Logo */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="rounded-full border-2 border-green-200 bg-green-50 p-2">
-                <img src={ZigmaLogo} className="h-8 w-8 object-contain" alt="Zigma" />
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-gray-800">ZIGMA IWMS</p>
-              </div>
+      <main className="page">
+        <section className="left">
+          <a className="brand" href="#" aria-label="Zigma home" onClick={(e) => e.preventDefault()}>
+            <img src={Logo} alt="IWMS" />
+          </a>
+
+          <h1 className="headline">Smart Solutions for a Cleaner, Greener Tomorrow</h1>
+
+          <LoginFeatureChain containerRef={containerRef} />
+        </section>
+
+        <section className="right">
+          <div className={`card${shake ? " shake" : ""}`} id="card">
+            <div className="avatar" aria-hidden="true">
+              <Lock className="avatar-icon" />
+              <Leaf className="avatar-badge" />
             </div>
 
-            {/* Lock icon */}
-            <div className="mb-4">
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-green-200 bg-green-50">
-                <Lock className="h-5 w-5 text-green-600" />
-              </div>
-            </div>
-
-            <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">
-              Forgot Password
-            </CardTitle>
-            <CardDescription className="text-sm text-gray-500 mt-1 leading-relaxed">
+            <h2 className="welcome">
+              Forgot <em>Password</em>
+            </h2>
+            <p className="subtitle">
               Enter your username and registered email address. We'll send you an OTP to reset your password.
-            </CardDescription>
-          </CardHeader>
+            </p>
 
-          <CardContent className="bg-white px-8 pb-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <Alert variant="destructive" className="rounded-xl">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              {/* Username */}
-              <div className="space-y-1.5">
-                <Label htmlFor="username" className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  Username
-                </Label>
-                <div className="relative">
-                  <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="field u">
+                <label htmlFor="username">Username</label>
+                <div className="control">
+                  <span className="lead" aria-hidden="true"><User /></span>
+                  <input
                     id="username"
+                    name="username"
                     type="text"
+                    autoComplete="username"
                     placeholder="Enter your username"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50"
-                    required
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setUsername(e.target.value);
+                      setError("");
+                    }}
                   />
                 </div>
               </div>
 
-              {/* Email */}
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  Email Address
-                </Label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
+              <div className="field p">
+                <label htmlFor="email">Email Address</label>
+                <div className="control">
+                  <span className="lead" aria-hidden="true"><Mail /></span>
+                  <input
                     id="email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
                     placeholder="Enter your registered email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="h-12 rounded-xl border-slate-200 bg-slate-50 pl-10 text-gray-900 placeholder:text-gray-400 focus-visible:border-green-400 focus-visible:ring-green-300/50"
-                    required
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setEmail(e.target.value);
+                      setError("");
+                    }}
                   />
                 </div>
               </div>
 
-              <Button
-                type="submit"
-                disabled={loading}
-                className="w-full h-12 rounded-xl bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white font-semibold shadow-lg shadow-orange-200/70 mt-2"
-              >
-                {loading ? (
-                  <>
-                    <svg className="animate-spin mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                    </svg>
-                    Sending OTP…
-                  </>
-                ) : (
-                  "Send OTP"
-                )}
-              </Button>
-
-              <div className="flex justify-center pt-2">
-                <Link
-                  to="/auth"
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:underline"
-                >
-                  <ArrowLeft size={14} />
-                  Back to Login
-                </Link>
+              <div className={`field${error ? " invalid" : ""}`}>
+                <p className="hint" role="alert">
+                  <AlertCircle />
+                  <span>{error}</span>
+                </p>
               </div>
+
+              <button className={`submit${loading ? " busy" : ""}`} type="submit" disabled={loading}>
+                <svg className="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M10 17l5-5-5-5" /><path d="M15 12H3" />
+                </svg>
+                <span className="label">Send OTP</span>
+                <svg className="spinner" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M21 12a9 9 0 0 0-9-9" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                className="forgot"
+                onClick={() => navigate("/auth")}
+                style={{ textAlign: "center", margin: "18px auto 0", display: "block" }}
+              >
+                ← Back to Login
+              </button>
             </form>
-          </CardContent>
-        </Card>
-      </div>
+
+            <p className="footnote">
+              <Leaf aria-hidden="true" />
+              Together for a Sustainable Future
+            </p>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
