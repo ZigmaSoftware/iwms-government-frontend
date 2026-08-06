@@ -2111,7 +2111,7 @@ export default function StaffCreationForm() {
             <Input
               id="age"
               type="number"
-              min="0"
+              min="18"
               max="120"
               inputMode="numeric"
               value={formData.age}
