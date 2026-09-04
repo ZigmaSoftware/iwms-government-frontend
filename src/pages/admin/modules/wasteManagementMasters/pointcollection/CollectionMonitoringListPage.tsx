@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
@@ -13,6 +12,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { binCollectionEventApi } from "@/helpers/admin";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const text = (value: unknown): string =>
@@ -111,10 +112,6 @@ export default function CollectionMonitoringListPage() {
     [rawRows],
   );
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
     setRowsPerPage(event.rows);
@@ -154,22 +151,19 @@ export default function CollectionMonitoringListPage() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.nav.collection_monitoring")}
-          </h1>
-          <p className="text-gray-500 text-sm">Bin collection event records</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <ListPageHeader
+        title={t("admin.nav.collection_monitoring")}
+        subtitle="Bin collection event records"
+        actions={
           <Button
             label={t("common.add_item", { item: t("admin.nav.collection_monitoring") })}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={rows}
@@ -186,17 +180,12 @@ export default function CollectionMonitoringListPage() {
         loading={loading}
         rowsPerPageOptions={[5, 10, 25, 50]}
         header={
-          <div className="flex justify-end items-center">
-            <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-              <i className="pi pi-search text-gray-500" />
-              <InputText
-                value={globalFilterValue}
-                onChange={onGlobalFilterChange}
-                placeholder={t("common.search_placeholder", { item: t("admin.nav.collection_monitoring") })}
-                className="p-inputtext-sm !border-0 !shadow-none"
-              />
-            </div>
-          </div>
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.collection_monitoring") })}
+            className="mb-4"
+          />
         }
         stripedRows
         showGridlines

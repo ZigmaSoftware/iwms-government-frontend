@@ -52,7 +52,7 @@
 .zigma-login .scene{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
 .zigma-login .page{
   position:relative;z-index:1;min-height:100vh;
-  display:grid;grid-template-columns:minmax(0,1fr) 470px;
+  display:grid;grid-template-columns:minmax(0,1fr) 540px;
   align-items:center;gap:24px;padding:28px 48px 28px 40px;
 }
 /* grid items default to min-width:auto, which lets their content's
@@ -212,7 +212,7 @@
 
 /* ---------- 5. Login card ---------- */
 .zigma-login .right{display:flex;justify-content:flex-end;align-items:center}
-.zigma-login .card{position:relative;width:100%;max-width:452px;background:var(--card);
+.zigma-login .card{position:relative;width:100%;max-width:520px;background:var(--card);
   border-radius:var(--radius-card);padding:40px 40px 32px;
   box-shadow:0 18px 50px -18px rgba(16,58,32,.22), 0 4px 14px rgba(16,58,32,.06);
   animation:zigma-cardIn 1s .3s var(--ease-out) both, zigma-cardFloat 9s 1.5s ease-in-out infinite}
@@ -266,6 +266,19 @@
   transition:max-height .3s var(--ease-soft), opacity .3s var(--ease-soft), margin-top .3s var(--ease-soft)}
 .zigma-login .hint svg{width:13px;height:13px;flex:none}
 .zigma-login .field.invalid .hint{max-height:40px;opacity:1;margin-top:7px}
+
+.zigma-login .captcha-row{display:flex;align-items:center;gap:8px}
+.zigma-login .captcha-row .control{flex:1;min-width:0}
+.zigma-login .captcha-image{flex:0 0 152px;width:152px;height:54px;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  border:1.5px solid var(--line);border-radius:var(--radius-field);background:#fafafa}
+.zigma-login .captcha-image img{height:100%;width:100%;object-fit:cover;display:block;user-select:none}
+.zigma-login .captcha-loading{padding:0 14px;font-size:12px;color:var(--ink-300);white-space:nowrap}
+.zigma-login .captcha-refresh{flex:0 0 54px;height:54px;border:1.5px solid var(--line);border-radius:var(--radius-field);
+  background:#fff;display:grid;place-items:center;color:var(--ink-300);cursor:pointer;
+  transition:color .25s var(--ease-soft), border-color .25s var(--ease-soft)}
+.zigma-login .captcha-refresh:hover{color:var(--brand-600);border-color:var(--brand-500)}
+.zigma-login .captcha-row .control input{height:54px}
+.zigma-login .captcha-row .control .lead{height:54px}
 
 .zigma-login .forgot{display:block;text-align:right;margin:-4px 0 22px auto;font-size:13.5px;font-weight:600;
   color:var(--brand-700);text-decoration:none;position:relative;width:fit-content;background:none;border:0;cursor:pointer;
@@ -374,7 +387,7 @@
 /* ---------- 7. Responsive ---------- */
 @media (max-width:1280px){
   .zigma-login{--chain-inset:66px}
-  .zigma-login .page{grid-template-columns:minmax(0,1fr) 420px;padding:24px 28px}
+  .zigma-login .page{grid-template-columns:minmax(0,1fr) 480px;padding:24px 28px}
   .zigma-login .feature{width:132px}
   .zigma-login .feature-btn{width:92px;height:92px}
   .zigma-login .feature-disc svg{width:38px;height:38px}

@@ -6,7 +6,6 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -16,6 +15,8 @@ import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const SORTABLE_FIELDS = new Set(["display_code", "approval_status"]);
 
@@ -171,32 +172,20 @@ export default function TripPlanList() {
     return <Switch checked={row.status === "ACTIVE"} disabled={updating} onCheckedChange={updateStatus} />;
   };
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Trip Plans</h1>
-          <p className="text-sm text-gray-500">Manage trip route, staff, vehicle, schedule, and stop list</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success p-button-sm" onClick={() => navigate(newPath)} />
-        </div>
-      </div>
-      {/* Hierarchy filter — capped to the caller's own corporation subtree */}
-      <HierarchyFilterBar onChange={setHierarchyParams} />
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText value={globalFilterValue} onChange={(event) => {
-            setGlobalFilterValue(event.target.value);
-          }} placeholder={t("common.search_placeholder")} className="border-none text-sm" />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="p-3">
+      <ListPageHeader
+        title="Trip Plans"
+        subtitle="Manage trip route, staff, vehicle, schedule, and stop list"
+        actions={
+          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+        }
+        className="mb-6"
+      />
+
+      {/* Hierarchy filter — capped to the caller's own corporation subtree */}
+      <HierarchyFilterBar onChange={setHierarchyParams} />
+
       <DataTable
         exportable={false}
         value={rows}
@@ -211,7 +200,14 @@ export default function TripPlanList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={loading}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

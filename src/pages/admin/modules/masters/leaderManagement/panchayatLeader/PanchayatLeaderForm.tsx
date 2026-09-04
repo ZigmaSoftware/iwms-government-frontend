@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -96,6 +97,10 @@ function PanchayatLeaderEditor({
   const [pendingPanchayatId, setPendingPanchayatId] = useState<string | null>(
     initialPayload.panchayat_id || null
   );
+  const panchayatComboOptions: ComboboxOption[] = panchayatOptions.map((item) => ({
+    value: item.value,
+    label: capitalize(item.label),
+  }));
   const [panchayatTakenBy, setPanchayatTakenBy] = useState<string | null>(null);
   const [checkingPanchayat, setCheckingPanchayat] = useState(false);
 
@@ -205,34 +210,27 @@ function PanchayatLeaderEditor({
               PLB (Participating Local Bodies){" "}
               <span className="text-red-500 ml-1">*</span>
             </Label>
-            <Select
+            <Combobox
+              id="panchayat_id"
+              options={panchayatComboOptions}
               value={formData.panchayat_id}
-              onValueChange={(v) => {
+              onChange={(v) => {
                 setFormData((prev) => ({ ...prev, panchayat_id: v }));
                 setPendingPanchayatId(null);
                 setPanchayatTakenBy(null);
               }}
               disabled={isSubmitting || loadingPanchayats || panchayatScope.mode === "locked"}
-            >
-              <SelectTrigger className="w-full" id="panchayat_id">
-                <SelectValue
-                  placeholder={
-                    loadingPanchayats
-                      ? "Loading PLBs…"
-                      : panchayatOptions.length === 0
-                        ? "No PLBs found"
-                        : "Select PLB"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {panchayatOptions.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={
+                loadingPanchayats
+                  ? "Loading PLBs…"
+                  : panchayatOptions.length === 0
+                    ? "No PLBs found"
+                    : "Select PLB"
+              }
+              searchPlaceholder="Search PLB..."
+              emptyText="No PLB found."
+              triggerClassName="w-full"
+            />
             {checkingPanchayat && (
               <p className="mt-1 text-xs text-gray-400">Checking availability…</p>
             )}

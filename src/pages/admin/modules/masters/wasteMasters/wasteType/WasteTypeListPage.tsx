@@ -1,5 +1,4 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -17,6 +16,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
 import type { WasteTypeListRecord } from "./types";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
@@ -107,10 +108,6 @@ export default function WasteTypeListPage() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -120,15 +117,6 @@ export default function WasteTypeListPage() {
   }, [globalFilterValue]);
 
   const onExportRequest = async () => toRecordList(await wasteTypeApi.readAllForExport());
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("common.waste_type"),
-      }),
-    });
 
   const indexTemplate = (
     _: WasteTypeListRecord,
@@ -181,24 +169,19 @@ export default function WasteTypeListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("common.waste_type")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("common.manage_item_records", { item: t("common.waste_type") })}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <ListPageHeader
+        title={t("common.waste_type")}
+        subtitle={t("common.manage_item_records", { item: t("common.waste_type") })}
+        actions={
           <Button
             label={t("common.add_item", { item: t("common.waste_type") })}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={rows}
@@ -214,7 +197,16 @@ export default function WasteTypeListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("common.waste_type"),
+            })}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

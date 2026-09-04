@@ -9,7 +9,6 @@ import {
   Camera,
   Check,
   CheckCircle2,
-  ChevronDown,
   ClipboardCheck,
   Copy,
   FileText,
@@ -30,6 +29,7 @@ import {
 import axios from "axios";
 
 import ZigmaLogo from "@/images/logo.png";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { publicGrievanceApi } from "@/features/complaintTicketing/api";
 import type {
   PublicGrievanceCategory,
@@ -147,31 +147,6 @@ function Segmented<T extends string>({
   );
 }
 
-function SelectField({
-  value,
-  onChange,
-  disabled,
-  children,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        className={`${fieldClass} appearance-none pr-9 disabled:bg-black/5 disabled:text-black/35`}
-      >
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-black/40" />
-    </div>
-  );
-}
 
 type View = "landing" | "wizard";
 type StatusMode = "ticket" | "mobile";
@@ -508,6 +483,27 @@ export default function PublicGrievance() {
   const subcategoriesForCategory = useMemo(
     () => subcategories.filter((item) => item.category === categoryId),
     [subcategories, categoryId],
+  );
+
+  const categoryOptions: ComboboxOption[] = useMemo(
+    () => categories.map((item) => ({ value: item.unique_id, label: item.category_name })),
+    [categories],
+  );
+  const subcategoryOptions: ComboboxOption[] = useMemo(
+    () => subcategoriesForCategory.map((item) => ({ value: item.unique_id, label: item.subcategory_name })),
+    [subcategoriesForCategory],
+  );
+  const stateOptions: ComboboxOption[] = useMemo(
+    () => states.map((item) => ({ value: item.unique_id, label: item.name })),
+    [states],
+  );
+  const districtOptions: ComboboxOption[] = useMemo(
+    () => districts.map((item) => ({ value: item.unique_id, label: item.name })),
+    [districts],
+  );
+  const cityOptions: ComboboxOption[] = useMemo(
+    () => cities.map((item) => ({ value: item.unique_id, label: item.name })),
+    [cities],
   );
 
   const onCategoryChange = (value: string) => {
@@ -1248,36 +1244,41 @@ export default function PublicGrievance() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className={labelClass}>
                           State
-                          <SelectField value={stateId} onChange={onStateChange}>
-                            <option value="">Select state</option>
-                            {states.map((item) => (
-                              <option key={item.unique_id} value={item.unique_id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </SelectField>
+                          <Combobox
+                            options={stateOptions}
+                            value={stateId}
+                            onChange={onStateChange}
+                            placeholder="Select state"
+                            searchPlaceholder="Search state..."
+                            emptyText="No state found."
+                            triggerClassName="h-12 rounded-xl border-[1.5px] border-black/15 text-[15px] font-medium"
+                          />
                         </label>
                         <label className={labelClass}>
                           District
-                          <SelectField value={district} onChange={onDistrictChange} disabled={!stateId}>
-                            <option value="">{stateId ? "Select district" : "Select a state first"}</option>
-                            {districts.map((item) => (
-                              <option key={item.unique_id} value={item.unique_id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </SelectField>
+                          <Combobox
+                            options={districtOptions}
+                            value={district}
+                            onChange={onDistrictChange}
+                            disabled={!stateId}
+                            placeholder={stateId ? "Select district" : "Select a state first"}
+                            searchPlaceholder="Search district..."
+                            emptyText="No district found."
+                            triggerClassName="h-12 rounded-xl border-[1.5px] border-black/15 text-[15px] font-medium"
+                          />
                         </label>
                         <label className={labelClass}>
                           City / Local Body
-                          <SelectField value={city} onChange={setCity} disabled={!district}>
-                            <option value="">Select city</option>
-                            {cities.map((item) => (
-                              <option key={item.unique_id} value={item.unique_id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </SelectField>
+                          <Combobox
+                            options={cityOptions}
+                            value={city}
+                            onChange={setCity}
+                            disabled={!district}
+                            placeholder={district ? "Select city" : "Select a district first"}
+                            searchPlaceholder="Search city..."
+                            emptyText="No city found."
+                            triggerClassName="h-12 rounded-xl border-[1.5px] border-black/15 text-[15px] font-medium"
+                          />
                         </label>
                         <label className={labelClass}>
                           Street <span className="font-medium normal-case text-black/40">(optional)</span>
@@ -1338,14 +1339,15 @@ export default function PublicGrievance() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <label className={labelClass}>
                           Complaint Type <span className="text-red-500">*</span>
-                          <SelectField value={categoryId} onChange={onCategoryChange}>
-                            <option value="">-- Select Complaint Type --</option>
-                            {categories.map((item) => (
-                              <option key={item.unique_id} value={item.unique_id}>
-                                {item.category_name}
-                              </option>
-                            ))}
-                          </SelectField>
+                          <Combobox
+                            options={categoryOptions}
+                            value={categoryId}
+                            onChange={onCategoryChange}
+                            placeholder="Select complaint type"
+                            searchPlaceholder="Search complaint type..."
+                            emptyText="No complaint type found."
+                            triggerClassName="h-12 rounded-xl border-[1.5px] border-black/15 text-[15px] font-medium"
+                          />
                           {categories.length === 0 && (
                             <span className="text-[11px] font-medium normal-case text-black/40">
                               Loading complaint types...
@@ -1359,18 +1361,16 @@ export default function PublicGrievance() {
                           ) : (
                             <span className="font-medium normal-case text-black/40">(none for this type)</span>
                           )}
-                          <SelectField
+                          <Combobox
+                            options={subcategoryOptions}
                             value={subcategoryId}
                             onChange={setSubcategoryId}
                             disabled={!categoryId || subcategoriesForCategory.length === 0}
-                          >
-                            <option value="">-- Select Complaint Sub-Type --</option>
-                            {subcategoriesForCategory.map((item) => (
-                              <option key={item.unique_id} value={item.unique_id}>
-                                {item.subcategory_name}
-                              </option>
-                            ))}
-                          </SelectField>
+                            placeholder="Select complaint sub-type"
+                            searchPlaceholder="Search sub-type..."
+                            emptyText="No sub-type found."
+                            triggerClassName="h-12 rounded-xl border-[1.5px] border-black/15 text-[15px] font-medium"
+                          />
                         </label>
                       </div>
 

@@ -6,7 +6,6 @@ import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import SearchInput from "@/components/common/SearchInput";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
@@ -14,6 +13,8 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code"],
@@ -102,10 +103,6 @@ export default function AlternativeStaffTemplateList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -113,38 +110,6 @@ export default function AlternativeStaffTemplateList() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
-
-  const header = (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.alternative_staff_template.list_title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.alternative_staff_template.list_subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            label={t("admin.alternative_staff_template.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <SearchInput
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.alternative_staff_template.search_placeholder")}
-        />
-      </div>
-    </div>
-  );
 
   const indexTemplate = (_: AlternativeStaffTemplate, { rowIndex }: any) =>
     rowIndex + 1;
@@ -163,6 +128,20 @@ export default function AlternativeStaffTemplateList() {
 
   return (
     <div className="p-3">
+      <ListPageHeader
+        title={t("admin.alternative_staff_template.list_title")}
+        subtitle={t("admin.alternative_staff_template.list_subtitle")}
+        actions={
+          <Button
+            label={t("admin.alternative_staff_template.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        }
+        className="mb-6"
+      />
+
       <DataTable
         value={rows}
         lazy
@@ -175,7 +154,14 @@ export default function AlternativeStaffTemplateList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={loading}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.alternative_staff_template.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

@@ -1,6 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -17,6 +16,8 @@ import "primeicons/primeicons.css";
 import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 import { userScreenActionApi } from "@/helpers/admin";
 
@@ -107,10 +108,6 @@ export default function UserScreenActionList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -174,39 +171,26 @@ export default function UserScreenActionList() {
     );
   };
 
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.user_screen_action.action_label"),
-      }),
-    });
-
   return (
     <div className="px-3 py-3 w-full">
 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.user_screen_action")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", {
-                item: t("admin.nav.user_screen_action"),
+        <ListPageHeader
+          title={t("admin.nav.user_screen_action")}
+          subtitle={t("common.manage_item_records", {
+            item: t("admin.nav.user_screen_action"),
+          })}
+          actions={
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.user_screen_action.action_label"),
               })}
-            </p>
-          </div>
-
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.user_screen_action.action_label"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          }
+          className="mb-6"
+        />
 
         {/* Table */}
         <DataTable
@@ -223,7 +207,16 @@ export default function UserScreenActionList() {
           onSort={onSort}
           loading={isLoading}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          header={header}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("common.search_placeholder", {
+                item: t("admin.user_screen_action.action_label"),
+              })}
+              className="mb-4"
+            />
+          }
           emptyMessage={t("common.no_items_found", {
             item: t("admin.user_screen_action.action_label"),
           })}

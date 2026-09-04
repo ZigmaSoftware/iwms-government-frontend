@@ -1,5 +1,4 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -21,6 +20,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { capitalize } from "@/utils/capitalize";
 import type { PropertyRecord } from "./types";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -140,23 +141,10 @@ export default function PropertyList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   const onExportRequest = async () => {
     const all = await adminApi.properties.readAllForExport();
     return toRecordList(all);
   };
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.property"),
-      }),
-    });
 
 
   const statusTemplate = (row: PropertyRecord) => {
@@ -217,26 +205,19 @@ export default function PropertyList() {
 
   return (
     <div className="p-3">
-
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.property")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", { item: t("admin.nav.property") })}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.property") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
-          </div>
-        </div>
+      <ListPageHeader
+        title={t("admin.nav.property")}
+        subtitle={t("common.manage_item_records", { item: t("admin.nav.property") })}
+        actions={
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.property") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        }
+        className="mb-6"
+      />
 
         <DataTable
           value={properties}
@@ -252,7 +233,16 @@ export default function PropertyList() {
           onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={isLoading}
-          header={renderHeader()}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("common.search_placeholder", {
+                item: t("admin.nav.property"),
+              })}
+              className="mb-4"
+            />
+          }
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {
