@@ -9,12 +9,13 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { useTranslation } from "react-i18next";
 
 import { PencilIcon } from "@/icons";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -253,10 +254,6 @@ export default function StaffCreationList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -445,103 +442,81 @@ export default function StaffCreationList() {
   const indexTemplate = (_: Staff, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.staff_creation.title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.staff_creation.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            label={isExportingExcel ? "Downloading…" : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined p-button-sm"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-          <Button
-            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-            icon="pi pi-file-pdf"
-            className="p-button-outlined p-button-sm"
-            disabled={isExportingPdf}
-            onClick={handleDownloadPdf}
-          />
-          <Button
-            label={t("admin.staff_creation.create")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
-      </div>
-
-      {/* Filters Row */}
-      <div className="grid gap-3 md:grid-cols-5">
-        {showCol("active_status") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">{t("common.status")}</span>
-          <select
-            name="active_status"
-            value={filterParams.active_status}
-            onChange={handleFilterChange}
-            className="h-10 rounded-lg border px-3 text-sm"
-          >
-            <option value="">{t("common.all")}</option>
-            <option value="1">{t("common.active")}</option>
-            <option value="0">{t("common.inactive")}</option>
-          </select>
-        </div>
-        )}
-
-        {showCol("employee_name") && (
-        <div className="flex flex-col gap-1">
-          <span className="text-xs font-semibold">
-            {t("admin.staff_creation.employee_name")}
-          </span>
-          <input
-            name="employee_name"
-            value={filterParams.employee_name}
-            onChange={handleFilterChange}
-            placeholder={t("admin.staff_creation.employee_placeholder")}
-            className="h-10 rounded-lg border px-3 text-sm"
-          />
-        </div>
-        )}
-
-        <div className="flex items-end">
-          <button
-            onClick={applyFilter}
-            className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-          >
-            {t("common.go")}
-          </button>
-        </div>
-      </div>
-
-      {/* Search Bar */}
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.staff_creation.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <>
       <div className="p-3">
+        <ListPageHeader
+          title={t("admin.staff_creation.title")}
+          subtitle={t("admin.staff_creation.subtitle")}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Button
+                label={isExportingExcel ? "Downloading…" : "Download Excel"}
+                icon="pi pi-file-excel"
+                className="p-button-outlined p-button-sm"
+                disabled={isExportingExcel}
+                onClick={handleDownloadExcel}
+              />
+              <Button
+                label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+                icon="pi pi-file-pdf"
+                className="p-button-outlined p-button-sm"
+                disabled={isExportingPdf}
+                onClick={handleDownloadPdf}
+              />
+              <Button
+                label={t("admin.staff_creation.create")}
+                icon="pi pi-plus"
+                className="p-button-success p-button-sm"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </div>
+          }
+          filters={
+            <div className="grid gap-3 md:grid-cols-5">
+              {showCol("active_status") && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold">{t("common.status")}</span>
+                <select
+                  name="active_status"
+                  value={filterParams.active_status}
+                  onChange={handleFilterChange}
+                  className="h-10 rounded-lg border px-3 text-sm"
+                >
+                  <option value="">{t("common.all")}</option>
+                  <option value="1">{t("common.active")}</option>
+                  <option value="0">{t("common.inactive")}</option>
+                </select>
+              </div>
+              )}
+
+              {showCol("employee_name") && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold">
+                  {t("admin.staff_creation.employee_name")}
+                </span>
+                <input
+                  name="employee_name"
+                  value={filterParams.employee_name}
+                  onChange={handleFilterChange}
+                  placeholder={t("admin.staff_creation.employee_placeholder")}
+                  className="h-10 rounded-lg border px-3 text-sm"
+                />
+              </div>
+              )}
+
+              <div className="flex items-end">
+                <button
+                  onClick={applyFilter}
+                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+                >
+                  {t("common.go")}
+                </button>
+              </div>
+            </div>
+          }
+          className="mb-6"
+        />
         <DataTable
           value={rows}
           lazy
@@ -554,7 +529,14 @@ export default function StaffCreationList() {
           sortOrder={sortOrder}
           onSort={onSort}
           loading={loading}
-          header={header}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("admin.staff_creation.search_placeholder")}
+              className="mb-4"
+            />
+          }
           emptyMessage={t("common.no_items_found", {
             item: t("admin.staff_creation.staff_label"),
           })}

@@ -40,16 +40,6 @@ export default function Select({
     typeof label === "string" || typeof label === "number"
       ? capitalize(label)
       : label;
-  const normalizedId = id?.replace(/[^a-z]/gi, "").toLowerCase();
-  if (
-    normalizedId &&
-    (normalizedId === "companyid" ||
-      normalizedId === "projectid" ||
-      normalizedId === "companyidinput" ||
-      normalizedId === "projectidinput")
-  ) {
-    return null;
-  }
 
   const normalizedValue =
     value === null || value === undefined ? "" : String(value);

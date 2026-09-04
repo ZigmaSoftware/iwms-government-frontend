@@ -1,6 +1,5 @@
 import type { CollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -18,6 +17,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { collectionPointApi } from "@/helpers/admin";
 import { formatCoordinates } from "../../../masters/shared/formatCoordinates";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const toDisplay = (value: unknown): string =>
@@ -158,10 +159,6 @@ export default function CollectionPointListPage() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -169,13 +166,6 @@ export default function CollectionPointListPage() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
-
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", { item: t("admin.nav.collection_point") }),
-    });
 
   const indexTemplate = (_: CollectionPointRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
@@ -229,22 +219,19 @@ export default function CollectionPointListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">{t("admin.nav.collection_point")}</h1>
-          <p className="text-sm text-gray-500">
-            {t("common.manage_item_records", { item: t("admin.nav.collection_point") })}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <ListPageHeader
+        title={t("admin.nav.collection_point")}
+        subtitle={t("common.manage_item_records", { item: t("admin.nav.collection_point") })}
+        actions={
           <Button
             label={t("common.add_item", { item: t("admin.nav.collection_point") })}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={displayRows}
@@ -260,7 +247,14 @@ export default function CollectionPointListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.collection_point") })}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

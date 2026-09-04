@@ -1,5 +1,4 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -19,6 +18,8 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const { encCommonMasters, encContinents } = getEncryptedRoute();
@@ -140,10 +141,6 @@ export default function ContinentList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -218,36 +215,23 @@ export default function ContinentList() {
     options: { rowIndex: number }
   ) => options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", {
-      item: t("admin.nav.continent"),
-    }),
-  });
-
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">
-            {t("admin.nav.continent")}
-          </h1>
-
-          <p className="text-sm text-gray-500">
-            {t("common.manage_item_records", {
-              item: t("admin.nav.continent"),
-            })}
-          </p>
-        </div>
-
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.continent") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
-      </div>
+      <ListPageHeader
+        title={t("admin.nav.continent")}
+        subtitle={t("common.manage_item_records", {
+          item: t("admin.nav.continent"),
+        })}
+        actions={
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.continent") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={continents}
@@ -263,7 +247,16 @@ export default function ContinentList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && continents.length === 0}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.continent"),
+            })}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         onExportRequest={onExportRequest}

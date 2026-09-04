@@ -1,4 +1,3 @@
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +18,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { userScreenPermissionApi } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 import { encodeLocalBodyRouteId } from "./userScreenPermissionForm";
 
@@ -318,19 +319,12 @@ export default function UserScreenPermissionList() {
      GLOBAL SEARCH
   ----------------------------------------------------------- */
 
-  const onGlobalFilterChange = (e: any) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     const updated = { ...filters };
     updated["global"].value = value;
     setFilters(updated);
     setGlobalFilterValue(value);
   };
-
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder"),
-  });
 
   /* -----------------------------------------------------------
      RENDER
@@ -338,17 +332,10 @@ export default function UserScreenPermissionList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">
-            {t("admin.user_screen_permission.title")}
-          </h1>
-          <p className="text-gray-500 text-sm">
-            {t("admin.user_screen_permission.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex gap-3 items-center">
+      <ListPageHeader
+        title={t("admin.user_screen_permission.title")}
+        subtitle={t("admin.user_screen_permission.subtitle")}
+        actions={
           <Button
             label={t("common.add_item", {
               item: t("admin.user_screen_permission.permission_label"),
@@ -357,8 +344,9 @@ export default function UserScreenPermissionList() {
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={records}
@@ -369,7 +357,14 @@ export default function UserScreenPermissionList() {
         filters={filters}
         rowsPerPageOptions={[5, 10, 25, 50]}
         globalFilterFields={["local_body_type_label", "local_body_label", "mainscreen_names_joined", "permission_type_label"]}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", {

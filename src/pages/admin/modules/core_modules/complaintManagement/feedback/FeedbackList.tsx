@@ -3,10 +3,11 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { complaintFeedbackApi } from "@/features/complaintTicketing/api";
 import type { ComplaintFeedback } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime, yesNo } from "../utils";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const SORTABLE_FIELDS = new Set(["rating", "submitted_at"]);
 
@@ -61,10 +62,6 @@ export default function FeedbackList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(event.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -75,10 +72,11 @@ export default function FeedbackList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Complaint Feedback</h1>
-        <p className="text-sm text-gray-500">Citizen feedback captured after resolution</p>
-      </div>
+      <ListPageHeader
+        title="Complaint Feedback"
+        subtitle="Citizen feedback captured after resolution"
+        className="mb-6"
+      />
       <DataTable
         value={rows}
         dataKey="unique_id"
@@ -92,11 +90,14 @@ export default function FeedbackList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={isLoading}
-        header={renderListSearchHeader({
-          value: globalFilterValue,
-          onChange: onGlobalFilterChange,
-          placeholder: "Search Feedback...",
-        })}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search Feedback..."
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage="No feedback found"

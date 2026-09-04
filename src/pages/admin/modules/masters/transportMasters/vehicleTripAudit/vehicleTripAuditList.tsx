@@ -10,13 +10,14 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTableFilterEvent } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { PencilIcon } from "@/icons";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const buildLookup = (
@@ -144,50 +145,13 @@ export default function VehicleTripAuditList() {
     setFilters(e.filters as TableFilters);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     const updatedFilters = { ...filters };
 
     updatedFilters.global.value = value;
     setFilters(updatedFilters);
     setGlobalFilterValue(value);
   };
-
-  const header = (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.vehicle_trip_audit.list_title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.vehicle_trip_audit.list_subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            label={t("admin.vehicle_trip_audit.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.vehicle_trip_audit.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
-    </div>
-  );
 
   const actionTemplate = (row: VehicleTripAuditRecord) => (
     <div className="flex justify-center">
@@ -205,6 +169,20 @@ export default function VehicleTripAuditList() {
 
   return (
     <div className="p-3">
+      <ListPageHeader
+        title={t("admin.vehicle_trip_audit.list_title")}
+        subtitle={t("admin.vehicle_trip_audit.list_subtitle")}
+        actions={
+          <Button
+            label={t("admin.vehicle_trip_audit.create_button")}
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        }
+        className="mb-6"
+      />
+
       <DataTable
         value={records}
         dataKey="id"
@@ -217,7 +195,14 @@ export default function VehicleTripAuditList() {
           "daily_trip_assignment_id",
           "vehicle_id",
         ]}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("admin.vehicle_trip_audit.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

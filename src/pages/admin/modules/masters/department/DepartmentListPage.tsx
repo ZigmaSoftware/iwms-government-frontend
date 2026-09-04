@@ -5,12 +5,13 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
 import { PencilIcon } from "@/icons";
 import { departmentApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const { encMasters, encDepartments } = getEncryptedRoute();
 const { newPath: NEW_PATH } = createCrudRoutePaths(encMasters, encDepartments);
@@ -107,13 +108,14 @@ export default function DepartmentListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Department Master</h1>
-          <p className="text-sm text-gray-500">Manage department records</p>
-        </div>
-        <Button label="Add Department" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(NEW_PATH)} />
-      </div>
+      <ListPageHeader
+        title="Department Master"
+        subtitle="Manage department records"
+        actions={
+          <Button label="Add Department" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(NEW_PATH)} />
+        }
+        className="mb-6"
+      />
       <DataTable
         value={rows}
         dataKey="unique_id"
@@ -129,14 +131,12 @@ export default function DepartmentListPage() {
         loading={isLoading}
         onExportRequest={onExportRequest}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={globalFilterValue}
-              onChange={(e) => setGlobalFilterValue(e.target.value)}
-              placeholder="Search departments"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search departments"
+            className="mb-4"
+          />
         }
       >
         <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} />

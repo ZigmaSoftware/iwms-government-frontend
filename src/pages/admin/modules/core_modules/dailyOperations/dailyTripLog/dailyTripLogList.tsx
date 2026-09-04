@@ -1,5 +1,4 @@
 import type { DailyTripLogRecord } from "./types";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +22,8 @@ import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/fil
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "./collectionTime";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -662,10 +663,6 @@ export default function DailyTripLogList() {
      see task notes); totalRecords below still reflects the server-side total. ── */
   const data = filterByCollectionType(rows, collectionType);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   /* ── debounce the global search box into the server-side `?search=` param ── */
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -811,13 +808,6 @@ export default function DailyTripLogList() {
     );
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: "Search trip logs...",
-    });
-
   /* ── download: fetch the FULL hierarchy/date/waste/search-filtered dataset
      fresh from the server (independent of whatever page is currently on
      screen), then apply the same enrichment + collectionType filter + the
@@ -952,43 +942,44 @@ export default function DailyTripLogList() {
 
   return (
     <div className="p-3">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Logs</h1>
-          <p className="text-sm text-gray-500">Capture and verify actual collection trip results</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <select
-            value={collectionType}
-            onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="all">All Collections</option>
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household Collection</option>
-          </select>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="border rounded px-3 py-2 text-sm"
-          />
-          <Button
-            label={isExporting ? "Downloading…" : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExporting || totalRecords === 0}
-            onClick={() => handleDownload("excel")}
-          />
-          <Button
-            label={isExporting ? "Generating…" : "Download PDF"}
-            icon="pi pi-file-pdf"
-            className="p-button-outlined"
-            disabled={isExporting || totalRecords === 0}
-            onClick={() => handleDownload("pdf")}
-          />
-        </div>
-      </div>
+      <ListPageHeader
+        title="Daily Trip Logs"
+        subtitle="Capture and verify actual collection trip results"
+        actions={
+          <div className="flex items-center gap-3">
+            <select
+              value={collectionType}
+              onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
+              className="border rounded px-3 py-2 text-sm"
+            >
+              <option value="all">All Collections</option>
+              <option value="bin">Bin Collection</option>
+              <option value="household">Household Collection</option>
+            </select>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="border rounded px-3 py-2 text-sm"
+            />
+            <Button
+              label={isExporting ? "Downloading…" : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined"
+              disabled={isExporting || totalRecords === 0}
+              onClick={() => handleDownload("excel")}
+            />
+            <Button
+              label={isExporting ? "Generating…" : "Download PDF"}
+              icon="pi pi-file-pdf"
+              className="p-button-outlined"
+              disabled={isExporting || totalRecords === 0}
+              onClick={() => handleDownload("pdf")}
+            />
+          </div>
+        }
+        className="mb-4"
+      />
 
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
         <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
@@ -1047,7 +1038,14 @@ export default function DailyTripLogList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search trip logs..."
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage="No trip logs found."

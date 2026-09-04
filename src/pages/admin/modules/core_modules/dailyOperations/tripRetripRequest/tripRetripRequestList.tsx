@@ -8,12 +8,13 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { api } from "@/api";
 import { retripRequestApi } from "@/helpers/admin";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -363,10 +364,6 @@ export default function TripRetripRequestList() {
     }
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: TripRetripRequestRecord) => (
     <div className="flex items-center justify-center gap-3">
@@ -391,45 +388,36 @@ export default function TripRetripRequestList() {
     </div>
   );
 
-  /* ── Header ─────────────────────────────────────────────────────── */
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: "Search Re-Trip requests...",
-  });
-
   /* ════════════════════════════════════════════════════════════════
       RENDER
   ════════════════════════════════════════════════════════════════ */
   return (
     <div className="p-3">
-      {/* Title row */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Re-Trip Requests</h1>
-          <p className="text-sm text-gray-500">
-            Drivers asking to end a trip early with stops still remaining
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {(["Pending", "Approved", "Rejected", ""] as const).map((s) => (
-            <button
-              key={s || "all"}
-              onClick={() => {
-                setFirst(0);
-                setStatusFilter(s);
-              }}
-              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                statusFilter === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
-            >
-              {s || "All"}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ListPageHeader
+        title="Re-Trip Requests"
+        subtitle="Drivers asking to end a trip early with stops still remaining"
+        actions={
+          <div className="flex items-center gap-2">
+            {(["Pending", "Approved", "Rejected", ""] as const).map((s) => (
+              <button
+                key={s || "all"}
+                onClick={() => {
+                  setFirst(0);
+                  setStatusFilter(s);
+                }}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  statusFilter === s
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {s || "All"}
+              </button>
+            ))}
+          </div>
+        }
+        className="mb-6"
+      />
 
       {/* DataTable */}
       <DataTable
@@ -446,7 +434,14 @@ export default function TripRetripRequestList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search Re-Trip requests..."
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

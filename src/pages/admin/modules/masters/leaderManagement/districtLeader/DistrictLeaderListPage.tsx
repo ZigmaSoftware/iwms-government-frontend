@@ -24,6 +24,8 @@ import {
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 // ─── Template columns ──────────────────────────────────────────────────────────
 const DISTRICT_LEADER_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
@@ -107,10 +109,6 @@ export default function DistrictLeaderListPage() {
     setFirst(0);
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
   };
 
   useEffect(() => {
@@ -216,49 +214,42 @@ export default function DistrictLeaderListPage() {
 
   // ── Table header toolbar ─────────────────────────────────────────────────────
   const renderHeader = () => (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      {/* Search */}
-      <div className="flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 shadow-sm">
-        <i className="pi pi-search text-gray-400 text-sm" />
-        <input
-          type="text"
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search"
-          className="border-0 outline-none text-sm bg-transparent text-gray-700 placeholder:text-gray-400 min-w-[180px]"
-        />
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <Button
-          label="Download Template"
-          icon="pi pi-download"
-          severity="secondary"
-          className="p-button-sm !text-gray-700 !border-gray-300 !bg-white hover:!bg-gray-50"
-          onClick={handleDownloadTemplate}
-        />
-        <Button
-          label="Upload Excel"
-          icon="pi pi-upload"
-          className="p-button-sm !bg-blue-600 !border-blue-600 hover:!bg-blue-700"
-          onClick={() => fileInputRef.current?.click()}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          hidden
-          onChange={handleUploadExcel}
-        />
-        <Button
-          label="Download All Excel"
-          icon="pi pi-download"
-          className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
-          onClick={handleDownloadAll}
-        />
-      </div>
-    </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={setGlobalFilterValue}
+      searchPlaceholder="Search"
+      className="mb-4"
+      trailing={
+        <>
+          <Button
+            label="Download Template"
+            icon="pi pi-download"
+            severity="secondary"
+            className="p-button-sm !text-gray-700 !border-gray-300 !bg-white hover:!bg-gray-50"
+            onClick={handleDownloadTemplate}
+          />
+          <Button
+            label="Upload Excel"
+            icon="pi pi-upload"
+            className="p-button-sm !bg-blue-600 !border-blue-600 hover:!bg-blue-700"
+            onClick={() => fileInputRef.current?.click()}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            hidden
+            onChange={handleUploadExcel}
+          />
+          <Button
+            label="Download All Excel"
+            icon="pi pi-download"
+            className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
+            onClick={handleDownloadAll}
+          />
+        </>
+      }
+    />
   );
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -266,21 +257,19 @@ export default function DistrictLeaderListPage() {
     <div className="p-3">
 
       {/* ── Page header ── */}
-      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">District Leader</h1>
-          <p className="text-sm text-gray-500">Manage District Leader records</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
+      <ListPageHeader
+        title="District Leader"
+        subtitle="Manage District Leader records"
+        actions={
           <Button
             label="Add District Leader"
             icon="pi pi-plus"
             className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       {/* ── DataTable ── */}
       <DataTable
