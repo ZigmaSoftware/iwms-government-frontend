@@ -344,6 +344,7 @@ const initialFormData = {
   area_type_id: "",
   local_body_level: "" as LocalBodyLevel | "",
   local_body_id: "",
+  app_module: "",
   username: "", // ← username field
   password: "",
   login_enabled: "0",
@@ -390,6 +391,7 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   staffusertype_id: ["staffusertype_id", "staff_user_type", "staffusertype"],
   contractorusertype_id: ["contractorusertype_id", "contractor_user_type", "contractorusertype"],
   governmentusertype_id: ["governmentusertype_id", "government_user_type", "governmentusertype"],
+  app_module: ["app_module"],
   username: ["username"],
   password: ["password"],
   login_enabled: ["login_enabled"],
@@ -438,6 +440,37 @@ const STAFF_CREATION_FIELDS: Record<string, string[]> = {
 
 export default function StaffCreationForm() {
   const [formData, setFormData] = useState(initialFormData);
+
+  // Sourced from the App Module master so a rename in Screen Management shows
+  // up here without a frontend release.
+  const [appModuleOptions, setAppModuleOptions] = useState<
+    { value: string; label: string }[]
+  >([{ value: "", label: "No app access" }]);
+
+  useEffect(() => {
+    let cancelled = false;
+    appModuleApi
+      .readAll()
+      .then((rows) => {
+        if (cancelled) return;
+        const list = Array.isArray(rows) ? rows : [];
+        setAppModuleOptions([
+          { value: "", label: "No app access" },
+          ...list
+            .filter((row: { is_active?: boolean }) => row.is_active !== false)
+            .map((row: { surface_key: string; label: string }) => ({
+              value: row.surface_key,
+              label: row.label,
+            })),
+        ]);
+      })
+      .catch(() => {
+        /* keep the default so the field still works offline */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [section, setSection] = useState<Section>("official");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
@@ -904,6 +937,7 @@ export default function StaffCreationForm() {
           login_enabled: staff.login_enabled ? "1" : "0",
 
           // Auth
+          app_module: staff.app_module ?? "",
           username: staff.username ?? "",
           password: staff.password ?? "",
 
@@ -1430,6 +1464,7 @@ export default function StaffCreationForm() {
           userTypeCategory === "government" && formData.local_body_level === "panchayat_id"
             ? formData.local_body_id || null
             : null,
+        app_module: formData.app_module || null,
         username: formData.username || null, // ← username in payload
         login_enabled: formData.login_enabled === "1",
 
@@ -1698,6 +1733,29 @@ export default function StaffCreationForm() {
             </>
           )}
         </>
+      )}
+
+      {/* ── App Module ── */}
+      {showField("app_module") && (
+        <div>
+          <Label htmlFor="app_module">
+            {t("admin.staff_creation.app_module", "Mobile App")}
+          </Label>
+          <Select
+            id="app_module"
+            value={formData.app_module}
+            onChange={(value) => handleSelectChange("app_module", value)}
+            options={appModuleOptions}
+            placeholder={t(
+              "admin.staff_creation.app_module_placeholder",
+              "Select the app this user opens",
+            )}
+          />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Which app opens after sign-in. Whether they may sign in at all is
+            ticked under Mobile App Access in Staff Access Configuration.
+          </p>
+        </div>
       )}
 
       {/* ── Username ── */}

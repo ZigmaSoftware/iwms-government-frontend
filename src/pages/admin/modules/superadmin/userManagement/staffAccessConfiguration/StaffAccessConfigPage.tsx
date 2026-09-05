@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import Swal from "@/lib/notify";
 import { capitalize } from "@/utils/capitalize";
 import { adminApi } from "@/helpers/admin/registry";
+import { staffAccessConfigurationApi } from "@/helpers/admin";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { getStoredDataScope } from "@/utils/authStorage";
@@ -35,6 +36,7 @@ import {
   type ScopeAdminRecord,
 } from "@/helpers/admin/staffAccessConfigApi";
 import type {
+  AppModuleOption,
   AreaTypeCategory,
   DashboardWidget,
   LocalBodyLevel,
@@ -1203,6 +1205,65 @@ export default function StaffAccessConfigPage() {
     navigate(stepPathFor(nextIndex));
   };
 
+  // Mobile app access. Saved through its own action rather than the payload
+  // above: that payload is written by the existing serializer against
+  // UserScreenPermission/StaffDataScope, while app-module access lives on the
+  // separate StaffAccessConfiguration record.
+  const [appModuleOptions, setAppModuleOptions] = useState<AppModuleOption[]>([]);
+  const [appModuleIds, setAppModuleIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    staffAccessConfigurationApi
+      .action("app-modules")
+      .then((res: unknown) => {
+        if (!cancelled) setAppModuleOptions((res as AppModuleOption[]) ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setAppModuleOptions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const staffId = values.staffId || id;
+    if (!staffId) return;
+    let cancelled = false;
+    staffAccessConfigurationApi
+      .action("staff-app-modules", undefined, { params: { staff_id: staffId } })
+      .then((res: unknown) => {
+        if (cancelled) return;
+        const ids = (res as { app_module_ids?: string[] })?.app_module_ids ?? [];
+        setAppModuleIds(ids);
+      })
+      .catch(() => {
+        /* no configuration yet — nothing ticked */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [values.staffId, id]);
+
+  const saveAppModules = async (staffId?: string | null) => {
+    if (!staffId) return;
+    try {
+      await staffAccessConfigurationApi.action("staff-app-modules", {
+        staff_id: staffId,
+        app_module_ids: appModuleIds,
+      });
+    } catch {
+      // Non-fatal: the rest of the configuration is already saved, and the
+      // ticks can be re-applied without redoing the whole form.
+      Swal.fire(
+        "Saved with a warning",
+        "The configuration saved, but mobile app access could not be updated. Check your permission to edit Staff Access Configuration.",
+        "warning",
+      );
+    }
+  };
+
   const buildPayload = (): StaffAccessConfigPayload => ({
     basicInfo: {
       employeeName: values.employeeName,
@@ -1249,11 +1310,17 @@ export default function StaffAccessConfigPage() {
     setSaving(true);
     setApiErrors({});
     try {
+      let savedStaffId: string | null | undefined = values.staffId || id;
       if (isEdit && id) {
         await updateStaffAccess(id, buildPayload());
       } else {
-        await createStaffAccess(buildPayload());
+        const created = await createStaffAccess(buildPayload());
+        savedStaffId =
+          (created as { staff_id?: string; staff_unique_id?: string })?.staff_id ??
+          (created as { staff_unique_id?: string })?.staff_unique_id ??
+          savedStaffId;
       }
+      await saveAppModules(savedStaffId);
       await Swal.fire("Saved", "Staff access configuration saved successfully.", "success");
       navigate(listPath);
     } catch (error) {
@@ -1452,8 +1519,59 @@ export default function StaffAccessConfigPage() {
     </div>
   );
 
+  const renderAppModules = () => (
+    <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+      <div>
+        <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+          Mobile App Access
+        </p>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Tick the apps this person may sign into. Without one, their mobile
+          sign-in is refused. What they can do inside each app comes from the
+          screen permissions below — the same ticks that govern the web screens.
+        </p>
+      </div>
+
+      {appModuleOptions.length === 0 ? (
+        <p className="text-xs text-gray-400">No app modules configured.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {appModuleOptions.map((module) => {
+            const checked = appModuleIds.includes(module.uniqueId);
+            return (
+              <label
+                key={module.uniqueId}
+                title={module.description ?? module.route}
+                className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
+                  checked
+                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={checked}
+                  onChange={(event) =>
+                    setAppModuleIds((current) =>
+                      event.target.checked
+                        ? [...current, module.uniqueId]
+                        : current.filter((moduleId) => moduleId !== module.uniqueId),
+                    )
+                  }
+                />
+                <span className="font-medium">{module.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   const renderPermissions = () => (
     <div className="space-y-6">
+      {renderAppModules()}
       {!canLoadPermissions ? (
         <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
           {isLocalBodyScopeRequired
