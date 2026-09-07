@@ -242,7 +242,7 @@ export default function StaffUserTypeList() {
             <FilterBar
               searchValue={globalFilterValue}
               onSearchChange={setGlobalFilterValue}
-              searchPlaceholder={t("common.search_placeholder_placeholder")}
+              searchPlaceholder={t("common.search_placeholder")}
               className="mb-4"
             />
           }

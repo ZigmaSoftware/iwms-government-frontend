@@ -25,6 +25,7 @@ import {
   wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
+import { appModuleApi } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
@@ -119,6 +120,7 @@ const extractErrorMessage = (error: unknown, fallback: string) => {
 const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
   contact_no: ["contact_no", "mobile"],
+  app_module: ["app_module"],
   username: ["username"],
   email: ["email"],
   password: ["password"],
@@ -761,6 +763,35 @@ function CustomerEditor({
     industry_name: initialPayload.industry_name,
     industry_type: initialPayload.industry_type,
   });
+
+  // Sourced from the App Module master so a rename in Screen Management shows
+  // up here without a frontend release.
+  const [appModuleOptions, setAppModuleOptions] = useState<
+    { value: string; label: string }[]
+  >([{ value: "citizen", label: "Customer" }]);
+
+  useEffect(() => {
+    let cancelled = false;
+    appModuleApi
+      .readAll()
+      .then((rows) => {
+        if (cancelled) return;
+        const list = Array.isArray(rows) ? rows : [];
+        const options = list
+          .filter((row: { is_active?: boolean }) => row.is_active !== false)
+          .map((row: { surface_key: string; label: string }) => ({
+            value: row.surface_key,
+            label: row.label,
+          }));
+        if (options.length) setAppModuleOptions(options);
+      })
+      .catch(() => {
+        /* keep the default so the field still works offline */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [selectedAreaType, setSelectedAreaType] = useState<AreaType | "">(
     initialPayload.selectedAreaType,
@@ -1447,6 +1478,32 @@ function CustomerEditor({
                 onChange={(e) => update("username", e.target.value)}
                 placeholder="Enter username"
               />
+            )}
+            {showField("app_module") && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Mobile App
+                </label>
+                <Select
+                  value={formData.app_module || "citizen"}
+                  onValueChange={(value) => update("app_module", value)}
+                >
+                  <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
+                    <SelectValue placeholder="Select the app this customer opens" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {appModuleOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Which app opens after sign-in. Whether they may sign in, and
+                  which screens they see, is set in Customer Access Configuration.
+                </p>
+              </div>
             )}
             {showField("email") && (
               <FormInput
@@ -2470,6 +2527,7 @@ export default function CustomerCreationForm() {
     initialPayload = {
       customer_name: String(d.customer_name ?? ""),
       contact_no: String(d.contact_no ?? ""),
+      app_module: String(d.app_module ?? "citizen"),
       username: String(d.username ?? ""),
       email: String(d.email ?? ""),
       password: String(d.password ?? ""),
@@ -2526,6 +2584,7 @@ export default function CustomerCreationForm() {
     initialPayload = {
       customer_name: "",
       contact_no: "",
+      app_module: "citizen",
       username: "",
       email: "",
       password: "",

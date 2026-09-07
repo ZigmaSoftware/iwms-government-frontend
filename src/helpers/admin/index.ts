@@ -72,6 +72,8 @@ export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
 export const userCreationApi = adminApi.usersCreation;
 export const staffCreationApi = adminApi.staffCreation;
 export const staffAccessConfigurationApi = adminApi.staffAccessConfiguration;
+/** Mobile app module master — rename/reorder/deactivate only. */
+export const appModuleApi = adminApi.appModules;
 export const staffTemplateApi = adminApi.staffTemplateCreation;
 export const alternativeStaffTemplateApi = adminApi.alternativeStaffTemplate;
 export const unassignedStaffPoolApi = adminApi.unassignedStaffPool;
@@ -86,6 +88,8 @@ export const dashboardSummaryApi = adminApi.dashboardSummary;
    CUSTOMERS
 ========================= */
 export const customerCreationApi = adminApi.customerCreations;
+/** Per-customer app access: which app they open, which screens they see. */
+export const customerAccessConfigurationApi = adminApi.customerAccessConfiguration;
 // NOTE: householdPickupEvents removed — not defined in adminEndpoints
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;
