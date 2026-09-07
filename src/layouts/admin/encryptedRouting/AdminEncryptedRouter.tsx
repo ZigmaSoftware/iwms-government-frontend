@@ -50,6 +50,8 @@ import SubPropertyForm from "@/pages/admin/modules/masters/wasteMasters/subprope
 import StaffCreationList from "@/pages/admin/modules/superadmin/userManagement/staffCreation/staffcreationList";
 import StaffCreationForm from "@/pages/admin/modules/superadmin/userManagement/staffCreation/staffcreationForm";
 import StaffAccessConfigList from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigList";
+import AppModuleList from "@/pages/admin/modules/superadmin/screenManagement/appModules/AppModuleList";
+import CustomerAccessConfigList from "@/pages/admin/modules/masters/customerMasters/customerAccessConfiguration/CustomerAccessConfigList";
 import StaffAccessConfigPage from "@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigPage";
 import StaffAccessDashboard from "@/pages/admin/modules/superadmin/userManagement/staffAccessDashboard/StaffAccessDashboard";
 import UserTypeList from "@/pages/admin/modules/superadmin/roleManagement/userType/user-typeList";
@@ -156,7 +158,8 @@ const ROUTES: RouteMap = {
     "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
     "mainscreens": {list: MainScreenList, form: MainScreenForm},
     "userscreens": {list: UserScreenList, form: UserScreenForm},
-    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
+    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm},
+    "app-modules": { list: AppModuleList }
   },
   // Screen Management now routes under its own master segment (encSuperAdmin);
   // "admins" above is kept only so already-open/bookmarked tabs still resolve.
@@ -165,7 +168,8 @@ const ROUTES: RouteMap = {
     "userscreen-action": {list:UserScreenActionList, form: UserScreenActionForm },
     "mainscreens": {list: MainScreenList, form: MainScreenForm},
     "userscreens": {list: UserScreenList, form: UserScreenForm},
-    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm}
+    "userscreenpermissions": {list: UserScreenPermissionList,form: UserScreenPermissionForm},
+    "app-modules": { list: AppModuleList }
   },
   // Role Management now routes under its own master segment (encRoleManagement).
   "role-management": {
@@ -236,6 +240,7 @@ const ROUTES: RouteMap = {
   "customer-master": {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
     "apartment-list": { list: ApartmentListPage },
+    "customer-access-configuration": { list: CustomerAccessConfigList },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
   "waste-management": {

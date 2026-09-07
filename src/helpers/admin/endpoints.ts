@@ -102,6 +102,8 @@ export const adminEndpoints = {
   usersCreation: "user-creations/users-creation",
   staffCreation: "user-creations/staffcreation",
   staffAccessConfiguration: "user-creations/staff-access-configuration",
+  /** Mobile app module master — which apps exist and can be granted. */
+  appModules: "screen-managements/app-modules",
   staffAccessDashboard: "user-creations/staff-access-dashboard",
   unassignedStaffPool: "user-creations/unassigned-staff-pool",
 
@@ -109,6 +111,8 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
+  /** Per-customer app access: which app they may sign into, which screens they see. */
+  customerAccessConfiguration: "customer-masters/customer-access-configuration",
   wasteCollections: "schedule-operations/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
