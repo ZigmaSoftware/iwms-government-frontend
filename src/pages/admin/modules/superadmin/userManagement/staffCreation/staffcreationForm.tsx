@@ -18,7 +18,12 @@ import {
   newPasswordSchema,
   type NewPasswordFormValues,
 } from "@/schemas/newPassword.schema";
-import { staffCreationApi, governmentUserTypeApi, appModuleApi } from "@/helpers/admin";
+import {
+  staffCreationApi,
+  governmentUserTypeApi,
+  appModuleApi,
+  staffAccessConfigurationApi,
+} from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import {
@@ -447,30 +452,6 @@ export default function StaffCreationForm() {
     { value: string; label: string }[]
   >([{ value: "", label: "No app access" }]);
 
-  useEffect(() => {
-    let cancelled = false;
-    appModuleApi
-      .readAll()
-      .then((rows) => {
-        if (cancelled) return;
-        const list = Array.isArray(rows) ? rows : [];
-        setAppModuleOptions([
-          { value: "", label: "No app access" },
-          ...list
-            .filter((row: { is_active?: boolean }) => row.is_active !== false)
-            .map((row: { surface_key: string; label: string }) => ({
-              value: row.surface_key,
-              label: row.label,
-            })),
-        ]);
-      })
-      .catch(() => {
-        /* keep the default so the field still works offline */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const [section, setSection] = useState<Section>("official");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
@@ -547,6 +528,91 @@ export default function StaffCreationForm() {
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
   const isEdit = Boolean(id);
+
+  // Only offer apps this person has actually been GRANTED, not the whole App
+  // Module master.
+  //
+  // This field sets which granted app opens first after sign-in; it does not
+  // grant anything (that's the Mobile App Access ticks in Staff Access
+  // Configuration — see the note under the field). Offering every module here
+  // meant an admin could pick "Driver", save successfully, and be left
+  // believing they'd given driver-app access when the person still couldn't
+  // sign in. Filtering to the granted set makes the choice honest: if nothing
+  // is ticked for them yet, "No app access" is the only option, which is the
+  // truth.
+  //
+  // `id` is the staff_unique_id (the viewset's lookup_field), which is exactly
+  // what staff-app-modules expects as `staff_id`.
+  useEffect(() => {
+    let cancelled = false;
+
+    type Module = { value: string; label: string; uniqueId: string };
+
+    const load = async () => {
+      let master: Module[];
+      try {
+        const rows = await appModuleApi.readAll();
+        master = (Array.isArray(rows) ? rows : [])
+          .filter((row: { is_active?: boolean }) => row.is_active !== false)
+          .map((row: { unique_id?: string; surface_key: string; label: string }) => ({
+            value: row.surface_key,
+            label: row.label,
+            uniqueId: row.unique_id ?? "",
+          }));
+      } catch {
+        // Keep just "No app access" so the field still renders offline.
+        return;
+      }
+
+      let granted: Module[] = [];
+      if (id) {
+        try {
+          const res = await staffAccessConfigurationApi.action(
+            "staff-app-modules",
+            undefined,
+            { params: { staff_id: id } },
+          );
+          const grantedIds = (res as { app_module_ids?: string[] })?.app_module_ids ?? [];
+          granted = master.filter((m) => grantedIds.includes(m.uniqueId));
+        } catch {
+          // No configuration yet, or no permission to read it — nothing is
+          // known to be granted, so offer nothing rather than over-promising.
+          granted = [];
+        }
+      }
+      // Creating: no access configuration exists yet, so nothing can be
+      // granted and `granted` stays empty. The landing app becomes
+      // selectable once access is ticked in Staff Access Configuration.
+
+      if (cancelled) return;
+      setAppModuleOptions([
+        { value: "", label: "No app access" },
+        ...granted.map(({ value, label }) => ({ value, label })),
+      ]);
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  // Legacy rows can hold a landing app the person was never granted (the
+  // ticks and this field only started being kept in step recently — see the
+  // sync in staff-app-modules). Such a value isn't in the granted list above,
+  // so the dropdown would render blank and then silently re-post the stale
+  // value on save. Surface it as an explicitly-flagged option instead, so the
+  // admin can see what's stored and clear it.
+  const appModuleSelectOptions = useMemo(() => {
+    const current = formData.app_module;
+    if (!current || appModuleOptions.some((o) => o.value === current)) {
+      return appModuleOptions;
+    }
+    return [
+      ...appModuleOptions,
+      { value: current, label: `${current} — not granted` },
+    ];
+  }, [appModuleOptions, formData.app_module]);
   const { showField, filterPayload } = useFieldVisibility(
     "staff-masters",
     "staff-creation",
@@ -1745,7 +1811,7 @@ export default function StaffCreationForm() {
             id="app_module"
             value={formData.app_module}
             onChange={(value) => handleSelectChange("app_module", value)}
-            options={appModuleOptions}
+            options={appModuleSelectOptions}
             placeholder={t(
               "admin.staff_creation.app_module_placeholder",
               "Select the app this user opens",
