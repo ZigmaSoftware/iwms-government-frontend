@@ -18,7 +18,7 @@ import {
   newPasswordSchema,
   type NewPasswordFormValues,
 } from "@/schemas/newPassword.schema";
-import { staffCreationApi, governmentUserTypeApi } from "@/helpers/admin";
+import { staffCreationApi, governmentUserTypeApi, appModuleApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import {
