@@ -16,7 +16,6 @@ import "primeicons/primeicons.css";
 
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { PencilIcon } from "@/icons";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { binApi } from "@/helpers/admin";
@@ -27,6 +26,8 @@ import {
 } from "@/utils/exportExcel";
 import { createBinQrPdfBlob, downloadBinQrPdf } from "./binQrPdf";
 import { downloadAllBinsPdf } from "./binAllDetailsPdf";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
@@ -291,10 +292,6 @@ export default function BinList() {
     return mapped;
   })();
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   const statusBodyTemplate = (row: Bin) => {
     const updateStatus = async (checked: boolean) => {
       try {
@@ -346,12 +343,6 @@ export default function BinList() {
 
   const indexTemplate = (_: Bin, options: { rowIndex: number }) => options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", { item: t("admin.nav.bin_master") }),
-  });
-
   const qrTemplate = (bin: Bin) => {
     if (!bin.bin_qr) {
       return <span className="text-gray-400 text-xs">No QR</span>;
@@ -373,37 +364,35 @@ export default function BinList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">{t("admin.nav.bin_master")}</h1>
-          <p className="text-gray-500 text-sm">
-            {t("common.manage_item_records", { item: t("admin.nav.bin_master") })}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            label={isExportingExcel ? "Downloading…" : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-          <Button
-            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-            icon="pi pi-file-pdf"
-            className="p-button-outlined"
-            disabled={isExportingPdf}
-            onClick={handleDownloadPdf}
-          />
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
-      </div>
+      <ListPageHeader
+        title={t("admin.nav.bin_master")}
+        subtitle={t("common.manage_item_records", { item: t("admin.nav.bin_master") })}
+        actions={
+          <>
+            <Button
+              label={isExportingExcel ? "Downloading…" : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined"
+              disabled={isExportingExcel}
+              onClick={handleDownloadExcel}
+            />
+            <Button
+              label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+              icon="pi pi-file-pdf"
+              className="p-button-outlined"
+              disabled={isExportingPdf}
+              onClick={handleDownloadPdf}
+            />
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={bins}
@@ -418,7 +407,14 @@ export default function BinList() {
         sortOrder={sortOrder}
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder", { item: t("admin.nav.bin_master") })}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         loading={isLoading}

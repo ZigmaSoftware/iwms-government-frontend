@@ -1,6 +1,5 @@
 import type { CountryRecord, ErrorWithResponse } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +21,8 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countryApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -135,10 +136,6 @@ export default function CountryList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -199,39 +196,23 @@ export default function CountryList() {
   const indexTemplate = (_: CountryRecord, options: { rowIndex: number }) =>
     options.rowIndex + 1;
 
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: t("common.search_placeholder", {
-      item: t("admin.nav.country"),
-    }),
-  });
-
   return (
     <div className="p-3">
-
-      <div className="flex justify-between items-center mb-6">
-
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.nav.country")}
-          </h1>
-
-          <p className="text-gray-500 text-sm">
-            {t("common.manage_item_records", {
-              item: t("admin.nav.country"),
-            })}
-          </p>
-        </div>
-
-        <Button
-          label={t("common.add_item", { item: t("admin.nav.country") })}
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
-
-      </div>
+      <ListPageHeader
+        title={t("admin.nav.country")}
+        subtitle={t("common.manage_item_records", {
+          item: t("admin.nav.country"),
+        })}
+        actions={
+          <Button
+            label={t("common.add_item", { item: t("admin.nav.country") })}
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={countries}
@@ -247,7 +228,16 @@ export default function CountryList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("common.search_placeholder", {
+              item: t("admin.nav.country"),
+            })}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         onExportRequest={onExportRequest}

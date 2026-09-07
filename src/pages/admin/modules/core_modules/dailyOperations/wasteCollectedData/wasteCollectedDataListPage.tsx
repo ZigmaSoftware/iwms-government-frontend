@@ -27,6 +27,8 @@ import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/fil
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,10 +247,6 @@ export default function WasteCollectedDataList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   /* ── status toggle ── */
   const statusTemplate = (row: WasteCollection) => {
     const updateStatus = async (value: boolean) => {
@@ -300,10 +298,15 @@ export default function WasteCollectedDataList() {
           <Button label={isExporting ? "Downloading…" : "Download Excel"} icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={isExporting || totalRecords === 0} onClick={() => void handleExcelDownload()} />
           <Button label={isExporting ? "Generating…" : "Download PDF"} icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={isExporting || totalRecords === 0} onClick={() => void handlePdfDownload()} />
         </div>
-        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
-          <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
-          <i className="pi pi-search text-gray-500" />
-          <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder={t("admin.household_collection_event.search_placeholder")} className="border-none text-sm" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
+            <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
+          </div>
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.household_collection_event.search_placeholder")}
+          />
         </div>
       </div>
     </div>
@@ -311,24 +314,19 @@ export default function WasteCollectedDataList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.household_collection_event.title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.household_collection_event.subtitle")}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+      <ListPageHeader
+        title={t("admin.household_collection_event.title")}
+        subtitle={t("admin.household_collection_event.subtitle")}
+        actions={
           <Button
             label={t("admin.household_collection_event.add_new")}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         exportable={false}

@@ -136,7 +136,7 @@ export default function App() {
       <Route path="/state/dashboard" element={<StateLeaderDashboard />} />
       <Route path="/state/preview" element={<StateDashboard />} />
       <Route path="/" element={<HomeRedirect />} />
-       <Route path="/publicgrivence/*" element={<PublicGrievance />} />
+      <Route path="/publicgrivence/*" element={<PublicGrievance />} />
       <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
       <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
       <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />

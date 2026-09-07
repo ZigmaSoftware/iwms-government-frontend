@@ -1,5 +1,5 @@
 import type { StaffAuditJsonValue, StaffAuditRecord, DiffLine, ModuleFilterOption } from "./types";
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Swal from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -7,11 +7,12 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Column } from "primereact/column";
 import { Dropdown } from "primereact/dropdown";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { staffAuditApi } from "@/helpers/admin";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const ALL_MODULES = "__all__";
 
@@ -204,10 +205,6 @@ export default function StaffAuditList() {
 
   const loading = isLoading && rows.length === 0;
 
-  const onGlobalFilterChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  }, []);
-
   const openDetails = useCallback((record: StaffAuditRecord) => {
     setSelectedRecord(record);
   }, []);
@@ -327,22 +324,22 @@ export default function StaffAuditList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.staff_audit.list_title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.staff_audit.list_subtitle")}
-          </p>
-        </div>
-      </div>
+      <ListPageHeader
+        title={t("admin.staff_audit.list_title")}
+        subtitle={t("admin.staff_audit.list_subtitle")}
+        className="mb-6"
+      />
 
       <div className="mb-4">
         <HierarchyFilterBar onChange={setHierarchyParams} />
       </div>
 
-      <div className="mb-4 flex flex-col justify-end gap-3 sm:flex-row sm:items-center">
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={setGlobalFilterValue}
+        searchPlaceholder={t("admin.staff_audit.search_placeholder")}
+        className="mb-4"
+      >
         <div className="w-full sm:w-64">
           <Dropdown
             value={moduleFilter}
@@ -354,17 +351,7 @@ export default function StaffAuditList() {
             className="w-full text-sm"
           />
         </div>
-
-        <div className="flex items-center gap-2 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.staff_audit.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
+      </FilterBar>
 
       <DataTable
         value={rows}

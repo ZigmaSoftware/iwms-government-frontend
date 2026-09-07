@@ -16,6 +16,8 @@ import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/fil
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -253,10 +255,6 @@ export default function BinCollectionEventList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(event.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -267,35 +265,6 @@ export default function BinCollectionEventList() {
 
   const header = (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Bin Collection Events</h1>
-          <p className="text-sm text-gray-500">Scan audit log — one record per operator bin scan</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            label="Download Excel"
-            icon="pi pi-file-excel"
-            className="p-button-outlined p-button-sm"
-            disabled={isExporting}
-            onClick={() => void handleExcelDownload()}
-          />
-          <Button
-            label="Download PDF"
-            icon="pi pi-file-pdf"
-            className="p-button-outlined p-button-sm"
-            disabled={isExporting}
-            onClick={() => void handlePdfDownload()}
-          />
-          <Button
-            label="Add Bin Collection Event"
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(NEW_PATH)}
-          />
-        </div>
-      </div>
-
       {/* Hierarchy filter — capped to the caller's own corporation subtree */}
       <HierarchyFilterBar onChange={setHierarchyParams} />
 
@@ -307,28 +276,53 @@ export default function BinCollectionEventList() {
         <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {summary.count}</span>
       </div>
 
-      <div className="flex justify-end">
-        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
-          <InputText
-            type="date"
-            value={collectionDateFilter}
-            onChange={(e) => setCollectionDateFilter(e.target.value)}
-            className="p-inputtext-sm border-none text-sm"
-          />
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
+      <div className="flex items-center justify-end gap-3">
+        <InputText
+          type="date"
+          value={collectionDateFilter}
+          onChange={(e) => setCollectionDateFilter(e.target.value)}
+          className="p-inputtext-sm"
+        />
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={setGlobalFilterValue}
+          searchPlaceholder={t("common.search_placeholder")}
+        />
       </div>
     </div>
   );
 
   return (
     <div className="p-3">
+      <ListPageHeader
+        title="Bin Collection Events"
+        subtitle="Scan audit log — one record per operator bin scan"
+        actions={
+          <div className="flex items-center gap-3">
+            <Button
+              label="Download Excel"
+              icon="pi pi-file-excel"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => void handleExcelDownload()}
+            />
+            <Button
+              label="Download PDF"
+              icon="pi pi-file-pdf"
+              className="p-button-outlined p-button-sm"
+              disabled={isExporting}
+              onClick={() => void handlePdfDownload()}
+            />
+            <Button
+              label="Add Bin Collection Event"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(NEW_PATH)}
+            />
+          </div>
+        }
+        className="mb-6"
+      />
       <DataTable
         exportable={false}
         value={rows}

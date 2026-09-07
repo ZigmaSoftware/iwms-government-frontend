@@ -5,13 +5,14 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { asArray, errorText, yesNo } from "../utils";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 type Props = {
   kind: MasterKind;
@@ -108,13 +109,14 @@ export default function MasterList({ kind }: Props) {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">{config.titlePlural}</h1>
-          <p className="text-sm text-gray-500">Complaint ticketing setup</p>
-        </div>
-        <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
-      </div>
+      <ListPageHeader
+        title={config.titlePlural}
+        subtitle="Complaint ticketing setup"
+        actions={
+          <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+        }
+        className="mb-6"
+      />
       <DataTable
         value={rows}
         dataKey="unique_id"
@@ -130,14 +132,12 @@ export default function MasterList({ kind }: Props) {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={query}
+            onSearchChange={setQuery}
+            searchPlaceholder="Search"
+            className="mb-4"
+          />
         }
         emptyMessage="No records found"
         stripedRows

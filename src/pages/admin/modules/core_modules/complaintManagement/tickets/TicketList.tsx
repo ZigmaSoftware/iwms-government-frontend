@@ -4,7 +4,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -12,6 +11,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintFeedbackApi, complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
 import type { ComplaintFeedback, ComplaintTicket, GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime } from "../utils";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
 
@@ -383,13 +384,14 @@ export default function TicketList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Complaint Tickets</h1>
-          <p className="text-sm text-gray-500">Track submitted complaints and operational actions</p>
-        </div>
-        <Button label="Add Ticket" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
-      </div>
+      <ListPageHeader
+        title="Complaint Tickets"
+        subtitle="Track submitted complaints and operational actions"
+        actions={
+          <Button label="Add Ticket" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+        }
+        className="mb-6"
+      />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
@@ -506,14 +508,12 @@ export default function TicketList() {
           loading={tableLoading}
           onExportRequest={async () => toRecordList(await complaintTicketApi.readAllForExport({ params: buildTicketParams() }))}
           header={
-            <div className="flex justify-end">
-              <InputText
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search tickets"
-                className="p-inputtext-sm"
-              />
-            </div>
+            <FilterBar
+              searchValue={query}
+              onSearchChange={setQuery}
+              searchPlaceholder="Search tickets"
+              className="mb-4"
+            />
           }
           stripedRows
           showGridlines

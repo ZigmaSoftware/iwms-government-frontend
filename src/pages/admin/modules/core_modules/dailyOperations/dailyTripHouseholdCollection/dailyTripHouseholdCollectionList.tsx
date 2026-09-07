@@ -14,6 +14,8 @@ import { dailyTripHouseholdCollectionApi } from "@/helpers/admin";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -270,10 +272,6 @@ export default function DailyTripHouseholdCollectionList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   const updateRecord = (uniqueId: string, patch: Partial<DailyTripHouseholdCollectionRecord>) => {
     setRawRows((records) =>
       records.map((record) =>
@@ -330,10 +328,13 @@ export default function DailyTripHouseholdCollectionList() {
             onClick={() => void handlePdfDownload()}
           />
         </div>
-        <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
-          <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
-          <i className="pi pi-search text-gray-500" />
-          <InputText value={globalFilterValue} onChange={onGlobalFilterChange} placeholder="Search household collections..." className="border-none text-sm" />
+        <div className="flex items-center gap-3">
+          <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="p-inputtext-sm" />
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search household collections..."
+          />
         </div>
       </div>
     </div>
@@ -341,16 +342,11 @@ export default function DailyTripHouseholdCollectionList() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            Household Collection Points
-          </h1>
-          <p className="text-sm text-gray-500">
-            Per-household collection status within daily trip assignments
-          </p>
-        </div>
-      </div>
+      <ListPageHeader
+        title="Household Collection Points"
+        subtitle="Per-household collection status within daily trip assignments"
+        className="mb-6"
+      />
 
       <DataTable
         exportable={false}

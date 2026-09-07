@@ -8,12 +8,13 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { staffTemplateAuditLogApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 export default function StaffTemplateAuditList() {
@@ -54,11 +55,12 @@ export default function StaffTemplateAuditList() {
     fetchRecords();
   }, []);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setGlobalFilterValue(value);
-    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-  };
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      global: { value: globalFilterValue || null, matchMode: FilterMatchMode.CONTAINS },
+    }));
+  }, [globalFilterValue]);
 
   const actionTemplate = (row: StaffTemplateAuditRecord) => (
     <div className="flex justify-center">
@@ -74,28 +76,18 @@ export default function StaffTemplateAuditList() {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.staff_template_audit.list_title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.staff_template_audit.list_subtitle")}
-          </p>
-        </div>
-      </div>
+      <ListPageHeader
+        title={t("admin.staff_template_audit.list_title")}
+        subtitle={t("admin.staff_template_audit.list_subtitle")}
+        className="mb-6"
+      />
 
-      <div className="flex justify-end mb-4">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("common.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
+      <FilterBar
+        searchValue={globalFilterValue}
+        onSearchChange={setGlobalFilterValue}
+        searchPlaceholder={t("common.search_placeholder")}
+        className="mb-4"
+      />
 
       <DataTable
         value={records}

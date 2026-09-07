@@ -46,8 +46,8 @@ export const buildStaffCreationSchema = (isEdit: boolean) =>
         .refine(
           (value) =>
             value === "" ||
-            (/^\d+$/.test(value) && Number(value) >= 0 && Number(value) <= 120),
-          "Age must be a whole number between 0 and 120.",
+            (/^\d+$/.test(value) && Number(value) >= 18 && Number(value) <= 120),
+          "Age must be a whole number between 18 and 120.",
         ),
       blood_group: optionalString,
       gender: optionalString,

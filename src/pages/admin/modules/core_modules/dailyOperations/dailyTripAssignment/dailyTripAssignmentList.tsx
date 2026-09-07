@@ -1,7 +1,6 @@
 import type { DailyTripAssignmentRecord, RetripInfo } from "./types";
 import type { CollectionTypeKey } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -21,6 +20,8 @@ import { adminEndpoints } from "@/helpers/admin/endpoints";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { drawQrCode } from "@/utils/exportPdf";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 type SchedulerStatus = {
   enabled?: boolean;
   is_enabled?: boolean;
@@ -715,10 +716,6 @@ export default function DailyTripAssignmentList() {
     setFilterResetKey((key) => key + 1);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   /* ── column templates ── */
   const statusTemplate = (row: DailyTripAssignmentRecord) => (
     <Badge value={row.status} styleMap={STATUS_STYLES} />
@@ -742,52 +739,46 @@ export default function DailyTripAssignmentList() {
     );
   };
 
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: "Search assignments...",
-    });
-
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Plans</h1>
-          <p className="text-sm text-gray-500">Manage daily trip plans with assigned collection points</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            label={isExportingExcel ? "Exporting…" : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel || totalRecords === 0}
-            onClick={handleExcelDownload}
-          />
-          <Button
-            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-            icon="pi pi-file-pdf"
-            className="p-button-outlined"
-            disabled={isExportingPdf || totalRecords === 0}
-            onClick={handlePdfDownload}
-          />
+      <ListPageHeader
+        title="Daily Trip Plans"
+        subtitle="Manage daily trip plans with assigned collection points"
+        actions={
+          <div className="flex items-center gap-3">
+            <Button
+              label={isExportingExcel ? "Exporting…" : "Download Excel"}
+              icon="pi pi-file-excel"
+              className="p-button-outlined"
+              disabled={isExportingExcel || totalRecords === 0}
+              onClick={handleExcelDownload}
+            />
+            <Button
+              label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
+              icon="pi pi-file-pdf"
+              className="p-button-outlined"
+              disabled={isExportingPdf || totalRecords === 0}
+              onClick={handlePdfDownload}
+            />
 
-          <Button
-            label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
-            icon="pi pi-clock"
-            className="p-button-outlined"
-            disabled={isSchedulerRunning}
-            onClick={runSchedulerNow}
-          />
+            <Button
+              label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
+              icon="pi pi-clock"
+              className="p-button-outlined"
+              disabled={isSchedulerRunning}
+              onClick={runSchedulerNow}
+            />
 
-          <Button
-            label="New Daily Trip Plan"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
-      </div>
+            <Button
+              label="New Daily Trip Plan"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </div>
+        }
+        className="mb-6"
+      />
 
       <div className="mb-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-8">
         <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
@@ -895,7 +886,14 @@ export default function DailyTripAssignmentList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search assignments..."
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

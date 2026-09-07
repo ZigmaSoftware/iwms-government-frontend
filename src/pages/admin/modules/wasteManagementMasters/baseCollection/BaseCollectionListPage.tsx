@@ -4,11 +4,12 @@ import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -132,8 +133,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
 
   /* ================= FILTER ================= */
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setFilters((prev) => ({
       ...prev,
       global: { value, matchMode: FilterMatchMode.CONTAINS },
@@ -210,17 +210,12 @@ export default function BaseCollectionListPage({ scope }: Props) {
     scope === "panchayat" ? "panchayat_total_weight" : "ward_total_weight";
 
   const tableHeader = (
-    <div className="flex justify-end items-center">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search..."
-          className="p-inputtext-sm !border-0 !shadow-none"
-        />
-      </div>
-    </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={onGlobalFilterChange}
+      searchPlaceholder="Search..."
+      className="mb-4"
+    />
   );
 
   const viewActionTemplate = (onClick: () => void) => (
@@ -260,12 +255,7 @@ export default function BaseCollectionListPage({ scope }: Props) {
 
   return (
     <div className="p-3">
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">{title}</h1>
-          <p className="text-gray-500 text-sm">{subtitle}</p>
-        </div>
-      </div>
+      <ListPageHeader title={title} subtitle={subtitle} className="mb-6" />
 
       {viewLevel === "records" && selectedLocation && (
         <div className="flex items-center gap-1 text-sm text-gray-500 mb-4">

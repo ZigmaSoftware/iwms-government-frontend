@@ -5,12 +5,13 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const toRecordList = (value: unknown): LoginAuditRecord[] => {
   if (Array.isArray(value)) return value as LoginAuditRecord[];
@@ -107,10 +108,6 @@ export default function LoginAuditList() {
 
   const closeDetails = useCallback(() => setSelectedAudit(null), []);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   const actionTemplate = useCallback(
     (row: LoginAuditRecord) => (
       <div className="flex justify-center">
@@ -126,29 +123,14 @@ export default function LoginAuditList() {
     [openDetails, t]
   );
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">{t("admin.nav.login_audit")}</h1>
-          <p className="text-sm text-gray-500">{t("admin.login_audit_subtitle", "Login audit records")}</p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1 max-w-md">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.login_audit_search", "Search login audits...")}
-          className="border-none text-sm w-full"
-        />
-      </div>
-    </div>
-  );
-
   return (
     <div className="p-3">
+      <ListPageHeader
+        title={t("admin.nav.login_audit")}
+        subtitle={t("admin.login_audit_subtitle", "Login audit records")}
+        className="mb-6"
+      />
+
       <DataTable
         value={rows}
         dataKey="unique_id"
@@ -163,7 +145,14 @@ export default function LoginAuditList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && rows.length === 0}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.login_audit_search", "Search login audits...")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage={t("common.no_records")}

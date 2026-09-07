@@ -1,6 +1,5 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
 
@@ -21,6 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import type { UserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 
 import { userTypeApi } from "@/helpers/admin";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const toRecordList = (value: unknown): UserType[] => {
   if (Array.isArray(value)) return value as UserType[];
@@ -95,10 +96,6 @@ export default function UserTypePage() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -163,36 +160,23 @@ export default function UserTypePage() {
     );
   };
 
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder", {
-        item: t("admin.nav.user_type"),
-      }),
-    });
-
   return (
     <div className="px-3 py-3 w-full ">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.user_type")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", {
-                item: t("admin.nav.user_type"),
-              })}
-            </p>
-          </div>
-
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.user_type") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
+        <ListPageHeader
+          title={t("admin.nav.user_type")}
+          subtitle={t("common.manage_item_records", {
+            item: t("admin.nav.user_type"),
+          })}
+          actions={
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.user_type") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          }
+          className="mb-6"
+        />
 
         <DataTable
           value={rows}
@@ -208,7 +192,16 @@ export default function UserTypePage() {
           onSort={onSort}
           loading={isLoading}
           rowsPerPageOptions={[5, 10, 25, 50]}
-          header={header}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("common.search_placeholder", {
+                item: t("admin.nav.user_type"),
+              })}
+              className="mb-4"
+            />
+          }
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.user_type"),
           })}

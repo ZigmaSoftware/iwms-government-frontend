@@ -1,6 +1,5 @@
 import type { StaffUserTypeRow } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +21,8 @@ import { Switch } from "@/components/ui/switch";
 import { contractorUserTypeApi, governmentUserTypeApi, staffUserTypeApi } from "@/helpers/admin";
 
 import type { StaffUserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const toRecordList = (value: unknown): StaffUserType[] => {
@@ -198,49 +199,36 @@ export default function StaffUserTypeList() {
   /* -----------------------------------------------------------
      GLOBAL FILTER
   ----------------------------------------------------------- */
-  const onGlobalFilterChange = (e: any) => {
-    const value = e.target.value;
-    const updated = { ...filters };
-    updated["global"].value = value;
-
-    setFilters(updated);
-    setGlobalFilterValue(value);
-  };
-
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder_placeholder"),
-    });
+  useEffect(() => {
+    setFilters((current: any) => ({
+      ...current,
+      global: { ...current.global, value: globalFilterValue || null },
+    }));
+  }, [globalFilterValue]);
 
   /* -----------------------------------------------------------
      RENDER
   ----------------------------------------------------------- */
   return (
     <div className="p-3">
-  
 
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">
-              {t("admin.nav.staff_user_type")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", {
+        <ListPageHeader
+          title={t("admin.nav.staff_user_type")}
+          subtitle={t("common.manage_item_records", {
+            item: t("admin.nav.staff_user_type"),
+          })}
+          actions={
+            <Button
+              label={t("common.add_item", {
                 item: t("admin.nav.staff_user_type"),
               })}
-            </p>
-          </div>
-
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.nav.staff_user_type"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          }
+          className="mb-6"
+        />
 
         <DataTable
           value={records}
@@ -250,7 +238,14 @@ export default function StaffUserTypeList() {
           filters={filters}
           rowsPerPageOptions={[5, 10, 25, 50]}
           globalFilterFields={["name", "usertype_name", "category"]}
-          header={header}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("common.search_placeholder_placeholder")}
+              className="mb-4"
+            />
+          }
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {

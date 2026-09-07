@@ -24,6 +24,17 @@ export interface VehicleDetail {
   capacity: string | null;
 }
 
+export interface AlternativeStaffTemplateDetail {
+  unique_id: string;
+  display_code: string;
+  base_staff_template_id: string | null;
+  driver: StaffDetail | null;
+  operator: StaffDetail | null;
+  change_reason: string | null;
+  change_remarks: string | null;
+  approval_status: string | null;
+}
+
 export interface TripAssignmentDetail {
   unique_id: string;
   trip_date: string;
@@ -34,11 +45,35 @@ export interface TripAssignmentDetail {
   trip_plan_display_code: string | null;
 }
 
+export interface PendingCollectionPoint {
+  unique_id: string;
+  sequence: number;
+  status: string;
+  collection_point_id: string | null;
+  name: string | null;
+  bin_id: string | null;
+}
+
+export interface PendingHousehold {
+  unique_id: string;
+  sequence: number;
+  status: string;
+  customer_id: string | null;
+  name: string | null;
+}
+
+export interface PendingStopsSnapshot {
+  collection_points: PendingCollectionPoint[];
+  households: PendingHousehold[];
+}
+
 export interface VehicleBreakdownRecord {
   unique_id: string;
 
   trip_assignment_id: string;
   trip_assignment_detail: TripAssignmentDetail | null;
+  new_assignment_id: string | null;
+  pending_stops: PendingStopsSnapshot | null;
 
   breakdown_vehicle_id: string;
   breakdown_vehicle_detail: VehicleDetail | null;
@@ -56,6 +91,7 @@ export interface VehicleBreakdownRecord {
   original_operator_detail: StaffDetail | null;
 
   alt_staff_template_id: string | null;
+  alt_staff_template_detail: AlternativeStaffTemplateDetail | null;
 
   breakdown_time: string | null;
   breakdown_lat: string | null;

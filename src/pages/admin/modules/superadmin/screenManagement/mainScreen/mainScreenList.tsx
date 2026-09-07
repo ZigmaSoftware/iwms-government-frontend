@@ -1,6 +1,4 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -21,6 +19,8 @@ import { Switch } from "@/components/ui/switch";
 import { mainScreenApi } from "@/helpers/admin";
 
 import type { MainScreen } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; // Correct import
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 const toRecordList = (value: unknown): MainScreen[] => {
   if (Array.isArray(value)) return value as MainScreen[];
@@ -39,7 +39,9 @@ export default function MainScreenList() {
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<{
+    global: { value: string | null; matchMode: FilterMatchMode };
+  }>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
   });
 
@@ -131,46 +133,30 @@ export default function MainScreenList() {
   /* ------------------------------
       Search
   ------------------------------ */
-  const onGlobalFilterChange = (e: any) => {
-    const val = e.target.value;
-    const _filters = { ...filters };
-    _filters["global"].value = val;
-
-    setFilters(_filters);
-    setGlobalFilterValue(val);
-  };
-
-  /* ------------------------------
-      Table Header
-  ------------------------------ */
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("common.search_placeholder"),
-    });
+  useEffect(() => {
+    setFilters((current) => ({
+      ...current,
+      global: { ...current.global, value: globalFilterValue || null },
+    }));
+  }, [globalFilterValue]);
 
   return (
-    <div className="px-3 py-3 w-full "> 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.nav.main_screen")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("common.manage_item_records", {
-                item: t("admin.nav.main_screen"),
-              })}
-            </p>
-          </div>
-
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.main_screen") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
+    <div className="px-3 py-3 w-full ">
+        <ListPageHeader
+          title={t("admin.nav.main_screen")}
+          subtitle={t("common.manage_item_records", {
+            item: t("admin.nav.main_screen"),
+          })}
+          actions={
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.main_screen") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          }
+          className="mb-6"
+        />
 
         <DataTable
           value={records}
@@ -185,7 +171,14 @@ export default function MainScreenList() {
             "icon_name",
             "description",
           ]}
-          header={header}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("common.search_placeholder")}
+              className="mb-4"
+            />
+          }
           stripedRows
           showGridlines
           emptyMessage={t("common.no_items_found", {

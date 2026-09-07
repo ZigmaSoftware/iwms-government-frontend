@@ -9,11 +9,12 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { PencilIcon } from "@/icons";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const STATUS_STYLES: Record<string, string> = {
@@ -167,26 +168,21 @@ export default function DailyTripCollectionPointList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(event.target.value);
-  };
-
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Daily Trip Collection Points</h1>
-          <p className="text-sm text-gray-500">Manage collection points assigned to daily trips</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <ListPageHeader
+        title="Daily Trip Collection Points"
+        subtitle="Manage collection points assigned to daily trips"
+        actions={
           <Button
             label="New Collection Point"
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={rows}
@@ -203,17 +199,12 @@ export default function DailyTripCollectionPointList() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
         header={
-          <div className="flex justify-end items-center">
-            <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-              <i className="pi pi-search text-gray-500" />
-              <InputText
-                value={globalFilterValue}
-                onChange={onGlobalFilterChange}
-                placeholder="Search trip collection points..."
-                className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-              />
-            </div>
-          </div>
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search trip collection points..."
+            className="mb-4"
+          />
         }
         stripedRows
         showGridlines
