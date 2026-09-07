@@ -1,5 +1,4 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -12,6 +11,8 @@ import { PencilIcon } from "@/icons";
 import { Switch } from "@/components/ui/switch";
 import { townPanchayatApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 type TownPanchayatListRecord = {
   unique_id: string;
@@ -96,10 +97,6 @@ export default function TownPanchayatListPage() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(event.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -147,18 +144,19 @@ export default function TownPanchayatListPage() {
 
   return (
     <div className="p-3">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Town Panchayat</h1>
-          <p className="text-sm text-gray-500">Manage Town Panchayat records</p>
-        </div>
-        <Button
-          label="Add Town Panchayat"
-          icon="pi pi-plus"
-          className="p-button-success"
-          onClick={() => navigate(ENC_NEW_PATH)}
-        />
-      </div>
+      <ListPageHeader
+        title="Town Panchayat"
+        subtitle="Manage Town Panchayat records"
+        actions={
+          <Button
+            label="Add Town Panchayat"
+            icon="pi pi-plus"
+            className="p-button-success"
+            onClick={() => navigate(ENC_NEW_PATH)}
+          />
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={rows}
@@ -174,11 +172,14 @@ export default function TownPanchayatListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
-        header={renderListSearchHeader({
-          value: globalFilterValue,
-          onChange: onGlobalFilterChange,
-          placeholder: "Search Town Panchayat...",
-        })}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search Town Panchayat..."
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage="No Town Panchayat records found."

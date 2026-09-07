@@ -1,6 +1,5 @@
 import type { VehicleTypeRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -21,6 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { vehicleTypeApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -117,10 +118,6 @@ export default function VehicleTypeCreationList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   useEffect(() => {
     const timeout = setTimeout(() => {
       setFirst(0);
@@ -185,38 +182,22 @@ export default function VehicleTypeCreationList() {
     { rowIndex }: { rowIndex: number }
   ) => rowIndex + 1;
 
-  // ── Table header ──────────────────────────────────────────────────────────
-  const renderHeader = () =>
-    renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.vehicle_type.search_placeholder"),
-    });
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-3">
-      {/* Page header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.vehicle_type.title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.vehicle_type.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Add button */}
+      <ListPageHeader
+        title={t("admin.vehicle_type.title")}
+        subtitle={t("admin.vehicle_type.subtitle")}
+        actions={
           <Button
             label={t("admin.vehicle_type.add")}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       {/* Table */}
       <DataTable
@@ -233,7 +214,14 @@ export default function VehicleTypeCreationList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && rows.length === 0}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.vehicle_type.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

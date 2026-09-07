@@ -1,9 +1,8 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-import enResource from "@/locales/en";
-import taResource from "@/locales/ta";
-import hiResource from "@/locales/hi";
+// Assembled from the per-module locale folders (see locales/index.ts).
+import { en as enResource, ta as taResource, hi as hiResource } from "@/locales";
 
 export const LANGUAGE_STORAGE_KEY = "iwms.language";
 

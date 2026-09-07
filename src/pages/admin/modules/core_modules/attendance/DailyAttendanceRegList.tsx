@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FilterMatchMode } from "primereact/api";
 import { Column } from "primereact/column";
 import type { DataTableFilterMeta, DataTablePageEvent } from "primereact/datatable";
-import { InputText } from "primereact/inputtext";
 
 import { api } from "@/api";
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -10,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import Select from "@/components/form/Select";
 import Swal from "@/lib/notify";
 import { staffCreationApi } from "@/helpers/admin";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 // One already-grouped (emp_id, recognition_date) row, as returned directly by
 // GET /attendance/records/ — the backend now performs the punch grouping via
@@ -197,70 +198,62 @@ export default function DailyAttendanceRegList() {
   };
 
   const header = (
-      <div className="space-y-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-800">Attendance</h1>
-            <p className="text-sm text-gray-500">Daily staff attendance records</p>
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">From date</span>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(event) => {
-                  setFromDate(event.target.value);
-                  setFirst(0);
-                }}
-                className="h-10 rounded-md border px-3"
-              />
-            </label>
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">To date</span>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(event) => {
-                  setToDate(event.target.value);
-                  setFirst(0);
-                }}
-                className="h-10 rounded-md border px-3"
-              />
-            </label>
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">Staff type</span>
-              <Select
-                value={staffUserTypeFilter}
-                onChange={setStaffUserTypeFilter}
-                options={staffUserTypeOptions}
-                placeholder="All staff types"
-                className="h-10 w-44"
-              />
-            </label>
-            <Button onClick={fetchAttendance} disabled={loading}>
-              {loading ? "Loading..." : "Load attendance"}
-            </Button>
-          </div>
-        </div>
-        <div className="flex max-w-md items-center gap-3 rounded-full border bg-white px-3 py-1">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={(event) => {
-              const value = event.target.value;
-              setGlobalFilterValue(value);
-              setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
-            }}
-            placeholder="Search attendance..."
-            className="w-full border-none text-sm"
-          />
-        </div>
-      </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={(value) => {
+        setGlobalFilterValue(value);
+        setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+      }}
+      searchPlaceholder="Search attendance..."
+      className="mb-4"
+    >
+      <label className="text-sm text-gray-700">
+        <span className="mb-1 block">From date</span>
+        <input
+          type="date"
+          value={fromDate}
+          onChange={(event) => {
+            setFromDate(event.target.value);
+            setFirst(0);
+          }}
+          className="h-10 rounded-md border px-3"
+        />
+      </label>
+      <label className="text-sm text-gray-700">
+        <span className="mb-1 block">To date</span>
+        <input
+          type="date"
+          value={toDate}
+          onChange={(event) => {
+            setToDate(event.target.value);
+            setFirst(0);
+          }}
+          className="h-10 rounded-md border px-3"
+        />
+      </label>
+      <label className="text-sm text-gray-700">
+        <span className="mb-1 block">Staff type</span>
+        <Select
+          value={staffUserTypeFilter}
+          onChange={setStaffUserTypeFilter}
+          options={staffUserTypeOptions}
+          placeholder="All staff types"
+          className="h-10 w-44"
+        />
+      </label>
+      <Button onClick={fetchAttendance} disabled={loading}>
+        {loading ? "Loading..." : "Load attendance"}
+      </Button>
+    </FilterBar>
   );
 
   return (
     <div className="p-3">
+      <ListPageHeader
+        title="Attendance"
+        subtitle="Daily staff attendance records"
+        className="mb-6"
+      />
       <DataTable
         value={filteredGroupedRows}
         dataKey="key"

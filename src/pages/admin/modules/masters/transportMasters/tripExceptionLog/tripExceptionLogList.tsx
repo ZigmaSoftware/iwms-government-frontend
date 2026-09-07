@@ -8,12 +8,13 @@ import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const buildLookup = (items: any[], key: string, label: string, fallbackKey?: string) =>
@@ -83,50 +84,27 @@ export default function TripExceptionLogList() {
     fetchRecords();
   }, []);
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
     setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
   };
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">
-            {t("admin.trip_exception_log.list_title")}
-          </h1>
-          <p className="text-sm text-gray-500">
-            {t("admin.trip_exception_log.list_subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
+  return (
+    <div className="p-3">
+      <ListPageHeader
+        title={t("admin.trip_exception_log.list_title")}
+        subtitle={t("admin.trip_exception_log.list_subtitle")}
+        actions={
           <Button
             label={t("admin.trip_exception_log.create_button")}
             icon="pi pi-plus"
             className="p-button-success p-button-sm"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
-      <div className="flex justify-end">
-        <div className="flex items-center gap-2 border rounded-full px-3 py-1 bg-white">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.trip_exception_log.search_placeholder")}
-            className="border-none text-sm"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="p-3">
       <DataTable
         value={records}
         dataKey="id"
@@ -140,7 +118,14 @@ export default function TripExceptionLogList() {
           "detected_by",
           "remarks",
         ]}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("admin.trip_exception_log.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

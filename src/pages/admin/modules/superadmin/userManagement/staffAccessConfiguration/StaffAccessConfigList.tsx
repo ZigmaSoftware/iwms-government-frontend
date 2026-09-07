@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -12,6 +11,8 @@ import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { PencilIcon } from "@/icons";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 type StaffAccessRecord = {
   unique_id?: string;
@@ -122,10 +123,6 @@ export default function StaffAccessConfigList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(event.target.value);
-  };
-
   const idTemplate = (row: StaffAccessRecord) => textOf(row.unique_id, row.id);
   const nameTemplate = (row: StaffAccessRecord) => textOf(row.employee_name, row.staff_name);
   const usernameTemplate = (row: StaffAccessRecord) => textOf(row.username, row.user_name);
@@ -168,34 +165,21 @@ export default function StaffAccessConfigList() {
     );
   };
 
-  const header = (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Staff Access Configuration</h1>
-          <p className="text-sm text-gray-500">Manage staff access, permissions, and scope.</p>
-        </div>
-        <Button
-          label="New staff access"
-          icon="pi pi-plus"
-          className="p-button-success p-button-sm"
-          onClick={() => navigate(newPath)}
-        />
-      </div>
-      <span className="p-input-icon-left w-full md:w-80">
-
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder="Search staff access..."
-          className="w-full"
-        />
-      </span>
-    </div>
-  );
-
   return (
     <ComponentCard title="">
+      <ListPageHeader
+        title="Staff Access Configuration"
+        subtitle="Manage staff access, permissions, and scope."
+        actions={
+          <Button
+            label="New staff access"
+            icon="pi pi-plus"
+            className="p-button-success p-button-sm"
+            onClick={() => navigate(newPath)}
+          />
+        }
+        className="mb-6"
+      />
       <DataTable
         value={records}
         loading={loading}
@@ -209,7 +193,14 @@ export default function StaffAccessConfigList() {
         sortOrder={sortOrder}
         onSort={onSort}
         dataKey="unique_id"
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search staff access..."
+            className="mb-4"
+          />
+        }
         emptyMessage="No staff access configurations found."
         responsiveLayout="scroll"
       >

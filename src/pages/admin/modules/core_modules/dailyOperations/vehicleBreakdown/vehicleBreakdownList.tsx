@@ -9,7 +9,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
@@ -17,6 +16,8 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -80,19 +81,35 @@ function VerifyDialog({
 }: {
   row: VehicleBreakdownRecord;
   onClose: () => void;
-  onConfirm: (remarks: string) => void;
+  onConfirm: (remarks: string, collectionPointIds?: string[]) => void;
   isLoading: boolean;
 }) {
   const [remarks, setRemarks] = useState("");
+  const pending = row.pending_stops;
+  const isBinTrip = !!pending && pending.collection_points.length > 0;
+  const isHouseholdTrip = !!pending && pending.households.length > 0;
+  const [selectedCps, setSelectedCps] = useState<string[]>(
+    () => pending?.collection_points.map((cp) => cp.unique_id) ?? [],
+  );
+
+  const toggleCp = (id: string) => {
+    setSelectedCps((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
+    );
+  };
+
+  const canConfirm = !isBinTrip || selectedCps.length > 0;
+
   const footer = (
     <div className="flex justify-end gap-2 pt-2">
       <Button label="Cancel" className="p-button-text p-button-secondary" onClick={onClose} disabled={isLoading} />
       <Button
-        label="Approve & Assign"
+        label="Approve & Start Replacement Trip"
         icon="pi pi-check"
         className="p-button-success"
         loading={isLoading}
-        onClick={() => onConfirm(remarks)}
+        disabled={!canConfirm}
+        onClick={() => onConfirm(remarks, isBinTrip ? selectedCps : undefined)}
       />
     </div>
   );
@@ -107,7 +124,7 @@ function VerifyDialog({
         </div>
       }
       footer={footer}
-      style={{ width: "500px" }}
+      style={{ width: "560px" }}
       modal
       draggable={false}
       resizable={false}
@@ -128,10 +145,52 @@ function VerifyDialog({
             </div>
           ))}
         </div>
+
+        {isBinTrip && (
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              Remaining collection points ({pending!.collection_points.length})
+              — select which move to the replacement trip
+            </p>
+            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+              {pending!.collection_points.map((cp) => (
+                <label
+                  key={cp.unique_id}
+                  className="flex items-center gap-2 text-sm text-gray-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCps.includes(cp.unique_id)}
+                    onChange={() => toggleCp(cp.unique_id)}
+                  />
+                  <span>
+                    {cp.name ?? cp.collection_point_id ?? cp.unique_id}
+                  </span>
+                  <span className="text-xs text-gray-400">({cp.status})</span>
+                </label>
+              ))}
+            </div>
+            {!canConfirm && (
+              <p className="text-xs text-red-500 mt-2">
+                Select at least one collection point to carry over.
+              </p>
+            )}
+          </div>
+        )}
+
+        {isHouseholdTrip && (
+          <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-800">
+            <strong>{pending!.households.length}</strong> un-collected house(s)
+            will automatically carry over to the replacement trip.
+          </div>
+        )}
+
         <div className="rounded-lg bg-green-50 border border-green-100 p-3 text-xs text-green-800">
           <strong>On approval:</strong> Trip{" "}
-          <span className="font-mono">{row.trip_assignment_id}</span> will be updated to use the
-          replacement vehicle and new driver/operator. The original trip ID remains unchanged.
+          <span className="font-mono">{row.trip_assignment_id}</span> will be
+          closed and a new replacement trip will be created with the new
+          vehicle/driver/operator, carrying over the remaining stops. The new
+          trip ID will be shown on the Daily Trip Plan.
         </div>
         <div>
           <p className="text-sm font-medium text-gray-700 mb-1.5">Remarks (optional)</p>
@@ -324,23 +383,44 @@ export default function VehicleBreakdownList() {
   };
 
   /* ── Verify ─────────────────────────────────────────────────────── */
-  const handleVerifyConfirm = async (remarks: string) => {
+  const handleVerifyConfirm = async (
+    remarks: string,
+    collectionPointIds?: string[],
+  ) => {
     if (!verifyTarget) return;
     setIsVerifying(true);
     try {
-      await api.patch(
+      const { data } = await api.patch(
         `/schedule-operations/vehicle-breakdowns/${verifyTarget.unique_id}/verify/`,
-        { remarks },
+        {
+          remarks,
+          ...(collectionPointIds
+            ? { collection_point_ids: collectionPointIds }
+            : {}),
+        },
       );
       setRawRows((prev) =>
         prev.map((r) =>
           r.unique_id === verifyTarget.unique_id
-            ? { ...r, status: "REPLACEMENT_ARRANGED", approval_status: "APPROVED" }
+            ? {
+                ...r,
+                status: "REPLACEMENT_ARRANGED",
+                approval_status: "APPROVED",
+                new_assignment_id: data?.new_assignment_id ?? null,
+              }
             : r,
         ),
       );
       setVerifyTarget(null);
-      Swal.fire({ icon: "success", title: "Approved", text: "Replacement vehicle assigned to the trip.", timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: "success",
+        title: "Approved",
+        text: data?.new_assignment_id
+          ? `Replacement trip ${data.new_assignment_id} created.`
+          : "Replacement vehicle assigned to the trip.",
+        timer: 2500,
+        showConfirmButton: false,
+      });
     } catch (err: any) {
       Swal.fire(t("common.error"), extractError(err), "error");
     } finally {
@@ -371,10 +451,6 @@ export default function VehicleBreakdownList() {
     } finally {
       setIsRejecting(false);
     }
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
   };
 
   /* ── Action column ──────────────────────────────────────────────── */
@@ -426,33 +502,24 @@ export default function VehicleBreakdownList() {
     </div>
   );
 
-  /* ── Header ─────────────────────────────────────────────────────── */
-  const header = renderListSearchHeader({
-    value: globalFilterValue,
-    onChange: onGlobalFilterChange,
-    placeholder: "Search breakdowns...",
-  });
-
   /* ════════════════════════════════════════════════════════════════
       RENDER
   ════════════════════════════════════════════════════════════════ */
   return (
     <div className="p-3">
-      {/* Title row */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">Vehicle Breakdowns</h1>
-          <p className="text-sm text-gray-500">Report breakdowns and arrange replacement vehicles for trips</p>
-        </div>
-        <div className="flex items-center gap-3">
+      <ListPageHeader
+        title="Vehicle Breakdowns"
+        subtitle="Report breakdowns and arrange replacement vehicles for trips"
+        actions={
           <Button
             label="Report Breakdown"
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(newPath)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       {/* DataTable */}
       <DataTable
@@ -469,7 +536,14 @@ export default function VehicleBreakdownList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder="Search breakdowns..."
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

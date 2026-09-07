@@ -7,7 +7,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { MultiSelect } from "@/components/form/MultiSelect";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
@@ -36,6 +35,8 @@ import HierarchyFilterBar, {
 import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
@@ -226,10 +227,6 @@ export default function CustomerCreationListPage() {
     setFilterResetKey((key) => key + 1);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   // ── Download template ─────────────────────────────────────────────────────
   const downloadTemplate = () => {
     exportTemplateToExcel(
@@ -346,12 +343,6 @@ export default function CustomerCreationListPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 px-3 py-2">
           <Button
-            label={t("admin.customer_creation.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-          <Button
             label="Download Template"
             icon="pi pi-download"
             className="p-button-secondary"
@@ -378,15 +369,6 @@ export default function CustomerCreationListPage() {
             disabled={isExportingPdf}
             onClick={handleDownloadPdf}
           />
-        </div>
-        <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-          <i className="pi pi-search text-gray-500" />
-          <InputText
-            value={globalFilterValue}
-            onChange={onGlobalFilterChange}
-            placeholder={t("admin.customer_creation.search_placeholder")}
-            className="p-inputtext-sm !border-0 !shadow-none"
-          />
           <input
             id="excelUpload"
             type="file"
@@ -395,6 +377,11 @@ export default function CustomerCreationListPage() {
             onChange={handleFileUpload}
           />
         </div>
+        <FilterBar
+          searchValue={globalFilterValue}
+          onSearchChange={setGlobalFilterValue}
+          searchPlaceholder={t("admin.customer_creation.search_placeholder")}
+        />
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
         <HierarchyFilterBar
@@ -557,18 +544,19 @@ export default function CustomerCreationListPage() {
   return (
     <>
       <div className="p-3 ">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">
-              {t("admin.customer_creation.title")}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {t("admin.customer_creation.subtitle")}
-            </p>
-          </div>
-
-          <div />
-        </div>
+        <ListPageHeader
+          title={t("admin.customer_creation.title")}
+          subtitle={t("admin.customer_creation.subtitle")}
+          actions={
+            <Button
+              label={t("admin.customer_creation.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          }
+          className="mb-6"
+        />
 
         <DataTable
           value={rawRows}

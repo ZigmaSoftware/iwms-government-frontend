@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -96,6 +97,10 @@ function StateLeaderEditor({
   const [pendingStateId, setPendingStateId] = useState<string | null>(
     initialPayload.state_id || null
   );
+  const stateComboOptions: ComboboxOption[] = stateOptions.map((item) => ({
+    value: item.value,
+    label: capitalize(item.label),
+  }));
   const [stateTakenBy, setStateTakenBy] = useState<string | null>(null);
   const [checkingState, setCheckingState] = useState(false);
 
@@ -205,34 +210,27 @@ function StateLeaderEditor({
               State{" "}
               <span className="text-red-500 ml-1">*</span>
             </Label>
-            <Select
+            <Combobox
+              id="state_id"
+              options={stateComboOptions}
               value={formData.state_id}
-              onValueChange={(v) => {
+              onChange={(v) => {
                 setFormData((prev) => ({ ...prev, state_id: v }));
                 setPendingStateId(null);
                 setStateTakenBy(null);
               }}
               disabled={isSubmitting || loadingStates || stateScope.mode === "locked"}
-            >
-              <SelectTrigger className="w-full" id="state_id">
-                <SelectValue
-                  placeholder={
-                    loadingStates
-                      ? "Loading States…"
-                      : stateOptions.length === 0
-                        ? "No States found"
-                        : "Select State"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {stateOptions.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={
+                loadingStates
+                  ? "Loading States…"
+                  : stateOptions.length === 0
+                    ? "No States found"
+                    : "Select State"
+              }
+              searchPlaceholder="Search state..."
+              emptyText="No state found."
+              triggerClassName="w-full"
+            />
             {checkingState && (
               <p className="mt-1 text-xs text-gray-400">Checking availability…</p>
             )}

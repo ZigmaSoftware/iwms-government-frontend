@@ -1,6 +1,5 @@
 import type { Fuel } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { renderListSearchHeader } from "@/utils/listSearchHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "@/lib/notify";
@@ -20,6 +19,8 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { fuelApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -122,10 +123,6 @@ export default function FuelList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
-  };
-
   const onExportRequest = async () => toRecordList(await fuelApi.readAllForExport());
 
   // ── Status toggle ─────────────────────────────────────────────────────────
@@ -180,34 +177,22 @@ export default function FuelList() {
   const indexTemplate = (_: Fuel, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
-  // ── Table header ──────────────────────────────────────────────────────────
-  const header = renderListSearchHeader({
-      value: globalFilterValue,
-      onChange: onGlobalFilterChange,
-      placeholder: t("admin.fuel.search_placeholder"),
-    });
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-3">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.fuel.title")}
-          </h1>
-          <p className="text-gray-500 text-sm">{t("admin.fuel.subtitle")}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Add button */}
+      <ListPageHeader
+        title={t("admin.fuel.title")}
+        subtitle={t("admin.fuel.subtitle")}
+        actions={
           <Button
             label={t("admin.fuel.add")}
             icon="pi pi-plus"
             className="p-button-success"
             onClick={() => navigate(ENC_NEW_PATH)}
           />
-        </div>
-      </div>
+        }
+        className="mb-6"
+      />
 
       <DataTable
         value={rows}
@@ -223,7 +208,14 @@ export default function FuelList() {
         onSort={onSort}
         loading={isLoading}
         rowsPerPageOptions={[5, 10, 25, 50]}
-        header={header}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.fuel.search_placeholder")}
+            className="mb-4"
+          />
+        }
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
         showGridlines

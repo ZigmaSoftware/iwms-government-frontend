@@ -7,7 +7,6 @@ import Swal from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import ExpiryBadge from "@/components/common/ExpiryBadge";
 import { Column } from "primereact/column";
-import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
@@ -29,6 +28,8 @@ import {
   getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { FilterBar } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -92,9 +93,6 @@ const VEHICLE_BULK_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const normalizeId = (value: unknown): string =>
-  value === null || value === undefined ? "" : String(value).trim();
 
 const formatDate = (value?: string | null) =>
   value ? String(value).split("T")[0] : "-";
@@ -221,10 +219,6 @@ export default function VehicleCreationListPage() {
     setFirst(0);
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
-  };
-
-  const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGlobalFilterValue(e.target.value);
   };
 
   useEffect(() => {
@@ -439,71 +433,48 @@ export default function VehicleCreationListPage() {
     return value || "-";
   };
 
-  // ── Table header ──────────────────────────────────────────────────────────
-  const renderHeader = () => (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-3 bg-white px-3 py-1 rounded-md border border-gray-300 shadow-sm">
-        <i className="pi pi-search text-gray-500" />
-        <InputText
-          value={globalFilterValue}
-          onChange={onGlobalFilterChange}
-          placeholder={t("admin.vehicle_creation.search_placeholder")}
-          className="p-inputtext-sm !border-0 !shadow-none !outline-none"
-        />
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          label={t("admin.vehicle_creation.download_template", {
-            defaultValue: "Download Template",
-          })}
-          icon="pi pi-download"
-          severity="secondary"
-          className="p-button-sm"
-          onClick={downloadVehicleTemplate}
-        />
-        <Button
-          label={t("admin.vehicle_creation.upload_csv", {
-            defaultValue: "Upload Excel",
-          })}
-          icon="pi pi-upload"
-          className="p-button-sm"
-          onClick={() => fileInputRef.current?.click()}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          hidden
-          onChange={handleVehicleFileUpload}
-        />
-      </div>
-    </div>
-  );
-
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="p-3">
-      {/* Page header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">
-            {t("admin.vehicle_creation.title")}
-          </h1>
-          <p className="text-gray-500 text-sm">
-            {t("admin.vehicle_creation.subtitle")}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Add button */}
-          <Button
-            label={t("admin.vehicle_creation.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
-        </div>
-      </div>
+      <ListPageHeader
+        title={t("admin.vehicle_creation.title")}
+        subtitle={t("admin.vehicle_creation.subtitle")}
+        actions={
+          <>
+            <Button
+              label={t("admin.vehicle_creation.download_template", {
+                defaultValue: "Download Template",
+              })}
+              icon="pi pi-download"
+              severity="secondary"
+              className="p-button-sm"
+              onClick={downloadVehicleTemplate}
+            />
+            <Button
+              label={t("admin.vehicle_creation.upload_csv", {
+                defaultValue: "Upload Excel",
+              })}
+              icon="pi pi-upload"
+              className="p-button-sm"
+              onClick={() => fileInputRef.current?.click()}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              hidden
+              onChange={handleVehicleFileUpload}
+            />
+            <Button
+              label={t("admin.vehicle_creation.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </>
+        }
+        className="mb-6"
+      />
 
       {/* Table */}
       <DataTable
@@ -521,7 +492,14 @@ export default function VehicleCreationListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading && rows.length === 0}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.vehicle_creation.search_placeholder")}
+            className="mb-4"
+          />
+        }
         stripedRows
         showGridlines
         className="p-datatable-sm"

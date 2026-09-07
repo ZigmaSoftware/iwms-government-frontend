@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -96,6 +97,10 @@ function DistrictLeaderEditor({
   const [pendingDistrictId, setPendingDistrictId] = useState<string | null>(
     initialPayload.district_id || null
   );
+  const districtComboOptions: ComboboxOption[] = districtOptions.map((item) => ({
+    value: item.value,
+    label: capitalize(item.label),
+  }));
   const [districtTakenBy, setDistrictTakenBy] = useState<string | null>(null);
   const [checkingDistrict, setCheckingDistrict] = useState(false);
 
@@ -205,34 +210,27 @@ function DistrictLeaderEditor({
               District{" "}
               <span className="text-red-500 ml-1">*</span>
             </Label>
-            <Select
+            <Combobox
+              id="district_id"
+              options={districtComboOptions}
               value={formData.district_id}
-              onValueChange={(v) => {
+              onChange={(v) => {
                 setFormData((prev) => ({ ...prev, district_id: v }));
                 setPendingDistrictId(null);
                 setDistrictTakenBy(null);
               }}
               disabled={isSubmitting || loadingDistricts || districtScope.mode === "locked"}
-            >
-              <SelectTrigger className="w-full" id="district_id">
-                <SelectValue
-                  placeholder={
-                    loadingDistricts
-                      ? "Loading Districts…"
-                      : districtOptions.length === 0
-                        ? "No Districts found"
-                        : "Select District"
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {districtOptions.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={
+                loadingDistricts
+                  ? "Loading Districts…"
+                  : districtOptions.length === 0
+                    ? "No Districts found"
+                    : "Select District"
+              }
+              searchPlaceholder="Search district..."
+              emptyText="No district found."
+              triggerClassName="w-full"
+            />
             {checkingDistrict && (
               <p className="mt-1 text-xs text-gray-400">Checking availability…</p>
             )}

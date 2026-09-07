@@ -92,3 +92,15 @@ export type StaffAccessConfigPreviewResponse = {
   };
   errors?: Record<string, string>;
 };
+
+
+/** One row of the mobile app module master (screen-managements/app-modules). */
+export type AppModuleOption = {
+  uniqueId: string;
+  moduleKey: string;
+  surfaceKey: string;
+  label: string;
+  route: string;
+  orderNo?: number;
+  description?: string | null;
+};

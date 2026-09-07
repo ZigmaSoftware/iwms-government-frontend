@@ -22,16 +22,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       setIsAllowed(false);
       return;
     }
-
-    // ✅ If allowedRoles is specified and the user's role is not in the list,
-    //    still allow access if the superadmin has granted them permissions.
-    //    This covers roles like "company driver" that are not "admin" by name
-    //    but have been given module access by a superadmin.
     if (allowedRoles?.length && (!role || !allowedRoles.includes(role))) {
-      // Allow in if the superadmin has granted ANY action on ANY screen.
-      // We must not require the "view" action specifically: some roles (e.g.
-      // govt_district_admin) are granted add/premview/premedit/premdelete but
-      // no plain "view", and requiring "view" here bounces them back to /auth.
       const storedPerms = getStoredPermissions();
       const hasPerms = Object.values(storedPerms).some((screens) =>
         Object.values(screens).some(
@@ -43,7 +34,6 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         setIsAllowed(false);
         return;
       }
-      // else: fall through — user has permissions, allow them in
     }
 
     setIsAllowed(isAccessTokenValid(token));

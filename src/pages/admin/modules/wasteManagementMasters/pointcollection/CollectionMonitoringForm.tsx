@@ -41,7 +41,6 @@ const ShadcnSelect = ({
   isRequired?: boolean;
   disabled?: boolean;
 }) => {
-  if (/^(company|project)$/i.test(label.trim())) return null;
   return (
   <div className="space-y-2">
     <Label className="text-sm font-medium text-gray-700">

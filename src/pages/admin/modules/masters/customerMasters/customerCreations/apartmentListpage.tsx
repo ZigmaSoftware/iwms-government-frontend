@@ -16,6 +16,7 @@ import "primeicons/primeicons.css";
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ListPageHeader } from "@/components/common/ListPageHeader";
 
 
 /* ---------------- HELPERS ---------------- */
@@ -328,14 +329,7 @@ export default function ApartmentListPage() {
       <div className="p-3">
 
       {/* PAGE HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800 mb-1">{title}</h1>
-          <p className="text-gray-500 text-sm">{subtitle}</p>
-        </div>
-
-        <div />
-      </div>
+      <ListPageHeader title={title} subtitle={subtitle} className="mb-6" />
 
       {/* BREADCRUMB */}
       {viewLevel !== "apartment" && (
