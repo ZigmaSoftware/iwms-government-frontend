@@ -256,6 +256,81 @@ Never delete the version tree the `bin` symlink currently targets.
 > `.credentials` - exclude `actions-runner-*` from any backup or recursive
 > clean over `iwmsGovernment/`.
 
+## Changing which user the runner runs as
+
+`svc.sh install <user>` bakes `User=` into the systemd unit, so switching
+accounts means reinstalling the service. Both `admin` and `iwmsuser` are
+viable here - each is in the `docker` group and each has the NOPASSWD
+`systemctl restart` rights the workflow's final step needs.
+
+```bash
+cd /home/admin/localserver/iwmsGovernment/actions-runner-backend
+sudo ./svc.sh stop && sudo ./svc.sh uninstall
+sudo ./svc.sh install iwmsuser && sudo ./svc.sh start
+```
+
+### The runner directory must be writable by that user first
+
+Easy to miss: the runner writes `_work/`, `_diag/` and `.runner` inside its
+own directory. As installed those are `admin:admin drwxr-xr-x` - **no group
+write**. `svc.sh install iwmsuser` succeeds anyway, then every job fails on
+permission errors.
+
+Fix the ownership in the same pass:
+
+```bash
+sudo chown -R iwmsuser:iwmsuser /home/admin/localserver/iwmsGovernment/actions-runner-backend
+# or, to let both accounts work in it:
+sudo chgrp -R iwmsuser /home/admin/localserver/iwmsGovernment/actions-runner-backend
+sudo chmod -R g+w      /home/admin/localserver/iwmsGovernment/actions-runner-backend
+```
+
+Verify before starting:
+
+```bash
+sudo -u iwmsuser test -w /home/admin/localserver/iwmsGovernment/actions-runner-backend/_work \
+  && echo writable || echo NOT writable
+sudo -u iwmsuser docker ps >/dev/null && echo "docker ok" || echo "docker DENIED"
+```
+
+### Why `admin` is the better default
+
+`admin` is a member of the `iwmsuser` group; `iwmsuser` is **not** a member of
+`admin`'s group. So files `admin` creates with a default umask land
+`rw-r--r--` - readable but not writable by `iwmsuser`. Whichever account did
+not create a file can then fail to modify it.
+
+That is not hypothetical: it is exactly how the frontend went down on
+2026-09-08. The old Vite dev server ran as `iwmsuser` while
+`node_modules/.vite/deps` was owned by `admin` without group write, so a
+dependency re-optimisation died with `EACCES` mid-restart (see
+[01-docker-deployment.md](01-docker-deployment.md)).
+
+If `iwmsuser` is to own deploys long-term, set `umask 002` for both accounts
+so new files stay group-writable:
+
+```bash
+echo 'umask 002' | sudo tee -a /home/iwmsuser/.bashrc   # if it has its own home
+```
+
+Note `iwmsuser`'s home is `/home/admin/localserver`, shared with the repos -
+check before appending to any shell profile there.
+
+### What each account can and cannot do
+
+| | `admin` | `iwmsuser` |
+|---|---|---|
+| In `sudo` group (general root) | yes | **no** |
+| In `docker` group | yes | yes |
+| Restart the two iwms-government units | yes | yes |
+| Restart `iwms-backend` / `iwms-frontend` (other project) | no | yes, via `/etc/sudoers.d/iwmsuser` |
+| Read/write the repos and both `.env` files | yes | yes |
+| Install services, edit `/etc/` | yes | no |
+
+So `iwmsuser` can do every day-to-day deploy task, but none of the one-time
+root setup - installing a runner service, writing a sudoers file, or adding a
+systemd unit still needs `admin`.
+
 ## Operating the runner
 
 `svc.sh` commands prompt for your password — the sudoers rule deliberately
@@ -317,6 +392,7 @@ request, proving Django ran and reached MySQL.
 | `Must run from runner root or install is corrupt` | `bin`/`externals` are absolute symlinks to the runner's **old** path after a move (created by self-update) | repoint them — see [Moving a runner directory](#moving-a-runner-directory) |
 | Runs queue forever after moving the directory | unit still references the old path | `svc.sh uninstall` at the old path, then `install` at the new one |
 | Job fails at `docker build` | runner user not in the `docker` group | `sudo usermod -aG docker <user>`, then restart the runner service |
+| Jobs fail on permission errors right after switching the runner's user | runner directory still owned by the previous user without group write | `chown`/`chgrp -R` + `chmod -R g+w` it — see [Changing which user the runner runs as](#changing-which-user-the-runner-runs-as) |
 | Deploy succeeds but the site is unchanged | browser cache, or the bundle built with stale args | hard-reload; check the "Verify the API URL landed in the bundle" step |
 | Two deploys collide | — | already handled: the workflow sets `concurrency: deploy-frontend` |
 
