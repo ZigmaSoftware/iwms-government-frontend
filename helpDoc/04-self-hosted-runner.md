@@ -38,7 +38,7 @@ that runs it, so there is no push, no pull, and no registry authentication.
 
 | | Frontend | Backend |
 |---|---|---|
-| Runner directory | `~/actions-runner-frontend` | `~/actions-runner-backend` |
+| Runner directory | `/home/admin/localserver/iwmsGovernment/actions-runner-frontend` | `/home/admin/localserver/iwmsGovernment/actions-runner-backend` |
 | Runner name | `iwms-gov-frontend` | `iwms-gov-backend` |
 | Label | `iwms-government` | `iwms-government` |
 | systemd unit | `actions.runner.ZigmaSoftware-iwms-government-frontend.iwms-gov-frontend` | `actions.runner.ZigmaSoftware-iwms-government-backend.iwms-gov-backend` |
@@ -64,7 +64,8 @@ forever, so expiry never matters again.
 ### 2. Download and extract
 
 ```bash
-mkdir -p ~/actions-runner-frontend && cd ~/actions-runner-frontend
+mkdir -p /home/admin/localserver/iwmsGovernment/actions-runner-frontend
+cd /home/admin/localserver/iwmsGovernment/actions-runner-frontend
 curl -fsSL -o actions-runner.tar.gz \
   https://github.com/actions/runner/releases/download/v2.328.0/actions-runner-linux-x64-2.328.0.tar.gz
 tar xzf actions-runner.tar.gz
@@ -146,6 +147,115 @@ sudo -u iwmsuser sudo -n /usr/bin/systemctl is-active iwms-government-frontend
 
 Both must print `active` with no password prompt.
 
+## Moving a runner directory
+
+The systemd unit hardcodes the runner's path:
+
+```
+WorkingDirectory=/home/admin/actions-runner-backend
+ExecStart=/home/admin/actions-runner-backend/runsvc.sh
+```
+
+So `mv` alone breaks the service - it would point at a directory that no
+longer exists, and every workflow run would queue forever. The service
+definition has to be uninstalled and reinstalled from the new location.
+
+**GitHub registration is not affected.** It lives in `.runner` and
+`.credentials` inside the directory and moves with it, so no new
+registration token is needed.
+
+### The catch: self-update leaves ABSOLUTE symlinks
+
+On its first job the runner self-updates (2.328.0 -> 2.337.0 here) and
+replaces `bin` and `externals` with symlinks containing the **absolute old
+path**:
+
+```
+bin       -> /home/admin/actions-runner-backend/bin.2.337.0
+externals -> /home/admin/actions-runner-backend/externals.2.337.0
+```
+
+After a move those dangle, `bin/Runner.Listener` cannot be found, and
+`svc.sh install` fails with:
+
+```
+Failed: Must run from runner root or install is corrupt
+```
+
+Misleading message - nothing is corrupt, the symlinks just point at the old
+location. A freshly registered runner that has never self-updated does not
+hit this.
+
+### Full procedure
+
+```bash
+# 1. stop and uninstall both services (from the OLD location)
+cd ~/actions-runner-backend  && sudo ./svc.sh stop && sudo ./svc.sh uninstall
+cd ~/actions-runner-frontend && sudo ./svc.sh stop && sudo ./svc.sh uninstall
+
+# 2. move
+mv ~/actions-runner-backend ~/actions-runner-frontend \
+   /home/admin/localserver/iwmsGovernment/
+
+# 3. repoint the self-update symlinks at the new location  <-- easy to miss
+cd /home/admin/localserver/iwmsGovernment/actions-runner-backend
+V=$(ls -d bin.* | sort -V | tail -1 | sed 's/^bin\.//')
+ln -sfn "$PWD/bin.$V" bin && ln -sfn "$PWD/externals.$V" externals
+test -e bin/Runner.Listener && echo "ok" || echo "still broken"
+
+cd /home/admin/localserver/iwmsGovernment/actions-runner-frontend
+V=$(ls -d bin.* | sort -V | tail -1 | sed 's/^bin\.//')
+ln -sfn "$PWD/bin.$V" bin && ln -sfn "$PWD/externals.$V" externals
+test -e bin/Runner.Listener && echo "ok" || echo "still broken"
+
+# 4. drop the stale job workspace helper (also holds the old absolute path)
+rm -f /home/admin/localserver/iwmsGovernment/actions-runner-*/_work/_update.sh
+
+# 5. reinstall the services from the NEW location
+cd /home/admin/localserver/iwmsGovernment/actions-runner-backend
+sudo ./svc.sh install admin && sudo ./svc.sh start
+cd /home/admin/localserver/iwmsGovernment/actions-runner-frontend
+sudo ./svc.sh install admin && sudo ./svc.sh start
+```
+
+### Verify the move
+
+```bash
+systemctl is-active \
+  actions.runner.ZigmaSoftware-iwms-government-backend.iwms-gov-backend \
+  actions.runner.ZigmaSoftware-iwms-government-frontend.iwms-gov-frontend
+
+# unit must reference the new path
+systemctl cat actions.runner.ZigmaSoftware-iwms-government-backend.iwms-gov-backend \
+  --no-pager | grep WorkingDirectory
+
+# nothing should still point at the old home directory
+grep -rlE "/home/admin/actions-runner-" \
+  /home/admin/localserver/iwmsGovernment/actions-runner-* 2>/dev/null \
+  | grep -v "_diag/"
+```
+
+Done on **2026-09-08 18:00**: both runners moved from `/home/admin/` into
+`/home/admin/localserver/iwmsGovernment/`, reconnected within seconds
+(`√ Connected to GitHub`, `Listening for Jobs`) with no re-registration.
+
+### Reclaiming space afterwards
+
+Each runner keeps its 217 MB installer and the superseded version tree:
+
+```bash
+rm -f /home/admin/localserver/iwmsGovernment/actions-runner-*/actions-runner.tar.gz
+rm -rf /home/admin/localserver/iwmsGovernment/actions-runner-*/bin.2.328.0
+rm -rf /home/admin/localserver/iwmsGovernment/actions-runner-*/externals.2.328.0
+```
+
+Never delete the version tree the `bin` symlink currently targets.
+
+> The runners now sit beside the two repos but are **not** inside either, so
+> neither `.gitignore` covers them and `git status` stays clean. They do hold
+> `.credentials` - exclude `actions-runner-*` from any backup or recursive
+> clean over `iwmsGovernment/`.
+
 ## Operating the runner
 
 `svc.sh` commands prompt for your password — the sudoers rule deliberately
@@ -154,7 +264,7 @@ covers only the two app services, not the runner itself. The `systemctl` and
 
 ```bash
 # status (svc.sh asks for a password; systemctl does not)
-sudo ~/actions-runner-frontend/svc.sh status
+sudo /home/admin/localserver/iwmsGovernment/actions-runner-frontend/svc.sh status
 systemctl status actions.runner.ZigmaSoftware-iwms-government-frontend.iwms-gov-frontend
 
 # live logs — shows "Running job" / "Job deploy completed with result: ..."
@@ -165,16 +275,16 @@ journalctl -u actions.runner.ZigmaSoftware-iwms-government-frontend.iwms-gov-fro
   | grep -E "Connected|Listening|Running job|completed"
 
 # stop / start / restart
-sudo ~/actions-runner-frontend/svc.sh stop
-sudo ~/actions-runner-frontend/svc.sh start
+sudo /home/admin/localserver/iwmsGovernment/actions-runner-frontend/svc.sh stop
+sudo /home/admin/localserver/iwmsGovernment/actions-runner-frontend/svc.sh start
 
 # remove entirely (needs a fresh removal token from the same GitHub page)
-sudo ~/actions-runner-frontend/svc.sh stop
-sudo ~/actions-runner-frontend/svc.sh uninstall
-cd ~/actions-runner-frontend && ./config.sh remove --token REMOVAL_TOKEN
+sudo /home/admin/localserver/iwmsGovernment/actions-runner-frontend/svc.sh stop
+sudo /home/admin/localserver/iwmsGovernment/actions-runner-frontend/svc.sh uninstall
+cd /home/admin/localserver/iwmsGovernment/actions-runner-frontend && ./config.sh remove --token REMOVAL_TOKEN
 ```
 
-Job workspaces live in `~/actions-runner-frontend/_work/`. Safe to delete when
+Job workspaces live in `/home/admin/localserver/iwmsGovernment/actions-runner-frontend/_work/`. Safe to delete when
 no job is running; the next run re-clones.
 
 ## Verified first run (2026-09-08)
@@ -204,6 +314,8 @@ request, proving Django ran and reached MySQL.
 | `tar: unexpected end of file` | truncated download (227 MB expected) | `rm` and re-`curl` with `--retry 3` |
 | `svc.sh: No such file` | looking before registering | run `config.sh` first — it generates `svc.sh` |
 | Runner offline after reboot | service not enabled | `sudo ./svc.sh install admin` then `start` (it enables the unit) |
+| `Must run from runner root or install is corrupt` | `bin`/`externals` are absolute symlinks to the runner's **old** path after a move (created by self-update) | repoint them — see [Moving a runner directory](#moving-a-runner-directory) |
+| Runs queue forever after moving the directory | unit still references the old path | `svc.sh uninstall` at the old path, then `install` at the new one |
 | Job fails at `docker build` | runner user not in the `docker` group | `sudo usermod -aG docker <user>`, then restart the runner service |
 | Deploy succeeds but the site is unchanged | browser cache, or the bundle built with stale args | hard-reload; check the "Verify the API URL landed in the bundle" step |
 | Two deploys collide | — | already handled: the workflow sets `concurrency: deploy-frontend` |
@@ -218,5 +330,6 @@ setup — everything else is in the repo:
 3. Install the systemd units (`deploy/systemd/`, gitignored — recreate from
    [01-docker-deployment.md](01-docker-deployment.md)).
 4. Install the sudoers rule.
-5. Register a runner per repo, as above.
+5. Register a runner per repo, as above (install under
+   `/home/admin/localserver/iwmsGovernment/actions-runner-<repo>`).
 6. Push to `main` — CI does the rest.
