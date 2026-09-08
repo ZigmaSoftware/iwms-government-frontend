@@ -23,9 +23,12 @@ If you only remember one thing from this folder, remember this:
    inside a container, images, health checks, disk cleanup, and a
    common-mistakes table.
 3. **[03-github-actions.md](03-github-actions.md)** — The CI/CD pipeline: what
-   a push to `main` actually does, the GitHub variables/secrets the build now
-   requires, why the workflow refuses to push a bundle with no API URL, and
-   what must be committed before the next push.
+   a push to `main` actually does, why the workflow refuses to ship a bundle
+   with no API URL, and why no GitHub secrets or variables are required.
+4. **[04-self-hosted-runner.md](04-self-hosted-runner.md)** — The machine that
+   runs CI: why GitHub's cloud runners cannot reach this server (port 22 is
+   not forwarded), how to install and operate the runner, the narrow sudoers
+   rule that lets it restart services, and how to rebuild it from scratch.
 
 The backend's matching deployment write-up — `network_mode: host`, the
 `SECRET_KEY` `$$` escaping, the database decision — is at
