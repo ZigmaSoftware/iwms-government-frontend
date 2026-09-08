@@ -1,19 +1,18 @@
-# IWMS Government Frontend — Deployment & Testing Guide
+# IWMS Government Frontend — Deployment Guide
 
 Full flow: local setup → Docker build → server install → GitHub Actions →
-how to test each stage. Frontend runs on **port 3000**.
+nginx reverse proxy. Frontend runs on **port 3000** internally.
 
 Branch policy: `sathya`/`lux`/`sameer`/`vinoth`/`pavithra` (personal) →
 `dev` (integration, tests only) → `main` (production, tests + build +
 deploy).
 
-Public URL once deployed: `http://115.245.93.26:3000`
+Public URL once nginx is set up (§5): `http://115.245.93.26/` — no port
+needed. Until then, directly: `http://115.245.93.26:3000`.
 
-> **No nginx is used.** This server runs Apache (confirmed — nginx isn't
-> installed anywhere on this machine). The container serves the built
-> `dist/` folder with `serve`, a ~2MB Node static file server — it has
-> nothing to do with, and doesn't conflict with, the Apache already
-> running on the host.
+The container serves the built `dist/` folder with `serve`, a ~2MB Node
+static file server — nothing to do with, and doesn't conflict with, nginx
+sitting in front of it on the host (see §5).
 
 ---
 
@@ -38,7 +37,7 @@ Both this repo and `iwms-government-backend` deploy to the same server, so
 they use the **same** SSH keypair. If you've already generated it while
 setting up the backend (its `DEPLOYMENT.md` §0.2), you don't need to
 generate it again — just reuse that same private key value in this repo's
-secret (Section 4, Step 1) too.
+secret (Section 3, Step 1) too.
 
 If this is the very first repo you're setting up, generate it here instead:
 ```bash
@@ -62,6 +61,7 @@ cat ~/.ssh/gov_deploy_key       # copy this ENTIRE output, BEGIN/END lines inclu
 | `docker-compose.yml` | Runs the built image on the server |
 | `.github/workflows/deploy.yml` | CI/CD: test → build & push image → deploy |
 | `deploy/systemd/iwms-government-frontend.service` | Server-only unit file (gitignored, not pushed to GitHub) |
+| `deploy/nginx/iwms-government.conf` | Host-level nginx reverse proxy config — routes `/` here, `/api/` and `/admin/` to the backend. Committed. See §5. |
 
 ---
 
@@ -96,7 +96,8 @@ image — same registry):
 echo <YOUR_GITHUB_PAT> | docker login ghcr.io -u <github-username> --password-stdin
 ```
 
-Open the firewall port:
+Open the firewall port (temporary, direct access — once nginx is set up in
+§5, only 80/443 need to stay open publicly):
 ```bash
 sudo ufw allow 3000/tcp
 sudo ufw reload
@@ -120,46 +121,7 @@ crontab -e
 
 ---
 
-## 3. Test locally BEFORE touching the server
-
-### Step 1 — Build the image locally
-```bash
-cd /home/admin/iwms/government/webapp/iwms-government-frontend
-docker build -t iwms-gov-frontend-test .
-```
-✅ Expect: build finishes, no TypeScript errors during the `npm run build`
-step. **If this step fails with TS errors, fix them first** — the same
-build runs inside GitHub Actions and will block every deploy until it's
-green.
-
-### Step 2 — Run it locally
-```bash
-docker run --rm -p 3000:3000 iwms-gov-frontend-test
-```
-✅ Expect: log line like `Accepting connections at http://localhost:3000`.
-
-### Step 3 — Open it in a browser or curl it
-```bash
-curl -i http://127.0.0.1:3000/
-```
-Or just open `http://localhost:3000` in your browser.
-✅ Expect: the app loads, and navigating to a client-side route (not just
-`/`) and refreshing the page still works (no blank 404 page) — `serve -s`
-handles the SPA fallback for you automatically.
-
-### Step 4 — Run lint the same way CI will
-```bash
-docker run --rm --entrypoint npm iwms-gov-frontend-test run lint
-```
-(This works against the build stage's `node_modules`; alternatively just
-run `npm run lint` directly on your machine before pushing.)
-
-### Step 5 — Stop the local container
-`Ctrl+C` in the terminal running `docker run` (step 2).
-
----
-
-## 4. The git branch workflow that drives deployment
+## 3. The git branch workflow that drives deployment
 
 This repo's branches form a chain, and `.github/workflows/deploy.yml` only
 reacts to two of them:
@@ -215,14 +177,13 @@ In the **Actions** tab, confirm all three jobs run in order and go green:
 sudo systemctl status iwms-government-frontend.service
 docker compose -f /home/admin/localserver/iwmsGovernment/iwms-government-frontend/docker-compose.yml logs -f frontend
 curl -i http://127.0.0.1:3000/
-curl -i http://115.245.93.26:3000/     # from your own machine, over the network
 ```
-✅ Expect: the container is `Up`, and both curl commands return the app's
+✅ Expect: the container is `Up`, and the curl command returns the app's
 HTML.
 
 ---
 
-## 5. Manual deploy (bypassing Actions, if ever needed)
+## 4. Manual deploy (bypassing Actions, if ever needed)
 
 ```bash
 cd /home/admin/localserver/iwmsGovernment/iwms-government-frontend
@@ -231,6 +192,67 @@ docker compose up -d
 docker compose logs -f frontend
 docker image prune -f
 ```
+
+## 5. nginx — reverse proxy in front of both containers
+
+This server originally ran Apache (confirmed — nothing custom, just the
+stock default install page at `/var/www/html/index.html`). Apache is
+disabled in favor of nginx, which now owns ports 80/443 and routes to both
+this frontend container and the backend container, so the site is reached
+at a plain URL — no `:3000`/`:9001` — and TLS can be added here later.
+
+### 5.1 Disable Apache (confirmed nothing depends on it)
+```bash
+sudo systemctl disable --now apache2
+```
+
+### 5.2 Install nginx
+```bash
+sudo apt update
+sudo apt install -y nginx
+```
+
+### 5.3 Install the reverse proxy config
+The config lives in this repo at `deploy/nginx/iwms-government.conf` —
+committed, so it's the same for everyone:
+```bash
+sudo cp deploy/nginx/iwms-government.conf /etc/nginx/sites-available/iwms-government.conf
+sudo ln -s /etc/nginx/sites-available/iwms-government.conf /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default   # remove nginx's own stock placeholder site
+
+sudo nginx -t                 # validate the config before reloading
+sudo systemctl reload nginx
+sudo systemctl enable nginx
+```
+
+### 5.4 Open the standard web ports, close the direct-access ones
+```bash
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp        # once TLS is configured
+sudo ufw delete allow 3000/tcp
+sudo ufw delete allow 9001/tcp   # (run from the backend repo's context, or just here — same firewall)
+sudo ufw reload
+```
+Port 3000/9001 stay reachable at `127.0.0.1` for nginx's own `proxy_pass`
+(nginx runs on the same host) — closing them externally just stops anyone
+from bypassing nginx and hitting the containers directly from outside.
+
+### 5.5 Verify
+```bash
+curl -i http://127.0.0.1/            # frontend, via nginx
+curl -i http://127.0.0.1/api/v1/     # backend, via nginx
+curl -i http://115.245.93.26/        # from your own machine
+```
+✅ Expect: both routes respond correctly through nginx, with no port
+number in the URL.
+
+### Adding a real domain + TLS later
+Once you have a domain pointed at `115.245.93.26`:
+1. Edit `deploy/nginx/iwms-government.conf`'s `server_name _;` to your
+   real domain.
+2. `sudo apt install -y certbot python3-certbot-nginx`
+3. `sudo certbot --nginx -d yourdomain.com` — certbot edits the nginx
+   config in place to add the TLS block and a port-443 `server{}`.
 
 ## 6. Rollback
 
@@ -250,5 +272,7 @@ docker compose up -d
 | Build fails with TS errors | Run `npm run build` locally first — CI runs the identical command |
 | Page loads but env values look wrong (API URL etc.) | `.env` wasn't correct when the image was **built** — rebuild, don't just restart |
 | Client-side route 404s on refresh | Confirm the container is running `serve -s` (the `-s` flag enables SPA fallback) |
-| `curl` connection refused | `sudo ufw status`, `systemctl status iwms-government-frontend.service` |
+| `curl` connection refused (direct, port 3000) | `sudo ufw status`, `systemctl status iwms-government-frontend.service` |
+| `curl http://115.245.93.26/` fails but `:3000` direct works | nginx issue, not the container — `sudo nginx -t`, `sudo systemctl status nginx`, check `/var/log/nginx/error.log` |
+| `502 Bad Gateway` from nginx | The container it's proxying to (frontend or backend) isn't running — check `docker compose ps` on both repos |
 | Actions `deploy` job fails at SSH step | Confirm `SERVER_SSH_KEY` public half is in server's `~/.ssh/authorized_keys` |
