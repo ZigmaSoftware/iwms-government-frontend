@@ -724,6 +724,7 @@ function CustomerEditor({
   const [formData, setFormData] = useState<FormDataType>({
     customer_name: initialPayload.customer_name,
     contact_no: initialPayload.contact_no,
+    app_module: initialPayload.app_module,
     username: initialPayload.username,
     email: initialPayload.email,
     password: initialPayload.password,
