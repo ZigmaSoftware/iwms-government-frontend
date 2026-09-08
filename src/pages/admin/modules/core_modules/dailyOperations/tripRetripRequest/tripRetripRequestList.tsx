@@ -313,6 +313,11 @@ export default function TripRetripRequestList() {
     setSortOrder(event.sortOrder);
   };
 
+  // Spread into fresh row objects so SafeDataTable's generic row constraint
+  // (an index signature) is satisfied — TripRetripRequestRecord is a closed
+  // interface and can't be passed to DataTable's `value` directly.
+  const rows = rawRows.map((r) => ({ ...r }));
+
   /* ── Approve ────────────────────────────────────────────────────── */
   const handleApproveConfirm = async (collectionPointIds: string[] | undefined, remarks: string) => {
     if (!approveTarget) return;
@@ -421,7 +426,7 @@ export default function TripRetripRequestList() {
 
       {/* DataTable */}
       <DataTable
-        value={rawRows}
+        value={rows}
         dataKey="unique_id"
         lazy
         paginator

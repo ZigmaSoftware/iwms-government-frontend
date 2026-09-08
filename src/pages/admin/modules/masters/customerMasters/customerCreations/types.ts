@@ -41,6 +41,10 @@ export type FamilyMember = {
 export interface FormDataType {
   customer_name: string;
   contact_no: string;
+  // Which mobile app this customer lands in after sign-in (e.g. "citizen").
+  // Options are sourced from the App Module master; mirrors the same field
+  // on staff creation. Defaults to "citizen" when unset.
+  app_module: string;
   username: string;
   email: string;
   password : string;

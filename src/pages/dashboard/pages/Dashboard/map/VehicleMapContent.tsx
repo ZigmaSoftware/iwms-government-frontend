@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import type { LatLngTuple, Map } from "leaflet";
+import type { LatLngTuple, Map as LeafletMap } from "leaflet";
 
 import { createVehicleIcon, VEHICLE_STATUS_META } from "./mapUtils";
 import { dailyTripCollectionPointApi, vehicleCreationApi } from "@/helpers/admin";
@@ -72,7 +72,7 @@ const formatLiveTime = (value?: string) => {
 };
 
 type VehicleMapContentProps = {
-  map: Map | null;
+  map: LeafletMap | null;
   params: Record<string, string>;
   focusedId: string;
   setFocusedId: (id: string) => void;
