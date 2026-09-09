@@ -7,6 +7,32 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+
+# VITE_* are inlined into the bundle at build time. .env is excluded by
+# .dockerignore (it holds secrets and dev-only values), so the production
+# values are passed in as build args by docker-compose.yml instead.
+ARG VITE_ENV=prod
+ARG VITE_API_PROD
+ARG VITE_GPS_VEHICLE_API
+ARG VITE_WEIGHBRIDGE_WASTE_API
+ARG VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY
+ARG VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY
+ENV VITE_ENV=$VITE_ENV \
+    VITE_API_PROD=$VITE_API_PROD \
+    VITE_GPS_VEHICLE_API=$VITE_GPS_VEHICLE_API \
+    VITE_WEIGHBRIDGE_WASTE_API=$VITE_WEIGHBRIDGE_WASTE_API \
+    VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY=$VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY \
+    VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY=$VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY
+
+# Fail the BUILD (not pull/up) if the API base never arrived. Without this a
+# missing build arg produces a bundle calling "undefined/api/v1" — a green
+# build that breaks only in the browser.
+RUN test -n "$VITE_API_PROD" || { \
+      echo "ERROR: VITE_API_PROD is empty."; \
+      echo "  local:  set it in .env (docker compose reads it as a build arg)"; \
+      echo "  CI:     .github/workflows/deploy.yml passes it with --build-arg"; \
+      exit 1; }
+
 RUN npm run build
 
 FROM node:20-slim
