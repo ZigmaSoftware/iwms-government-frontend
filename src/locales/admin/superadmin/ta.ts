@@ -319,6 +319,7 @@ export default {
     "search_placeholder": "பணியாளர்களை தேடுக...",
     "employee_name": "பணியாளர் பெயர்",
     "employee_placeholder": "பணியாளர் தேடுக...",
+    "description": "விவரம்",
     "doj": "சேர்ந்த தேதி",
     "department_name": "துறை பெயர்",
     "designation": "பதவி",
