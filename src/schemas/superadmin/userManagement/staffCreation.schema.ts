@@ -24,6 +24,7 @@ export const buildStaffCreationSchema = (isEdit: boolean) =>
   z
     .object({
       employee_name: requiredString("Employee Name"),
+      description: optionalString,
       doj: optionalString,
       staff_head: optionalString,
       staff_head_id: optionalString,
