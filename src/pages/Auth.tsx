@@ -241,7 +241,7 @@ export default function Auth() {
             </div>
 
             <h2 className="welcome">
-              Welcome <em>Back, Sathya!</em>
+              Welcome <em>Back!</em>
             </h2>
             <p className="subtitle">Login to access the Integrated Waste Management System</p>
 
