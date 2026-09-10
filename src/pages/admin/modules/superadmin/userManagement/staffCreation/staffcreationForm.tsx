@@ -329,7 +329,6 @@ const formatErrorMessage = (t: (key: string) => string, error: unknown) => {
 const initialFormData = {
   employee_name: "",
   // employee_id: "",
-  description: "",
   doj: "",
   department: "",
   department_id: "",
@@ -383,7 +382,6 @@ const initialFormData = {
 
 const STAFF_CREATION_FIELDS: Record<string, string[]> = {
   employee_name: ["employee_name", "name"],
-  description: ["description"],
   doj: ["doj", "date_of_joining"],
   department: ["department"],
   department_id: ["department_id"],
@@ -930,7 +928,6 @@ export default function StaffCreationForm() {
 
           // Office details
           employee_name: staff.employee_name ?? "",
-          description: staff.description ?? "",
           doj: staff.doj ?? "",
           department: staff.department ?? "",
           department_id: normalizeEntityId(staff.department_id ?? staff.department ?? staff.department_unique_id),
@@ -1428,7 +1425,6 @@ export default function StaffCreationForm() {
     try {
       const rawPayload: Record<string, any> = {
         employee_name: formData.employee_name,
-        description: formData.description,
         doj: formData.doj || null,
         staff_head: formData.staff_head,
         staff_head_id: formData.staff_head_id,
@@ -1584,20 +1580,6 @@ export default function StaffCreationForm() {
             value={formData.employee_name}
             onChange={handleInputChange}
             required
-          />
-        </div>
-      )}
-      {showField("description") && (
-        <div className="sm:col-span-2">
-          <Label htmlFor="description">
-            {t("admin.staff_creation.description")}
-          </Label>
-          <textarea
-            id="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            rows={2}
-            className="input-validate h-auto w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm shadow-theme-xs focus:outline-none focus:ring-3 focus:ring-brand-500/20"
           />
         </div>
       )}
