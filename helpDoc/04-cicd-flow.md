@@ -32,18 +32,204 @@ workflow's steps actually do — this file is about the **branch flow** and the
 - A manual re-deploy of the current `main` is possible from the Actions tab
   (`workflow_dispatch`) without a new push.
 
+## The full mechanism, one diagram
+
+```
+push to main
+     │
+     ▼
+GitHub Actions queues the "deploy" job
+     │
+     ▼
+actions-runner-frontend (installed ON the server, running as a
+systemd service) polls GitHub outbound over HTTPS and picks up the job
+     │
+     ├─ authenticates using its own SAVED CREDENTIAL from registration
+     │  (.runner / .credentials files — see "How the runner registers"
+     │  below). This is NOT a Personal Access Token — no PAT exists
+     │  anywhere in this pipeline.
+     │
+     ▼
+actions/checkout@v4 checks out the new commit into the RUNNER'S OWN
+workspace (actions-runner-frontend/_work/...) — authenticated with
+GitHub's auto-generated, run-scoped GITHUB_TOKEN, not a PAT either
+     │
+     ▼
+docker build .   (runs INSIDE the runner's workspace, with VITE_*
+                  values baked in as --build-arg; tags the image
+                  ghcr.io/.../iwms-government-frontend:<sha> AND :latest
+                  in the server's ONE shared Docker daemon)
+     │
+     ▼
+sudo systemctl restart iwms-government-frontend
+     │
+     ▼
+systemd's WorkingDirectory is a SEPARATE, persistent directory
+(/home/admin/localserver/iwmsGovernment/iwms-government-frontend —
+holding the real docker-compose.yml + .env); it runs the .service
+file's ExecStart from THERE:
+  docker compose up --remove-orphans
+     │
+     ▼
+docker compose there references image: ...:latest — since the Docker
+daemon is shared machine-wide (not scoped to a directory), it sees
+the image step 3 JUST retagged, recreates the `frontend` container
+from it. No explicit "sync a deployment clone" step exists for the
+frontend (unlike the backend) because nothing here needs to be
+git-synced — only the already-shared Docker image matters.
+     │
+     ▼
+health-check polls http://127.0.0.1:3000/ until it answers 200
+```
+
+Two credentials are involved and **neither is a PAT**:
+1. The runner's own long-lived credential (from one-time registration) —
+   authenticates the runner itself to GitHub.
+2. `GITHUB_TOKEN` — GitHub auto-generates a new one for every workflow run,
+   scoped only to that run, used by `actions/checkout@v4` to clone the repo.
+   You never create, store, or see this token; the runner receives it
+   automatically as part of the job.
+
+No secret named anything like `PAT`, `GH_TOKEN`, or similar is stored in
+either repo's Actions secrets — see "Repo secrets and variables" below for
+what actually *is* stored there (and confirmed unused).
+
+## How Apache fits into this
+
+Everything above ends with the `frontend` container listening on
+`127.0.0.1:3000` and the `backend` container on `127.0.0.1:9001` — both
+bound to **loopback only**, not the public IP directly. **Apache is what
+actually faces the internet** and decides which container a real request
+goes to. It runs on the **host itself, not in a container** — CI/CD never
+builds, restarts, or touches it; it's independent, always-on infrastructure
+that both repos' deploys sit behind.
+
+Config lives at `deploy/apache/iwms-government.conf` (in this frontend
+repo — the one shared vhost handles both services):
+
+```
+public request on port 80
+     │
+     ▼
+Apache (host, VirtualHost *:80)
+     │
+     ├─ path starts with /api/  ──▶ 127.0.0.1:9001  (backend: Django API)
+     ├─ path starts with /admin/ ─▶ 127.0.0.1:9001  (backend: Django admin)
+     └─ everything else         ──▶ 127.0.0.1:3000  (frontend: the SPA)
+```
+
+Concretely, from the vhost file:
+
+```apache
+ProxyPass /api/   http://127.0.0.1:9001/api/
+ProxyPass /admin/ http://127.0.0.1:9001/admin/
+ProxyPass /       http://127.0.0.1:3000/
+```
+
+A few things worth knowing:
+
+- **Apache is set up once, manually** — `sudo a2enmod proxy proxy_http`,
+  copy the conf to `/etc/apache2/sites-available/`, `a2ensite`, disable the
+  stock default site, `apachectl configtest && systemctl reload apache2`.
+  None of that is part of any deploy workflow; it only needs to happen again
+  if the vhost file itself changes.
+- **Why containers bind to loopback, not `0.0.0.0` on the public
+  interface**: so the only way in from outside is through Apache, which can
+  enforce TLS, logging, and routing in one place rather than exposing two
+  separate raw container ports directly to the internet.
+- **A restart of either container never requires touching Apache** — Apache
+  just proxies to a fixed `127.0.0.1:port`; whatever's listening there
+  (old container or new, after a deploy) is what answers. This is also why
+  a deploy causes at most a few seconds of `502`/connection-refused while
+  the container restarts, rather than any Apache-level downtime.
+- **If `curl` to the public IP fails but `127.0.0.1:3000`/`:9001` directly
+  work**, the problem is Apache, not your deploy — see
+  [03-troubleshooting.md](03-troubleshooting.md).
+
 ## Why a self-hosted runner, not GitHub's cloud runners
 
 GitHub's cloud runners cannot reach this server: of the ports forwarded from
 the public IP (`115.245.93.26` → `192.168.1.128`), only `80`, `3000` and
 `9001` are open — **port 22 (SSH) is not forwarded**, and other common SSH
-ports were confirmed refused too. A self-hosted runner sidesteps this
-entirely by **polling GitHub outbound over HTTPS** — nothing needs to be
-forwarded inbound, and no SSH key is involved.
+ports were confirmed refused too. The "normal" GitHub Actions deploy pattern
+— a GitHub-hosted runner reaches *into* your server (SSH, copy files, run
+remote commands) — simply cannot work here, because nothing can connect
+inbound.
 
-This also removes GHCR from the deploy path: the image is built directly on
-the machine that runs it, so there is no push, pull, or registry
-authentication step.
+A self-hosted runner flips the direction entirely, and that's the key thing
+to understand about how this whole pipeline works:
+
+1. A small runner program (`actions-runner-frontend`) is installed **on
+   this server itself**, running as a background service under systemd.
+2. It continuously **polls GitHub outbound over HTTPS** — "any jobs queued
+   for me?" — the same direction a browser making a request works. No
+   inbound port, no firewall rule, no SSH key needed for this step.
+3. When you push to `main`, GitHub marks a job ready. The runner picks it up
+   on its next poll.
+4. From there, **everything runs locally, in that runner's own process,
+   because the runner already IS a process on this server.** `docker
+   build`, `docker compose`, `systemctl restart` are ordinary shell commands
+   executing on this exact machine — not remote commands sent over a
+   connection. There is no "reaching the server" step to speak of, because
+   the work was never anywhere else.
+5. The runner reports the result back to GitHub (again, outbound) — that's
+   what populates the Actions tab's log.
+
+This is also why `SERVER_HOST`/`SERVER_SSH_KEY`/`SERVER_USER` (see below)
+are unused: those secrets exist to let something *external* log into the
+server. Nothing external ever needs to, since the worker doing the deploy
+is already inside.
+
+A side effect: this also removes GHCR from the deploy path — the image is
+built directly on the machine that runs it, so there is no push, pull, or
+registry authentication step.
+
+## Repo secrets and variables
+
+GitHub → repo → **Settings → Secrets and variables → Actions** has two
+separate tabs:
+
+**Secrets** (encrypted, never shown again once saved) — this repo has
+`SERVER_HOST`, `SERVER_SSH_KEY`, `SERVER_USER` (same three as the backend
+repo). **None of them are referenced anywhere in `deploy.yml`.** They're
+leftovers from an earlier design where a GitHub-hosted runner would SSH into
+the server to deploy — abandoned in favor of the self-hosted runner
+precisely *because* port 22 isn't forwarded (see above). Nothing reads them;
+safe to ignore, delete, or leave as-is.
+
+**Variables** (plain text, visible in the UI) — this repo actually **uses**
+these, read in `deploy.yml`'s "Build image" step as `vars.<NAME>`, each with
+a hardcoded fallback so the build still works if unset:
+
+| Variable | Falls back to |
+|---|---|
+| `VITE_API_PROD` | `http://115.245.93.26:9001/api/v1` |
+| `VITE_GPS_VEHICLE_API` | `https://api.vamosys.com/getVehicleHistory` |
+| `VITE_WEIGHBRIDGE_WASTE_API` | `https://zigma.in/d2d/folders/waste_collected_summary_report/household_collection_event_api.php` |
+| `VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY` | `ZIGMA-DELHI-WEIGHMENT-2025-SECURE` |
+| `VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY` | `https://corsproxy.io/?` |
+
+These are deliberately **variables, not secrets** — everything in a
+frontend bundle is downloadable by any user, so none of it is actually
+secret; there's nothing to protect by encrypting them.
+
+To change one without touching code: **Settings → Secrets and variables →
+Actions → Variables tab** → New repository variable (or edit an existing
+one). Takes effect on the *next* push or manual re-run — setting a variable
+does not itself trigger a deploy.
+
+## Where SSH actually fits (it doesn't, in the running pipeline)
+
+Because the whole point of the self-hosted runner is to avoid needing SSH
+into the server, **no step in either workflow opens an SSH connection**.
+The runner process is *already running on the server*, so its `run:` steps
+(`docker build`, `systemctl restart`, etc.) execute as local shell commands,
+not remote ones — there's no connection to make, and `SERVER_SSH_KEY` is
+never read.
+
+SSH is still how a *human* gets onto this machine to install/manage the
+runner itself, install a systemd unit, or debug something CI can't reach —
+that's ordinary server access, unrelated to the deploy pipeline.
 
 ## What is installed on the server (frontend runner)
 
@@ -62,6 +248,35 @@ the backend's `helpDoc/04-cicd-flow.md`. Both happen to run on the same
 physical machine and share the same `iwms-government` label, but they are two
 independent processes: a frontend push never wakes the backend runner, and
 vice versa.
+
+### How the runner registers and stays connected
+
+"Connecting to the server" is the wrong mental model here — the runner
+doesn't reach the server from outside, it's a program **physically
+installed on** the server that reaches out to GitHub. Two separate steps:
+
+**One-time registration** (already done — this is how it was originally set
+up, not something that happens on every deploy):
+1. GitHub → repo → **Settings → Actions → Runners → New self-hosted
+   runner** mints a short-lived **registration token** (expires in about an
+   hour, used exactly once).
+2. On the server, `./config.sh --url <repo-url> --token <token> --name
+   iwms-gov-frontend --labels iwms-government` sends that token to GitHub to
+   prove this machine may register.
+3. GitHub responds by issuing a **long-lived credential**, which `config.sh`
+   saves locally as `.runner` and `.credentials` files inside the runner's
+   own directory. The one-hour registration token is now spent and
+   irrelevant — this saved credential is what the runner actually uses from
+   here on.
+4. `sudo ./svc.sh install admin && sudo ./svc.sh start` wraps the runner as
+   a systemd service so it starts on boot and stays supervised.
+
+**Ongoing connection** (this is the part that runs 24/7): using that saved
+credential, the runner process holds an outbound HTTPS long-poll to GitHub
+— continuously asking "any jobs for me?" This is the same pattern a chat
+app uses to receive messages without opening a port: purely outbound, no
+listener on this server, nothing for a firewall to block. When a push to
+`main` queues a job, the next poll picks it up.
 
 ## What the frontend runner actually does, end to end
 
