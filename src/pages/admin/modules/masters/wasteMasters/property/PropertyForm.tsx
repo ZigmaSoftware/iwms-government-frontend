@@ -21,6 +21,7 @@ const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encWasteMasters, encPro
 
 const PROPERTY_FIELDS: Record<string, string[]> = {
   property_name: ["property_name"],
+  description: ["description"],
   is_active: ["is_active"],
 };
 
@@ -57,6 +58,7 @@ function PropertyEditor({
   const { showField, filterPayload } =
     useFieldVisibility("masters", "properties", PROPERTY_FIELDS);
   const [propertyName, setPropertyName] = useState(initialPayload.property_name ?? "");
+  const [description, setDescription] = useState(initialPayload.description ?? "");
   const [isActive, setIsActive] = useState(initialPayload.is_active);
   const schema = requireWhenVisible(propertySchema, showField);
 
@@ -64,6 +66,7 @@ function PropertyEditor({
     e.preventDefault();
     const rawPayload = {
       property_name: propertyName.trim(),
+      description: description.trim(),
       is_active: isActive,
     };
     const validation = schema.safeParse(rawPayload);
@@ -100,6 +103,20 @@ function PropertyEditor({
               className="input-validate w-full"
               disabled={isSubmitting}
               required
+            />
+          </div>
+        )}
+
+        {showField("description") && (
+          <div className="md:col-span-2">
+            <Label htmlFor="description">{t("common.description")}</Label>
+            <textarea
+              id="description"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              disabled={isSubmitting}
             />
           </div>
         )}
@@ -232,10 +249,12 @@ function PropertyForm() {
   const initialPayload: PropertyPayload = recordData
     ? {
         property_name: String(recordData.property_name ?? ""),
+        description: String(recordData.description ?? ""),
         is_active: Boolean(recordData.is_active),
       }
     : {
         property_name: "",
+        description: "",
         is_active: true,
       };
 

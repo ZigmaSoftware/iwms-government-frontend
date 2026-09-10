@@ -1,5 +1,6 @@
 export type PropertyPayload = {
   property_name?: string;
+  description?: string;
   is_active?: boolean;
   [key: string]: unknown;
 };
@@ -7,6 +8,7 @@ export type PropertyPayload = {
 export type PropertyRecord = {
   unique_id: string | number;
   property_name: string;
+  description?: string | null;
   is_active: boolean;
   company_id?: string | number | null;
   company_unique_id?: string | number | null;
