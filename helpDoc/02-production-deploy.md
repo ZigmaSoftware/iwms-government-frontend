@@ -64,7 +64,10 @@ docker compose logs -f
 
 ## Apache
 
-Apache runs on the host (not in a container) and reverse-proxies:
-`/` → `127.0.0.1:3000` (frontend), `/api/` and `/admin/` → `127.0.0.1:9001`
-(backend). Config lives at `deploy/apache/iwms-government.conf`; install
-with `a2ensite` after enabling `proxy` and `proxy_http` modules.
+A vhost config exists at `deploy/apache/iwms-government.conf` describing a
+reverse-proxy (`/` → `127.0.0.1:3000`, `/api/`+`/admin/` → `127.0.0.1:9001`)
+— but **verified not installed** on the production server (only Apache's
+stock `000-default.conf` is enabled there). Today, clients reach both
+services directly on their public ports (`:3000`, `:9001`), not through
+Apache. See [04-cicd-flow.md](04-cicd-flow.md) for the full detail and how
+to actually install the vhost if that migration happens.

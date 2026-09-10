@@ -2,8 +2,11 @@
 
 A Vite + React/TypeScript SPA for government/civic waste management. It
 talks to `iwms-government-backend`'s API and is served in production as a
-static build behind `serve`, with Apache reverse-proxying in front of both
-the frontend and backend containers.
+static build behind `serve`. An Apache reverse-proxy vhost is defined in
+this repo (`deploy/apache/`) but is **not currently installed** on the
+server — today, both the frontend and backend are reached directly on their
+public ports (`:3000`, `:9001`). See [04-cicd-flow.md](04-cicd-flow.md) for
+the verified current state.
 
 > **If you remember one thing:** `VITE_*` env values are baked into the JS
 > bundle at **build** time, not read at runtime. Editing `.env` and
@@ -20,7 +23,8 @@ iwms-government-frontend/
 ├── .dockerignore           <- excludes .env (hence the build args)
 ├── .env                    <- VITE_ENV + API URLs; host-side only, never in the image
 ├── deploy/
-│   ├── apache/             <- host Apache vhost (proxies :3000 and :9001)
+│   ├── apache/             <- host Apache vhost (defined, NOT installed —
+│   │                          see 04-cicd-flow.md)
 │   └── systemd/            <- unit that runs `docker compose up` (gitignored)
 └── src/config/configApi.ts <- picks the API base from VITE_ENV (local/prod)
 ```
