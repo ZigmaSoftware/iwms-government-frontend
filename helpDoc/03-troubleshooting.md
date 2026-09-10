@@ -10,8 +10,9 @@
 | CORS error in the browser | Frontend origin missing from backend's allowed regexes | Add it to `CORS_ALLOWED_ORIGIN_REGEXES` in the backend's `config/settings.py` |
 | Client-side route 404s on refresh | Container isn't running `serve -s` (the `-s` flag enables SPA fallback) | Confirm the Dockerfile's `CMD` still has `-s` |
 | `curl` connection refused on :3000 | Service down or firewalled | `sudo ufw status`, `systemctl status iwms-government-frontend` |
-| `curl` to the public IP fails but `:3000` direct works | Apache issue, not the container | `sudo apachectl configtest`, `systemctl status apache2`, check `/var/log/apache2/iwms-government-error.log` |
-| `502`/`503` from Apache | The container it proxies to isn't running | Check `docker compose ps` in both repos |
+| Site unreachable on the public IP at all | Today, clients hit `:3000`/`:9001` directly — the Apache vhost in `deploy/apache/` is NOT installed on the server (verified `sites-enabled/` only has `000-default.conf`). Check the container/port directly, not Apache | `docker compose ps`, `curl 127.0.0.1:3000` / `:9001`, `systemctl status iwms-government-frontend`/`-backend` |
+| (If the Apache vhost IS ever installed) `curl` on port 80 fails but `:3000`/`:9001` direct work | Apache issue, not the container | `sudo apachectl configtest`, `systemctl status apache2`, check the vhost's own `ErrorLog` path (only exists once the vhost is enabled) |
+| (If the Apache vhost IS ever installed) `502`/`503` from Apache | The container it proxies to isn't running | Check `docker compose ps` in both repos |
 | Deploy succeeds but the site looks unchanged | Browser cache, or the bundle built with stale build args | Hard-reload; check CI's "Verify the API URL landed in the bundle" step |
 | Two deploys collide | — | Already handled — the workflow sets `concurrency: deploy-frontend` |
 | Run stuck "Queued" forever | No runner online, or missing the `iwms-government` label | Check `svc.sh status`; re-register with `--labels iwms-government` |

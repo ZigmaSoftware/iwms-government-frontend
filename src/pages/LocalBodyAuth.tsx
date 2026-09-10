@@ -2,11 +2,10 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Lock, User, Building2, Leaf, AlertCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, Lock, User, Building2, Leaf, AlertCircle } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
 import LoginFeatureChain from "@/components/auth/LoginFeatureChain";
-import { useCaptcha } from "@/components/auth/Captcha";
 import "@/components/auth/animated-login.css";
 import {
   unwrapLoginPayload,
@@ -39,10 +38,8 @@ export default function LocalBodyAuth() {
   const [userInvalid, setUserInvalid] = useState(false);
   const [passInvalid, setPassInvalid] = useState(false);
   const [passHint, setPassHint] = useState("Enter your password to continue.");
-  const [captchaInvalid, setCaptchaInvalid] = useState(false);
   const [shake, setShake] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const captcha = useCaptcha();
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -62,16 +59,14 @@ export default function LocalBodyAuth() {
     e.preventDefault();
     setUserInvalid(false);
     setPassInvalid(false);
-    setCaptchaInvalid(false);
 
     const validation = loginSchema.safeParse({ username, password });
-    if (!validation.success || !captcha.value.trim()) {
+    if (!validation.success) {
       if (!username.trim()) setUserInvalid(true);
       if (!password) {
         setPassHint("Enter your password to continue.");
         setPassInvalid(true);
       }
-      if (!captcha.value.trim()) setCaptchaInvalid(true);
       triggerShake();
       if (!validation.success) {
         toast({
@@ -89,8 +84,6 @@ export default function LocalBodyAuth() {
         username: validation.data.username,
         password: validation.data.password,
         login_type: "panchayat_leader",
-        captcha_id: captcha.captchaId,
-        captcha_value: captcha.value,
       });
 
       const payload = unwrapLoginPayload(res.data);
@@ -114,19 +107,8 @@ export default function LocalBodyAuth() {
       navigate("/localbody/dashboard", { replace: true });
     } catch (error: unknown) {
       const errorMessage = getAuthErrorMessage(error);
-      const isCaptchaError =
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        (error as { response?: { data?: { captcha?: unknown } } }).response?.data?.captcha;
-
-      if (isCaptchaError) {
-        setCaptchaInvalid(true);
-      } else {
-        setPassHint(errorMessage);
-        setPassInvalid(true);
-      }
-      captcha.refresh();
+      setPassHint(errorMessage);
+      setPassInvalid(true);
       triggerShake();
 
       toast({ title: "Login Failed", description: errorMessage, variant: "destructive" });
@@ -215,46 +197,6 @@ export default function LocalBodyAuth() {
                 <p className="hint" role="alert">
                   <AlertCircle />
                   <span>{passHint}</span>
-                </p>
-              </div>
-
-              <div className={`field c${captchaInvalid ? " invalid" : ""}`}>
-                <label htmlFor="lb-captcha">Security check</label>
-                <div className="captcha-row">
-                  <div className="captcha-image">
-                    {captcha.image ? (
-                      <img src={captcha.image} alt="Captcha" draggable={false} />
-                    ) : (
-                      <span className="captcha-loading">Loading…</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="captcha-refresh"
-                    aria-label="Refresh captcha"
-                    onClick={captcha.refresh}
-                  >
-                    <RefreshCw size={16} />
-                  </button>
-                  <div className="control">
-                    <span className="lead" aria-hidden="true"><ShieldCheck /></span>
-                    <input
-                      id="lb-captcha"
-                      name="captcha"
-                      type="text"
-                      autoComplete="off"
-                      placeholder="Enter the code shown"
-                      value={captcha.value}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                        captcha.setValue(e.target.value);
-                        setCaptchaInvalid(false);
-                      }}
-                    />
-                  </div>
-                </div>
-                <p className="hint" role="alert">
-                  <AlertCircle />
-                  <span>Enter the code shown in the image.</span>
                 </p>
               </div>
 

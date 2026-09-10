@@ -94,57 +94,74 @@ No secret named anything like `PAT`, `GH_TOKEN`, or similar is stored in
 either repo's Actions secrets — see "Repo secrets and variables" below for
 what actually *is* stored there (and confirmed unused).
 
-## How Apache fits into this
+## Apache: documented in this repo, but NOT currently active in production
 
-Everything above ends with the `frontend` container listening on
-`127.0.0.1:3000` and the `backend` container on `127.0.0.1:9001` — both
-bound to **loopback only**, not the public IP directly. **Apache is what
-actually faces the internet** and decides which container a real request
-goes to. It runs on the **host itself, not in a container** — CI/CD never
-builds, restarts, or touches it; it's independent, always-on infrastructure
-that both repos' deploys sit behind.
+**Correction, verified directly on the server (2026-09-10):** a vhost file
+exists at `deploy/apache/iwms-government.conf` describing a reverse-proxy
+setup — but it is **not installed**. `ls /etc/apache2/sites-enabled/` on the
+production server shows only Apache's stock `000-default.conf`; the
+`iwms-government.conf` site has never been enabled there. Consequently none
+of the `iwms-government-error.log`/`iwms-government-access.log` files this
+doc previously pointed at exist either — they're only created once that
+specific vhost is enabled and has served a request.
 
-Config lives at `deploy/apache/iwms-government.conf` (in this frontend
-repo — the one shared vhost handles both services):
+**What actually happens today:** the frontend and backend containers
+publish their ports directly to the public interface (not loopback-only),
+and clients reach them straight on those ports — `http://<public-ip>:3000`
+(frontend) and `http://<public-ip>:9001` (backend/API). This matches
+`deploy.yml`'s own fallback default, `VITE_API_PROD =
+http://115.245.93.26:9001/api/v1` — port `9001` directly, not port `80`
+through a proxy. Apache **is** running on this host (confirmed via
+`systemctl status apache2`, up for several days) and already serves other
+things through it (phpMyAdmin shows up in its logs), but not this app.
+
+So the diagram below describes the **intended/available** setup that ships
+in this repo, not the currently-live one:
 
 ```
-public request on port 80
-     │
-     ▼
-Apache (host, VirtualHost *:80)
-     │
-     ├─ path starts with /api/  ──▶ 127.0.0.1:9001  (backend: Django API)
-     ├─ path starts with /admin/ ─▶ 127.0.0.1:9001  (backend: Django admin)
-     └─ everything else         ──▶ 127.0.0.1:3000  (frontend: the SPA)
+INTENDED (vhost installed):              CURRENT (as verified on the server):
+
+public :80                                public :3000 ──▶ frontend container
+     │                                    public :9001 ──▶ backend container
+     ▼                                    (Apache running, but not involved
+Apache (VirtualHost *:80)                  in either of these paths)
+     ├─ /api/, /admin/ ─▶ 127.0.0.1:9001
+     └─ everything else ─▶ 127.0.0.1:3000
 ```
 
-Concretely, from the vhost file:
+To actually enable the intended setup: `sudo a2enmod proxy proxy_http`,
+copy the conf to `/etc/apache2/sites-available/`, `a2ensite
+iwms-government.conf`, `a2dissite 000-default.conf`, `apachectl configtest
+&& systemctl reload apache2` — and switch the containers back to
+loopback-only bindings so port 80/the vhost becomes the only way in. None of
+that is part of any deploy workflow either way; it's a one-time host change
+independent of CI/CD.
 
-```apache
-ProxyPass /api/   http://127.0.0.1:9001/api/
-ProxyPass /admin/ http://127.0.0.1:9001/admin/
-ProxyPass /       http://127.0.0.1:3000/
+**Until that migration happens**, don't rely on `/var/log/apache2/
+iwms-government-*.log` — those log files won't exist. Diagnose via each
+container directly instead:
+
+```bash
+docker compose logs -f backend      # in iwms-government-backend
+docker compose logs -f frontend     # in iwms-government-frontend
+curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:9001/api/v1/masters/districts/
+curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/
 ```
 
-A few things worth knowing:
+If/when the vhost setup above is actually installed, Apache's logs become
+relevant again — see the vhost file's own `ErrorLog`/`CustomLog` directives
+for the exact paths, and use the same direct-vs-proxied `curl` comparison to
+tell Apache-layer problems apart from container-layer ones.
 
-- **Apache is set up once, manually** — `sudo a2enmod proxy proxy_http`,
-  copy the conf to `/etc/apache2/sites-available/`, `a2ensite`, disable the
-  stock default site, `apachectl configtest && systemctl reload apache2`.
-  None of that is part of any deploy workflow; it only needs to happen again
-  if the vhost file itself changes.
-- **Why containers bind to loopback, not `0.0.0.0` on the public
-  interface**: so the only way in from outside is through Apache, which can
-  enforce TLS, logging, and routing in one place rather than exposing two
-  separate raw container ports directly to the internet.
-- **A restart of either container never requires touching Apache** — Apache
-  just proxies to a fixed `127.0.0.1:port`; whatever's listening there
-  (old container or new, after a deploy) is what answers. This is also why
-  a deploy causes at most a few seconds of `502`/connection-refused while
-  the container restarts, rather than any Apache-level downtime.
-- **If `curl` to the public IP fails but `127.0.0.1:3000`/`:9001` directly
-  work**, the problem is Apache, not your deploy — see
-  [03-troubleshooting.md](03-troubleshooting.md).
+- Direct works, public fails → it's Apache (bad vhost, module not enabled,
+  Apache down) — check `iwms-government-error.log`,
+  `sudo apachectl configtest`, `systemctl status apache2`.
+- Both fail identically → it's the container itself — check `docker compose
+  logs`, not Apache's logs; Apache is just faithfully forwarding a request
+  to something that isn't answering.
+- `502`/`503` specifically from Apache → Apache is fine, but the container
+  it's supposed to proxy to isn't running or isn't listening yet — check
+  `docker compose ps`.
 
 ## Why a self-hosted runner, not GitHub's cloud runners
 

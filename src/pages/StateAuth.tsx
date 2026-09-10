@@ -11,7 +11,6 @@ import {
 } from "@/utils/authStorage";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { loginSchema } from "@/schemas/auth.schema";
-import { useCaptcha, CaptchaField } from "@/components/auth/Captcha";
 
 const getAuthErrorMessage = (error: unknown) => {
   if (error && typeof error === "object" && "response" in error) {
@@ -33,7 +32,6 @@ export default function StateAuth() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const captcha = useCaptcha();
 
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -47,10 +45,10 @@ export default function StateAuth() {
   const handleSignIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const validation = loginSchema.safeParse({ username, password });
-    if (!validation.success || !captcha.value.trim()) {
+    if (!validation.success) {
       toast({
         title: "Required",
-        description: !validation.success ? toSwalMessage(validation.error) : "Enter the captcha code.",
+        description: toSwalMessage(validation.error),
         variant: "destructive",
       });
       return;
@@ -62,8 +60,6 @@ export default function StateAuth() {
         username: validation.data.username,
         password: validation.data.password,
         login_type: "state_leader",
-        captcha_id: captcha.captchaId,
-        captcha_value: captcha.value,
       });
 
       const payload = unwrapLoginPayload(res.data);
@@ -87,7 +83,6 @@ export default function StateAuth() {
       navigate("/state/dashboard", { replace: true });
     } catch (error: unknown) {
       const message = getAuthErrorMessage(error);
-      captcha.refresh();
       toast({ title: "Login Failed", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -231,13 +226,6 @@ export default function StateAuth() {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                  Security check
-                </label>
-                <CaptchaField captcha={captcha} />
               </div>
 
               <button
