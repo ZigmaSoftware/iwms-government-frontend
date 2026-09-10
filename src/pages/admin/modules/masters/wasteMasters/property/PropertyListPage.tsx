@@ -55,6 +55,7 @@ const toRecordList = (value: unknown): PropertyRecord[] => {
 
 const PROPERTY_COLUMN_FIELDS: Record<string, string[]> = {
   property_name: ["property_name"],
+  description: ["description"],
   is_active: ["is_active"],
 };
 
@@ -259,6 +260,14 @@ export default function PropertyList() {
               header={t("common.item_name", { item: t("admin.nav.property") })}
               sortable={SORTABLE_FIELDS.has("property_name")}
               body={(row: PropertyRecord) => capitalize(row.property_name)}
+            />
+          )}
+
+          {showCol("description") && (
+            <Column
+              field="description"
+              header={t("common.description")}
+              body={(row: PropertyRecord) => row.description ?? ""}
             />
           )}
 
