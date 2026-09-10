@@ -318,7 +318,6 @@ export default {
     "search_placeholder": "स्टाफ खोजें...",
     "employee_name": "कर्मचारी नाम",
     "employee_placeholder": "कर्मचारी खोजें...",
-    "description": "विवरण",
     "doj": "जॉइनिंग तिथि",
     "department_name": "विभाग नाम",
     "designation": "पद",

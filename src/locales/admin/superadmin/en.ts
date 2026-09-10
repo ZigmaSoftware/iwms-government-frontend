@@ -330,7 +330,6 @@ export default {
     "search_placeholder": "Search staff...",
     "employee_name": "Employee Name",
     "employee_placeholder": "Search employee...",
-    "description": "Description",
     "doj": "Date of Joining",
     "department_name": "Department Name",
     "designation": "Designation",
