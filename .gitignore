@@ -27,3 +27,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# === Server-only systemd unit files (never commit — install manually on server) ===
+deploy/systemd/

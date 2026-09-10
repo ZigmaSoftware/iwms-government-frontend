@@ -2,7 +2,6 @@ const ENV = import.meta.env.VITE_ENV;
 
 const API_MAP = {
   local: import.meta.env.VITE_API_LOCAL,
-  uat: import.meta.env.VITE_API_UAT,
   prod: import.meta.env.VITE_API_PROD,
 };
 

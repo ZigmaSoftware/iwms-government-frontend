@@ -1,0 +1,31 @@
+# IWMS Government Frontend — serves the built Vite dist/ via "serve" on :3000.
+#
+# VITE_* values are inlined into the JS bundle at BUILD time, not runtime.
+# .dockerignore excludes .env from the image, so the values are read from
+# .env here on the host and passed in as build args.
+#
+# Any change to .env therefore needs a rebuild, not just a restart:
+#   docker compose build && docker compose up -d
+#
+# The args deliberately use ${VAR:-} (default empty) rather than ${VAR:?err}.
+# Compose interpolates this block on EVERY command, so a required-variable
+# guard here would also break `pull`, `up -d`, `logs` and `config` whenever
+# .env is incomplete — including in CI's deploy step, which does not build.
+# A bad build is caught where it matters instead: the CI workflow greps
+# dist/assets for the API host and refuses to push an image without it.
+services:
+  frontend:
+    image: ghcr.io/zigmasoftware/iwms-government-frontend:latest
+    build:
+      context: .
+      args:
+        VITE_ENV: ${VITE_ENV:-prod}
+        VITE_API_LOCAL: ${VITE_API_LOCAL:-}
+        VITE_API_PROD: ${VITE_API_PROD:-}
+        VITE_GPS_VEHICLE_API: ${VITE_GPS_VEHICLE_API:-}
+        VITE_WEIGHBRIDGE_WASTE_API: ${VITE_WEIGHBRIDGE_WASTE_API:-}
+        VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY: ${VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY:-}
+        VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY: ${VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY:-}
+    ports:
+      - "3000:3000"
+    restart: always

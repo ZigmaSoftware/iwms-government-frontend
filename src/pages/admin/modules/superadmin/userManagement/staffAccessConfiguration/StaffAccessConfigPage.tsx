@@ -1211,6 +1211,10 @@ export default function StaffAccessConfigPage() {
   // separate StaffAccessConfiguration record.
   const [appModuleOptions, setAppModuleOptions] = useState<AppModuleOption[]>([]);
   const [appModuleIds, setAppModuleIds] = useState<string[]>([]);
+  // Staff id assigned once a new (create-mode) record is saved — `id` from
+  // the route stays undefined until then, and there is no `staffId` on the
+  // form's own values, so this is tracked separately.
+  const [createdStaffId, setCreatedStaffId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1228,7 +1232,7 @@ export default function StaffAccessConfigPage() {
   }, []);
 
   useEffect(() => {
-    const staffId = values.staffId || id;
+    const staffId = createdStaffId || id;
     if (!staffId) return;
     let cancelled = false;
     staffAccessConfigurationApi
@@ -1244,7 +1248,7 @@ export default function StaffAccessConfigPage() {
     return () => {
       cancelled = true;
     };
-  }, [values.staffId, id]);
+  }, [createdStaffId, id]);
 
   const saveAppModules = async (staffId?: string | null) => {
     if (!staffId) return;
@@ -1310,7 +1314,7 @@ export default function StaffAccessConfigPage() {
     setSaving(true);
     setApiErrors({});
     try {
-      let savedStaffId: string | null | undefined = values.staffId || id;
+      let savedStaffId: string | null | undefined = createdStaffId || id;
       if (isEdit && id) {
         await updateStaffAccess(id, buildPayload());
       } else {
@@ -1319,6 +1323,7 @@ export default function StaffAccessConfigPage() {
           (created as { staff_id?: string; staff_unique_id?: string })?.staff_id ??
           (created as { staff_unique_id?: string })?.staff_unique_id ??
           savedStaffId;
+        if (savedStaffId) setCreatedStaffId(savedStaffId);
       }
       await saveAppModules(savedStaffId);
       await Swal.fire("Saved", "Staff access configuration saved successfully.", "success");

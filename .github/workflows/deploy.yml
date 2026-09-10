@@ -1,0 +1,88 @@
+name: IWMS Government Frontend CI/CD
+
+# Trigger: push to "main" ONLY -> build the bundle on the server itself and
+# restart the service. Pushes to dev or any feature branch do nothing at all -
+# the workflow does not even start.
+#
+# WHY A SELF-HOSTED RUNNER
+# GitHub's cloud runners cannot reach this server: only ports 3000/9001/80 are
+# forwarded from the public IP (115.245.93.26 -> 192.168.1.128), and 22 is not.
+# A self-hosted runner polls GitHub *outbound* over HTTPS, so no inbound port,
+# no router change and no SSH key are needed.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # allow a manual re-deploy from the Actions tab
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, iwms-government]
+    concurrency:
+      group: deploy-frontend
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # VITE_* values are inlined into the JS bundle at BUILD time, and
+      # .dockerignore keeps .env out of the build context - so they must be
+      # passed as build args. Without them the bundle calls "undefined/api/v1":
+      # a green build that fails only in the browser.
+      #
+      # Hardcoded rather than stored as GitHub secrets on purpose: everything
+      # in a frontend bundle is downloadable by any user, so none of it is
+      # secret. The URLs are public endpoints and the weighbridge key is
+      # already hardcoded in src/utils/wasteApi.ts. A repo variable still wins
+      # if one is set, so values can be overridden from the GitHub UI.
+      - name: Build image
+        env:
+          VITE_API_PROD: ${{ vars.VITE_API_PROD || 'http://115.245.93.26:9001/api/v1' }}
+          VITE_GPS_VEHICLE_API: ${{ vars.VITE_GPS_VEHICLE_API || 'https://api.vamosys.com/getVehicleHistory' }}
+          VITE_WEIGHBRIDGE_WASTE_API: ${{ vars.VITE_WEIGHBRIDGE_WASTE_API || 'https://zigma.in/d2d/folders/waste_collected_summary_report/household_collection_event_api.php' }}
+          VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY: ${{ vars.VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY || 'ZIGMA-DELHI-WEIGHMENT-2025-SECURE' }}
+          VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY: ${{ vars.VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY || 'https://corsproxy.io/?' }}
+        run: |
+          docker build \
+            --build-arg VITE_ENV=prod \
+            --build-arg VITE_API_PROD="$VITE_API_PROD" \
+            --build-arg VITE_GPS_VEHICLE_API="$VITE_GPS_VEHICLE_API" \
+            --build-arg VITE_WEIGHBRIDGE_WASTE_API="$VITE_WEIGHBRIDGE_WASTE_API" \
+            --build-arg VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY="$VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY" \
+            --build-arg VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY="$VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY" \
+            -t ghcr.io/zigmasoftware/iwms-government-frontend:${{ github.sha }} \
+            -t ghcr.io/zigmasoftware/iwms-government-frontend:latest \
+            .
+
+      # Refuse to deploy an image whose API base never got baked in. Asserts
+      # the real host IS present - grepping for "undefined" does not work,
+      # because Vite emits a bare `undefined` literal and minified JS is full
+      # of unrelated ones.
+      - name: Verify the API URL landed in the bundle
+        env:
+          VITE_API_PROD: ${{ vars.VITE_API_PROD || 'http://115.245.93.26:9001/api/v1' }}
+        run: |
+          HOST=$(printf '%s' "$VITE_API_PROD" | sed -E 's#^https?://##; s#/.*$##')
+          echo "expecting '$HOST' in the bundle"
+          docker run --rm --entrypoint sh \
+            ghcr.io/zigmasoftware/iwms-government-frontend:${{ github.sha }} \
+            -c "grep -rqF '$HOST' dist/assets" \
+            || { echo "::error::'$HOST' not found in dist/assets - build args did not reach Vite"; exit 1; }
+
+      - name: Restart the service
+        run: sudo /usr/bin/systemctl restart iwms-government-frontend
+
+      - name: Verify the site is serving
+        run: |
+          for i in $(seq 1 30); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3000/ || echo 000)
+            [ "$CODE" = "200" ] && { echo "frontend healthy (HTTP 200)"; exit 0; }
+            sleep 2
+          done
+          echo "::error::frontend did not become healthy (last HTTP $CODE)"
+          sudo /usr/bin/systemctl status iwms-government-frontend --no-pager -n 30 || true
+          exit 1
+
+      - name: Prune dangling images
+        if: always()
+        run: docker image prune -f

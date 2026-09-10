@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
-import type { LatLngTuple, Map } from "leaflet";
+import type { LatLngTuple, Map as LeafletMap } from "leaflet";
 
 import {
   createBinIcon,
@@ -115,7 +115,7 @@ const buildBin = (
 };
 
 type BinMapContentProps = {
-  map: Map | null;
+  map: LeafletMap | null;
   params: Record<string, string>;
   statusFilter: Record<HouseholdStatus, boolean>;
   setStatusFilter: React.Dispatch<React.SetStateAction<Record<HouseholdStatus, boolean>>>;

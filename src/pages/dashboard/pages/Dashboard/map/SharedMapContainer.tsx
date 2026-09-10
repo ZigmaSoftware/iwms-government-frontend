@@ -92,7 +92,7 @@ export function SharedMapContainer({
     const fetchWards = async () => {
       try {
         const config = Object.keys(params).length ? { params } : undefined;
-        const response = await wardApi.readAll(config);
+        const response: any = await wardApi.readAll(config);
         const wardsData = Array.isArray(response) ? response : response?.results ?? [];
         const processed = wardsData
           .filter((w: any) => w.coordinates && Array.isArray(w.coordinates) && w.coordinates.length >= 3)
