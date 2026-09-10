@@ -12,23 +12,31 @@ COPY . .
 # .dockerignore (it holds secrets and dev-only values), so the production
 # values are passed in as build args by docker-compose.yml instead.
 ARG VITE_ENV=prod
+ARG VITE_API_LOCAL
 ARG VITE_API_PROD
 ARG VITE_GPS_VEHICLE_API
 ARG VITE_WEIGHBRIDGE_WASTE_API
 ARG VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY
 ARG VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY
 ENV VITE_ENV=$VITE_ENV \
+    VITE_API_LOCAL=$VITE_API_LOCAL \
     VITE_API_PROD=$VITE_API_PROD \
     VITE_GPS_VEHICLE_API=$VITE_GPS_VEHICLE_API \
     VITE_WEIGHBRIDGE_WASTE_API=$VITE_WEIGHBRIDGE_WASTE_API \
     VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY=$VITE_WEIGHBRIDGE_WASTE_COLLECTION_KEY \
     VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY=$VITE_WEIGHBRIDGE_WASTE_COLLECTION_CORS_PROXY
 
-# Fail the BUILD (not pull/up) if the API base never arrived. Without this a
-# missing build arg produces a bundle calling "undefined/api/v1" — a green
-# build that breaks only in the browser.
-RUN test -n "$VITE_API_PROD" || { \
-      echo "ERROR: VITE_API_PROD is empty."; \
+# Fail the BUILD (not pull/up) if the API base for the SELECTED VITE_ENV
+# never arrived. Checking VITE_API_PROD unconditionally would let a `local`
+# build pass this guard on an empty VITE_API_LOCAL (as long as VITE_API_PROD
+# happened to be set) and still produce a bundle calling "undefined/api/v1"
+# — a green build that breaks only in the browser.
+RUN case "$VITE_ENV" in \
+      local) API_BASE="$VITE_API_LOCAL" ;; \
+      *)     API_BASE="$VITE_API_PROD" ;; \
+    esac; \
+    test -n "$API_BASE" || { \
+      echo "ERROR: the VITE_API_* value for VITE_ENV=$VITE_ENV is empty."; \
       echo "  local:  set it in .env (docker compose reads it as a build arg)"; \
       echo "  CI:     .github/workflows/deploy.yml passes it with --build-arg"; \
       exit 1; }
