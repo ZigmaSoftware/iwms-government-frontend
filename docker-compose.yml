@@ -20,6 +20,7 @@ services:
       context: .
       args:
         VITE_ENV: ${VITE_ENV:-prod}
+        VITE_API_LOCAL: ${VITE_API_LOCAL:-}
         VITE_API_PROD: ${VITE_API_PROD:-}
         VITE_GPS_VEHICLE_API: ${VITE_GPS_VEHICLE_API:-}
         VITE_WEIGHBRIDGE_WASTE_API: ${VITE_WEIGHBRIDGE_WASTE_API:-}
