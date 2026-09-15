@@ -10,7 +10,7 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -127,6 +127,32 @@ export default function DailyTripCollectionPointList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await dailyTripCollectionPointApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: unknown) {
+      Swal.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
+    }
+  };
+
   const rows = useMemo(
     () =>
       rawRows
@@ -224,15 +250,12 @@ export default function DailyTripCollectionPointList() {
         <Column
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (
-            <div className="flex justify-center">
-              <button
-                onClick={() => navigate(EDIT_PATH(row.unique_id))}
-                className="text-blue-600 hover:text-blue-800"
-                title={t("common.edit")}
-              >
-                <PencilIcon className="size-5" />
-              </button>
-            </div>
+            <RowActionsMenu
+              onEdit={() => navigate(EDIT_PATH(row.unique_id))}
+              onDelete={() => void handleDelete(String(row.unique_id))}
+              editLabel={t("common.edit")}
+              deleteLabel={t("common.delete")}
+            />
           )}
           style={{ width: 120 }}
         />

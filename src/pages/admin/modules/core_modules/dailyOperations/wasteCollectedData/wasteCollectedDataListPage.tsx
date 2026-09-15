@@ -19,7 +19,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
@@ -264,23 +264,46 @@ export default function WasteCollectedDataList() {
     return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.wasteCollections.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      Swal.fire(t("common.error"), err instanceof Error ? err.message : t("common.delete_failed"), "error");
+    }
+  };
+
   const actionTemplate = (row: WasteCollection) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("admin.waste_collected_data.view_image", "View captured image")}
-        onClick={() => setImageRow(row)}
-        className="text-emerald-600 hover:text-emerald-800"
-      >
-        <ImageIcon className="size-5" />
-      </button>
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(row.unique_id)}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+      extraItems={[
+        {
+          label: t("admin.waste_collected_data.view_image", "View captured image"),
+          icon: <ImageIcon className="size-4" />,
+          onClick: () => setImageRow(row),
+        },
+      ]}
+    />
   );
 
   const indexTemplate = (_: WasteCollection, { rowIndex }: { rowIndex: number }) => rowIndex + 1;

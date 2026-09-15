@@ -12,6 +12,7 @@ import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
@@ -455,51 +456,41 @@ export default function VehicleBreakdownList() {
 
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: VehicleBreakdownRecord) => (
-    <div className="flex items-center justify-center gap-3">
-      {/* Edit — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title={t("common.edit")}
-          onClick={() => navigate(editPath(row.unique_id))}
-          className="text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          <i className="pi pi-pencil" />
-        </button>
-      )}
-
-      {/* Verify — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title="Verify & Approve"
-          onClick={() => setVerifyTarget(row)}
-          className="text-green-600 hover:text-green-800 transition-colors"
-        >
-          <i className="pi pi-check-circle" />
-        </button>
-      )}
-
-      {/* Reject — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title="Reject"
-          onClick={() => setRejectTarget(row)}
-          className="text-orange-500 hover:text-orange-700 transition-colors"
-        >
-          <i className="pi pi-times-circle" />
-        </button>
-      )}
-
-      {/* Delete — not allowed on approved records */}
-      {row.approval_status !== "APPROVED" && (
-        <button
-          title={t("common.delete")}
-          onClick={() => handleDelete(row)}
-          className="text-red-600 hover:text-red-800 transition-colors"
-        >
-          <i className="pi pi-trash" />
-        </button>
-      )}
-    </div>
+    <RowActionsMenu
+      onEdit={
+        row.approval_status === "PENDING"
+          ? () => navigate(editPath(row.unique_id))
+          : undefined
+      }
+      onDelete={
+        row.approval_status !== "APPROVED"
+          ? () => void handleDelete(row)
+          : undefined
+      }
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+      extraItems={[
+        ...(row.approval_status === "PENDING"
+          ? [
+              {
+                label: "Verify & Approve",
+                icon: <i className="pi pi-check-circle" />,
+                onClick: () => setVerifyTarget(row),
+              },
+            ]
+          : []),
+        ...(row.approval_status === "PENDING"
+          ? [
+              {
+                label: "Reject",
+                icon: <i className="pi pi-times-circle" />,
+                onClick: () => setRejectTarget(row),
+                danger: true,
+              },
+            ]
+          : []),
+      ]}
+    />
   );
 
   /* ════════════════════════════════════════════════════════════════

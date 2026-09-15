@@ -14,7 +14,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
@@ -408,22 +408,12 @@ export default function VehicleCreationListPage() {
 
   // ── Action buttons ────────────────────────────────────────────────────────
   const actionTemplate = (row: VehicleCreationRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="inline-flex items-center justify-center text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-      <button
-        onClick={() => handleDelete(row.unique_id)}
-        className="inline-flex items-center justify-center text-red-600 hover:text-red-800"
-        title={t("common.delete")}
-      >
-        <TrashBinIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(row.unique_id)}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const conditionLabel = (value?: string | null) => {
