@@ -270,7 +270,7 @@ function CustomerChangePasswordModal({
   customerId,
   onClose,
   onSuccess,
-}: {
+}: {  
   customerId: string;
   onClose: () => void;
   onSuccess: (newDate: string) => void;
