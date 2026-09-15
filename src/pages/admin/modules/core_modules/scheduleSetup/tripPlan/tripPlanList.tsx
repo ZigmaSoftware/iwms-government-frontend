@@ -10,7 +10,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
@@ -172,6 +172,32 @@ export default function TripPlanList() {
     return <Switch checked={row.status === "ACTIVE"} disabled={updating} onCheckedChange={updateStatus} />;
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await tripPlanApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
+    }
+  };
+
   return (
     <div className="p-3">
       <ListPageHeader
@@ -224,9 +250,12 @@ export default function TripPlanList() {
         <Column field="approval_status" header="Approval" sortable={SORTABLE_FIELDS.has("approval_status")} />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
-          <button title={t("common.edit")} onClick={() => navigate(editPath(row.unique_id), { state: { record: row } })} className="text-blue-600 hover:text-blue-800">
-            <PencilIcon className="size-5" />
-          </button>
+          <RowActionsMenu
+            onEdit={() => navigate(editPath(row.unique_id), { state: { record: row } })}
+            onDelete={() => void handleDelete(row.unique_id)}
+            editLabel={t("common.edit")}
+            deleteLabel={t("common.delete")}
+          />
         )} />
       </DataTable>
     </div>

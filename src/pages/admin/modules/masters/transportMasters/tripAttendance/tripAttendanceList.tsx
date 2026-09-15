@@ -10,7 +10,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
@@ -140,15 +140,10 @@ export default function TripAttendanceList() {
   };
 
   const actionTemplate = (row: TripAttendanceRecord) => (
-    <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
+      editLabel={t("common.edit")}
+    />
   );
 
   return (

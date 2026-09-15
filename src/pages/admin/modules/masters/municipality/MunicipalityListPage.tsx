@@ -1,13 +1,14 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import Swal from "@/lib/notify";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { municipalityApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
@@ -43,6 +44,7 @@ const columns = [
 
 export default function MunicipalityListPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { encMasters, encMunicipalities } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encMunicipalities);
 
@@ -130,16 +132,43 @@ export default function MunicipalityListPage() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await municipalityApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      Swal.fire(
+        "Error",
+        String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete Municipality"),
+        "error"
+      );
+    }
+  };
+
   const actionTemplate = (row: MunicipalityListRecord) => (
-    <div className="flex justify-center gap-3">
-      <button
-        title="Edit"
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   return (
