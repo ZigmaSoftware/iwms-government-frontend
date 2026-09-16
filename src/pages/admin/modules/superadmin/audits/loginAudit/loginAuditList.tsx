@@ -1,6 +1,6 @@
 import type { LoginAuditRecord } from "./types";
 import { useCallback, useEffect, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -68,7 +68,7 @@ export default function LoginAuditList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (err: unknown) {
-      Swal.fire(t("common.error"), String(err), "error");
+      notify.fire(t("common.error"), String(err), "error");
     } finally {
       setIsLoading(false);
     }

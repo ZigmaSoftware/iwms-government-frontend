@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -167,7 +167,7 @@ export default function TicketList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
+      notify.fire("Error", errorText(err, "Unable to load tickets"), "error");
     } finally {
       setTableLoading(false);
     }
@@ -220,7 +220,7 @@ export default function TicketList() {
         internal: response?.internal ?? 0,
       });
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to load ticket counts"), "error");
+      notify.fire("Error", errorText(err, "Unable to load ticket counts"), "error");
     }
   };
 
@@ -235,7 +235,7 @@ export default function TicketList() {
       const response = await complaintTicketApi.readAllForExport({ params: buildTicketParams() });
       setKanbanRows(toRecordList(response));
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to load tickets"), "error");
+      notify.fire("Error", errorText(err, "Unable to load tickets"), "error");
     } finally {
       setKanbanLoading(false);
     }

@@ -1,15 +1,11 @@
 import { useEffect, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { appModuleApi } from "@/helpers/admin";
 
@@ -85,10 +81,10 @@ export default function AppModuleList() {
         label: draft.label.trim() || row.label,
         order_no: Number(draft.order_no) || 0,
       });
-      Swal.fire(t("common.success"), `${draft.label} saved.`, "success");
+      notify.fire(t("common.success"), `${draft.label} saved.`, "success");
       load();
     } catch {
-      Swal.fire(t("common.error"), "Could not save the module.", "error");
+      notify.fire(t("common.error"), "Could not save the module.", "error");
     } finally {
       setSavingId(null);
     }
@@ -100,7 +96,7 @@ export default function AppModuleList() {
       await appModuleApi.update(row.unique_id, { is_active: !row.is_active });
       load();
     } catch {
-      Swal.fire(t("common.error"), "Could not change the module.", "error");
+      notify.fire(t("common.error"), "Could not change the module.", "error");
     } finally {
       setSavingId(null);
     }

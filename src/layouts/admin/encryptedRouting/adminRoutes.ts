@@ -8,10 +8,10 @@ const StateList = lazy(() => import("@/pages/admin/modules/superadmin/commonMast
 const StateForm = lazy(() => import("@/pages/admin/modules/superadmin/commonMasters/state/StateForm"));
 const DistrictList = lazy(() => import("@/pages/admin/modules/masters/district/DistrictListPage"));
 const DistrictForm = lazy(() => import("@/pages/admin/modules/masters/district/DistrictForm"));
-const DepartmentList = lazy(() => import("@/pages/admin/modules/masters/department/DepartmentListPage"));
-const DepartmentForm = lazy(() => import("@/pages/admin/modules/masters/department/DepartmentForm"));
-const DesignationList = lazy(() => import("@/pages/admin/modules/masters/designation/DesignationListPage"));
-const DesignationForm = lazy(() => import("@/pages/admin/modules/masters/designation/DesignationForm"));
+const DepartmentList = lazy(() => import("@/pages/admin/modules/masters/department/list/DepartmentListPage"));
+const DepartmentForm = lazy(() => import("@/pages/admin/modules/masters/department/form/DepartmentForm"));
+const DesignationList = lazy(() => import("@/pages/admin/modules/masters/designation/list/DesignationListPage"));
+const DesignationForm = lazy(() => import("@/pages/admin/modules/masters/designation/form/DesignationForm"));
 const CollectionPointListPage = lazy(() => import("@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointListPage"));
 const CollectionPointForm = lazy(() => import("@/pages/admin/modules/core_modules/scheduleSetup/collectionPoint/CollectionPointForm"));
 const WasteTypeListPage = lazy(() => import("@/pages/admin/modules/masters/wasteMasters/wasteType/WasteTypeListPage"));
@@ -26,8 +26,8 @@ const DistrictLeaderListPage = lazy(() => import("@/pages/admin/modules/masters/
 const DistrictLeaderForm = lazy(() => import("@/pages/admin/modules/masters/leaderManagement/districtLeader/DistrictLeaderForm"));
 const StateLeaderListPage = lazy(() => import("@/pages/admin/modules/masters/leaderManagement/stateLeader/StateLeaderListPage"));
 const StateLeaderForm = lazy(() => import("@/pages/admin/modules/masters/leaderManagement/stateLeader/StateLeaderForm"));
-const AreaTypeListPage = lazy(() => import("@/pages/admin/modules/masters/areaType/AreaTypeListPage"));
-const AreaTypeForm = lazy(() => import("@/pages/admin/modules/masters/areaType/AreaTypeForm"));
+const AreaTypeListPage = lazy(() => import("@/pages/admin/modules/masters/areaType/list/AreaTypeListPage"));
+const AreaTypeForm = lazy(() => import("@/pages/admin/modules/masters/areaType/form/AreaTypeForm"));
 const HierarchyListPage = lazy(() => import("@/pages/admin/modules/masters/hierarchy/HierarchyListPage"));
 const HierarchyForm = lazy(() => import("@/pages/admin/modules/masters/hierarchy/HierarchyForm"));
 const MunicipalityListPage = lazy(() => import("@/pages/admin/modules/masters/municipality/MunicipalityListPage"));

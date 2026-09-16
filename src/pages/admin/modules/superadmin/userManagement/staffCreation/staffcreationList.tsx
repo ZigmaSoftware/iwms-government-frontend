@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
@@ -207,7 +207,7 @@ export default function StaffCreationList() {
           : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -273,7 +273,7 @@ export default function StaffCreationList() {
           )
         );
       } catch (err) {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
 
@@ -327,7 +327,7 @@ export default function StaffCreationList() {
   const handleDownloadPdf = async () => {
     const exportRows = await fetchExportStaff();
     if (exportRows.length === 0) {
-      Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+      notify.fire(t("common.warning") || "Warning", "No staff to export", "warning");
       return;
     }
     await downloadAllStaffPdf(exportRows);
@@ -341,7 +341,7 @@ export default function StaffCreationList() {
       setSelectedQrStaff(detailedStaff);
       await downloadStaffQrPdf(detailedStaff);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to generate the staff QR PDF.",
@@ -356,7 +356,7 @@ export default function StaffCreationList() {
 
     const previewWindow = window.open("", "_blank");
     if (!previewWindow) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "Preview blocked",
         text: "Please allow pop-ups for this site to preview the PDF.",
@@ -377,7 +377,7 @@ export default function StaffCreationList() {
       window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
     } catch (error) {
       previewWindow.close();
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to preview the staff QR PDF.",
@@ -388,7 +388,7 @@ export default function StaffCreationList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -402,21 +402,21 @@ export default function StaffCreationList() {
     try {
       await adminApi.staffCreation.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch {
-      Swal.fire(t("common.error"), t("common.delete_failed"), "error");
+      notify.fire(t("common.error"), t("common.delete_failed"), "error");
     }
   };
 
   const actionTemplate = (row: Staff) => (
     <RowActionsMenu
-      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      onDelete={() => void handleDelete(row.unique_id)}
+      onEdit={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
       editLabel={t("common.edit")}
       deleteLabel={t("common.delete")}
     />
@@ -491,7 +491,7 @@ export default function StaffCreationList() {
           onExportRequest={async () => {
             const exportRows = await fetchExportStaff();
             if (exportRows.length === 0) {
-              Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+              notify.fire(t("common.warning") || "Warning", "No staff to export", "warning");
             }
             return exportRows.map(staffExcelRow);
           }}

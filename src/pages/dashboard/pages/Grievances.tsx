@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MultiSelect } from "primereact/multiselect";
+import { MultiSelect } from "@/components/form/MultiSelect";
 
 import {
   Card,
@@ -648,7 +648,6 @@ export default function Grievances() {
                   onChange={(event) => (setter as (values: string[]) => void)(event.value as string[])}
                   optionLabel="label"
                   optionValue="value"
-                  display="chip"
                   maxSelectedLabels={2}
                   placeholder={`All ${(label as string).toLowerCase()}`}
                   className="h-10 w-full text-sm"

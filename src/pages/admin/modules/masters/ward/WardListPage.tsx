@@ -6,7 +6,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
@@ -81,7 +81,7 @@ export default function WardListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Ward"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Ward"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -125,7 +125,7 @@ export default function WardListPage() {
         await wardApi.update(id, { is_active: value });
         setRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, is_active: value } : item));
       } catch (error: any) {
-        Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
+        notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
       } finally {
         setPendingStatusId(null);
       }
@@ -141,7 +141,7 @@ export default function WardListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -155,14 +155,14 @@ export default function WardListPage() {
     try {
       await wardApi.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete Ward"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete Ward"), "error");
     }
   };
 

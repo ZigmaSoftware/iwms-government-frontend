@@ -10,7 +10,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
@@ -76,7 +76,7 @@ export default function WasteTypeListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error: any) {
-      Swal.fire(
+      notify.fire(
         "Error",
         String(
           error?.response?.data?.detail ?? error?.message ?? "Failed to load Waste Type",
@@ -124,7 +124,7 @@ export default function WasteTypeListPage() {
   ) => rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -138,14 +138,14 @@ export default function WasteTypeListPage() {
     try {
       await wasteTypeApi.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire(
+      notify.fire(
         "Error",
         String(
           error?.response?.data?.detail ?? error?.message ?? "Failed to delete Waste Type",

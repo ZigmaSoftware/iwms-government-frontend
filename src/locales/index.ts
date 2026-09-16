@@ -32,43 +32,14 @@
  * is a shallow `Object.assign`, which would silently clobber `nav` down to
  * whichever file's copy assembled last if more than one defined it. It lives
  * whole inside admin/superadmin/, same as the private repo's own convention.
+ *
+ * Each language's files are behind a dynamic import() (one static entry
+ * point per language, per Vite's requirement that code-split import()
+ * targets be literal) so only the active language ships in the initial
+ * bundle; the other two are fetched on demand when the user switches.
  */
 
-import commonEn from "./common/en";
-import commonTa from "./common/ta";
-import commonHi from "./common/hi";
-
-import adminSuperadminEn from "./admin/superadmin/en";
-import adminSuperadminTa from "./admin/superadmin/ta";
-import adminSuperadminHi from "./admin/superadmin/hi";
-
-import adminMastersEn from "./admin/masters/en";
-import adminMastersTa from "./admin/masters/ta";
-import adminMastersHi from "./admin/masters/hi";
-
-import adminCoreEn from "./admin/coreModules/en";
-import adminCoreTa from "./admin/coreModules/ta";
-import adminCoreHi from "./admin/coreModules/hi";
-
-import adminReportsEn from "./admin/reports/en";
-import adminReportsTa from "./admin/reports/ta";
-import adminReportsHi from "./admin/reports/hi";
-
-import dashEn from "./dashboard/dashboard/en";
-import dashTa from "./dashboard/dashboard/ta";
-import dashHi from "./dashboard/dashboard/hi";
-
-import grievanceEn from "./dashboard/grievance/en";
-import grievanceTa from "./dashboard/grievance/ta";
-import grievanceHi from "./dashboard/grievance/hi";
-
-import dashReportsEn from "./dashboard/reports/en";
-import dashReportsTa from "./dashboard/reports/ta";
-import dashReportsHi from "./dashboard/reports/hi";
-
-import weighbridgeEn from "./dashboard/weighbridge/en";
-import weighbridgeTa from "./dashboard/weighbridge/ta";
-import weighbridgeHi from "./dashboard/weighbridge/hi";
+export type LanguageCode = "en" | "ta" | "hi";
 
 type Part = Record<string, unknown>;
 
@@ -81,22 +52,105 @@ const assemble = (common: Part, admin: Part[], dashboard: Part[]) => ({
   },
 });
 
-export const en = assemble(
-  commonEn,
-  [adminSuperadminEn, adminMastersEn, adminCoreEn, adminReportsEn],
-  [dashEn, grievanceEn, dashReportsEn, weighbridgeEn],
-);
+async function loadEn() {
+  const [
+    commonEn,
+    adminSuperadminEn,
+    adminMastersEn,
+    adminCoreEn,
+    adminReportsEn,
+    dashEn,
+    grievanceEn,
+    dashReportsEn,
+    weighbridgeEn,
+  ] = await Promise.all([
+    import("./common/en").then((m) => m.default),
+    import("./admin/superadmin/en").then((m) => m.default),
+    import("./admin/masters/en").then((m) => m.default),
+    import("./admin/coreModules/en").then((m) => m.default),
+    import("./admin/reports/en").then((m) => m.default),
+    import("./dashboard/dashboard/en").then((m) => m.default),
+    import("./dashboard/grievance/en").then((m) => m.default),
+    import("./dashboard/reports/en").then((m) => m.default),
+    import("./dashboard/weighbridge/en").then((m) => m.default),
+  ]);
 
-export const ta = assemble(
-  commonTa,
-  [adminSuperadminTa, adminMastersTa, adminCoreTa, adminReportsTa],
-  [dashTa, grievanceTa, dashReportsTa, weighbridgeTa],
-);
+  return assemble(
+    commonEn,
+    [adminSuperadminEn, adminMastersEn, adminCoreEn, adminReportsEn],
+    [dashEn, grievanceEn, dashReportsEn, weighbridgeEn],
+  );
+}
 
-export const hi = assemble(
-  commonHi,
-  [adminSuperadminHi, adminMastersHi, adminCoreHi, adminReportsHi],
-  [dashHi, grievanceHi, dashReportsHi, weighbridgeHi],
-);
+async function loadTa() {
+  const [
+    commonTa,
+    adminSuperadminTa,
+    adminMastersTa,
+    adminCoreTa,
+    adminReportsTa,
+    dashTa,
+    grievanceTa,
+    dashReportsTa,
+    weighbridgeTa,
+  ] = await Promise.all([
+    import("./common/ta").then((m) => m.default),
+    import("./admin/superadmin/ta").then((m) => m.default),
+    import("./admin/masters/ta").then((m) => m.default),
+    import("./admin/coreModules/ta").then((m) => m.default),
+    import("./admin/reports/ta").then((m) => m.default),
+    import("./dashboard/dashboard/ta").then((m) => m.default),
+    import("./dashboard/grievance/ta").then((m) => m.default),
+    import("./dashboard/reports/ta").then((m) => m.default),
+    import("./dashboard/weighbridge/ta").then((m) => m.default),
+  ]);
 
-export default { en, ta, hi };
+  return assemble(
+    commonTa,
+    [adminSuperadminTa, adminMastersTa, adminCoreTa, adminReportsTa],
+    [dashTa, grievanceTa, dashReportsTa, weighbridgeTa],
+  );
+}
+
+async function loadHi() {
+  const [
+    commonHi,
+    adminSuperadminHi,
+    adminMastersHi,
+    adminCoreHi,
+    adminReportsHi,
+    dashHi,
+    grievanceHi,
+    dashReportsHi,
+    weighbridgeHi,
+  ] = await Promise.all([
+    import("./common/hi").then((m) => m.default),
+    import("./admin/superadmin/hi").then((m) => m.default),
+    import("./admin/masters/hi").then((m) => m.default),
+    import("./admin/coreModules/hi").then((m) => m.default),
+    import("./admin/reports/hi").then((m) => m.default),
+    import("./dashboard/dashboard/hi").then((m) => m.default),
+    import("./dashboard/grievance/hi").then((m) => m.default),
+    import("./dashboard/reports/hi").then((m) => m.default),
+    import("./dashboard/weighbridge/hi").then((m) => m.default),
+  ]);
+
+  return assemble(
+    commonHi,
+    [adminSuperadminHi, adminMastersHi, adminCoreHi, adminReportsHi],
+    [dashHi, grievanceHi, dashReportsHi, weighbridgeHi],
+  );
+}
+
+/** Dynamically loads one language's assembled resource bundle. */
+export function loadLocale(lang: LanguageCode) {
+  switch (lang) {
+    case "ta":
+      return loadTa();
+    case "hi":
+      return loadHi();
+    case "en":
+    default:
+      return loadEn();
+  }
+}

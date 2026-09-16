@@ -4,7 +4,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -104,7 +104,7 @@ export default function DailyTripCollectionPointList() {
       );
     } catch (error: unknown) {
       setRawRows([]);
-      Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
+      notify.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,7 @@ export default function DailyTripCollectionPointList() {
   }, [globalFilterValue]);
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -142,14 +142,14 @@ export default function DailyTripCollectionPointList() {
     try {
       await dailyTripCollectionPointApi.delete(id);
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: unknown) {
-      Swal.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
+      notify.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
     }
   };
 

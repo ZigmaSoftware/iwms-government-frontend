@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -165,7 +165,7 @@ function StateEditor({
     });
 
     if (!result.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
         text: toSwalMessage(result.error),
@@ -353,7 +353,7 @@ export default function StateForm() {
       })
       .catch(() => {
         if (cancelled) return;
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: t("common.load_failed"),
@@ -378,7 +378,7 @@ export default function StateForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: extractErrorMessage(err, t("common.load_failed")),
@@ -394,7 +394,7 @@ export default function StateForm() {
     try {
       if (isEdit && id) {
         await adminApi.states.update(id, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -402,7 +402,7 @@ export default function StateForm() {
         });
       } else {
         await adminApi.states.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -411,7 +411,7 @@ export default function StateForm() {
       }
       navigate(LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),

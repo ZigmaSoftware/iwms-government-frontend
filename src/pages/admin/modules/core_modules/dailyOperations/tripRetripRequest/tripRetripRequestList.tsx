@@ -1,7 +1,7 @@
 import type { RetripStatus, TripRetripRequestRecord } from "./types";
 import { RETRIP_STATUS_LABELS } from "./types";
 import { useEffect, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -279,7 +279,7 @@ export default function TripRetripRequestList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -330,7 +330,7 @@ export default function TripRetripRequestList() {
       setRawRows((prev) => prev.filter((r) => r.unique_id !== approveTarget.unique_id));
       setTotalRecords((prev) => Math.max(0, prev - 1));
       setApproveTarget(null);
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Re-Trip Approved",
         text: "A new trip has been created for the remaining stops.",
@@ -338,7 +338,7 @@ export default function TripRetripRequestList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsApproving(false);
     }
@@ -355,7 +355,7 @@ export default function TripRetripRequestList() {
       setRawRows((prev) => prev.filter((r) => r.unique_id !== rejectTarget.unique_id));
       setTotalRecords((prev) => Math.max(0, prev - 1));
       setRejectTarget(null);
-      Swal.fire({
+      notify.fire({
         icon: "info",
         title: "Rejected",
         text: "The driver has been notified to continue the trip.",
@@ -363,7 +363,7 @@ export default function TripRetripRequestList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsRejecting(false);
     }

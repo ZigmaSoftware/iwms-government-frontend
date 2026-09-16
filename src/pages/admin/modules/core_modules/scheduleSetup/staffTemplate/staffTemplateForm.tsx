@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { MultiSelect } from "@/components/form/MultiSelect";
 
@@ -254,7 +254,7 @@ export default function StaffTemplateForm() {
         }));
       })
       .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
       });
   }, [geo.stateId, geo.districtId, geo.localBodyLevel, geo.localBodyId, t]);
 
@@ -331,7 +331,7 @@ export default function StaffTemplateForm() {
       .catch((error) => {
         const message = extractError(error);
         setFormError(message);
-        Swal.fire(t("common.error"), message, "error");
+        notify.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
   }, [id, isEdit, t]);
@@ -493,7 +493,7 @@ export default function StaffTemplateForm() {
 
     const validation = staffTemplateSchema.safeParse(formData);
     if (!validation.success) {
-      Swal.fire(t("common.error"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.error"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -503,12 +503,12 @@ export default function StaffTemplateForm() {
       formData.driver_id &&
       formData.driver_id === formData.operator_id
     ) {
-      Swal.fire(t("common.error"), t("admin.staff_template.error_primary_role_duplicate"), "warning");
+      notify.fire(t("common.error"), t("admin.staff_template.error_primary_role_duplicate"), "warning");
       return;
     }
 
     if (!geo.stateId || !geo.districtId || !geo.localBodyId) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         "State, District and Local Body are required.",
         "warning",
@@ -549,7 +549,7 @@ export default function StaffTemplateForm() {
         await staffTemplateApi.create(payload);
       }
 
-      Swal.fire(
+      notify.fire(
         t("common.success"),
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success"
@@ -558,7 +558,7 @@ export default function StaffTemplateForm() {
     } catch (error) {
       const message = extractError(error);
       setFormError(message);
-      Swal.fire(t("common.save_failed"), message, "error");
+      notify.fire(t("common.save_failed"), message, "error");
     } finally {
       setSubmitting(false);
     }

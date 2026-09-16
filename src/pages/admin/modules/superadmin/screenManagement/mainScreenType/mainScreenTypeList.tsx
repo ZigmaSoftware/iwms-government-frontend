@@ -1,17 +1,13 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -69,7 +65,7 @@ export default function MainScreenTypeList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +105,7 @@ export default function MainScreenTypeList() {
     rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -123,14 +119,14 @@ export default function MainScreenTypeList() {
     try {
       await mainScreenTypeApi.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch {
-      Swal.fire(t("common.error"), t("common.delete_failed"), "error");
+      notify.fire(t("common.error"), t("common.delete_failed"), "error");
     }
   };
 
@@ -156,7 +152,7 @@ export default function MainScreenTypeList() {
           )
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       } finally {
         setPendingStatusId(null);
       }

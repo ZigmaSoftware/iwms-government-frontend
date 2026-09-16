@@ -12,7 +12,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
 import { binCollectionEventApi } from "@/helpers/admin";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
@@ -139,7 +139,7 @@ export default function CollectionMonitoringListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -153,14 +153,14 @@ export default function CollectionMonitoringListPage() {
     try {
       await binCollectionEventApi.delete(id);
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch {
-      Swal.fire(t("common.error"), t("common.delete_failed"), "error");
+      notify.fire(t("common.error"), t("common.delete_failed"), "error");
     }
   };
 

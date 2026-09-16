@@ -2,7 +2,7 @@ import type { FuelPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -53,7 +53,7 @@ function FuelForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("admin.fuel.load_failed_title"),
           text: err?.response?.data?.detail || t("common.request_failed"),
@@ -88,7 +88,7 @@ function FuelForm() {
     };
     const validation = schema.safeParse(rawPayload);
     if (!validation.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
         text: toSwalMessage(validation.error),
@@ -103,7 +103,7 @@ function FuelForm() {
     try {
       if (isEdit && id) {
         await adminApi.fuels.update(id, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -111,7 +111,7 @@ function FuelForm() {
         });
       } else {
         await adminApi.fuels.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -131,7 +131,7 @@ function FuelForm() {
         message = data;
       }
 
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: message,

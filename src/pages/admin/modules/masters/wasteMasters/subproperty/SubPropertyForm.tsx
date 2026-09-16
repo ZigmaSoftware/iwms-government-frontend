@@ -2,7 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { toSwalMessage } from "@/lib/zodErrors";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -100,7 +100,7 @@ function SubPropertyEditor({
     };
     const validation = schema.safeParse(rawPayload);
     if (!validation.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
         text: toSwalMessage(validation.error),
@@ -239,7 +239,7 @@ export default function SubPropertyForm() {
       })
       .catch((error) => {
         if (cancelled) return;
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(error, t("common.fetch_failed")),
           "error"
@@ -259,7 +259,7 @@ export default function SubPropertyForm() {
       })
       .catch((error) => {
         if (cancelled) return;
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(error, t("common.load_failed")),
           "error"
@@ -276,7 +276,7 @@ export default function SubPropertyForm() {
     try {
       if (isEdit) {
         await adminApi.subProperties.update(id as string, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1400,
@@ -284,7 +284,7 @@ export default function SubPropertyForm() {
         });
       } else {
         await adminApi.subProperties.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1400,
@@ -295,7 +295,7 @@ export default function SubPropertyForm() {
       navigate(ENC_LIST_PATH);
     } catch (error: unknown) {
       const message = extractErrorMessage(error, t("common.save_failed_desc"));
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: message,

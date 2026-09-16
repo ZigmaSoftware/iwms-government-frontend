@@ -4,7 +4,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
@@ -241,7 +241,7 @@ function CollectionMonitoringForm() {
         setNotes(String(record.notes ?? ""));
         setIsActive(record.is_active !== false);
       })
-      .catch(() => Swal.fire(t("common.error"), t("common.load_failed"), "error"))
+      .catch(() => notify.fire(t("common.error"), t("common.load_failed"), "error"))
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
@@ -281,7 +281,7 @@ function CollectionMonitoringForm() {
       notes,
     });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -305,14 +305,14 @@ function CollectionMonitoringForm() {
         await binCollectionEventApi.create(payload);
       }
 
-      Swal.fire(
+      notify.fire(
         t("common.success"),
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success",
       );
       navigate(LIST_PATH);
     } catch (error: unknown) {
-      Swal.fire(t("common.save_failed"), errorDetail(error) ?? t("common.save_failed_desc"), "error");
+      notify.fire(t("common.save_failed"), errorDetail(error) ?? t("common.save_failed_desc"), "error");
     } finally {
       setLoading(false);
     }

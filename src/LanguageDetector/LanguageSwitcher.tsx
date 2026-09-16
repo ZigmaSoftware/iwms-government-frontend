@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "../components/ui/select";
 import { cn } from "@/lib/utils";
+import { switchLanguage } from "@/i18n";
 
 type LanguageCode = "en" | "ta" | "hi";
 
@@ -56,7 +57,7 @@ export const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   );
 
   const setLang = (lang: LanguageCode) => {
-    i18n.changeLanguage(lang);
+    void switchLanguage(lang);
   };
 
   if (variant === "select") {

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -504,7 +504,7 @@ export default function MunicipalityForm() {
           !scopeOption("district") &&
           !scopeOption("area_type")
         ) {
-          Swal.fire({
+          notify.fire({
             icon: "error",
             title: t("common.error"),
             text: "Failed to load dropdown data",
@@ -528,7 +528,7 @@ export default function MunicipalityForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: extractErrorMessage(err, t("common.load_failed")),
@@ -542,7 +542,7 @@ export default function MunicipalityForm() {
     try {
       if (isEdit && id) {
         await adminApi.municipalities.update(id, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -550,7 +550,7 @@ export default function MunicipalityForm() {
         });
       } else {
         await adminApi.municipalities.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -559,7 +559,7 @@ export default function MunicipalityForm() {
       }
       navigate(LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),

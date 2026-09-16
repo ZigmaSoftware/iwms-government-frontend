@@ -3,7 +3,7 @@ import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
@@ -126,7 +126,7 @@ export default function VehicleBreakdownForm() {
     setLoadingRecord(true);
     (vehicleBreakdownApi.read(id) as Promise<any>)
       .then((data: any) => setRecord(data))
-      .catch(() => Swal.fire(t("common.error"), t("common.fetch_failed"), "error"))
+      .catch(() => notify.fire(t("common.error"), t("common.fetch_failed"), "error"))
       .finally(() => setLoadingRecord(false));
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -371,7 +371,7 @@ export default function VehicleBreakdownForm() {
       breakdown_lng: form.breakdown_lng,
     });
     if (!validation.success) {
-      Swal.fire(t("common.error"), toSwalMessage(validation.error), "error");
+      notify.fire(t("common.error"), toSwalMessage(validation.error), "error");
       return;
     }
 
@@ -398,7 +398,7 @@ export default function VehicleBreakdownForm() {
         await vehicleBreakdownApi.create(payload);
       }
 
-      await Swal.fire({
+      await notify.fire({
         title: t("common.success"),
         text: isEdit ? "Breakdown record updated." : "Breakdown reported successfully. Pending approval.",
         icon: "success",
@@ -407,7 +407,7 @@ export default function VehicleBreakdownForm() {
       });
       navigate(LIST_PATH);
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setSaving(false);
     }

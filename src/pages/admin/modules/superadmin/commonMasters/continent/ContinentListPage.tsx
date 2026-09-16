@@ -12,11 +12,8 @@ import { Column } from "primereact/column";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -111,7 +108,7 @@ export default function ContinentList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
         "error"
@@ -172,7 +169,7 @@ export default function ContinentList() {
         )
       );
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.update_status_failed")),
         "error"
@@ -199,7 +196,7 @@ export default function ContinentList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -213,14 +210,14 @@ export default function ContinentList() {
     try {
       await adminApi.continents.delete(id);
       setContinents((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.delete_failed")),
         "error"

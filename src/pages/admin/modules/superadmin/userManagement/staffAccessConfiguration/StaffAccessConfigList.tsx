@@ -6,7 +6,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import ComponentCard from "@/components/common/ComponentCard";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -93,7 +93,7 @@ export default function StaffAccessConfigList() {
           : rows.length,
       );
     } catch {
-      Swal.fire("Error", "Failed to load staff access configurations.", "error");
+      notify.fire("Error", "Failed to load staff access configurations.", "error");
     } finally {
       setLoading(false);
     }
@@ -151,7 +151,7 @@ export default function StaffAccessConfigList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -167,14 +167,14 @@ export default function StaffAccessConfigList() {
       setRecords((current) =>
         current.filter((row) => textOf(row.unique_id, row.id) !== id)
       );
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch {
-      Swal.fire("Error", "Failed to delete staff access configuration.", "error");
+      notify.fire("Error", "Failed to delete staff access configuration.", "error");
     }
   };
 

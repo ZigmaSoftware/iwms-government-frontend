@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { LoaderCircle, LocateFixed } from "lucide-react";
 
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import {
   detectCurrentCoordinates,
@@ -28,7 +28,7 @@ export default function AutoDetectLocationButton({
     try {
       onDetected(await detectCurrentCoordinates());
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: "Location not detected",
         text: error instanceof Error ? error.message : "Unable to detect your current location.",

@@ -1,6 +1,6 @@
 import type { StaffAuditJsonValue, StaffAuditRecord, DiffLine, ModuleFilterOption } from "./types";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -252,7 +252,7 @@ export default function StaffAuditList() {
           typeof response?.count === "number" ? response.count : toRecordList(response).length,
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+        notify.fire(t("common.error"), t("common.fetch_failed"), "error");
       } finally {
         setIsLoading(false);
       }

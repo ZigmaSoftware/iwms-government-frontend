@@ -6,7 +6,7 @@ import type {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "primereact/button";
@@ -383,7 +383,7 @@ export default function DailyTripLogReportPage() {
       })
       .catch((err) => {
         if (!mountedRef || mountedRef.current)
-          Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+          notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
       })
       .finally(() => {
         if (!mountedRef || mountedRef.current) setLoading(false);
@@ -467,7 +467,7 @@ export default function DailyTripLogReportPage() {
       setProceedMode(null);
       setSelectedCpIds(new Set());
       loadLog();
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Trip Proceeded",
         text: `A new trip (${response.data?.new_assignment_id ?? ""}) has been created for the remaining stops.`,
@@ -477,7 +477,7 @@ export default function DailyTripLogReportPage() {
     } catch (err: any) {
       const data = err?.response?.data;
       const message = data?.detail ?? data?.remarks ?? data?.collection_point_ids ?? "Unable to proceed with next trip.";
-      Swal.fire(t("common.error"), String(Array.isArray(message) ? message[0] : message), "error");
+      notify.fire(t("common.error"), String(Array.isArray(message) ? message[0] : message), "error");
     } finally {
       setIsProceeding(false);
     }

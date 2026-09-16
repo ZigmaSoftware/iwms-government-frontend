@@ -2,7 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
@@ -112,7 +112,7 @@ export default function WasteTypeForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire(t("common.error"), extractErr(err), "error");
+        notify.fire(t("common.error"), extractErr(err), "error");
       });
     return () => { cancelled = true; };
   }, [id, isEdit, extractErr, t]);
@@ -130,7 +130,7 @@ export default function WasteTypeForm() {
     };
     const validation = schema.safeParse(rawPayload);
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -140,14 +140,14 @@ export default function WasteTypeForm() {
     try {
       if (isEdit && id) {
         await wasteTypeApi.update(id, payload);
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        notify.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await wasteTypeApi.create(payload);
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        notify.fire(t("common.success"), t("common.added_success"), "success");
       }
       navigate(ENC_LIST_PATH);
     } catch (error) {
-      Swal.fire(t("common.save_failed"), extractErr(error), "error");
+      notify.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
       setIsSubmitting(false);
     }

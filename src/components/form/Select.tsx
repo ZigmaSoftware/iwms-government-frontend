@@ -24,6 +24,14 @@ interface SelectProps {
   className?: string;
   disabled?: boolean;
   required?: boolean;
+  /**
+   * Accessible name for the trigger. Most callers render a visual <Label>
+   * next to this component without wiring htmlFor/id together, which leaves
+   * the control unnamed for assistive tech — default to the placeholder
+   * ("Select district" etc.) so every instance has *some* accessible name
+   * even when the caller doesn't pass one explicitly.
+   */
+  ariaLabel?: string;
 }
 
 export default function Select({
@@ -35,6 +43,7 @@ export default function Select({
   className,
   disabled,
   required,
+  ariaLabel,
 }: SelectProps) {
   const displayLabel = (label: ReactNode): ReactNode =>
     typeof label === "string" || typeof label === "number"
@@ -79,7 +88,12 @@ export default function Select({
       }}
       disabled={disabled}
     >
-      <SelectTrigger id={id} className={className} aria-required={required}>
+      <SelectTrigger
+        id={id}
+        className={className}
+        aria-required={required}
+        aria-label={ariaLabel ?? `Select ${finalPlaceholder.replace(/^select\s+/i, "") || "an option"}`}
+      >
         {selectedLabel ? (
           <span className="truncate">{displayLabel(selectedLabel)}</span>
         ) : (

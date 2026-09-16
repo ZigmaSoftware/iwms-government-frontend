@@ -2,7 +2,7 @@ import type { DailyTripLogRecord } from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -627,7 +627,7 @@ export default function DailyTripLogList() {
         typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
       );
     } catch (err: any) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -690,7 +690,7 @@ export default function DailyTripLogList() {
         )
       );
       setModalState(null);
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Verified",
         text: "Trip log has been verified.",
@@ -698,7 +698,7 @@ export default function DailyTripLogList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
+      notify.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
     } finally {
       setIsVerifying(false);
     }
@@ -706,7 +706,7 @@ export default function DailyTripLogList() {
 
   /* ── inline status change (Draft ↔ Verify) ── */
   const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
-    const result = await Swal.fire({
+    const result = await notify.fire({
       title: `Change status to ${newStatus}?`,
       text: `This will move the log from "${row.log_status}" to "${newStatus}".`,
       icon: "warning",
@@ -732,7 +732,7 @@ export default function DailyTripLogList() {
             : item
         )
       );
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Done",
         text: `Status changed to ${newStatus}.`,
@@ -740,7 +740,7 @@ export default function DailyTripLogList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
+      notify.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
     }
   };
 
@@ -873,7 +873,7 @@ export default function DailyTripLogList() {
         });
       }
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
+      notify.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
     } finally {
       setIsExporting(false);
     }

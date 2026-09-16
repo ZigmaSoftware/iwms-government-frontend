@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, ClipboardList, Loader2, MapPinned, UserRound } from "lucide-react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Label } from "@/components/ui/label";
@@ -382,10 +382,10 @@ export default function TicketWizardForm() {
     }
     const validation = ticketSchema.safeParse(form);
     if (!validation.success) {
-      Swal.fire("Missing fields", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing fields", toSwalMessage(validation.error), "warning");
       return;
     }
-    const confirmCreate = await Swal.fire({
+    const confirmCreate = await notify.fire({
       title: "Create this ticket?",
       text: "Please confirm you want to create this complaint ticket with the details entered.",
       icon: "question",
@@ -429,10 +429,10 @@ export default function TicketWizardForm() {
         area_type: form.area_type || null,
         ...localBodyPayload,
       });
-      Swal.fire("Saved", "Ticket created successfully.", "success");
+      notify.fire("Saved", "Ticket created successfully.", "success");
       navigate(listPath);
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to create ticket"), "error");
+      notify.fire("Error", errorText(err, "Unable to create ticket"), "error");
     } finally {
       setSaving(false);
     }

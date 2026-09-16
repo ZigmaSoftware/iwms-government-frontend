@@ -10,6 +10,7 @@ import { ModuleProvider } from "@/contexts/ModuleContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { PermissionProvider } from "@/contexts/PermissionContext";
 import { RolesProvider } from "@/contexts/RolesContext";
+import { SidebarProvider } from "@/contexts/SideBarContext";
 
 type Props = {
   children: ReactNode;
@@ -23,16 +24,18 @@ export function AppProviders({ children }: Props) {
           <UserProvider>
 
               <PermissionProvider>
-                <TooltipProvider delayDuration={150} skipDelayDuration={0}>
-                  <BrowserRouter>
-                    {children}
-                    <NotificationDialog />
-                    <Toaster />
-                    <Sonner />
-                  </BrowserRouter>
-                </TooltipProvider>
+                <SidebarProvider>
+                  <TooltipProvider delayDuration={150} skipDelayDuration={0}>
+                    <BrowserRouter>
+                      {children}
+                      <NotificationDialog />
+                      <Toaster />
+                      <Sonner />
+                    </BrowserRouter>
+                  </TooltipProvider>
+                </SidebarProvider>
               </PermissionProvider>
-      
+
           </UserProvider>
         </ModuleProvider>
       </ThemeProvider>

@@ -10,7 +10,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -133,7 +133,7 @@ export default function WasteCollectedDataList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(err) });
+      notify.fire({ icon: "error", title: t("common.error"), text: String(err) });
     } finally {
       setLoading(false);
     }
@@ -198,12 +198,12 @@ export default function WasteCollectedDataList() {
       });
       const exportRows = buildExportRows(toRecordList(all));
       if (!exportRows.length) {
-        Swal.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
+        notify.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
         return;
       }
       exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -220,7 +220,7 @@ export default function WasteCollectedDataList() {
       });
       const exportRows = buildExportRows(toRecordList(all));
       if (!exportRows.length) {
-        Swal.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
+        notify.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
         return;
       }
       downloadRecordsPdf({
@@ -230,7 +230,7 @@ export default function WasteCollectedDataList() {
         columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
       });
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -258,14 +258,14 @@ export default function WasteCollectedDataList() {
           )
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
     return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -279,14 +279,14 @@ export default function WasteCollectedDataList() {
     try {
       await adminApi.wasteCollections.delete(id);
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (err) {
-      Swal.fire(t("common.error"), err instanceof Error ? err.message : t("common.delete_failed"), "error");
+      notify.fire(t("common.error"), err instanceof Error ? err.message : t("common.delete_failed"), "error");
     }
   };
 
