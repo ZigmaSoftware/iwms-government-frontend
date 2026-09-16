@@ -28,7 +28,7 @@ const drawBinDetailsPage = async (context: CanvasRenderingContext2D, bin: Bin) =
   context.fillText("Bin Details", PAGE_WIDTH / 2, 78);
   context.fillStyle = "#64748b";
   context.font = "20px Arial, sans-serif";
-  context.fillText("Integrated Waste Management System", PAGE_WIDTH / 2, 112);
+  context.fillText("Integrated Waste Management Suite", PAGE_WIDTH / 2, 112);
 
   const qrSize = 190;
   const qrX = 82;
