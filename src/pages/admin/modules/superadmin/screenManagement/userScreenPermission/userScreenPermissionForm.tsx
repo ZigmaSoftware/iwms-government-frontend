@@ -1,7 +1,7 @@
 import type { ApiUserScreen, DashboardWidget, LocalBodyType, MainScreen, Option, PermissionType, UserScreenAction, UserScreenColumnRecord } from "./types";
 import { useCallback, useEffect, useRef, useState, useMemo, type FormEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
@@ -221,7 +221,7 @@ export default function UserScreenPermissionForm() {
 
         if (firstError) {
           if (getErrorStatus(firstError) === 403) {
-            Swal.fire({
+            notify.fire({
               icon: "error",
               title: t("common.access_denied"),
               text: t("common.no_permission"),
@@ -229,7 +229,7 @@ export default function UserScreenPermissionForm() {
             }).then(() => navigate(ENC_LIST_PATH));
             return;
           }
-          Swal.fire(t("common.error"), t("common.load_failed"), "error");
+          notify.fire(t("common.error"), t("common.load_failed"), "error");
         }
 
         setMainScreens(
@@ -327,7 +327,7 @@ export default function UserScreenPermissionForm() {
         );
       })
       .catch(() => {
-        if (!cancelled) Swal.fire(t("common.error"), "Failed to load dashboard widgets.", "error");
+        if (!cancelled) notify.fire(t("common.error"), "Failed to load dashboard widgets.", "error");
       })
       .finally(() => {
         if (!cancelled) setLoadingWidgets(false);
@@ -364,7 +364,7 @@ export default function UserScreenPermissionForm() {
   );
 
   const handleAccessDenied = useCallback(() => {
-    Swal.fire({
+    notify.fire({
       icon: "error",
       title: t("common.access_denied"),
       text: t("common.no_permission"),
@@ -385,7 +385,7 @@ export default function UserScreenPermissionForm() {
       mainScreenIds,
     });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -393,7 +393,7 @@ export default function UserScreenPermissionForm() {
       (id) => (sectionDataRef.current[id]?.screenMatrix.length ?? 0) === 0
     );
     if (missingScreens) {
-      Swal.fire(
+      notify.fire(
         t("common.warning"),
         t("admin.user_screen_permission.no_screens"),
         "warning"
@@ -508,15 +508,15 @@ export default function UserScreenPermissionForm() {
       }
 
       if (isEdit) {
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        notify.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        notify.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(ENC_LIST_PATH);
     } catch (err: unknown) {
       if (getErrorStatus(err) === 403) {
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.access_denied"),
           text: t("common.no_permission"),
@@ -529,7 +529,7 @@ export default function UserScreenPermissionForm() {
         (err as { response?: { data?: Record<string, unknown> } })?.response
           ?.data ?? {};
 
-      Swal.fire(
+      notify.fire(
         t("common.save_failed"),
         firstErrorMessage(errorData.detail) ||
           firstErrorMessage(errorData.local_body_id) ||

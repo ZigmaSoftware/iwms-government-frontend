@@ -7,7 +7,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { municipalityApi } from "@/helpers/admin";
@@ -73,7 +73,7 @@ export default function MunicipalityListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Municipality"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Municipality"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +117,7 @@ export default function MunicipalityListPage() {
         await municipalityApi.update(id, { is_active: value });
         setRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, is_active: value } : item));
       } catch (error: any) {
-        Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
+        notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
       } finally {
         setPendingStatusId(null);
       }
@@ -133,7 +133,7 @@ export default function MunicipalityListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -147,14 +147,14 @@ export default function MunicipalityListPage() {
     try {
       await municipalityApi.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire(
+      notify.fire(
         "Error",
         String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete Municipality"),
         "error"

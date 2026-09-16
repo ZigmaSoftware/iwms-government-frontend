@@ -1,17 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -97,7 +93,6 @@ export default function UserScreenPermissionList() {
     },
   });
 
-
   const { encSuperAdmin, encUserScreenPermission } = getEncryptedRoute();
   const { newPath: permissionNewPath, editPath: permissionEditPath } =
     createCrudRoutePaths(encSuperAdmin, encUserScreenPermission);
@@ -123,7 +118,7 @@ export default function UserScreenPermissionList() {
         });
         if (mounted) setPermissionRows(data as any[]);
       } catch {
-        if (mounted) Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        if (mounted) notify.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
         if (mounted) setIsLoading(false);
       }
@@ -220,11 +215,11 @@ export default function UserScreenPermissionList() {
 
   const handleDelete = useCallback(async (row: GroupedRow) => {
     if (row.legacy) {
-      Swal.fire(t("common.error"), t("admin.user_screen_permission.legacy_readonly", "Legacy permissions are read-only."), "info");
+      notify.fire(t("common.error"), t("admin.user_screen_permission.legacy_readonly", "Legacy permissions are read-only."), "info");
       return;
     }
 
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("admin.user_screen_permission.confirm_delete_count", {
         count: row.mainscreen_ids.length,
@@ -256,7 +251,7 @@ export default function UserScreenPermissionList() {
         })
       );
 
-      Swal.fire(
+      notify.fire(
         t("common.deleted_success"),
         t("admin.user_screen_permission.delete_success"),
         "success"
@@ -265,7 +260,7 @@ export default function UserScreenPermissionList() {
     } catch (error) {
       console.error("DELETE ERROR:", error);
 
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         t("admin.user_screen_permission.delete_failed"),
         "error"

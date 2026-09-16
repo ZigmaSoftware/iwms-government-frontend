@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ export default function BinLoadLogForm() {
     const payload = { vehicle_id: vehicleId, property_id: propertyId, sub_property_id: subPropertyId, weight_kg: weightKg, source_type: sourceType, event_time: eventTime };
     const validation = binLoadLogSchema.safeParse(payload);
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
     setSaving(true);

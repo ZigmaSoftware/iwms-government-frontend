@@ -2,7 +2,7 @@ import type { BinCERecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
@@ -143,7 +143,7 @@ export default function BinCollectionEventList() {
       );
     } catch (error) {
       setRawRows([]);
-      Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
+      notify.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -208,7 +208,7 @@ export default function BinCollectionEventList() {
         "Bin Collection Events",
       );
     } catch (error) {
-      Swal.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
+      notify.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -238,7 +238,7 @@ export default function BinCollectionEventList() {
         columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
       });
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -264,7 +264,7 @@ export default function BinCollectionEventList() {
   }, [globalFilterValue]);
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -278,14 +278,14 @@ export default function BinCollectionEventList() {
     try {
       await binCollectionEventApi.delete(id);
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error) {
-      Swal.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
+      notify.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
     }
   };
 

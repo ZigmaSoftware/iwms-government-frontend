@@ -2,17 +2,13 @@ import type { Customer } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { MultiSelect } from "@/components/form/MultiSelect";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -37,7 +33,6 @@ import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
-
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -176,7 +171,7 @@ export default function CustomerCreationListPage() {
             : toRecordList(response).length,
         );
       } catch (error: unknown) {
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),
@@ -263,7 +258,7 @@ export default function CustomerCreationListPage() {
         error_count: errors,
       });
 
-      Swal.fire({
+      notify.fire({
         title: String(result?.message ?? "Upload Completed"),
         html: `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`,
         icon: "success",
@@ -277,7 +272,7 @@ export default function CustomerCreationListPage() {
         file_name: file.name,
         status: "failed",
       });
-      Swal.fire("Error", "Upload failed", "error");
+      notify.fire("Error", "Upload failed", "error");
     } finally {
       setIsUploading(false);
       event.target.value = "";
@@ -302,12 +297,12 @@ export default function CustomerCreationListPage() {
     try {
       const rows = await fetchExportRows();
       if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        notify.fire(t("common.warning") || "Warning", "No customers to export", "warning");
         return;
       }
       exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to export customers.",
@@ -323,12 +318,12 @@ export default function CustomerCreationListPage() {
     try {
       const rows = await fetchExportRows();
       if (rows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No customers to export", "warning");
+        notify.fire(t("common.warning") || "Warning", "No customers to export", "warning");
         return;
       }
       await downloadAllCustomersPdf(rows);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to generate the customers PDF.",
@@ -449,7 +444,7 @@ export default function CustomerCreationListPage() {
     try {
       await downloadCustomerQrPdf(selectedQrCustomer);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to generate the customer QR PDF.",
@@ -464,7 +459,7 @@ export default function CustomerCreationListPage() {
 
     const previewWindow = window.open("", "_blank");
     if (!previewWindow) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "Preview blocked",
         text: "Please allow pop-ups for this site to preview the PDF.",
@@ -483,7 +478,7 @@ export default function CustomerCreationListPage() {
       window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
     } catch (error) {
       previewWindow.close();
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to preview the customer QR PDF.",
@@ -510,7 +505,7 @@ export default function CustomerCreationListPage() {
         );
       } catch (err) {
         console.error("Status update failed:", err);
-        Swal.fire("Error", "Failed to update status", "error");
+        notify.fire("Error", "Failed to update status", "error");
       } finally {
         setPendingStatusId(null);
         setIsUpdating(false);
@@ -527,7 +522,7 @@ export default function CustomerCreationListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title") || "Are you sure?",
       text: t("common.confirm_delete_text") || "This action cannot be undone.",
       icon: "warning",
@@ -541,14 +536,14 @@ export default function CustomerCreationListPage() {
     try {
       await customerCreationApi.delete(id);
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success") || "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: unknown) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: String((error as { response?: { data?: unknown } })?.response?.data ?? error),

@@ -2,17 +2,13 @@ import type { VehicleCreationRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import ExpiryBadge from "@/components/common/ExpiryBadge";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -32,7 +28,6 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 
 const VEHICLE_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   vehicle_no: ["vehicle_no", "vehicle"],
@@ -172,7 +167,7 @@ export default function VehicleCreationListPage() {
         typeof response?.count === "number" ? response.count : list.length,
       );
     } catch (error: unknown) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: String(error),
@@ -281,7 +276,7 @@ export default function VehicleCreationListPage() {
               .join("<br/>")}</div>`
           : "";
 
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Upload Completed",
         html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
@@ -294,7 +289,7 @@ export default function VehicleCreationListPage() {
         file_name: file.name,
         status: "failed",
       });
-      Swal.fire("Error", "Upload failed", "error");
+      notify.fire("Error", "Upload failed", "error");
     } finally {
       event.target.value = "";
     }
@@ -302,7 +297,7 @@ export default function VehicleCreationListPage() {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -317,7 +312,7 @@ export default function VehicleCreationListPage() {
       setRawRows((current) =>
         current.filter((item) => item.unique_id !== id),
       );
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
@@ -325,7 +320,7 @@ export default function VehicleCreationListPage() {
       });
     } catch (error) {
       console.error("Failed to delete vehicle:", error);
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.delete_failed"),
         text: t("common.request_failed"),
@@ -386,7 +381,7 @@ export default function VehicleCreationListPage() {
         );
       } catch (error) {
         console.error("Status update failed:", error);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.update_status_failed"),
           text: t("common.request_failed"),

@@ -2,6 +2,12 @@ import {
   DataTable as PrimeDataTable,
   type DataTableProps,
 } from "primereact/datatable";
+
+// Centralized here (not per-page) so only bundles that actually render a
+// PrimeReact table pay for this CSS, instead of every page in the app.
+import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/primereact.min.css";
+import "primeicons/primeicons.css";
 import {
   Children,
   isValidElement,
@@ -12,7 +18,7 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
@@ -204,7 +210,7 @@ const DataTableHeaderActions = ({
       exportRecordsToExcel(allRows, toExportFilename(filename), sheetName || "Data");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Export failed.";
-      Swal.fire("Export failed", message, "error");
+      notify.fire("Export failed", message, "error");
     } finally {
       setExporting(false);
     }
@@ -217,7 +223,7 @@ const DataTableHeaderActions = ({
       await onPdfRequest();
     } catch (error) {
       const message = error instanceof Error ? error.message : "PDF generation failed.";
-      Swal.fire("PDF generation failed", message, "error");
+      notify.fire("PDF generation failed", message, "error");
     } finally {
       setGeneratingPdf(false);
     }
@@ -250,7 +256,7 @@ const DataTableHeaderActions = ({
           status: "rejected",
           reason: "no_rows",
         });
-        Swal.fire(
+        notify.fire(
           "No rows found",
           "Upload a filled Excel template.",
           "warning",
@@ -273,7 +279,7 @@ const DataTableHeaderActions = ({
         }
 
         if (failures.length > 0) {
-          Swal.fire({
+          notify.fire({
             icon: "warning",
             title: "Upload completed with errors",
             html: `<b>Success:</b> ${payloads.length - failures.length}<br/><b>Failed:</b> ${failures.length}<hr/><div style="text-align:left;font-size:12px">${failures
@@ -281,7 +287,7 @@ const DataTableHeaderActions = ({
               .join("<br/>")}</div>`,
           });
         } else {
-          await Swal.fire(
+          await notify.fire(
             "Upload completed",
             `${payloads.length} rows uploaded successfully.`,
             "success",
@@ -313,7 +319,7 @@ const DataTableHeaderActions = ({
         status: "failed",
         error: message,
       });
-      Swal.fire("Upload failed", message, "error");
+      notify.fire("Upload failed", message, "error");
     } finally {
       event.target.value = "";
       setImporting(false);

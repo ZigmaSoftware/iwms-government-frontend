@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -75,7 +75,7 @@ export default function MasterList({ kind }: Props) {
         typeof (response as any)?.count === "number" ? (response as any).count : asArray(response).length,
       );
     } catch (error) {
-      Swal.fire("Error", errorText(error, "Unable to load records"), "error");
+      notify.fire("Error", errorText(error, "Unable to load records"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -108,7 +108,7 @@ export default function MasterList({ kind }: Props) {
   const edit = (row: any) => navigate(editPath(row.unique_id));
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -122,14 +122,14 @@ export default function MasterList({ kind }: Props) {
     try {
       await api.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error) {
-      Swal.fire("Error", errorText(error, "Failed to delete"), "error");
+      notify.fire("Error", errorText(error, "Failed to delete"), "error");
     }
   };
 

@@ -11,15 +11,9 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
-
 /* ================= TYPES ================= */
 
-
 /* ================= HELPERS ================= */
-
 
 const today = new Date().toISOString().split("T")[0];
 

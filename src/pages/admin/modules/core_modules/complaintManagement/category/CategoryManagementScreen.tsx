@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -55,7 +55,7 @@ export default function CategoryManagementScreen() {
         setCategories(asArray(categoryRes));
         setSubcategories(asArray(subcategoryRes));
       })
-      .catch((err) => Swal.fire("Error", errorText(err, "Unable to load categories"), "error"));
+      .catch((err) => notify.fire("Error", errorText(err, "Unable to load categories"), "error"));
   }, []);
 
   const selectedCategory = useMemo(
@@ -79,7 +79,7 @@ export default function CategoryManagementScreen() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -94,19 +94,19 @@ export default function CategoryManagementScreen() {
       await complaintCategoryApi.delete(id);
       setCategories((current) => current.filter((row) => row.unique_id !== id));
       if (selectedCategoryId === id) setSelectedCategoryId(null);
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire("Error", errorText(error, "Failed to delete"), "error");
+      notify.fire("Error", errorText(error, "Failed to delete"), "error");
     }
   };
 
   const handleDeleteSubcategory = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -120,14 +120,14 @@ export default function CategoryManagementScreen() {
     try {
       await complaintSubcategoryApi.delete(id);
       setSubcategories((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire("Error", errorText(error, "Failed to delete"), "error");
+      notify.fire("Error", errorText(error, "Failed to delete"), "error");
     }
   };
 

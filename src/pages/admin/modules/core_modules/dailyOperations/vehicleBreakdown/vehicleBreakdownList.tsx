@@ -2,7 +2,7 @@ import type { VehicleBreakdownRecord, BreakdownStatus, ApprovalStatus } from "./
 import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -316,7 +316,7 @@ export default function VehicleBreakdownList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -364,7 +364,7 @@ export default function VehicleBreakdownList() {
 
   /* ── Delete ─────────────────────────────────────────────────────── */
   const handleDelete = async (row: VehicleBreakdownRecord) => {
-    const result = await Swal.fire({
+    const result = await notify.fire({
       title: t("common.confirm_title"),
       text: `Delete breakdown record ${row.unique_id}?`,
       icon: "warning",
@@ -377,9 +377,9 @@ export default function VehicleBreakdownList() {
     try {
       await vehicleBreakdownApi.delete(row.unique_id);
       setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
+      notify.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     }
   };
 
@@ -413,7 +413,7 @@ export default function VehicleBreakdownList() {
         ),
       );
       setVerifyTarget(null);
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Approved",
         text: data?.new_assignment_id
@@ -423,7 +423,7 @@ export default function VehicleBreakdownList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsVerifying(false);
     }
@@ -446,9 +446,9 @@ export default function VehicleBreakdownList() {
         ),
       );
       setRejectTarget(null);
-      Swal.fire({ icon: "info", title: "Rejected", text: "Breakdown request has been rejected.", timer: 2000, showConfirmButton: false });
+      notify.fire({ icon: "info", title: "Rejected", text: "Breakdown request has been rejected.", timer: 2000, showConfirmButton: false });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsRejecting(false);
     }

@@ -13,7 +13,7 @@ import {
   wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { binSchema } from "@/schemas/masters/wasteMasters/bin.schema";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -219,7 +219,7 @@ export default function BinForm() {
       isActive,
     });
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
     const latitudeNumber = latitude ? Number(latitude) : null;

@@ -2,7 +2,7 @@ import type { VehicleTypePayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -89,7 +89,7 @@ export default function VehicleTypeCreationForm() {
       })
       .catch((err: any) => {
         if (cancelled) return;
-        Swal.fire(
+        notify.fire(
           t("admin.vehicle_type.load_failed_title"),
           extractErr(err),
           "error"
@@ -106,7 +106,7 @@ export default function VehicleTypeCreationForm() {
       vehicleType: vehicleTypeName.trim(),
     });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -121,7 +121,7 @@ export default function VehicleTypeCreationForm() {
     try {
       if (isEdit && id) {
         await adminApi.vehicleTypes.update(id, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -129,7 +129,7 @@ export default function VehicleTypeCreationForm() {
         });
       } else {
         await adminApi.vehicleTypes.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -138,7 +138,7 @@ export default function VehicleTypeCreationForm() {
       }
       navigate(ENC_LIST_PATH);
     } catch (error) {
-      Swal.fire(t("common.save_failed"), extractErr(error), "error");
+      notify.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
       setIsSubmitting(false);
     }

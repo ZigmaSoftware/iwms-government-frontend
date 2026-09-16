@@ -7,7 +7,7 @@ import { api } from "@/api";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
 import Select from "@/components/form/Select";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { staffCreationApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -178,7 +178,7 @@ export default function DailyAttendanceRegList() {
     } catch (error: unknown) {
       setRawRows([]);
       setTotalRecords(0);
-      Swal.fire(
+      notify.fire(
         "Attendance load failed",
         (error as ApiError).response?.data?.detail ?? "Unable to load attendance records.",
         "error",

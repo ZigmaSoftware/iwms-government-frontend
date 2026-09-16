@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -71,7 +71,7 @@ function PropertyEditor({
     };
     const validation = schema.safeParse(rawPayload);
     if (!validation.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
         text: toSwalMessage(validation.error),
@@ -192,7 +192,7 @@ function PropertyForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(err, t("common.load_failed")),
           "error"
@@ -210,7 +210,7 @@ function PropertyForm() {
     try {
       if (isEdit) {
         await adminApi.properties.update(id as string, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -218,7 +218,7 @@ function PropertyForm() {
         });
       } else {
         await adminApi.properties.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -228,7 +228,7 @@ function PropertyForm() {
 
       navigate(ENC_LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),

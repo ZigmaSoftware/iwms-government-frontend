@@ -7,12 +7,8 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -28,7 +24,6 @@ import { createBinQrPdfBlob, downloadBinQrPdf } from "./binQrPdf";
 import { downloadAllBinsPdf } from "./binAllDetailsPdf";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
-
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
 const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -109,7 +104,7 @@ export default function BinList() {
       } catch (error) {
         if (mounted) {
           const data = (error as { response?: { data?: unknown } })?.response?.data;
-          Swal.fire(t("common.error"), String(data ?? error), "error");
+          notify.fire(t("common.error"), String(data ?? error), "error");
         }
       } finally {
         if (mounted) setIsLoading(false);
@@ -176,12 +171,12 @@ export default function BinList() {
     try {
       const exportRows = await fetchExportBins();
       if (exportRows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No bins to export", "warning");
+        notify.fire(t("common.warning") || "Warning", "No bins to export", "warning");
         return;
       }
       exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Bins");
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to export bins.",
@@ -196,12 +191,12 @@ export default function BinList() {
     try {
       const exportRows = await fetchExportBins();
       if (exportRows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No bins to export", "warning");
+        notify.fire(t("common.warning") || "Warning", "No bins to export", "warning");
         return;
       }
       await downloadAllBinsPdf(exportRows);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to generate the bins PDF.",
@@ -217,7 +212,7 @@ export default function BinList() {
     try {
       await downloadBinQrPdf(selectedQrBin);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to generate the bin QR PDF.",
@@ -232,7 +227,7 @@ export default function BinList() {
 
     const previewWindow = window.open("", "_blank");
     if (!previewWindow) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "Preview blocked",
         text: "Please allow pop-ups for this site to preview the PDF.",
@@ -251,7 +246,7 @@ export default function BinList() {
       window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
     } catch (error) {
       previewWindow.close();
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to preview the bin QR PDF.",
@@ -313,7 +308,7 @@ export default function BinList() {
           )
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       } finally {
         setPendingStatusId(null);
         setIsUpdating(false);
@@ -330,7 +325,7 @@ export default function BinList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -344,7 +339,7 @@ export default function BinList() {
     try {
       await binApi.delete(id);
       setRows((current) => current.filter((row) => String(row.unique_id ?? "") !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
@@ -352,7 +347,7 @@ export default function BinList() {
       });
     } catch (error) {
       const data = (error as { response?: { data?: unknown } })?.response?.data;
-      Swal.fire(t("common.error"), String(data ?? error), "error");
+      notify.fire(t("common.error"), String(data ?? error), "error");
     }
   };
 
@@ -384,7 +379,6 @@ export default function BinList() {
 
   const wasteTypeTemplate = (row: Bin) =>
     row.waste_type_name ?? row.wastetype_name ?? row.waste_type ?? "-";
-
 
   return (
     <div className="p-3">

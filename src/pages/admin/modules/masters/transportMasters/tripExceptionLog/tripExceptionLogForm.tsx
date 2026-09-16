@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { tripExceptionLogSchema } from "@/schemas/masters/transportMasters/tripExceptionLog.schema";
@@ -103,7 +103,7 @@ export default function TripExceptionLogForm() {
       })
       .catch((error) => {
         const message = extractErrorMessage(error) ?? t("common.load_failed");
-        Swal.fire(t("common.error"), message, "error");
+        notify.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
   }, [t, dailyTripAssignmentApi]);
@@ -132,7 +132,7 @@ export default function TripExceptionLogForm() {
       })
       .catch((error) => {
         const message = extractErrorMessage(error) ?? t("common.load_failed");
-        Swal.fire(t("common.error"), message, "error");
+        notify.fire(t("common.error"), message, "error");
       });
   }, [id, isEdit, t, tripExceptionLogApi]);
 
@@ -149,7 +149,7 @@ export default function TripExceptionLogForm() {
     e.preventDefault();
 
     if (isEdit) {
-      Swal.fire(t("common.warning"), t("admin.trip_exception_log.edit_not_allowed"), "warning");
+      notify.fire(t("common.warning"), t("admin.trip_exception_log.edit_not_allowed"), "warning");
       return;
     }
 
@@ -160,7 +160,7 @@ export default function TripExceptionLogForm() {
       detected_by: formData.detected_by,
     });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -175,11 +175,11 @@ export default function TripExceptionLogForm() {
 
       await tripExceptionLogApi.create(payload);
 
-      Swal.fire(t("common.success"), t("common.added_success"), "success");
+      notify.fire(t("common.success"), t("common.added_success"), "success");
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
       const message = extractErrorMessage(error) ?? t("common.save_failed_desc");
-      Swal.fire(t("common.save_failed"), message, "error");
+      notify.fire(t("common.save_failed"), message, "error");
     } finally {
       setLoading(false);
     }

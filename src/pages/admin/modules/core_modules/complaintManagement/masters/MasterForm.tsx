@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -136,7 +136,7 @@ export default function MasterForm({ kind }: Props) {
         escalation_team: idOf(record.escalation_team),
         is_active: record.is_active !== false,
       });
-    }).catch((err) => Swal.fire("Error", errorText(err, "Unable to load record"), "error"));
+    }).catch((err) => notify.fire("Error", errorText(err, "Unable to load record"), "error"));
   }, [api, id]);
 
   const setValue = (key: keyof typeof emptyForm, value: string | boolean) =>
@@ -146,7 +146,7 @@ export default function MasterForm({ kind }: Props) {
     event.preventDefault();
     const result = buildComplaintMasterSchema(kind).safeParse(form);
     if (!result.success) {
-      Swal.fire("Invalid fields", toSwalMessage(result.error), "warning");
+      notify.fire("Invalid fields", toSwalMessage(result.error), "warning");
       return;
     }
 
@@ -215,10 +215,10 @@ export default function MasterForm({ kind }: Props) {
     try {
       if (id) await api.update(id, payload);
       else await api.create(payload);
-      Swal.fire("Saved", `${config.title} saved successfully.`, "success");
+      notify.fire("Saved", `${config.title} saved successfully.`, "success");
       navigate(returnPath);
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Save failed"), "error");
+      notify.fire("Error", errorText(err, "Save failed"), "error");
     } finally {
       setSaving(false);
     }

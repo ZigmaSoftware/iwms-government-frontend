@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useRef } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { MultiSelect } from "@/components/form/MultiSelect";
 
@@ -229,7 +229,7 @@ export default function AlternativeStaffTemplateForm() {
         setAllStaffTemplates(templateRows);
       })
       .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
       });
 
     return () => { cancelled = true; };
@@ -272,7 +272,7 @@ export default function AlternativeStaffTemplateForm() {
         setStaffRecords(staff);
       })
       .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
       });
   }, [geo.stateId, geo.districtId, geo.localBodyLevel, geo.localBodyId, t]);
 
@@ -361,7 +361,7 @@ export default function AlternativeStaffTemplateForm() {
       })
       .catch(() => {
         if (cancelled) return;
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
         setLoading(false);
       });
 
@@ -474,7 +474,7 @@ export default function AlternativeStaffTemplateForm() {
 
     const validation = alternativeStaffTemplateSchema.safeParse(formData);
     if (!validation.success) {
-      Swal.fire("Invalid details", toSwalMessage(validation.error), "warning");
+      notify.fire("Invalid details", toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -483,13 +483,13 @@ export default function AlternativeStaffTemplateForm() {
       isEdit &&
       formData.approval_status === "APPROVED"
     ) {
-      Swal.fire("Warning", "Approved records cannot be modified.", "warning");
+      notify.fire("Warning", "Approved records cannot be modified.", "warning");
       return;
     }
 
     // from_date must be <= to_date
     if (formData.from_date && formData.to_date && formData.from_date > formData.to_date) {
-      Swal.fire("Validation Error", "From date must be on or before the To date.", "error");
+      notify.fire("Validation Error", "From date must be on or before the To date.", "error");
       return;
     }
 
@@ -514,7 +514,7 @@ export default function AlternativeStaffTemplateForm() {
                 ? altRes.data.results
                 : [];
       } catch {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
         return;
       }
 
@@ -528,7 +528,7 @@ export default function AlternativeStaffTemplateForm() {
       });
 
       if (overlapping.length > 0) {
-        const confirm = await Swal.fire({
+        const confirm = await notify.fire({
           title: "Overlap Warning",
           text: `The selected date range overlaps with ${overlapping.length} existing record(s) for this staff template. Do you want to continue?`,
           icon: "warning",
@@ -574,7 +574,7 @@ export default function AlternativeStaffTemplateForm() {
         await alternativeStaffTemplateApi.create(payload);
       }
 
-      Swal.fire("Success", "Saved successfully", "success");
+      notify.fire("Success", "Saved successfully", "success");
         navigate(ENC_LIST_PATH);
     } catch (err: any) {
       const errorMessage =
@@ -584,7 +584,7 @@ export default function AlternativeStaffTemplateForm() {
         err?.response?.data?.effective_date?.[0] ||
         "Error occurred";
 
-      Swal.fire("Save failed", errorMessage, "error");
+      notify.fire("Save failed", errorMessage, "error");
     } finally {
       setLoading(false);
     }

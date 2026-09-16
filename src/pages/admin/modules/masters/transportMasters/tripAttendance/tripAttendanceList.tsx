@@ -2,7 +2,7 @@ import type { TableFilters, TripAttendanceRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -108,7 +108,7 @@ export default function TripAttendanceList() {
       setStaffLookup(buildLookup(normalizeList(userRes), "unique_id", "staff_name", "unique_id"));
       setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
     } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      notify.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }

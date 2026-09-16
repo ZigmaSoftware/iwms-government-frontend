@@ -2,7 +2,7 @@ import type { DistrictLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -85,7 +85,7 @@ export default function DistrictLeaderListPage() {
         typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+      notify.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +157,7 @@ export default function DistrictLeaderListPage() {
         error_count: errors.length,
       });
 
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Upload Completed",
         html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
@@ -165,7 +165,7 @@ export default function DistrictLeaderListPage() {
       setRefetchTrigger((p) => p + 1);
     } catch {
       recordExcelAudit("upload_excel", { file_name: file.name, status: "failed" });
-      Swal.fire("Error", "Upload failed", "error");
+      notify.fire("Error", "Upload failed", "error");
     } finally {
       e.target.value = "";
     }
@@ -182,7 +182,7 @@ export default function DistrictLeaderListPage() {
           prev.map((r) => r.unique_id === row.unique_id ? { ...r, is_active: checked } : r)
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       } finally {
         setPendingStatusId(null);
         setIsUpdating(false);
@@ -199,7 +199,7 @@ export default function DistrictLeaderListPage() {
 
   // ── Delete ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -213,9 +213,9 @@ export default function DistrictLeaderListPage() {
     try {
       await districtLeaderApi.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({ icon: "success", title: "Deleted successfully", timer: 1500, showConfirmButton: false });
+      notify.fire({ icon: "success", title: "Deleted successfully", timer: 1500, showConfirmButton: false });
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
     }
   };
 

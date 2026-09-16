@@ -1,17 +1,13 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useTranslation } from "react-i18next";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -108,7 +104,7 @@ export default function PropertyList() {
         typeof response?.count === "number" ? response.count : list.length,
       );
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
         "error"
@@ -147,7 +143,6 @@ export default function PropertyList() {
     return toRecordList(all);
   };
 
-
   const statusTemplate = (row: PropertyRecord) => {
     const updateStatus = async (value: boolean) => {
       try {
@@ -164,7 +159,7 @@ export default function PropertyList() {
           )
         );
       } catch (err) {
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: extractErrorMessage(err, t("common.update_status_failed")),
@@ -184,7 +179,7 @@ export default function PropertyList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -200,14 +195,14 @@ export default function PropertyList() {
       setProperties((current) =>
         current.filter((property) => String(property.unique_id) !== id)
       );
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.delete_failed")),
         "error"

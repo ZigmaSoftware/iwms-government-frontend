@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -214,7 +214,7 @@ function StaffUserTypeEditor({
     });
 
     if (!validation.success) {
-      Swal.fire(t("common.error"), toSwalMessage(validation.error), "error");
+      notify.fire(t("common.error"), toSwalMessage(validation.error), "error");
       return;
     }
 
@@ -414,7 +414,7 @@ export default function StaffUserTypeForm() {
       .read(id)
       .then((res: any) => setRecordData(res))
       .catch(() =>
-        Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") })
+        notify.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") })
       )
       .finally(() => setRecordLoading(false));
   }, [id, isEdit]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -455,7 +455,7 @@ export default function StaffUserTypeForm() {
         if (isEdit && id) await staffUserTypeApi.update(id, payload);
         else await staffUserTypeApi.create(payload);
       }
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: isEdit ? t("common.updated_success") : t("common.added_success"),
         timer: 1500,
@@ -463,7 +463,7 @@ export default function StaffUserTypeForm() {
       });
       navigate(LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: extractErrorMessage(

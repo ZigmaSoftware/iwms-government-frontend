@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { collectionPointApi, wardApi, wasteTypeApi } from "@/helpers/admin";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { toSwalMessage } from "@/lib/zodErrors";
 import { collectionPointSchema } from "@/schemas/core_modules/scheduleSetup/collectionPoint.schema";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -261,7 +261,7 @@ export default function CollectionPointForm() {
       ward_ids: selectedWardIds,
     });
     if (!result.success) {
-      Swal.fire("Invalid details", toSwalMessage(result.error), "warning");
+      notify.fire("Invalid details", toSwalMessage(result.error), "warning");
       return;
     }
     setSubmitting(true);
@@ -309,7 +309,7 @@ export default function CollectionPointForm() {
           : responseData && typeof responseData === "object"
             ? Object.values(responseData as Record<string, unknown>).flat().join(" ")
             : "Could not save the collection point.";
-      Swal.fire("Save failed", String(message), "error");
+      notify.fire("Save failed", String(message), "error");
     } finally {
       setSubmitting(false);
     }

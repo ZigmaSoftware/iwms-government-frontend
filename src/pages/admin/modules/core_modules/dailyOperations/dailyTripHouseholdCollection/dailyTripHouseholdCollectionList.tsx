@@ -1,7 +1,7 @@
 import type { DailyTripHouseholdCollectionRecord, NamedRef } from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -149,7 +149,7 @@ export default function DailyTripHouseholdCollectionList() {
         typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: extractError(err) ?? String(err),
@@ -224,12 +224,12 @@ export default function DailyTripHouseholdCollectionList() {
       );
       const exportRows = buildExportRows(all.map(enrichRow));
       if (exportRows.length === 0) {
-        Swal.fire(t("common.error"), "No household collection records to export.", "warning");
+        notify.fire(t("common.error"), "No household collection records to export.", "warning");
         return;
       }
       exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
     } catch (error) {
-      Swal.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
+      notify.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -245,7 +245,7 @@ export default function DailyTripHouseholdCollectionList() {
       );
       const exportRows = buildExportRows(all.map(enrichRow));
       if (exportRows.length === 0) {
-        Swal.fire(t("common.error"), "No household collection records to export.", "warning");
+        notify.fire(t("common.error"), "No household collection records to export.", "warning");
         return;
       }
       downloadRecordsPdf({
@@ -255,7 +255,7 @@ export default function DailyTripHouseholdCollectionList() {
         columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
       });
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -286,7 +286,7 @@ export default function DailyTripHouseholdCollectionList() {
     const status = String(row.status ?? "Pending");
     const reason = String(row.status_reason ?? "").trim();
     if ((status === "Not Available" || status === "Collect Later") && !reason) {
-      Swal.fire("Missing reason", "Reason is required for Not Available and Collect Later.", "warning");
+      notify.fire("Missing reason", "Reason is required for Not Available and Collect Later.", "warning");
       return;
     }
     try {
@@ -297,9 +297,9 @@ export default function DailyTripHouseholdCollectionList() {
         collected_at: status === "Collected" ? row.collected_at : null,
         collected_weight_kg: status === "Collected" ? row.collected_weight_kg : null,
       });
-      Swal.fire("Saved", "Household collection status updated.", "success");
+      notify.fire("Saved", "Household collection status updated.", "success");
     } catch (err) {
-      Swal.fire("Error", extractError(err) ?? "Unable to update household collection status.", "error");
+      notify.fire("Error", extractError(err) ?? "Unable to update household collection status.", "error");
     }
   };
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -140,7 +140,7 @@ export default function HierarchyForm() {
         const message =
           (err as ApiError)?.response?.data?.detail ||
           t("common.load_failed");
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: message,
@@ -161,7 +161,7 @@ export default function HierarchyForm() {
       const basePayload = filterPayload(rawPayload) as HierarchyPayload;
       if (isEdit) {
         await adminApi.hierarchies.update(id as string, basePayload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -169,7 +169,7 @@ export default function HierarchyForm() {
         });
       } else {
         await adminApi.hierarchies.create(basePayload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -181,7 +181,7 @@ export default function HierarchyForm() {
       const message =
         (error as ApiError)?.response?.data?.detail ||
         t("common.save_failed_desc");
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: message,

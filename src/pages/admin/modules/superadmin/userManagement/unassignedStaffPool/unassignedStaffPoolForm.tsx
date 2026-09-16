@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { dailyTripAssignmentApi, unassignedStaffPoolApi, userCreationApi } from "@/helpers/admin";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
@@ -71,7 +71,7 @@ export default function UnassignedStaffPoolForm() {
       status,
     });
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toSwalMessage(validation.error), "warning");
       return;
     }
 

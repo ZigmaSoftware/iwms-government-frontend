@@ -3,7 +3,7 @@ import type { ApiObject, SelectOption } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -152,7 +152,7 @@ export default function DailyTripCollectionPointForm() {
         if (bId) setPendingBinId(bId);
         if (cbId) setPendingCollectedBy(cbId);
       })
-      .catch((error: unknown) => Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
+      .catch((error: unknown) => notify.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
       .finally(() => setLoading(false));
   }, [id, isEdit, t]);
 
@@ -226,7 +226,7 @@ export default function DailyTripCollectionPointForm() {
         );
         setStaff(toOptions(normalizeList(staffRes), ["employee_name", "name"]));
       })
-      .catch((error: unknown) => Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
+      .catch((error: unknown) => notify.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error"))
       .finally(() => setFetching(false));
   }, [t]);
 
@@ -263,7 +263,7 @@ export default function DailyTripCollectionPointForm() {
     event.preventDefault();
     const validation = dailyTripCollectionPointSchema.safeParse({ tripAssignmentId, collectionPointId, binId });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
       return;
     }
 
@@ -283,14 +283,14 @@ export default function DailyTripCollectionPointForm() {
     try {
       if (isEdit && id) {
         await dailyTripCollectionPointApi.update(id, payload);
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        notify.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await dailyTripCollectionPointApi.create(payload);
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        notify.fire(t("common.success"), t("common.added_success"), "success");
       }
       navigate(LIST_PATH);
     } catch (error: unknown) {
-      Swal.fire(t("common.save_failed"), extractError(error) ?? t("common.save_failed_desc"), "error");
+      notify.fire(t("common.save_failed"), extractError(error) ?? t("common.save_failed_desc"), "error");
     } finally {
       setLoading(false);
     }

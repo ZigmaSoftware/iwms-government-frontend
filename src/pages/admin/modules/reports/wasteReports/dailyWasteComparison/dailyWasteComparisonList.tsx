@@ -17,7 +17,7 @@ import {
   Scale,
   Truck,
 } from "lucide-react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import {
   Area,
   AreaChart,
@@ -551,7 +551,7 @@ export default function DailyWasteComparisonList({
         !scopeOptions("panchayat_union").length &&
         !scopeOptions("panchayat").length
       ) {
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           "Failed to load local body filter options.",
           "error",
@@ -570,7 +570,7 @@ export default function DailyWasteComparisonList({
           !scopeOptions("panchayat_union").length &&
           !scopeOptions("panchayat").length
         ) {
-          Swal.fire(
+          notify.fire(
             t("common.error"),
             "Failed to load local body filter options.",
             "error",
@@ -816,7 +816,7 @@ export default function DailyWasteComparisonList({
         "Daily Waste Collection",
       );
     } catch {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         "Failed to download daily waste collection data.",
         "error",

@@ -4,7 +4,7 @@ import { capitalize } from "@/utils/capitalize";
 import { useEffect, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -165,7 +165,7 @@ function DistrictLeaderEditor({
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (districtTakenBy) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "District Already Assigned",
         text: `This District already has a leader (${districtTakenBy}). Each District can have only one leader.`,
@@ -182,7 +182,7 @@ function DistrictLeaderEditor({
       is_active: formData.is_active === "1",
     });
     if (!validation.success) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(validation.error) });
+      notify.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(validation.error) });
       return;
     }
 
@@ -406,7 +406,7 @@ export default function DistrictLeaderForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: extractErrorMessage(err, "Failed to load district leader details."),
@@ -420,7 +420,7 @@ export default function DistrictLeaderForm() {
     try {
       if (isEdit && id) {
         await adminApi.districtLeaders.update(id, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -428,7 +428,7 @@ export default function DistrictLeaderForm() {
         });
       } else {
         await adminApi.districtLeaders.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -437,7 +437,7 @@ export default function DistrictLeaderForm() {
       }
       navigate(LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),

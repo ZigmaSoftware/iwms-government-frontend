@@ -2,7 +2,7 @@ import type { TripPlanRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -115,7 +115,7 @@ export default function TripPlanList() {
         setRawRows(normalizeList(response) as TripPlanRecord[]);
         setTotalRecords(typeof response?.count === "number" ? response.count : normalizeList(response).length);
       })
-      .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
+      .catch((error) => notify.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -164,7 +164,7 @@ export default function TripPlanList() {
         await tripPlanApi.update(row.unique_id, { status: checked ? "ACTIVE" : "INACTIVE" });
         setRawRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item));
       } catch (error) {
-        Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), extractErrorMessage(error) ?? t("common.update_status_failed"), "error");
       } finally {
         setUpdating(false);
       }
@@ -173,7 +173,7 @@ export default function TripPlanList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -187,14 +187,14 @@ export default function TripPlanList() {
     try {
       await tripPlanApi.delete(id);
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
     }
   };
 

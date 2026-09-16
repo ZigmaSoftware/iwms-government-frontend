@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { vehicleCreationApi } from "@/helpers/admin";
 import { formatIsoDate } from "@/utils/forms";
 import type { VehicleCard, VehicleCreationRecord, VehicleStatus } from "./types/Vehicle/types";
@@ -100,7 +100,7 @@ export default function Vehicle() {
       );
     } catch (error) {
       console.error("Failed to fetch vehicles:", error);
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: t("common.fetch_failed"),

@@ -1,7 +1,7 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ export default function UserTypeForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+        notify.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
       });
     return () => { cancelled = true; };
   }, [userTypeId, isEdit]);
@@ -67,7 +67,7 @@ export default function UserTypeForm() {
     });
 
     if (!validation.success) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: toSwalMessage(validation.error),
@@ -84,7 +84,7 @@ export default function UserTypeForm() {
     try {
       if (isEdit && userTypeId) {
         await adminApi.userTypes.update(userTypeId, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -92,7 +92,7 @@ export default function UserTypeForm() {
         });
       } else {
         await adminApi.userTypes.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -107,7 +107,7 @@ export default function UserTypeForm() {
         error?.response?.data?.detail ||
         t("common.save_failed_desc");
 
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: message,

@@ -12,7 +12,7 @@ import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -98,7 +98,7 @@ export default function HierarchyListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
         "error"
@@ -156,7 +156,7 @@ export default function HierarchyListPage() {
           )
         );
       } catch (error) {
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(error, t("common.update_status_failed")),
           "error"
@@ -178,7 +178,7 @@ export default function HierarchyListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: t("common.confirm_title"),
       text: t("common.confirm_delete_text"),
       icon: "warning",
@@ -192,14 +192,14 @@ export default function HierarchyListPage() {
     try {
       await adminApi.hierarchies.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: t("common.deleted_success"),
         timer: 1500,
         showConfirmButton: false,
       });
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.delete_failed")),
         "error"

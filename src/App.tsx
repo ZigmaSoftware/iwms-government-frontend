@@ -29,8 +29,10 @@ const DailyTripLogReportPage = lazy(
   () => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/DailyTripLogReportPage"),
 );
 const PublicGrievance = lazy(() => import("./pages/PublicGrievance"));
+const AdminLayout = lazy(() =>
+  import("@/layouts/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })),
+);
 
-import { AdminLayout } from "@/layouts/admin/AdminLayout";
 import { RoleBasedLayout } from "@/layouts/shared/RoleBasedLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import type { AdminViewMode, UserRole } from "@/types/roles";

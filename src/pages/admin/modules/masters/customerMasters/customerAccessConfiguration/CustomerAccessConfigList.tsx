@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 
 import { customerAccessConfigurationApi } from "@/helpers/admin";
 
@@ -131,11 +127,11 @@ export default function CustomerAccessConfigList() {
       } else {
         await customerAccessConfigurationApi.create(payload);
       }
-      Swal.fire(t("common.success"), "App access saved.", "success");
+      notify.fire(t("common.success"), "App access saved.", "success");
       setEditing(null);
       load();
     } catch {
-      Swal.fire(t("common.error"), "Could not save app access.", "error");
+      notify.fire(t("common.error"), "Could not save app access.", "error");
     } finally {
       setSaving(false);
     }

@@ -9,7 +9,7 @@ import { dailyTripAssignmentApi, unassignedStaffPoolApi, userCreationApi } from 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 type Row = Record<string, any>;
 
@@ -45,7 +45,7 @@ export default function UnassignedStaffPoolList() {
   }, []);
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await Swal.fire({
+    const confirmDelete = await notify.fire({
       title: "Are you sure?",
       text: "This action cannot be undone.",
       icon: "warning",
@@ -59,14 +59,14 @@ export default function UnassignedStaffPoolList() {
     try {
       await unassignedStaffPoolApi.delete(id);
       setRows((current) => current.filter((row) => row.unique_id !== id));
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Deleted successfully",
         timer: 1500,
         showConfirmButton: false,
       });
     } catch {
-      Swal.fire("Error", "Failed to delete.", "error");
+      notify.fire("Error", "Failed to delete.", "error");
     }
   };
 

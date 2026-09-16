@@ -2,7 +2,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -66,7 +66,7 @@ export default function UserScreenActionForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
+        notify.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? "Load failed") });
       });
     return () => { cancelled = true; };
   }, [id, isEdit]);
@@ -87,7 +87,7 @@ export default function UserScreenActionForm() {
 
     const result = userScreenActionSchema.safeParse({ actionName, variableName, isActive });
     if (!result.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(result.error), "warning");
+      notify.fire(t("common.warning"), toSwalMessage(result.error), "warning");
       return;
     }
 
@@ -101,10 +101,10 @@ export default function UserScreenActionForm() {
     try {
       if (isEdit && id) {
         await adminApi.userScreenActions.update(id, payload);
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        notify.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await adminApi.userScreenActions.create(payload);
-        Swal.fire(t("common.success"), t("common.added_success"), "success");
+        notify.fire(t("common.success"), t("common.added_success"), "success");
       }
 
       navigate(ENC_LIST_PATH);
@@ -119,7 +119,7 @@ export default function UserScreenActionForm() {
         firstErrorMessage(errorData.detail) ||
         t("common.unexpected_error");
 
-      Swal.fire(t("common.save_failed"), message, "error");
+      notify.fire(t("common.save_failed"), message, "error");
     } finally {
       setIsSubmitting(false);
     }
