@@ -1,6 +1,6 @@
 export default {
   "common": {
-    "appName": "Integrated Waste Management System",
+    "appName": "Integrated Waste Management Suite",
     "language_en": "English",
     "language_ta": "தமிழ்",
     "language_hi": "हिन्दी",

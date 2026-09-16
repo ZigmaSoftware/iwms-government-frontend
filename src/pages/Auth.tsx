@@ -223,7 +223,7 @@ export default function Auth() {
             <h2 className="welcome">
               Welcome <em>Back!</em>
             </h2>
-            <p className="subtitle">Login to access the Integrated Waste Management System</p>
+            <p className="subtitle">Login to access the Integrated Waste Management Suite</p>
 
             <form onSubmit={handleSignIn} noValidate>
               <div className={`field u${userInvalid ? " invalid" : ""}`}>
