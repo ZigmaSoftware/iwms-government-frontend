@@ -5,6 +5,7 @@ import {
 import {
   Children,
   isValidElement,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -29,6 +30,7 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
   DataTableProps<TValue> & {
     bulkImportable?: boolean;
     exportable?: boolean;
+    showExportButton?: boolean;
     exportFilename?: string;
     exportRows?: SafeTableRows;
     exportSheetName?: string;
@@ -40,6 +42,7 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     onExportRequest?: () => Promise<SafeTableRows>;
     onImportComplete?: () => void | Promise<void>;
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
+    onPdfRequest?: () => void | Promise<void>;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -149,6 +152,8 @@ type DataTableHeaderActionsProps = {
   onImportComplete?: () => void | Promise<void>;
   filename?: string;
   sheetName?: string;
+  showExportButton?: boolean;
+  onPdfRequest?: () => void | Promise<void>;
 };
 
 const DataTableHeaderActions = ({
@@ -165,11 +170,27 @@ const DataTableHeaderActions = ({
   onImportComplete,
   filename,
   sheetName,
+  showExportButton = true,
+  onPdfRequest,
 }: DataTableHeaderActionsProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const reportsRef = useRef<HTMLDivElement | null>(null);
   const resolvedColumns = importColumns;
+
+  useEffect(() => {
+    if (!reportsOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!reportsRef.current?.contains(event.target as Node)) {
+        setReportsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [reportsOpen]);
 
   const handleExport = async () => {
     if (!onExportRequest) {
@@ -186,6 +207,19 @@ const DataTableHeaderActions = ({
       Swal.fire("Export failed", message, "error");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handlePdf = async () => {
+    if (!onPdfRequest) return;
+    setGeneratingPdf(true);
+    try {
+      await onPdfRequest();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PDF generation failed.";
+      Swal.fire("PDF generation failed", message, "error");
+    } finally {
+      setGeneratingPdf(false);
     }
   };
 
@@ -286,56 +320,90 @@ const DataTableHeaderActions = ({
     }
   };
 
-  const exportButton = (
-    <button
-      type="button"
-      onClick={() => void handleExport()}
-      disabled={exporting || (!onExportRequest && rows.length === 0)}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-green-200 bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-    >
-      <i className={exporting ? "pi pi-spin pi-spinner" : "pi pi-download"} />
-      {exporting ? "Preparing..." : "Download All Excel"}
-    </button>
-  );
   const canImport =
     bulkImportable &&
     resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
+  const canPdf = Boolean(onPdfRequest);
+  const hasAnyReport = canImport || showExportButton || canPdf;
+
+  const iconButtonClass =
+    "inline-flex h-10 w-10 items-center justify-center rounded-md border text-base shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1">{header}</div>
-      <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:auto-cols-max sm:grid-flow-col sm:grid-cols-none sm:items-center">
-        {canImport && (
-          <>
-            <button
-              type="button"
-              onClick={handleTemplate}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
-            >
-              <i className="pi pi-file-excel" />
-              Download Template
-            </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-            >
-              <i className="pi pi-upload" />
-              {importing ? "Uploading..." : "Upload Excel"}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              hidden
-              onChange={handleImport}
-            />
-          </>
-        )}
-        {exportButton}
-      </div>
+      {hasAnyReport && (
+        <div className="relative shrink-0" ref={reportsRef}>
+          <button
+            type="button"
+            onClick={() => setReportsOpen((open) => !open)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
+          >
+            <i className="pi pi-folder-open" />
+            Reports
+            <i className={`pi ${reportsOpen ? "pi-chevron-up" : "pi-chevron-down"} text-xs`} />
+          </button>
+          {reportsOpen && (
+            <div className="absolute right-0 z-20 mt-2 flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+              {canImport && (
+                <>
+                  <button
+                    type="button"
+                    title="Download Template"
+                    aria-label="Download Template"
+                    onClick={handleTemplate}
+                    className={`${iconButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
+                  >
+                    <i className="pi pi-file-excel" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Upload Excel"
+                    aria-label="Upload Excel"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importing}
+                    className={`${iconButtonClass} border-blue-200 bg-blue-600 text-white hover:bg-blue-700`}
+                  >
+                    <i className={importing ? "pi pi-spin pi-spinner" : "pi pi-upload"} />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    hidden
+                    onChange={handleImport}
+                  />
+                </>
+              )}
+              {showExportButton && (
+                <button
+                  type="button"
+                  title="Download Excel"
+                  aria-label="Download Excel"
+                  onClick={() => void handleExport()}
+                  disabled={exporting || (!onExportRequest && rows.length === 0)}
+                  className={`${iconButtonClass} border-green-200 bg-green-600 text-white hover:bg-green-700`}
+                >
+                  <i className={exporting ? "pi pi-spin pi-spinner" : "pi pi-file-excel"} />
+                </button>
+              )}
+              {canPdf && (
+                <button
+                  type="button"
+                  title="Download PDF"
+                  aria-label="Download PDF"
+                  onClick={() => void handlePdf()}
+                  disabled={generatingPdf}
+                  className={`${iconButtonClass} border-red-200 bg-red-600 text-white hover:bg-red-700`}
+                >
+                  <i className={generatingPdf ? "pi pi-spin pi-spinner" : "pi pi-file-pdf"} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -345,6 +413,7 @@ export const DataTable = <TValue extends SafeTableRows>(
 ) => {
   const {
     exportable = true,
+    showExportButton = true,
     bulkImportable = true,
     exportFilename,
     exportRows,
@@ -357,6 +426,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     onExportRequest,
     onImportComplete,
     onImportRows,
+    onPdfRequest,
     ...tableProps
   } = props;
   const safeRows = toSafeRows(tableProps.value);
@@ -382,6 +452,8 @@ export const DataTable = <TValue extends SafeTableRows>(
         onImportComplete={onImportComplete}
         filename={exportFilename}
         sheetName={exportSheetName}
+        showExportButton={showExportButton}
+        onPdfRequest={onPdfRequest}
       />
     ) : (
       tableProps.header
