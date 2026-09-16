@@ -20,10 +20,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import {
   createStaffQrPdfBlob,
   downloadStaffQrPdf,
@@ -176,8 +173,6 @@ export default function StaffCreationList() {
   const [selectedQrStaff, setSelectedQrStaff] = useState<Staff | null>(null);
   const [isPrintingQr, setIsPrintingQr] = useState(false);
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
@@ -329,48 +324,13 @@ export default function StaffCreationList() {
     return hydrateStaff(staffRows);
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const exportRows = await fetchExportStaff();
-      if (exportRows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(
-        exportRows.map(staffExcelRow),
-        getAdminScreenExcelFilename("all"),
-        "Staff",
-      );
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to export staff.",
-      });
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
   const handleDownloadPdf = async () => {
-    setIsExportingPdf(true);
-    try {
-      const exportRows = await fetchExportStaff();
-      if (exportRows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
-        return;
-      }
-      await downloadAllStaffPdf(exportRows);
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to generate the staff PDF.",
-      });
-    } finally {
-      setIsExportingPdf(false);
+    const exportRows = await fetchExportStaff();
+    if (exportRows.length === 0) {
+      Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+      return;
     }
+    await downloadAllStaffPdf(exportRows);
   };
 
   const handlePrintQr = async () => {
@@ -474,20 +434,6 @@ export default function StaffCreationList() {
           actions={
             <div className="flex flex-wrap gap-2">
               <Button
-                label={isExportingExcel ? "Downloading…" : "Download Excel"}
-                icon="pi pi-file-excel"
-                className="p-button-outlined p-button-sm"
-                disabled={isExportingExcel}
-                onClick={handleDownloadExcel}
-              />
-              <Button
-                label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-                icon="pi pi-file-pdf"
-                className="p-button-outlined p-button-sm"
-                disabled={isExportingPdf}
-                onClick={handleDownloadPdf}
-              />
-              <Button
                 label={t("admin.staff_creation.create")}
                 icon="pi pi-plus"
                 className="p-button-success p-button-sm"
@@ -542,6 +488,16 @@ export default function StaffCreationList() {
         />
         <DataTable
           value={rows}
+          onExportRequest={async () => {
+            const exportRows = await fetchExportStaff();
+            if (exportRows.length === 0) {
+              Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+            }
+            return exportRows.map(staffExcelRow);
+          }}
+          exportFilename={getAdminScreenExcelFilename("all")}
+          exportSheetName="Staff"
+          onPdfRequest={handleDownloadPdf}
           lazy
           paginator
           first={first}
