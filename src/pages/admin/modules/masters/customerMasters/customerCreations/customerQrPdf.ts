@@ -153,7 +153,7 @@ const createCustomerQrPdf = async (customer: Customer): Promise<jsPDF> => {
   context.fillText("Customer QR Details", PAGE_WIDTH / 2, 82);
   context.fillStyle = "#64748b";
   context.font = "22px Arial, sans-serif";
-  context.fillText("Integrated Waste Management System", PAGE_WIDTH / 2, 118);
+  context.fillText("Integrated Waste Management Suite", PAGE_WIDTH / 2, 118);
 
   const qrSize = 350;
   const qrX = 92;
