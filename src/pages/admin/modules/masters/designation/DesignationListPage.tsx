@@ -7,7 +7,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { designationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -106,6 +106,32 @@ export default function DesignationListPage() {
     await loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await designationApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete designation"), "error");
+    }
+  };
+
   return (
     <div className="p-3">
       <ListPageHeader
@@ -144,7 +170,15 @@ export default function DesignationListPage() {
         <Column field="department_name" header="Department" />
         <Column field="description" header="Description" />
         <Column header="Status" body={(row) => <Switch checked={Boolean(row.is_active)} onCheckedChange={(value) => toggleStatus(row, value)} />} />
-        <Column header="Action" body={(row) => <button className="text-blue-600" onClick={() => navigate(editPath(row.unique_id))}><PencilIcon className="size-5" /></button>} />
+        <Column
+          header="Action"
+          body={(row) => (
+            <RowActionsMenu
+              onEdit={() => navigate(editPath(row.unique_id))}
+              onDelete={() => void handleDelete(String(row.unique_id))}
+            />
+          )}
+        />
       </DataTable>
     </div>
   );

@@ -13,7 +13,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon, TrashBinIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
 import { userScreenPermissionApi } from "@/helpers/admin";
@@ -278,30 +278,19 @@ export default function UserScreenPermissionList() {
   ----------------------------------------------------------- */
 
   const actionTemplate = (row: GroupedRow) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800 disabled:opacity-40"
-        disabled={row.legacy}
-        onClick={() =>
-          navigate(
-            ENC_EDIT_PATH(row.local_body_type, row.local_body_id, row.permission_type)
-          )
-        }
-      >
-        <PencilIcon className="size-5" />
-      </button>
-
-      <button
-        title={t("common.delete")}
-        className="text-red-600 hover:text-red-800 disabled:opacity-40"
-        disabled={row.legacy}
-        onClick={() => handleDelete(row)}
-      >
-        <TrashBinIcon className="size-5" />
-      </button>
-
-    </div>
+    <RowActionsMenu
+      onEdit={
+        row.legacy
+          ? undefined
+          : () =>
+              navigate(
+                ENC_EDIT_PATH(row.local_body_type, row.local_body_id, row.permission_type)
+              )
+      }
+      onDelete={row.legacy ? undefined : () => void handleDelete(row)}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const indexTemplate = (_: any, { rowIndex }: any) => rowIndex + 1;

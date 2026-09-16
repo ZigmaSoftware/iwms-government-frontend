@@ -9,7 +9,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
@@ -263,6 +263,32 @@ export default function BinCollectionEventList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await binCollectionEventApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      Swal.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
+    }
+  };
+
   const header = (
     <div className="space-y-4">
       {/* Hierarchy filter — capped to the caller's own corporation subtree */}
@@ -387,13 +413,12 @@ export default function BinCollectionEventList() {
           header={t("common.actions")}
           style={{ width: 90 }}
           body={(row: BinCERecord) => (
-            <button
-              title="Edit"
-              onClick={() => navigate(VIEW_PATH(row.unique_id ?? ""))}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <RowActionsMenu
+              onEdit={() => navigate(VIEW_PATH(row.unique_id ?? ""))}
+              onDelete={() => void handleDelete(String(row.unique_id ?? ""))}
+              editLabel={t("common.edit")}
+              deleteLabel={t("common.delete")}
+            />
           )}
         />
       </DataTable>

@@ -10,7 +10,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { districtLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
@@ -197,17 +197,36 @@ export default function DistrictLeaderListPage() {
     );
   };
 
+  // ── Delete ──────────────────────────────────────────────────────────────────
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await districtLeaderApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({ icon: "success", title: "Deleted successfully", timer: 1500, showConfirmButton: false });
+    } catch (error: any) {
+      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
+    }
+  };
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   const actionTemplate = (row: DistrictLeader) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const indexTemplate = (_: DistrictLeader, { rowIndex }: { rowIndex: number }) => rowIndex + 1;

@@ -15,6 +15,7 @@ import { MultiSelect } from "@/components/form/MultiSelect";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { api } from "@/api";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -743,68 +744,35 @@ export default function DailyTripLogList() {
     }
   };
 
-  /* ── inline action buttons ── */
+  /* ── kebab action menu: View / Verify / Draft ── */
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
     const isDraft = row.log_status === "Draft";
-    const isInProgress = (row.trip_assignment as any)?.status === "In Progress";
 
     return (
-      <div className="flex items-center gap-1.5">
-        {/* View — navigates to the dedicated detail report page */}
-        <button
-          title="View details"
-          onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          <i className="pi pi-eye text-xs" />
-          View
-        </button>
-
-        {/* Proceed — trip still In Progress, so it might have stops left to
-            carry over. The checkbox picker itself lives on the report page,
-            not here, so this is a quick "go act on it" shortcut. */}
-        {isInProgress && (
-          <button
-            title="Proceed with Next Trip"
-            onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-          >
-            <i className="pi pi-arrow-right text-xs" />
-            Proceed
-          </button>
-        )}
-
-        {/* Verify — disabled when already Verified */}
-        <button
-          title={isVerified ? "Already verified" : "Verify this log"}
-          disabled={isVerified}
-          onClick={() => setModalState({ row, mode: "verify" })}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isVerified
-              ? "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
-              : "bg-green-100 text-green-700 hover:bg-green-200"
-          }`}
-        >
-          <i className="pi pi-check-circle text-xs" />
-          Verify
-        </button>
-
-        {/* Draft — disabled when already Draft */}
-        <button
-          title={isDraft ? "Already in draft" : "Revert to draft"}
-          disabled={isDraft}
-          onClick={() => handleStatusChange(row, "Draft")}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isDraft
-              ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          <i className="pi pi-undo text-xs" />
-          Draft
-        </button>
-      </div>
+      <RowActionsMenu
+        extraItems={[
+          {
+            label: "View details",
+            icon: <i className="pi pi-eye" />,
+            onClick: () => row.unique_id && navigate(reportPath(row.unique_id)),
+          },
+          {
+            label: "Verify this log",
+            icon: <i className="pi pi-check-circle" />,
+            onClick: () => setModalState({ row, mode: "verify" as const }),
+            disabled: isVerified,
+            disabledReason: "Already verified",
+          },
+          {
+            label: "Revert to draft",
+            icon: <i className="pi pi-undo" />,
+            onClick: () => handleStatusChange(row, "Draft"),
+            disabled: isDraft,
+            disabledReason: "Already in draft",
+          },
+        ]}
+      />
     );
   };
 

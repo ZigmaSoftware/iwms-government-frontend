@@ -13,7 +13,7 @@ import "primereact/resources/themes/lara-light-blue/theme.css";
 import "primereact/resources/primereact.min.css";
 import "primeicons/primeicons.css";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { userScreenApi } from "@/helpers/admin";
@@ -102,24 +102,39 @@ export default function UserScreenList() {
     );
   };
 
-  const actionTemplate = (row: UserScreen) => (
-    <div className="flex gap-2 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await Swal.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
 
-      {/* <button
-        title="Delete"
-        className="text-red-600 hover:text-red-800"
-        onClick={() => handleDelete(row.unique_id)}
-      >
-        <TrashBinIcon className="size-5" />
-      </button> */}
-    </div>
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await userScreenApi.delete(id);
+      setScreens((current) => current.filter((row) => row.unique_id !== id));
+      Swal.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch {
+      Swal.fire(t("common.error"), t("common.delete_failed"), "error");
+    }
+  };
+
+  const actionTemplate = (row: UserScreen) => (
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(row.unique_id)}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   return (
