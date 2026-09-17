@@ -201,7 +201,7 @@ export default function WasteCollectedDataList() {
         notify.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
         return;
       }
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
+      await exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
     } catch (error) {
       notify.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
     } finally {
@@ -223,7 +223,7 @@ export default function WasteCollectedDataList() {
         notify.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
         return;
       }
-      downloadRecordsPdf({
+      await downloadRecordsPdf({
         title: "Household Collection Events",
         filename: "household_collection_events.pdf",
         rows: exportRows,

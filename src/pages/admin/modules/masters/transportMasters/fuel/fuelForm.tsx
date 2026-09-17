@@ -11,7 +11,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { fuelSchema } from "@/schemas/masters/transportMasters/fuel.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 
@@ -91,7 +91,7 @@ function FuelForm() {
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(validation.error),
+        text: toNotifyMessage(validation.error),
         confirmButtonColor: "#3085d6",
       });
       return;

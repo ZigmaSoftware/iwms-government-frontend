@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentSchema } from "@/schemas/superadmin/commonMasters/continent.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
@@ -87,7 +87,7 @@ function ContinentEditor({
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(result.error),
+        text: toNotifyMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

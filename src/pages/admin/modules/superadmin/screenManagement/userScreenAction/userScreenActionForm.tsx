@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { userScreenActionSchema } from "@/schemas/superadmin/screenManagement/userScreenAction.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 /* ------------------------------
     ROUTES
@@ -87,7 +87,7 @@ export default function UserScreenActionForm() {
 
     const result = userScreenActionSchema.safeParse({ actionName, variableName, isActive });
     if (!result.success) {
-      notify.fire(t("common.warning"), toSwalMessage(result.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(result.error), "warning");
       return;
     }
 

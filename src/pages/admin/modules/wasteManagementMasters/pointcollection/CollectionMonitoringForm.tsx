@@ -20,7 +20,7 @@ import { binCollectionEventApi, dailyTripCollectionPointApi } from "@/helpers/ad
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { collectionMonitoringSchema } from "@/schemas/wasteManagementMasters/pointcollection/collectionMonitoring.schema";
 
 
@@ -281,7 +281,7 @@ function CollectionMonitoringForm() {
       notes,
     });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

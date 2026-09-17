@@ -121,8 +121,8 @@ export default function PanchayatLeaderListPage() {
   }, [globalFilterValue]);
 
   // ── Excel ────────────────────────────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
-    exportTemplateToExcel(
+  const handleDownloadTemplate = async () => {
+    await exportTemplateToExcel(
       PLB_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "PLB Leaders",
@@ -131,7 +131,7 @@ export default function PanchayatLeaderListPage() {
 
   const handleDownloadAll = async () => {
     const all = await panchayatLeaderApi.readAllForExport();
-    exportRecordsToExcel(
+    await exportRecordsToExcel(
       all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
       "PLB Leaders",

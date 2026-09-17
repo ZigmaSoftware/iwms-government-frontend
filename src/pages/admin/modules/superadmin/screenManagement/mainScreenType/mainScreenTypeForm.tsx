@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { mainScreenTypeSchema } from "@/schemas/superadmin/screenManagement/mainScreenType.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 /* ------------------------------
     ROUTES
@@ -85,7 +85,7 @@ export default function MainScreenTypeForm() {
 
     const result = mainScreenTypeSchema.safeParse({ typeName, isActive });
     if (!result.success) {
-      notify.fire(t("common.warning"), toSwalMessage(result.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(result.error), "warning");
       return;
     }
 

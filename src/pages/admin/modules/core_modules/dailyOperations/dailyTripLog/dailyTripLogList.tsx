@@ -863,9 +863,9 @@ export default function DailyTripLogList() {
       });
 
       if (format === "excel") {
-        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+        await exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
       } else {
-        downloadRecordsPdf({
+        await downloadRecordsPdf({
           title: "Daily Trip Logs",
           filename: "daily_trip_logs.pdf",
           rows: exportRows,

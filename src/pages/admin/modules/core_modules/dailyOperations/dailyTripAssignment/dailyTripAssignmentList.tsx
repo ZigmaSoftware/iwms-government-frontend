@@ -10,7 +10,6 @@ import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-import { jsPDF } from "jspdf";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -482,7 +481,7 @@ export default function DailyTripAssignmentList() {
         "Trip Time": formatDuration(row.total_trip_time_seconds),
         "Trip #": row.trip_count ?? 1,
       }));
-      exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+      await exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
     } catch (err) {
       notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to export Excel data." });
     } finally {
@@ -495,6 +494,7 @@ export default function DailyTripAssignmentList() {
     try {
       const exportSource = await fetchExportRows();
       if (!exportSource.length) return;
+      const { jsPDF } = await import("jspdf");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       let hasPage = false;
 

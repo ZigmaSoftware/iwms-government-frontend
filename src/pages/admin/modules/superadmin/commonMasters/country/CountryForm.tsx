@@ -21,7 +21,7 @@ import type { SelectOption } from "@/types";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countrySchema } from "@/schemas/superadmin/commonMasters/country.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { continentApi, countryApi } from "@/helpers/admin";
 
 const { encCommonMasters, encCountries } = getEncryptedRoute();
@@ -156,7 +156,7 @@ export default function CountryForm() {
       is_active: isActive,
     });
     if (!result.success) {
-      notify.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(result.error) });
+      notify.fire({ icon: "warning", title: t("common.warning"), text: toNotifyMessage(result.error) });
       return;
     }
 

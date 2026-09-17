@@ -202,7 +202,7 @@ export default function BinCollectionEventList() {
         "Weight (kg)": row.collected_weight_kg ?? "-",
         "Collection Date": formatCollectionDateTime(row),
       }));
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows,
         getAdminScreenExcelFilename("all"),
         "Bin Collection Events",
@@ -231,7 +231,7 @@ export default function BinCollectionEventList() {
         "Weight (kg)": row.collected_weight_kg ?? "-",
         "Collection Date": formatCollectionDateTime(row),
       }));
-      downloadRecordsPdf({
+      await downloadRecordsPdf({
         title: "Secondary Bin Collection Events",
         filename: "secondary_bin_collection_events.pdf",
         rows: exportRows,

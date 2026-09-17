@@ -25,7 +25,7 @@ import { adminApi } from "@/helpers/admin/registry";
 import { panchayatApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { mergeWithScopeOption, scopeFieldState } from "../../shared/dataScopeOptions";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { buildPanchayatLeaderSchema } from "@/schemas/masters/leaderManagement/panchayatLeader.schema";
 
 type RecordRow = Record<string, any>;
@@ -182,7 +182,7 @@ function PanchayatLeaderEditor({
       is_active: formData.is_active === "1",
     });
     if (!validation.success) {
-      notify.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(validation.error) });
+      notify.fire({ icon: "warning", title: t("common.warning"), text: toNotifyMessage(validation.error) });
       return;
     }
 

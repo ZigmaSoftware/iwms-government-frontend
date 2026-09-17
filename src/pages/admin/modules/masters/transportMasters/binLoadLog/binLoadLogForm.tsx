@@ -12,7 +12,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { binLoadLogSchema } from "@/schemas/masters/transportMasters/binLoadLog.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 type Option = { value: string; label: string };
 
@@ -62,7 +62,7 @@ export default function BinLoadLogForm() {
     const payload = { vehicle_id: vehicleId, property_id: propertyId, sub_property_id: subPropertyId, weight_kg: weightKg, source_type: sourceType, event_time: eventTime };
     const validation = binLoadLogSchema.safeParse(payload);
     if (!validation.success) {
-      notify.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
     setSaving(true);

@@ -27,7 +27,7 @@ import LocalBodySelector, { LOCAL_BODY_TYPES, type LocalBodyValue } from "./Loca
 import DashboardWidgetSection from "./DashboardWidgetSection";
 import PermissionSection, { type PermissionSectionData } from "./PermissionSection";
 import { userScreenPermissionSchema } from "@/schemas/superadmin/screenManagement/userScreenPermission.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 const { encSuperAdmin, encUserScreenPermission } = getEncryptedRoute();
@@ -385,7 +385,7 @@ export default function UserScreenPermissionForm() {
       mainScreenIds,
     });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

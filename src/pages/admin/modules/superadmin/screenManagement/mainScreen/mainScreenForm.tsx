@@ -20,7 +20,7 @@ import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { mainScreenSchema } from "@/schemas/superadmin/screenManagement/mainScreen.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 /* ------------------------------
@@ -140,7 +140,7 @@ export default function MainScreenForm() {
       isActive,
     });
     if (!result.success) {
-      notify.fire(t("common.warning"), toSwalMessage(result.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(result.error), "warning");
       return;
     }
 

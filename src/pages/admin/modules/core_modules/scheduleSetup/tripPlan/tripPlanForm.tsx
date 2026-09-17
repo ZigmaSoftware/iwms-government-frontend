@@ -39,7 +39,7 @@ import {
   type ScopeLevel,
 } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 import { tripPlanSchema } from "@/schemas/core_modules/scheduleSetup/tripPlan.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -973,7 +973,7 @@ useEffect(() => {
       stops,
     });
     if (!validation.success) {
-      notify.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
 

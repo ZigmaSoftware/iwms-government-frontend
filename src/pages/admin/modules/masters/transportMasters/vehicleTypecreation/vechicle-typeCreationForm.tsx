@@ -21,7 +21,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { vehicleTypeCreationSchema } from "@/schemas/masters/transportMasters/vehicleTypeCreation.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 
 const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -106,7 +106,7 @@ export default function VehicleTypeCreationForm() {
       vehicleType: vehicleTypeName.trim(),
     });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

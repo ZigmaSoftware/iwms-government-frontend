@@ -28,7 +28,7 @@ import {
   userTypeApi,
 } from "@/helpers/admin";
 import { staffUserTypeSchema } from "@/schemas/superadmin/roleManagement/staffUserType.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -214,7 +214,7 @@ function StaffUserTypeEditor({
     });
 
     if (!validation.success) {
-      notify.fire(t("common.error"), toSwalMessage(validation.error), "error");
+      notify.fire(t("common.error"), toNotifyMessage(validation.error), "error");
       return;
     }
 

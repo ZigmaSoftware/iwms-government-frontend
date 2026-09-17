@@ -174,7 +174,7 @@ export default function BinList() {
         notify.fire(t("common.warning") || "Warning", "No bins to export", "warning");
         return;
       }
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Bins");
+      await exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Bins");
     } catch (error) {
       notify.fire({
         icon: "error",

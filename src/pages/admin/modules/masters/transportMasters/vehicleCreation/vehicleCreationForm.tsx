@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { vehicleCreationSchema } from "@/schemas/masters/transportMasters/vehicleCreation.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
@@ -394,7 +394,7 @@ export default function VehicleCreationForm() {
       local_body_id: geo.localBodyId,
     });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

@@ -23,7 +23,7 @@ import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { panchayatUnionSchema } from "@/schemas/masters/panchayatUnion.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
@@ -199,7 +199,7 @@ function PanchayatUnionEditor({
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(result.error),
+        text: toNotifyMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

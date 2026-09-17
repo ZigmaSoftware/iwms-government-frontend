@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 
 import type { Bin } from "./types";
 import {
@@ -144,6 +144,7 @@ const createAllBinsPdf = async (bins: Bin[]): Promise<jsPDF> => {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("PDF generation is not supported in this browser.");
 
+  const { jsPDF } = await import("jspdf");
   const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   for (let index = 0; index < bins.length; index += 1) {

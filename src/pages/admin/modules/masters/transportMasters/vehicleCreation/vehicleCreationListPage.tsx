@@ -228,8 +228,8 @@ export default function VehicleCreationListPage() {
     toRecordList(await vehicleCreationApi.readAllForExport());
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
-  const downloadVehicleTemplate = () => {
-    exportTemplateToExcel(
+  const downloadVehicleTemplate = async () => {
+    await exportTemplateToExcel(
       VEHICLE_BULK_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "Vehicles",

@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 
 import type { Staff, StaffAddress } from "./types";
 
@@ -211,6 +211,7 @@ const createStaffQrPdf = async (staff: Staff): Promise<jsPDF> => {
   context.font = "18px Arial, sans-serif";
   context.fillText(`Generated on ${new Date().toLocaleString("en-IN")}`, PAGE_WIDTH / 2, PAGE_HEIGHT - 52);
 
+  const { jsPDF } = await import("jspdf");
   const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   documentPdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 210, 297, undefined, "FAST");
   return documentPdf;

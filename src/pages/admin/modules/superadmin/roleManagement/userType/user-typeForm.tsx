@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { userTypeSchema } from "@/schemas/superadmin/roleManagement/userType.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 const { encRoleManagement, encUserType } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encRoleManagement, encUserType);
@@ -70,7 +70,7 @@ export default function UserTypeForm() {
       notify.fire({
         icon: "error",
         title: t("common.error"),
-        text: toSwalMessage(validation.error),
+        text: toNotifyMessage(validation.error),
       });
       return;
     }
