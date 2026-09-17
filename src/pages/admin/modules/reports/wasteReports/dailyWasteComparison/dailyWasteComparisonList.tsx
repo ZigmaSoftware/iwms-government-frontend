@@ -801,7 +801,7 @@ export default function DailyWasteComparisonList({
       const exportRows = await dailyWasteComparisonApi.readAllForExport({
         params,
       });
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows.map((r) => ({
           Date: r.collection_date,
           "Local Body Type": r.local_body_type,

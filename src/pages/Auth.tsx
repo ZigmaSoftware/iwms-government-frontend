@@ -22,7 +22,7 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { loginSchema } from "@/schemas/auth.schema";
 import {
   Eye,
@@ -136,7 +136,7 @@ export default function Auth() {
       if (!validation.success) {
         toast({
           title: t("login.title"),
-          description: toSwalMessage(validation.error),
+          description: toNotifyMessage(validation.error),
           variant: "destructive",
         });
       }

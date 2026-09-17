@@ -2,7 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { Input } from "@/components/ui/input";
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -74,7 +74,7 @@ function PropertyEditor({
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(validation.error),
+        text: toNotifyMessage(validation.error),
         confirmButtonColor: "#3085d6",
       });
       return;

@@ -17,7 +17,7 @@ import {
 import { departmentApi, staffCreationApi } from "@/helpers/admin";
 import { asArray, errorText, idOf } from "../utils";
 import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
 
@@ -146,7 +146,7 @@ export default function MasterForm({ kind }: Props) {
     event.preventDefault();
     const result = buildComplaintMasterSchema(kind).safeParse(form);
     if (!result.success) {
-      notify.fire("Invalid fields", toSwalMessage(result.error), "warning");
+      notify.fire("Invalid fields", toNotifyMessage(result.error), "warning");
       return;
     }
 

@@ -23,7 +23,7 @@ import { continentApi, countryApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { stateSchema } from "@/schemas/superadmin/commonMasters/state.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 type ContinentOption = {
   value: string;
@@ -168,7 +168,7 @@ function StateEditor({
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(result.error),
+        text: toNotifyMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

@@ -6,7 +6,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { vehicleTripAuditSchema } from "@/schemas/masters/transportMasters/vehicleTripAudit.schema";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -339,7 +339,7 @@ export default function VehicleTripAuditForm() {
 
     const validation = vehicleTripAuditSchema.safeParse(formData);
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

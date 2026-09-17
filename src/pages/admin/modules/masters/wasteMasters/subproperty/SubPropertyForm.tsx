@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import Label from "@/components/form/Label";
@@ -103,7 +103,7 @@ function SubPropertyEditor({
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(validation.error),
+        text: toNotifyMessage(validation.error),
       });
       return;
     }

@@ -16,7 +16,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { staffCreationApi, staffTemplateApi } from "@/helpers/admin";
 import { staffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/staffTemplate.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
@@ -493,7 +493,7 @@ export default function StaffTemplateForm() {
 
     const validation = staffTemplateSchema.safeParse(formData);
     if (!validation.success) {
-      notify.fire(t("common.error"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.error"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

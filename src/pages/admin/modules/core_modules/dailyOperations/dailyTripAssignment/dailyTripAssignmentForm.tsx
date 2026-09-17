@@ -39,7 +39,7 @@ import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -878,7 +878,7 @@ export default function DailyTripAssignmentForm() {
       scheduledTime,
     });
     if (!validation.success) {
-      notify.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
     setSaving(true);

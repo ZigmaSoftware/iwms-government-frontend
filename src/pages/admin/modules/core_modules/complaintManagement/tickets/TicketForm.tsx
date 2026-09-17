@@ -22,7 +22,7 @@ import {
 import type { GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { asArray, errorText } from "../utils";
 import { ticketSchema } from "@/schemas/core_modules/complaintManagement/ticket.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 import { scopeFieldState } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 
@@ -382,7 +382,7 @@ export default function TicketWizardForm() {
     }
     const validation = ticketSchema.safeParse(form);
     if (!validation.success) {
-      notify.fire("Missing fields", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing fields", toNotifyMessage(validation.error), "warning");
       return;
     }
     const confirmCreate = await notify.fire({

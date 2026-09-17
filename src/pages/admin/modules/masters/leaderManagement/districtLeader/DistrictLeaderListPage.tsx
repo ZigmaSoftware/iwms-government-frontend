@@ -120,8 +120,8 @@ export default function DistrictLeaderListPage() {
   }, [globalFilterValue]);
 
   // ── Excel ────────────────────────────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
-    exportTemplateToExcel(
+  const handleDownloadTemplate = async () => {
+    await exportTemplateToExcel(
       DISTRICT_LEADER_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "District Leaders",
@@ -130,7 +130,7 @@ export default function DistrictLeaderListPage() {
 
   const handleDownloadAll = async () => {
     const all = await districtLeaderApi.readAllForExport();
-    exportRecordsToExcel(
+    await exportRecordsToExcel(
       all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
       "District Leaders",

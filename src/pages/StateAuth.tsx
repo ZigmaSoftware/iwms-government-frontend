@@ -9,7 +9,7 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { loginSchema } from "@/schemas/auth.schema";
 
 const getAuthErrorMessage = (error: unknown) => {
@@ -48,7 +48,7 @@ export default function StateAuth() {
     if (!validation.success) {
       toast({
         title: "Required",
-        description: toSwalMessage(validation.error),
+        description: toNotifyMessage(validation.error),
         variant: "destructive",
       });
       return;

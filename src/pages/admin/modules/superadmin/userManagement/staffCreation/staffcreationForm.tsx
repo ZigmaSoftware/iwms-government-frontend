@@ -28,7 +28,7 @@ import {
 } from "../../../masters/shared/dataScopeOptions";
 import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
 import { buildStaffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
@@ -1390,7 +1390,7 @@ export default function StaffCreationForm() {
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(validation.error),
+        text: toNotifyMessage(validation.error),
       });
       return;
     }

@@ -5,7 +5,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { tripExceptionLogSchema } from "@/schemas/masters/transportMasters/tripExceptionLog.schema";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -160,7 +160,7 @@ export default function TripExceptionLogForm() {
       detected_by: formData.detected_by,
     });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

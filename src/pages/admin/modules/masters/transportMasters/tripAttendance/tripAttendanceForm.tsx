@@ -17,7 +17,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { tripAttendanceSchema } from "@/schemas/masters/transportMasters/tripAttendance.schema";
 
 
@@ -317,7 +317,7 @@ export default function TripAttendanceForm() {
 
     const validation = tripAttendanceSchema(isEdit, showField).safeParse(formData);
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

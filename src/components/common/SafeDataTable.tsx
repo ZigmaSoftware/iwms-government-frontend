@@ -199,15 +199,10 @@ const DataTableHeaderActions = ({
   }, [reportsOpen]);
 
   const handleExport = async () => {
-    if (!onExportRequest) {
-      exportRecordsToExcel(rows, toExportFilename(filename), sheetName || "Data");
-      return;
-    }
-
     setExporting(true);
     try {
-      const allRows = await onExportRequest();
-      exportRecordsToExcel(allRows, toExportFilename(filename), sheetName || "Data");
+      const allRows = onExportRequest ? await onExportRequest() : rows;
+      await exportRecordsToExcel(allRows, toExportFilename(filename), sheetName || "Data");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Export failed.";
       notify.fire("Export failed", message, "error");
@@ -229,8 +224,8 @@ const DataTableHeaderActions = ({
     }
   };
 
-  const handleTemplate = () => {
-    exportTemplateToExcel(
+  const handleTemplate = async () => {
+    await exportTemplateToExcel(
       resolvedColumns,
       toTemplateFilename(importTemplateFilename),
       importSheetName || "Template",

@@ -34,7 +34,7 @@ const STATUS_OPTIONS = ["Pending", "Collected", "Not Available", "Collect Later"
 const COLLECTION_TYPE_LABELS: Record<string, string> = {
   household_collection: "Household Collection",
   bulk_waste_collection: "Bulk Waste Collection",
-};
+}; 
 
 const Badge = ({ value }: { value?: string }) => (
   <span
@@ -227,7 +227,7 @@ export default function DailyTripHouseholdCollectionList() {
         notify.fire(t("common.error"), "No household collection records to export.", "warning");
         return;
       }
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
+      await exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collections");
     } catch (error) {
       notify.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
     } finally {
@@ -248,7 +248,7 @@ export default function DailyTripHouseholdCollectionList() {
         notify.fire(t("common.error"), "No household collection records to export.", "warning");
         return;
       }
-      downloadRecordsPdf({
+      await downloadRecordsPdf({
         title: "Household Collection Events",
         filename: "household_collection_events.pdf",
         rows: exportRows,

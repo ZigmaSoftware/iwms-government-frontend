@@ -8,7 +8,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { areaTypeSchema } from "@/schemas/masters/areaType.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { scopeFieldState } from "../../shared/dataScopeOptions";
 import { extractErrorMessage } from "../../shared/recordHelpers";
 
@@ -192,7 +192,7 @@ export function useAreaTypeFields(
       notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(result.error),
+        text: toNotifyMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;

@@ -6,7 +6,7 @@ import notify from "@/lib/notify";
 import { api } from "@/api";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { MultiSelect } from "@/components/form/MultiSelect";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { customerCreationSchema } from "@/schemas/masters/customerMasters/customerCreation.schema";
 
 import {
@@ -1355,7 +1355,7 @@ function CustomerEditor({
     if (!validateForm()) return;
     const validation = customerCreationSchema.safeParse(formData);
     if (!validation.success) {
-      notify.fire(t("common.warning") || "Warning", toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning") || "Warning", toNotifyMessage(validation.error), "warning");
       return;
     }
     const rawPayload = {

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 import { wasteTypeSchema } from "@/schemas/masters/wasteMasters/wasteType.schema";
 
@@ -130,7 +130,7 @@ export default function WasteTypeForm() {
     };
     const validation = schema.safeParse(rawPayload);
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

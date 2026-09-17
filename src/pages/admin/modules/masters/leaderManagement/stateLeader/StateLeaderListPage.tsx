@@ -120,8 +120,8 @@ export default function StateLeaderListPage() {
   }, [globalFilterValue]);
 
   // ── Excel ────────────────────────────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
-    exportTemplateToExcel(
+  const handleDownloadTemplate = async () => {
+    await exportTemplateToExcel(
       STATE_LEADER_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "State Leaders",
@@ -130,7 +130,7 @@ export default function StateLeaderListPage() {
 
   const handleDownloadAll = async () => {
     const all = await stateLeaderApi.readAllForExport();
-    exportRecordsToExcel(
+    await exportRecordsToExcel(
       all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
       "State Leaders",

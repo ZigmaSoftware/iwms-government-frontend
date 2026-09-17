@@ -223,8 +223,8 @@ export default function CustomerCreationListPage() {
   };
 
   // ── Download template ─────────────────────────────────────────────────────
-  const downloadTemplate = () => {
-    exportTemplateToExcel(
+  const downloadTemplate = async () => {
+    await exportTemplateToExcel(
       CUSTOMER_BULK_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "Customers",
@@ -300,7 +300,7 @@ export default function CustomerCreationListPage() {
         notify.fire(t("common.warning") || "Warning", "No customers to export", "warning");
         return;
       }
-      exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
+      await exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
     } catch (error) {
       notify.fire({
         icon: "error",

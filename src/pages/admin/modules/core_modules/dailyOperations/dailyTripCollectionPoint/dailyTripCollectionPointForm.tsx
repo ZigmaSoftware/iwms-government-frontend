@@ -13,7 +13,7 @@ import { dailyTripAssignmentApi, dailyTripCollectionPointApi, binApi, staffCreat
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useCollectionPointLocationOptions } from "@/hooks/useCollectionPointLocationOptions";
 import { dailyTripCollectionPointSchema } from "@/schemas/core_modules/dailyOperations/dailyTripCollectionPoint.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 
 const STATUS_OPTIONS: SelectOption[] = [
@@ -263,7 +263,7 @@ export default function DailyTripCollectionPointForm() {
     event.preventDefault();
     const validation = dailyTripCollectionPointSchema.safeParse({ tripAssignmentId, collectionPointId, binId });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 

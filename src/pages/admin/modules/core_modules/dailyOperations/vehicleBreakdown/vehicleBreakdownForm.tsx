@@ -16,7 +16,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { api } from "@/api";
 import { vehicleBreakdownSchema } from "@/schemas/core_modules/dailyOperations/vehicleBreakdown.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 type SelectOption = { value: string; label: string };
@@ -371,7 +371,7 @@ export default function VehicleBreakdownForm() {
       breakdown_lng: form.breakdown_lng,
     });
     if (!validation.success) {
-      notify.fire(t("common.error"), toSwalMessage(validation.error), "error");
+      notify.fire(t("common.error"), toNotifyMessage(validation.error), "error");
       return;
     }
 

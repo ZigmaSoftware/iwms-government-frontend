@@ -18,7 +18,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { staffCreationApi, staffTemplateApi, alternativeStaffTemplateApi } from "@/helpers/admin";
 import { staffTemplateLabel } from "@/utils/forms";
 import { alternativeStaffTemplateSchema } from "@/schemas/core_modules/scheduleSetup/alternativeStaffTemplate.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
@@ -474,7 +474,7 @@ export default function AlternativeStaffTemplateForm() {
 
     const validation = alternativeStaffTemplateSchema.safeParse(formData);
     if (!validation.success) {
-      notify.fire("Invalid details", toSwalMessage(validation.error), "warning");
+      notify.fire("Invalid details", toNotifyMessage(validation.error), "warning");
       return;
     }
 

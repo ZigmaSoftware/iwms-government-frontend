@@ -28,7 +28,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { capitalize } from "@/utils/capitalize";
 import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 
 
@@ -583,7 +583,7 @@ function WasteCollectedEditor({
       sanitaryWaste,
     });
     if (!validation.success) {
-      notify.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 
