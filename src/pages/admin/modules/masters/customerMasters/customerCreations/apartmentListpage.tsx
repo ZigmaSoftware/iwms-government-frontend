@@ -1,7 +1,7 @@
 import type { TableFilters } from "./types";
 import type { ApartmentRow, BlockRow, CustomerCreationRecord, FlatRow, UserRow, ViewLevel } from "./types";
 import { useEffect, useMemo, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
@@ -9,15 +9,10 @@ import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
-
 import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-
 
 /* ---------------- HELPERS ---------------- */
 
@@ -41,7 +36,7 @@ export default function ApartmentListPage() {
     setCustomersLoading(true)
     customerCreationApi.readAll()
       .then((data: unknown) => { if (mounted) setAllCustomers(Array.isArray(data) ? data as CustomerCreationRecord[] : []) })
-      .catch((error: unknown) => { if (mounted) Swal.fire({ icon: 'error', title: 'Error', text: String(error) }) })
+      .catch((error: unknown) => { if (mounted) notify.fire({ icon: 'error', title: 'Error', text: String(error) }) })
       .finally(() => { if (mounted) setCustomersLoading(false) })
     return () => { mounted = false }
   }, [t])

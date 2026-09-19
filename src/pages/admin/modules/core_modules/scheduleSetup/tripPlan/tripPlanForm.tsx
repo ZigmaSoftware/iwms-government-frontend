@@ -27,7 +27,7 @@ import {
   wasteTypeApi,
 } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel } from "@/utils/forms";
@@ -39,7 +39,7 @@ import {
   type ScopeLevel,
 } from "@/pages/admin/modules/masters/shared/dataScopeOptions";
 import { tripPlanSchema } from "@/schemas/core_modules/scheduleSetup/tripPlan.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -973,7 +973,7 @@ useEffect(() => {
       stops,
     });
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
 
@@ -984,7 +984,7 @@ useEffect(() => {
       maxVehicleCapacityKg &&
       (!Number.isFinite(triggerWeight) || !Number.isFinite(maxCapacity) || triggerWeight >= maxCapacity)
     ) {
-      Swal.fire("Warning", "Trigger weight must be less than vehicle capacity.", "warning");
+      notify.fire("Warning", "Trigger weight must be less than vehicle capacity.", "warning");
       return;
     }
     setSaving(true);
@@ -1039,7 +1039,7 @@ useEffect(() => {
       else await tripPlanApi.create(payload);
       navigate(listPath);
     } catch (error) {
-      Swal.fire("Unable to save Trip Plan", extractErrorMessage(error), "error");
+      notify.fire("Unable to save Trip Plan", extractErrorMessage(error), "error");
     } finally {
       setSaving(false);
     }

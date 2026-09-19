@@ -2,7 +2,7 @@ import type { VehicleBreakdownRecord, BreakdownStatus, ApprovalStatus } from "./
 import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -12,6 +12,7 @@ import { InputTextarea } from "primereact/inputtextarea";
 import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
@@ -315,7 +316,7 @@ export default function VehicleBreakdownList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -363,7 +364,7 @@ export default function VehicleBreakdownList() {
 
   /* ── Delete ─────────────────────────────────────────────────────── */
   const handleDelete = async (row: VehicleBreakdownRecord) => {
-    const result = await Swal.fire({
+    const result = await notify.fire({
       title: t("common.confirm_title"),
       text: `Delete breakdown record ${row.unique_id}?`,
       icon: "warning",
@@ -376,9 +377,9 @@ export default function VehicleBreakdownList() {
     try {
       await vehicleBreakdownApi.delete(row.unique_id);
       setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
-      Swal.fire(t("common.success"), t("common.deleted_success"), "success");
+      notify.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     }
   };
 
@@ -412,7 +413,7 @@ export default function VehicleBreakdownList() {
         ),
       );
       setVerifyTarget(null);
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Approved",
         text: data?.new_assignment_id
@@ -422,7 +423,7 @@ export default function VehicleBreakdownList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsVerifying(false);
     }
@@ -445,9 +446,9 @@ export default function VehicleBreakdownList() {
         ),
       );
       setRejectTarget(null);
-      Swal.fire({ icon: "info", title: "Rejected", text: "Breakdown request has been rejected.", timer: 2000, showConfirmButton: false });
+      notify.fire({ icon: "info", title: "Rejected", text: "Breakdown request has been rejected.", timer: 2000, showConfirmButton: false });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err), "error");
+      notify.fire(t("common.error"), extractError(err), "error");
     } finally {
       setIsRejecting(false);
     }
@@ -455,51 +456,41 @@ export default function VehicleBreakdownList() {
 
   /* ── Action column ──────────────────────────────────────────────── */
   const actionTemplate = (row: VehicleBreakdownRecord) => (
-    <div className="flex items-center justify-center gap-3">
-      {/* Edit — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title={t("common.edit")}
-          onClick={() => navigate(editPath(row.unique_id))}
-          className="text-blue-600 hover:text-blue-800 transition-colors"
-        >
-          <i className="pi pi-pencil" />
-        </button>
-      )}
-
-      {/* Verify — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title="Verify & Approve"
-          onClick={() => setVerifyTarget(row)}
-          className="text-green-600 hover:text-green-800 transition-colors"
-        >
-          <i className="pi pi-check-circle" />
-        </button>
-      )}
-
-      {/* Reject — only pending records */}
-      {row.approval_status === "PENDING" && (
-        <button
-          title="Reject"
-          onClick={() => setRejectTarget(row)}
-          className="text-orange-500 hover:text-orange-700 transition-colors"
-        >
-          <i className="pi pi-times-circle" />
-        </button>
-      )}
-
-      {/* Delete — not allowed on approved records */}
-      {row.approval_status !== "APPROVED" && (
-        <button
-          title={t("common.delete")}
-          onClick={() => handleDelete(row)}
-          className="text-red-600 hover:text-red-800 transition-colors"
-        >
-          <i className="pi pi-trash" />
-        </button>
-      )}
-    </div>
+    <RowActionsMenu
+      onEdit={
+        row.approval_status === "PENDING"
+          ? () => navigate(editPath(row.unique_id))
+          : undefined
+      }
+      onDelete={
+        row.approval_status !== "APPROVED"
+          ? () => void handleDelete(row)
+          : undefined
+      }
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+      extraItems={[
+        ...(row.approval_status === "PENDING"
+          ? [
+              {
+                label: "Verify & Approve",
+                icon: <i className="pi pi-check-circle" />,
+                onClick: () => setVerifyTarget(row),
+              },
+            ]
+          : []),
+        ...(row.approval_status === "PENDING"
+          ? [
+              {
+                label: "Reject",
+                icon: <i className="pi pi-times-circle" />,
+                onClick: () => setRejectTarget(row),
+                danger: true,
+              },
+            ]
+          : []),
+      ]}
+    />
   );
 
   /* ════════════════════════════════════════════════════════════════

@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import { dailyTripAssignmentApi, unassignedStaffPoolApi, userCreationApi } from "@/helpers/admin";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { unassignedStaffPoolSchema } from "@/schemas/superadmin/userManagement/unassignedStaffPool.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 
 type Option = { value: string; label: string };
 
@@ -71,7 +71,7 @@ export default function UnassignedStaffPoolForm() {
       status,
     });
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
 

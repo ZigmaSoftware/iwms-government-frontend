@@ -2,11 +2,11 @@ import type { FamilyMember, FormDataType, Option } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { api } from "@/api";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { MultiSelect } from "@/components/form/MultiSelect";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { customerCreationSchema } from "@/schemas/masters/customerMasters/customerCreation.schema";
 
 import {
@@ -270,7 +270,7 @@ function CustomerChangePasswordModal({
   customerId,
   onClose,
   onSuccess,
-}: {
+}: {  
   customerId: string;
   onClose: () => void;
   onSuccess: (newDate: string) => void;
@@ -291,7 +291,7 @@ function CustomerChangePasswordModal({
         new_password: newPassword,
         confirm_new_password: confirmPassword,
       });
-      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
+      notify.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
       onSuccess(new Date().toISOString());
       onClose();
     } catch (err: any) {
@@ -306,8 +306,8 @@ function CustomerChangePasswordModal({
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <span className="material-symbols-outlined">close</span>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+            <span className="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -1231,7 +1231,7 @@ function CustomerEditor({
 
     if (missingFields.length > 0) {
       for (const field of missingFields) {
-        Swal.fire(
+        notify.fire(
           t("common.warning") || "Warning",
           `${String(field).replace(/_/g, " ")} is required`,
           "warning",
@@ -1241,7 +1241,7 @@ function CustomerEditor({
     }
 
     if (!resolvedAreaTypeId) {
-      Swal.fire(
+      notify.fire(
         t("common.warning") || "Warning",
         "Area Type is required",
         "warning",
@@ -1250,7 +1250,7 @@ function CustomerEditor({
     }
 
     if (!selectedHierarchyType || !selectedHierarchyId) {
-      Swal.fire(
+      notify.fire(
         t("common.warning") || "Warning",
         "Local body is required",
         "warning",
@@ -1258,11 +1258,11 @@ function CustomerEditor({
       return false;
     }
     if (showField("waste_type_ids") && formData.waste_type_ids.length === 0) {
-      Swal.fire(t("common.warning") || "Warning", "waste type is required", "warning");
+      notify.fire(t("common.warning") || "Warning", "waste type is required", "warning");
       return false;
     }
     if (showField("contact_no") && !/^\d{10}$/.test(formData.contact_no)) {
-      Swal.fire(
+      notify.fire(
         t("admin.customer_creation.invalid_contact_title") || "Invalid Contact",
         t("admin.customer_creation.invalid_contact_desc") ||
           "Please enter a valid 10-digit contact number",
@@ -1271,7 +1271,7 @@ function CustomerEditor({
       return false;
     }
     if (showField("email") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      Swal.fire("Invalid Email", "Please enter a valid email address", "warning");
+      notify.fire("Invalid Email", "Please enter a valid email address", "warning");
       return false;
     }
     if (
@@ -1279,11 +1279,11 @@ function CustomerEditor({
       (!isEdit || formData.password) &&
       !PASSWORD_PATTERN.test(formData.password)
     ) {
-      Swal.fire("Weak Password", PASSWORD_RULE_MESSAGE, "warning");
+      notify.fire("Weak Password", PASSWORD_RULE_MESSAGE, "warning");
       return false;
     }
     if (showField("pincode") && !/^\d{6}$/.test(formData.pincode)) {
-      Swal.fire(
+      notify.fire(
         t("admin.customer_creation.invalid_pincode_title") || "Invalid Pincode",
         t("admin.customer_creation.invalid_pincode_desc") ||
           "Please enter a valid 6-digit pincode",
@@ -1297,7 +1297,7 @@ function CustomerEditor({
       (showField("latitude") || showField("longitude")) &&
       (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180)
     ) {
-      Swal.fire(
+      notify.fire(
         t("admin.customer_creation.invalid_coordinates_title") || "Invalid Coordinates",
         t("admin.customer_creation.invalid_coordinates_desc") ||
           "Please enter valid latitude and longitude",
@@ -1307,11 +1307,11 @@ function CustomerEditor({
     }
     const sqftValue = parseFloat(formData.sqft);
     if (showField("sqft") && (isNaN(sqftValue) || sqftValue <= 0)) {
-      Swal.fire("Invalid Square Feet", "Please enter a valid square feet value", "warning");
+      notify.fire("Invalid Square Feet", "Please enter a valid square feet value", "warning");
       return false;
     }
     if (formData.water_consumption_lpd && parseFloat(formData.water_consumption_lpd) < 0) {
-      Swal.fire(
+      notify.fire(
         "Invalid Water Consumption",
         "Please enter a valid water consumption value",
         "warning",
@@ -1322,7 +1322,7 @@ function CustomerEditor({
       formData.waste_collection_kg_per_day &&
       parseFloat(formData.waste_collection_kg_per_day) < 0
     ) {
-      Swal.fire(
+      notify.fire(
         "Invalid Waste Collection",
         "Please enter a valid waste collection value",
         "warning",
@@ -1336,7 +1336,7 @@ function CustomerEditor({
       const memberCount = parseInt(formData.member_count, 10);
       const allowedCount = isNaN(memberCount) ? 0 : memberCount;
       if (filledFamilyMemberCount > allowedCount) {
-        Swal.fire(
+        notify.fire(
           "Too Many Family Members",
           `Family member ID proof rows (${filledFamilyMemberCount}) cannot exceed the Member Count (${allowedCount}).`,
           "warning",
@@ -1355,7 +1355,7 @@ function CustomerEditor({
     if (!validateForm()) return;
     const validation = customerCreationSchema.safeParse(formData);
     if (!validation.success) {
-      Swal.fire(t("common.warning") || "Warning", toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning") || "Warning", toNotifyMessage(validation.error), "warning");
       return;
     }
     const rawPayload = {
@@ -2362,7 +2362,7 @@ export default function CustomerCreationForm() {
           !scopeOption("panchayat_union") &&
           !scopeOption("panchayat")
         ) {
-          Swal.fire("Error", "Failed to load customer form data", "error");
+          notify.fire("Error", "Failed to load customer form data", "error");
         }
       });
 
@@ -2385,7 +2385,7 @@ export default function CustomerCreationForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire(
+        notify.fire(
           t("common.error") || "Error",
           t("admin.customer_creation.save_failed") || "Failed to load customer",
           "error",
@@ -2405,7 +2405,7 @@ export default function CustomerCreationForm() {
       } else {
         await customerCreationApi.create(payload as any);
       }
-      Swal.fire(
+      notify.fire(
         t("common.success") || "Success",
         t("admin.customer_creation.save_success") || "Saved successfully",
         "success",
@@ -2426,7 +2426,7 @@ export default function CustomerCreationForm() {
             )
             .join("\n") || errorText;
       }
-      Swal.fire(t("common.error") || "Error", errorText, "error");
+      notify.fire(t("common.error") || "Error", errorText, "error");
     } finally {
       setIsSubmitting(false);
     }

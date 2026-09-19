@@ -3,16 +3,15 @@ import type { CollectionTypeKey } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-import { jsPDF } from "jspdf";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { binApi, customerCreationApi, dailyTripAssignmentApi } from "@/helpers/admin";
 import { api } from "@/api";
@@ -336,7 +335,7 @@ export default function DailyTripAssignmentList() {
         typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -398,7 +397,7 @@ export default function DailyTripAssignmentList() {
         "run-scheduler",
         { date: schedulerDate },
       );
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Scheduler completed",
         text: String(
@@ -409,7 +408,7 @@ export default function DailyTripAssignmentList() {
       loadSchedulerStatus();
       void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Scheduler failed" });
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Scheduler failed" });
     } finally {
       setIsSchedulerRunning(false);
     }
@@ -417,7 +416,7 @@ export default function DailyTripAssignmentList() {
 
   const saveSchedulerConfig = async () => {
     if (!schedulerRunTime) {
-      Swal.fire({ icon: "warning", title: "Select auto-generation time" });
+      notify.fire({ icon: "warning", title: "Select auto-generation time" });
       return;
     }
     setIsSavingSchedulerConfig(true);
@@ -429,13 +428,13 @@ export default function DailyTripAssignmentList() {
       setSchedulerRunTime(String(data.run_time ?? schedulerRunTime).slice(0, 5));
       setSchedulerEnabled(Boolean(data.is_enabled ?? schedulerEnabled));
       loadSchedulerStatus();
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Scheduler updated",
         text: `Daily trip plans will auto-generate at ${String(data.run_time ?? schedulerRunTime).slice(0, 5)}.`,
       });
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to update scheduler time" });
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to update scheduler time" });
     } finally {
       setIsSavingSchedulerConfig(false);
     }
@@ -464,7 +463,7 @@ export default function DailyTripAssignmentList() {
     try {
       const exportSource = await fetchExportRows();
       if (!exportSource.length) {
-        Swal.fire({ icon: "warning", title: "Nothing to export", text: "No trip assignments match the current filters." });
+        notify.fire({ icon: "warning", title: "Nothing to export", text: "No trip assignments match the current filters." });
         return;
       }
       const excelRows = exportSource.map((row) => ({
@@ -482,9 +481,9 @@ export default function DailyTripAssignmentList() {
         "Trip Time": formatDuration(row.total_trip_time_seconds),
         "Trip #": row.trip_count ?? 1,
       }));
-      exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
+      await exportRecordsToExcel(excelRows, getAdminScreenExcelFilename("all"), "Daily Trip Plans");
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to export Excel data." });
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? "Failed to export Excel data." });
     } finally {
       setIsExportingExcel(false);
     }
@@ -495,6 +494,7 @@ export default function DailyTripAssignmentList() {
     try {
       const exportSource = await fetchExportRows();
       if (!exportSource.length) return;
+      const { jsPDF } = await import("jspdf");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       let hasPage = false;
 
@@ -693,7 +693,7 @@ export default function DailyTripAssignmentList() {
       }
       pdf.save("daily_trip_plans_detailed.pdf");
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         error instanceof Error ? error.message : "Failed to generate the detailed trip-plan PDF.",
         "error",
@@ -721,21 +721,42 @@ export default function DailyTripAssignmentList() {
     <Badge value={row.status} styleMap={STATUS_STYLES} />
   );
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await dailyTripAssignmentApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(error) ?? "Failed to delete" });
+    }
+  };
+
   const actionTemplate = (row: DailyTripAssignmentRecord) => {
     const rowId = row.unique_id ?? String((row as any).id ?? "");
+    const canEdit = Boolean(rowId) && row.status !== "Completed" && row.status !== "Cancelled";
     return (
-      <div className="flex justify-center">
-        <button
-          title={t("common.edit")}
-          onClick={() =>
-            navigate(ENC_EDIT_PATH(rowId))
-          }
-          disabled={!rowId || row.status === "Completed" || row.status === "Cancelled"}
-          className="text-blue-600 hover:text-blue-800 disabled:opacity-30"
-        >
-          <PencilIcon className="size-5" />
-        </button>
-      </div>
+      <RowActionsMenu
+        {...(canEdit ? { onEdit: () => navigate(ENC_EDIT_PATH(rowId)) } : {})}
+        onDelete={() => void handleDelete(String(rowId))}
+        editLabel={t("common.edit")}
+        deleteLabel={t("common.delete")}
+      />
     );
   };
 

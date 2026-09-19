@@ -10,7 +10,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -19,7 +19,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
@@ -133,7 +133,7 @@ export default function WasteCollectedDataList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: String(err) });
+      notify.fire({ icon: "error", title: t("common.error"), text: String(err) });
     } finally {
       setLoading(false);
     }
@@ -198,12 +198,12 @@ export default function WasteCollectedDataList() {
       });
       const exportRows = buildExportRows(toRecordList(all));
       if (!exportRows.length) {
-        Swal.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
+        notify.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
         return;
       }
-      exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
+      await exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Household Collection Events");
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -220,17 +220,17 @@ export default function WasteCollectedDataList() {
       });
       const exportRows = buildExportRows(toRecordList(all));
       if (!exportRows.length) {
-        Swal.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
+        notify.fire(t("common.warning", "Warning"), t("common.no_records_to_export", "No records to export."), "warning");
         return;
       }
-      downloadRecordsPdf({
+      await downloadRecordsPdf({
         title: "Household Collection Events",
         filename: "household_collection_events.pdf",
         rows: exportRows,
         columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
       });
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -258,29 +258,52 @@ export default function WasteCollectedDataList() {
           )
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
     return <Switch checked={!!row.is_active} onCheckedChange={updateStatus} />;
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.wasteCollections.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      notify.fire(t("common.error"), err instanceof Error ? err.message : t("common.delete_failed"), "error");
+    }
+  };
+
   const actionTemplate = (row: WasteCollection) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("admin.waste_collected_data.view_image", "View captured image")}
-        onClick={() => setImageRow(row)}
-        className="text-emerald-600 hover:text-emerald-800"
-      >
-        <ImageIcon className="size-5" />
-      </button>
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(row.unique_id)}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+      extraItems={[
+        {
+          label: t("admin.waste_collected_data.view_image", "View captured image"),
+          icon: <ImageIcon className="size-4" />,
+          onClick: () => setImageRow(row),
+        },
+      ]}
+    />
   );
 
   const indexTemplate = (_: WasteCollection, { rowIndex }: { rowIndex: number }) => rowIndex + 1;

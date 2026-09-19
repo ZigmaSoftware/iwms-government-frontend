@@ -2,15 +2,11 @@ import AppHeader from "@/layouts/admin/components/AppHeader";
 import AppSidebar from "@/layouts/admin/components/AppSidebar";
 import AdminBreadcrumb from "@/layouts/admin/components/AdminBreadcrumb";
 import Backdrop from "@/layouts/admin/components/Backdrop";
-import { SidebarProvider, useSidebar } from "@/contexts/SideBarContext";
+import { useSidebar } from "@/contexts/SideBarContext";
 import type { AdminLayoutProps } from "@/types/roles";
 
 export function AdminLayout({ children }: AdminLayoutProps) {
-  return (
-    <SidebarProvider>
-      <AdminLayoutShell>{children}</AdminLayoutShell>
-    </SidebarProvider>
-  );
+  return <AdminLayoutShell>{children}</AdminLayoutShell>;
 }
 
 function AdminLayoutShell({ children }: AdminLayoutProps) {

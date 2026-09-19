@@ -8,9 +8,9 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { Switch } from "@/components/ui/switch";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { wasteTypeApi } from "@/helpers/admin";
@@ -76,7 +76,7 @@ export default function WasteTypeListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error: any) {
-      Swal.fire(
+      notify.fire(
         "Error",
         String(
           error?.response?.data?.detail ?? error?.message ?? "Failed to load Waste Type",
@@ -123,16 +123,45 @@ export default function WasteTypeListPage() {
     { rowIndex }: { rowIndex: number },
   ) => rowIndex + 1;
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await wasteTypeApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      notify.fire(
+        "Error",
+        String(
+          error?.response?.data?.detail ?? error?.message ?? "Failed to delete Waste Type",
+        ),
+        "error",
+      );
+    }
+  };
+
   const actionTemplate = (row: WasteTypeListRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const statusTemplate = (row: WasteTypeListRecord) => {

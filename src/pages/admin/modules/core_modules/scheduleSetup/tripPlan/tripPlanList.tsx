@@ -2,7 +2,7 @@ import type { TripPlanRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -10,7 +10,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
@@ -115,7 +115,7 @@ export default function TripPlanList() {
         setRawRows(normalizeList(response) as TripPlanRecord[]);
         setTotalRecords(typeof response?.count === "number" ? response.count : normalizeList(response).length);
       })
-      .catch((error) => Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
+      .catch((error) => notify.fire(t("common.error"), extractErrorMessage(error) ?? t("common.fetch_failed"), "error"))
       .finally(() => {
         if (mounted) setLoading(false);
       });
@@ -164,12 +164,38 @@ export default function TripPlanList() {
         await tripPlanApi.update(row.unique_id, { status: checked ? "ACTIVE" : "INACTIVE" });
         setRawRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, status: checked ? "ACTIVE" : "INACTIVE" } : item));
       } catch (error) {
-        Swal.fire(t("common.error"), extractErrorMessage(error) ?? t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), extractErrorMessage(error) ?? t("common.update_status_failed"), "error");
       } finally {
         setUpdating(false);
       }
     };
     return <Switch checked={row.status === "ACTIVE"} disabled={updating} onCheckedChange={updateStatus} />;
+  };
+
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await tripPlanApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
+    }
   };
 
   return (
@@ -224,9 +250,12 @@ export default function TripPlanList() {
         <Column field="approval_status" header="Approval" sortable={SORTABLE_FIELDS.has("approval_status")} />
         <Column header="Status" body={statusBody} style={{ width: 120 }} />
         <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
-          <button title={t("common.edit")} onClick={() => navigate(editPath(row.unique_id), { state: { record: row } })} className="text-blue-600 hover:text-blue-800">
-            <PencilIcon className="size-5" />
-          </button>
+          <RowActionsMenu
+            onEdit={() => navigate(editPath(row.unique_id), { state: { record: row } })}
+            onDelete={() => void handleDelete(row.unique_id)}
+            editLabel={t("common.edit")}
+            deleteLabel={t("common.delete")}
+          />
         )} />
       </DataTable>
     </div>

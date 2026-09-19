@@ -2,7 +2,7 @@ import type { PanchayatLeader } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -10,7 +10,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
@@ -90,7 +90,7 @@ export default function PanchayatLeaderListPage() {
         typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
+      notify.fire({ icon: "error", title: t("common.error"), text: t("common.load_failed") });
     } finally {
       setIsLoading(false);
     }
@@ -121,8 +121,8 @@ export default function PanchayatLeaderListPage() {
   }, [globalFilterValue]);
 
   // ── Excel ────────────────────────────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
-    exportTemplateToExcel(
+  const handleDownloadTemplate = async () => {
+    await exportTemplateToExcel(
       PLB_TEMPLATE_COLUMNS,
       getAdminScreenExcelFilename("template"),
       "PLB Leaders",
@@ -131,7 +131,7 @@ export default function PanchayatLeaderListPage() {
 
   const handleDownloadAll = async () => {
     const all = await panchayatLeaderApi.readAllForExport();
-    exportRecordsToExcel(
+    await exportRecordsToExcel(
       all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
       "PLB Leaders",
@@ -158,7 +158,7 @@ export default function PanchayatLeaderListPage() {
         error_count: errors.length,
       });
 
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Upload Completed",
         html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
@@ -166,7 +166,7 @@ export default function PanchayatLeaderListPage() {
       setRefetchTrigger((p) => p + 1);
     } catch {
       recordExcelAudit("upload_excel", { file_name: file.name, status: "failed" });
-      Swal.fire("Error", "Upload failed", "error");
+      notify.fire("Error", "Upload failed", "error");
     } finally {
       e.target.value = "";
     }
@@ -183,7 +183,7 @@ export default function PanchayatLeaderListPage() {
           prev.map((r) => r.unique_id === row.unique_id ? { ...r, is_active: checked } : r)
         );
       } catch {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       } finally {
         setPendingStatusId(null);
         setIsUpdating(false);
@@ -198,17 +198,36 @@ export default function PanchayatLeaderListPage() {
     );
   };
 
+  // ── Delete ──────────────────────────────────────────────────────────────────
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await panchayatLeaderApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({ icon: "success", title: "Deleted successfully", timer: 1500, showConfirmButton: false });
+    } catch (error: any) {
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete"), "error");
+    }
+  };
+
   // ── Actions ─────────────────────────────────────────────────────────────────
   const actionTemplate = (row: PanchayatLeader) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const indexTemplate = (_: PanchayatLeader, { rowIndex }: { rowIndex: number }) => rowIndex + 1;

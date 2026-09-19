@@ -2,7 +2,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import type { SelectOption } from "@/types";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { countrySchema } from "@/schemas/superadmin/commonMasters/country.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { continentApi, countryApi } from "@/helpers/admin";
 
 const { encCommonMasters, encCountries } = getEncryptedRoute();
@@ -140,7 +140,7 @@ export default function CountryForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? t("common.load_failed")) });
+        notify.fire({ icon: "error", title: t("common.error"), text: String(err?.response?.data ?? err?.message ?? t("common.load_failed")) });
       });
     return () => { cancelled = true; };
   }, [id, isEdit]);
@@ -156,7 +156,7 @@ export default function CountryForm() {
       is_active: isActive,
     });
     if (!result.success) {
-      Swal.fire({ icon: "warning", title: t("common.warning"), text: toSwalMessage(result.error) });
+      notify.fire({ icon: "warning", title: t("common.warning"), text: toNotifyMessage(result.error) });
       return;
     }
 
@@ -173,10 +173,10 @@ export default function CountryForm() {
 
       if (isEdit && id) {
         await countryApi.update(id, payload);
-        Swal.fire({ icon: "success", title: t("common.updated_success"), timer: 1500, showConfirmButton: false });
+        notify.fire({ icon: "success", title: t("common.updated_success"), timer: 1500, showConfirmButton: false });
       } else {
         await countryApi.create(payload);
-        Swal.fire({ icon: "success", title: t("common.added_success"), timer: 1500, showConfirmButton: false });
+        notify.fire({ icon: "success", title: t("common.added_success"), timer: 1500, showConfirmButton: false });
       }
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
@@ -184,7 +184,7 @@ export default function CountryForm() {
       const msg = typeof data === "string" ? data :
         data && typeof data === "object" ? Object.entries(data as Record<string, unknown>).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : String(v)}`).join("\n") :
         error?.message ?? t("common.save_failed_desc");
-      Swal.fire({ icon: "error", title: t("common.save_failed"), text: msg });
+      notify.fire({ icon: "error", title: t("common.save_failed"), text: msg });
     } finally {
       setIsSubmitting(false);
     }

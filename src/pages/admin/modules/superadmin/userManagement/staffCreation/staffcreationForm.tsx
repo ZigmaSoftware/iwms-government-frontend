@@ -5,7 +5,7 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { api } from "@/api";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ import {
 } from "../../../masters/shared/dataScopeOptions";
 import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
 import { buildStaffCreationSchema } from "@/schemas/superadmin/userManagement/staffCreation.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 // ─── Password helpers ────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: Chang
         new_password: values.newPassword,
         confirm_new_password: values.confirmPassword,
       });
-      Swal.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
+      notify.fire({ icon: "success", title: "Password Changed", text: "Password updated successfully." });
       onSuccess(new Date().toISOString());
       onClose();
     } catch (err: any) {
@@ -109,8 +109,8 @@ function ChangePasswordModal({ targetType, targetId, onClose, onSuccess }: Chang
       <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-900">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <span className="material-symbols-outlined">close</span>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-600">
+            <span className="material-symbols-outlined" aria-hidden="true">close</span>
           </button>
         </div>
         <form onSubmit={handleSubmit(onValid)} className="space-y-4">
@@ -713,7 +713,7 @@ export default function StaffCreationForm() {
 
   const validateDriverPdfUpload = (file: File): boolean => {
     if (file.type !== "application/pdf") {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "Invalid File Type",
         text: "Only PDF files are allowed.",
@@ -722,7 +722,7 @@ export default function StaffCreationForm() {
     }
 
     if (file.size > MAX_DRIVER_FILE_SIZE_MB * 1024 * 1024) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "File Too Large",
         text: `File size must be under ${MAX_DRIVER_FILE_SIZE_MB} MB.`,
@@ -1062,7 +1062,7 @@ export default function StaffCreationForm() {
       })
       .catch((error) => {
         console.error("Failed to load staff", error);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("admin.staff_creation.load_failed_title"),
           text:
@@ -1387,10 +1387,10 @@ export default function StaffCreationForm() {
 
     const validation = buildStaffCreationSchema(isEdit).safeParse(formData);
     if (!validation.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(validation.error),
+        text: toNotifyMessage(validation.error),
       });
       return;
     }
@@ -1400,7 +1400,7 @@ export default function StaffCreationForm() {
       photoFile &&
       !photoFile.type.startsWith("image/")
     ) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("admin.staff_creation.invalid_photo_title"),
         text: t("admin.staff_creation.invalid_photo_desc"),
@@ -1412,7 +1412,7 @@ export default function StaffCreationForm() {
       attendanceImageFile &&
       !attendanceImageFile.type.startsWith("image/")
     ) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "Invalid attendance image",
         text: "Choose a valid image file for face registration.",
@@ -1539,7 +1539,7 @@ export default function StaffCreationForm() {
         response = await staffCreationApi.upload(formBody);
       }
 
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: isEdit
           ? t("admin.staff_creation.save_success_update")
@@ -1553,7 +1553,7 @@ export default function StaffCreationForm() {
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
       console.error("Failed to save staff", error);
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: formatErrorMessage(t, error),
@@ -2070,7 +2070,7 @@ export default function StaffCreationForm() {
                 return;
               }
               if (!file.type.startsWith("image/")) {
-                Swal.fire({
+                notify.fire({
                   icon: "warning",
                   title: t("admin.staff_creation.invalid_photo_title"),
                   text: t("admin.staff_creation.invalid_photo_desc"),

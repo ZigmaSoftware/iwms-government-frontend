@@ -2,7 +2,7 @@ import type { TableFilters, TripAttendanceRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -10,7 +10,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
@@ -108,7 +108,7 @@ export default function TripAttendanceList() {
       setStaffLookup(buildLookup(normalizeList(userRes), "unique_id", "staff_name", "unique_id"));
       setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
     } catch {
-      Swal.fire(t("common.error"), t("common.fetch_failed"), "error");
+      notify.fire(t("common.error"), t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -140,15 +140,10 @@ export default function TripAttendanceList() {
   };
 
   const actionTemplate = (row: TripAttendanceRecord) => (
-    <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.id), { state: { record: row } })}
+      editLabel={t("common.edit")}
+    />
   );
 
   return (

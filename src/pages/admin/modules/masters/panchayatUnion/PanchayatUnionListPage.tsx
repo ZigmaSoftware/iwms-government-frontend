@@ -6,8 +6,8 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "@/lib/notify";
-import { PencilIcon } from "@/icons";
+import notify from "@/lib/notify";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { panchayatUnionApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
@@ -71,7 +71,7 @@ export default function PanchayatUnionListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Panchayat Union"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Panchayat Union"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +115,7 @@ export default function PanchayatUnionListPage() {
         await panchayatUnionApi.update(id, { is_active: value });
         setRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, is_active: value } : item));
       } catch (error: any) {
-        Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
+        notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
       } finally {
         setPendingStatusId(null);
       }
@@ -130,16 +130,39 @@ export default function PanchayatUnionListPage() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await panchayatUnionApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete Panchayat Union"), "error");
+    }
+  };
+
   const actionTemplate = (row: PanchayatUnionListRecord) => (
-    <div className="flex justify-center gap-3">
-      <button
-        title="Edit"
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel="Edit"
+      deleteLabel="Delete"
+    />
   );
 
   return (

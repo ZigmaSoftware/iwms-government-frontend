@@ -22,7 +22,7 @@ import {
   unwrapLoginPayload,
   type LoginEnvelope,
 } from "@/utils/authStorage";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { loginSchema } from "@/schemas/auth.schema";
 import {
   Eye,
@@ -136,7 +136,7 @@ export default function Auth() {
       if (!validation.success) {
         toast({
           title: t("login.title"),
-          description: toSwalMessage(validation.error),
+          description: toNotifyMessage(validation.error),
           variant: "destructive",
         });
       }
@@ -205,7 +205,7 @@ export default function Auth() {
       <main className="page">
         <section className="left">
           <a className="brand" href="#" aria-label="Zigma home" onClick={(e) => e.preventDefault()}>
-            <img src={Logo} alt="IWMS" />
+            <img src={Logo} alt="IWMS" width={240} height={273} fetchPriority="high" />
           </a>
 
           <h1 className="headline">Smart Solutions for a Cleaner, Greener Tomorrow</h1>
@@ -223,7 +223,7 @@ export default function Auth() {
             <h2 className="welcome">
               Welcome <em>Back!</em>
             </h2>
-            <p className="subtitle">Login to access the Integrated Waste Management System</p>
+            <p className="subtitle">Login to access the Integrated Waste Management Suite</p>
 
             <form onSubmit={handleSignIn} noValidate>
               <div className={`field u${userInvalid ? " invalid" : ""}`}>

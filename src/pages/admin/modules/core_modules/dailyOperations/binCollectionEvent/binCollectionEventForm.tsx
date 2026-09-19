@@ -23,13 +23,13 @@ import {
   wardApi,
 } from "@/helpers/admin";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { binCollectionEventSchema } from "@/schemas/core_modules/dailyOperations/binCollectionEvent.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 type HierarchyLevel = "corporation_id" | "municipality_id" | "town_panchayat_id" | "panchayat_union_id" | "panchayat_id";
@@ -610,7 +610,7 @@ function BinCollectionEventEditor({
       statusReason,
     });
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
     setSaving(true);
@@ -882,7 +882,7 @@ export default function BinCollectionEventForm() {
       .then((res: ApiRecord) => setRecord(res))
       .catch((err) => {
         console.error("Failed to load bin collection event", err);
-        Swal.fire("Load failed", "Could not load this bin collection event.", "error");
+        notify.fire("Load failed", "Could not load this bin collection event.", "error");
       })
       .finally(() => setLoadingRecord(false));
   }, [id]);

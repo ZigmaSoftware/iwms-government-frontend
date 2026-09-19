@@ -3,12 +3,27 @@ import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Home, ChevronRight } from "lucide-react";
 import { buildNavRouteMap } from "../navRouteMap";
+import { decryptSegment } from "@/utils/routeCrypto";
 
 type BreadcrumbItem = {
   label: string;
   path?: string;
   isActive: boolean;
 };
+
+// AES encryption (routeCrypto.encryptSegment) uses a random salt on every
+// call, so the same plaintext segment (e.g. "masters") produces a different
+// ciphertext each time the app boots — including on a hard reload. Comparing
+// the URL's ciphertext directly against navRouteMap's ciphertext (which is
+// re-encrypted fresh on every boot too) therefore only matches by luck.
+// Decrypting both sides back to plaintext first makes the match stable
+// across reloads, same as the actual router does (see decryptSegment usages
+// in AdminEncryptedRouter/AppSidebar/etc).
+const toPlainPath = (path: string): string =>
+  path
+    .split("/")
+    .map((segment) => (segment ? decryptSegment(segment) ?? segment : segment))
+    .join("/");
 
 const AdminBreadcrumb: React.FC = () => {
   const location = useLocation();
@@ -25,20 +40,27 @@ const AdminBreadcrumb: React.FC = () => {
       return [{ ...home, isActive: true }];
     }
 
+    const plainPathname = toPlainPath(location.pathname);
     const routeMap = buildNavRouteMap();
-    const matched = routeMap.find(
-      (r) =>
-        r.path !== "/admin" &&
-        (location.pathname === r.path ||
-          location.pathname.startsWith(r.path + "/"))
-    );
+    const matched = routeMap.find((r) => {
+      if (r.path === "/admin") return false;
+      const plainEntryPath = toPlainPath(r.path);
+      return (
+        plainPathname === plainEntryPath ||
+        plainPathname.startsWith(plainEntryPath + "/")
+      );
+    });
 
     if (!matched) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[AdminBreadcrumb] No navRouteMap entry matches "${location.pathname}". Add an entry in navRouteMap.ts so the breadcrumb renders correctly.`
+        );
+      }
       return [home, { label: "...", isActive: true }];
     }
 
-    const isScheduleMaster = matched.parentNameKey === "admin.nav.schedule_masters";
-    const items: BreadcrumbItem[] = isScheduleMaster ? [] : [home];
+    const items: BreadcrumbItem[] = [home];
 
     if (matched.parentNameKey) {
       items.push({ label: t(matched.parentNameKey), isActive: false });

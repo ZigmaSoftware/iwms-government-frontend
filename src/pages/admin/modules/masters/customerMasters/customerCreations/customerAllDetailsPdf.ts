@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 
 import type { Customer } from "./types";
 import {
@@ -29,7 +29,7 @@ const drawCustomerDetailsPage = async (
   context.fillText("Customer Details", PAGE_WIDTH / 2, 78);
   context.fillStyle = "#64748b";
   context.font = "20px Arial, sans-serif";
-  context.fillText("Integrated Waste Management System", PAGE_WIDTH / 2, 112);
+  context.fillText("Integrated Waste Management Suite", PAGE_WIDTH / 2, 112);
 
   // ── QR code box (top-left) ──
   const qrSize = 190;
@@ -168,6 +168,7 @@ const createAllCustomersPdf = async (customers: Customer[]): Promise<jsPDF> => {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("PDF generation is not supported in this browser.");
 
+  const { jsPDF } = await import("jspdf");
   const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   for (let index = 0; index < customers.length; index += 1) {

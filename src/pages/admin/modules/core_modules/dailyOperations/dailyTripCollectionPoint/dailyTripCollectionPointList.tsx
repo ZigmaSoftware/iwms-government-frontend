@@ -4,13 +4,13 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { dailyTripCollectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -104,7 +104,7 @@ export default function DailyTripCollectionPointList() {
       );
     } catch (error: unknown) {
       setRawRows([]);
-      Swal.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
+      notify.fire(t("common.error"), extractError(error) ?? t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -126,6 +126,32 @@ export default function DailyTripCollectionPointList() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
+
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await dailyTripCollectionPointApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: unknown) {
+      notify.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
+    }
+  };
 
   const rows = useMemo(
     () =>
@@ -224,15 +250,12 @@ export default function DailyTripCollectionPointList() {
         <Column
           header={t("common.actions")}
           body={(row: DailyTripCollectionPointRecord) => (
-            <div className="flex justify-center">
-              <button
-                onClick={() => navigate(EDIT_PATH(row.unique_id))}
-                className="text-blue-600 hover:text-blue-800"
-                title={t("common.edit")}
-              >
-                <PencilIcon className="size-5" />
-              </button>
-            </div>
+            <RowActionsMenu
+              onEdit={() => navigate(EDIT_PATH(row.unique_id))}
+              onDelete={() => void handleDelete(String(row.unique_id))}
+              editLabel={t("common.edit")}
+              deleteLabel={t("common.delete")}
+            />
           )}
           style={{ width: 120 }}
         />

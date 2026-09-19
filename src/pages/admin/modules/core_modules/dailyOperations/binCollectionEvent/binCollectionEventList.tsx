@@ -2,14 +2,14 @@ import type { BinCERecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
@@ -143,7 +143,7 @@ export default function BinCollectionEventList() {
       );
     } catch (error) {
       setRawRows([]);
-      Swal.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
+      notify.fire(t("common.error"), extractError(error) ?? t("common.fetch_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -202,13 +202,13 @@ export default function BinCollectionEventList() {
         "Weight (kg)": row.collected_weight_kg ?? "-",
         "Collection Date": formatCollectionDateTime(row),
       }));
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows,
         getAdminScreenExcelFilename("all"),
         "Bin Collection Events",
       );
     } catch (error) {
-      Swal.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
+      notify.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -231,14 +231,14 @@ export default function BinCollectionEventList() {
         "Weight (kg)": row.collected_weight_kg ?? "-",
         "Collection Date": formatCollectionDateTime(row),
       }));
-      downloadRecordsPdf({
+      await downloadRecordsPdf({
         title: "Secondary Bin Collection Events",
         filename: "secondary_bin_collection_events.pdf",
         rows: exportRows,
         columns: Object.keys(exportRows[0] ?? {}).map((key) => ({ key, label: key })),
       });
     } catch (error) {
-      Swal.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
+      notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -262,6 +262,32 @@ export default function BinCollectionEventList() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
+
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await binCollectionEventApi.delete(id);
+      setRawRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      notify.fire(t("common.error"), extractError(error) ?? t("common.delete_failed"), "error");
+    }
+  };
 
   const header = (
     <div className="space-y-4">
@@ -387,13 +413,12 @@ export default function BinCollectionEventList() {
           header={t("common.actions")}
           style={{ width: 90 }}
           body={(row: BinCERecord) => (
-            <button
-              title="Edit"
-              onClick={() => navigate(VIEW_PATH(row.unique_id ?? ""))}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              <PencilIcon className="size-5" />
-            </button>
+            <RowActionsMenu
+              onEdit={() => navigate(VIEW_PATH(row.unique_id ?? ""))}
+              onDelete={() => void handleDelete(String(row.unique_id ?? ""))}
+              editLabel={t("common.edit")}
+              deleteLabel={t("common.delete")}
+            />
           )}
         />
       </DataTable>

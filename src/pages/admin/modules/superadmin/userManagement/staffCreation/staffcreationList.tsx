@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { type ChangeEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
@@ -11,7 +11,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -20,10 +20,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import {
-  exportRecordsToExcel,
-  getAdminScreenExcelFilename,
-} from "@/utils/exportExcel";
+import { getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import {
   createStaffQrPdfBlob,
   downloadStaffQrPdf,
@@ -176,8 +173,6 @@ export default function StaffCreationList() {
   const [selectedQrStaff, setSelectedQrStaff] = useState<Staff | null>(null);
   const [isPrintingQr, setIsPrintingQr] = useState(false);
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
-  const [isExportingExcel, setIsExportingExcel] = useState(false);
-  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
@@ -212,7 +207,7 @@ export default function StaffCreationList() {
           : toRecordList(response).length,
       );
     } catch (err) {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -278,7 +273,7 @@ export default function StaffCreationList() {
           )
         );
       } catch (err) {
-        Swal.fire(t("common.error"), t("common.update_status_failed"), "error");
+        notify.fire(t("common.error"), t("common.update_status_failed"), "error");
       }
     };
 
@@ -329,48 +324,13 @@ export default function StaffCreationList() {
     return hydrateStaff(staffRows);
   };
 
-  const handleDownloadExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const exportRows = await fetchExportStaff();
-      if (exportRows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
-        return;
-      }
-      exportRecordsToExcel(
-        exportRows.map(staffExcelRow),
-        getAdminScreenExcelFilename("all"),
-        "Staff",
-      );
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to export staff.",
-      });
-    } finally {
-      setIsExportingExcel(false);
-    }
-  };
-
   const handleDownloadPdf = async () => {
-    setIsExportingPdf(true);
-    try {
-      const exportRows = await fetchExportStaff();
-      if (exportRows.length === 0) {
-        Swal.fire(t("common.warning") || "Warning", "No staff to export", "warning");
-        return;
-      }
-      await downloadAllStaffPdf(exportRows);
-    } catch (error) {
-      Swal.fire({
-        icon: "error",
-        title: t("common.error"),
-        text: error instanceof Error ? error.message : "Failed to generate the staff PDF.",
-      });
-    } finally {
-      setIsExportingPdf(false);
+    const exportRows = await fetchExportStaff();
+    if (exportRows.length === 0) {
+      notify.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+      return;
     }
+    await downloadAllStaffPdf(exportRows);
   };
 
   const handlePrintQr = async () => {
@@ -381,7 +341,7 @@ export default function StaffCreationList() {
       setSelectedQrStaff(detailedStaff);
       await downloadStaffQrPdf(detailedStaff);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to generate the staff QR PDF.",
@@ -396,7 +356,7 @@ export default function StaffCreationList() {
 
     const previewWindow = window.open("", "_blank");
     if (!previewWindow) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: "Preview blocked",
         text: "Please allow pop-ups for this site to preview the PDF.",
@@ -417,7 +377,7 @@ export default function StaffCreationList() {
       window.setTimeout(() => URL.revokeObjectURL(previewUrl), 300_000);
     } catch (error) {
       previewWindow.close();
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.error"),
         text: error instanceof Error ? error.message : "Failed to preview the staff QR PDF.",
@@ -427,16 +387,39 @@ export default function StaffCreationList() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.staffCreation.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch {
+      notify.fire(t("common.error"), t("common.delete_failed"), "error");
+    }
+  };
+
   const actionTemplate = (row: Staff) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const indexTemplate = (_: Staff, { rowIndex }: { rowIndex: number }) =>
@@ -450,20 +433,6 @@ export default function StaffCreationList() {
           subtitle={t("admin.staff_creation.subtitle")}
           actions={
             <div className="flex flex-wrap gap-2">
-              <Button
-                label={isExportingExcel ? "Downloading…" : "Download Excel"}
-                icon="pi pi-file-excel"
-                className="p-button-outlined p-button-sm"
-                disabled={isExportingExcel}
-                onClick={handleDownloadExcel}
-              />
-              <Button
-                label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-                icon="pi pi-file-pdf"
-                className="p-button-outlined p-button-sm"
-                disabled={isExportingPdf}
-                onClick={handleDownloadPdf}
-              />
               <Button
                 label={t("admin.staff_creation.create")}
                 icon="pi pi-plus"
@@ -519,6 +488,16 @@ export default function StaffCreationList() {
         />
         <DataTable
           value={rows}
+          onExportRequest={async () => {
+            const exportRows = await fetchExportStaff();
+            if (exportRows.length === 0) {
+              notify.fire(t("common.warning") || "Warning", "No staff to export", "warning");
+            }
+            return exportRows.map(staffExcelRow);
+          }}
+          exportFilename={getAdminScreenExcelFilename("all")}
+          exportSheetName="Staff"
+          onPdfRequest={handleDownloadPdf}
           lazy
           paginator
           first={first}

@@ -108,7 +108,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encDailyWasteComparison,
     encWasteTypes,
     encProperties,
-    encSubProperties
+    encSubProperties,
+    encAppModules
   } = getEncryptedRoute();
 
   _cache = [
@@ -124,6 +125,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encSuperAdmin}/${encUserScreen}`, nameKey: "admin.nav.user_screen", parentNameKey: "admin.nav.screen_management" },
     { path: `/${encSuperAdmin}/${encUserScreenAction}`, nameKey: "admin.nav.user_screen_action", parentNameKey: "admin.nav.screen_management" },
     { path: `/${encSuperAdmin}/${encUserScreenPermission}`, nameKey: "admin.nav.user_screen_permission", parentNameKey: "admin.nav.screen_management" },
+    { path: `/${encSuperAdmin}/${encAppModules}`, nameKey: "admin.nav.app_modules", parentNameKey: "admin.nav.screen_management" },
 
     // ── Super Admin > Role Management ──
     { path: `/${encRoleManagement}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.role_management" },

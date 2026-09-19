@@ -1,13 +1,14 @@
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import Swal from "@/lib/notify";
-import { PencilIcon } from "@/icons";
+import notify from "@/lib/notify";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { townPanchayatApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
@@ -43,6 +44,7 @@ const columns = [
 
 export default function TownPanchayatListPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { encMasters, encTownPanchayats } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(encMasters, encTownPanchayats);
 
@@ -71,7 +73,7 @@ export default function TownPanchayatListPage() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error: any) {
-      Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Town Panchayat"), "error");
+      notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to load Town Panchayat"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +117,7 @@ export default function TownPanchayatListPage() {
         await townPanchayatApi.update(id, { is_active: value });
         setRows((current) => current.map((item) => item.unique_id === row.unique_id ? { ...item, is_active: value } : item));
       } catch (error: any) {
-        Swal.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
+        notify.fire("Error", String(error?.response?.data?.detail ?? error?.message ?? "Failed to update status"), "error");
       } finally {
         setPendingStatusId(null);
       }
@@ -130,16 +132,43 @@ export default function TownPanchayatListPage() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await townPanchayatApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      notify.fire(
+        "Error",
+        String(error?.response?.data?.detail ?? error?.message ?? "Failed to delete Town Panchayat"),
+        "error"
+      );
+    }
+  };
+
   const actionTemplate = (row: TownPanchayatListRecord) => (
-    <div className="flex justify-center gap-3">
-      <button
-        title="Edit"
-        className="text-blue-600 hover:text-blue-800"
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   return (

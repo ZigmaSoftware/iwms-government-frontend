@@ -6,17 +6,14 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { Switch } from "@/components/ui/switch";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Button } from "primereact/button";
 import { Column } from "primereact/column";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
-import "primereact/resources/themes/lara-light-blue/theme.css";
-import "primereact/resources/primereact.min.css";
-import "primeicons/primeicons.css";
 import type { ContinentRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -111,7 +108,7 @@ export default function ContinentList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.fetch_failed")),
         "error"
@@ -172,7 +169,7 @@ export default function ContinentList() {
         )
       );
     } catch (error) {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         extractErrorMessage(error, t("common.update_status_failed")),
         "error"
@@ -198,16 +195,43 @@ export default function ContinentList() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: t("common.confirm_title"),
+      text: t("common.confirm_delete_text"),
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.continents.delete(id);
+      setContinents((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: t("common.deleted_success"),
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      notify.fire(
+        t("common.error"),
+        extractErrorMessage(error, t("common.delete_failed")),
+        "error"
+      );
+    }
+  };
+
   const actionBodyTemplate = (row: ContinentRecord) => (
-    <div className="flex gap-3 justify-center">
-      <button
-        onClick={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
-        className="text-blue-600 hover:text-blue-800"
-        title={t("common.edit")}
-      >
-        <PencilIcon className="size-5" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(String(row.unique_id)))}
+      onDelete={() => void handleDelete(String(row.unique_id))}
+      editLabel={t("common.edit")}
+      deleteLabel={t("common.delete")}
+    />
   );
 
   const indexTemplate = (
