@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { MultiSelect } from "@/components/ui/multi-select";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -21,7 +22,27 @@ const toRecordList = (value: unknown): LoginAuditRecord[] => {
   return [];
 };
 
-const SORTABLE_FIELDS = new Set(["username", "timestamp"]);
+const LOGIN_MODULES = [
+  "staff",
+  "government",
+  "contractor",
+  "customer",
+  "platform",
+  "panchayat_leader",
+  "district_leader",
+  "state_leader",
+  "auto",
+] as const;
+
+const SORTABLE_FIELDS = new Set(["module_name", "username", "timestamp"]);
+
+const formatModuleName = (value?: string | null) => {
+  if (!value) return "-";
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
 
 const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
 
@@ -50,17 +71,25 @@ export default function LoginAuditList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [moduleFilter, setModuleFilter] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
 
-  const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
+  const loadRows = async (
+    page: number,
+    limit: number,
+    search: string,
+    ordering?: string,
+    moduleNames?: string[],
+  ) => {
     setIsLoading(true);
     try {
       const response = await adminApi.loginAudits.readAllwithPaginated(page, limit, {
         params: {
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
+          ...(moduleNames && moduleNames.length ? { module_name: moduleNames.join(",") } : {}),
         },
       });
       setRows(normalizeList(toRecordList(response)) as LoginAuditRecord[]);
@@ -78,10 +107,12 @@ export default function LoginAuditList() {
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
     : undefined;
 
+  const moduleFilterKey = moduleFilter.join(",");
+
   useEffect(() => {
-    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering, moduleFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, moduleFilterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -127,7 +158,7 @@ export default function LoginAuditList() {
     <div className="p-3">
       <ListPageHeader
         title={t("admin.nav.login_audit")}
-        subtitle={t("admin.login_audit_subtitle", "Login audit records")}
+        subtitle={t("admin.login_audit.subtitle", "Login audit records by module")}
         className="mb-6"
       />
 
@@ -149,17 +180,43 @@ export default function LoginAuditList() {
           <FilterBar
             searchValue={globalFilterValue}
             onSearchChange={setGlobalFilterValue}
-            searchPlaceholder={t("admin.login_audit_search", "Search login audits...")}
+            searchPlaceholder={t("admin.login_audit.search_placeholder", "Search login audits...")}
             className="mb-4"
-          />
+          >
+            <div className="w-full sm:w-64">
+              <MultiSelect
+                value={moduleFilter}
+                onChange={(next) => {
+                  setFirst(0);
+                  setModuleFilter(next);
+                }}
+                options={LOGIN_MODULES.map((moduleName) => ({
+                  label: formatModuleName(moduleName),
+                  value: moduleName,
+                }))}
+                placeholder={t("admin.login_audit.module_filter", "Filter by module")}
+                aria-label={t("admin.login_audit.module_filter", "Filter by module")}
+              />
+            </div>
+          </FilterBar>
         }
         stripedRows
         showGridlines
         emptyMessage={t("common.no_records")}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 70 }} />
+        <Column
+          header={t("common.s_no")}
+          body={(_: LoginAuditRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1}
+          style={{ width: 70 }}
+        />
         <Column field="unique_id" header="ID" />
+        <Column
+          field="module_name"
+          header={t("admin.login_audit.module", "Module")}
+          body={(row: LoginAuditRecord) => formatModuleName(row.module_name)}
+          sortable
+        />
         <Column field="username" header="Username" sortable />
         <Column field="ip_address" header="IP Address" />
         <Column field="user_agent" header="User Agent" />
@@ -181,11 +238,19 @@ export default function LoginAuditList() {
       <Dialog open={Boolean(selectedAudit)} onOpenChange={(open) => !open && closeDetails()}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{t("admin.login_audit_details", "Login Audit Details")}</DialogTitle>
+            <DialogTitle>{t("admin.login_audit.detail_title", "Login Audit Details")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 md:grid-cols-2">
             <JsonViewer title="Audit Record" value={selectedAudit ?? undefined} />
             <div className="space-y-2">
+              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  {t("admin.login_audit.module", "Module")}
+                </p>
+                <p className="font-semibold text-gray-900">
+                  {formatModuleName(selectedAudit?.module_name)}
+                </p>
+              </div>
               <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Username</p>
                 <p className="font-semibold text-gray-900">{selectedAudit?.username ?? "-"}</p>

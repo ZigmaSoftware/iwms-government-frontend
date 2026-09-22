@@ -23,7 +23,6 @@ const HomeDashboard = lazy(() =>
 const AdminHome = lazy(() => import("@/pages/admin/AdminHome"));
 const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
-const StaffAuditList = lazy(() => import("@/pages/admin/modules/audits/staffAudit/staffAuditList"));
 const DashboardEncryptedRouter = lazy(() => import("@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter"));
 const DailyTripLogReportPage = lazy(
   () => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripLog/DailyTripLogReportPage"),
@@ -151,7 +150,10 @@ export default function App() {
         <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
         <Route path="/admin" element={withAdmin(<AdminHome />)} />
         <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
-        <Route path="/audits/staff-audit" element={withAdmin(<StaffAuditList />)} />
+        {/* staff-audit ("Collection Audit") folded into Transaction Audit —
+            CommonAuditList handles hierarchy auto-scoping itself now, so an
+            old bookmark to this plain URL lands on the same merged page. */}
+        <Route path="/audits/staff-audit" element={withAdmin(<CommonAuditList />)} />
         <Route path="/:encMaster/:encModule" element={withAdmin(<AdminEncryptedRouter />)} />
         <Route path="/:encMaster/:encModule/new/*" element={withAdmin(<AdminEncryptedRouter />)} />
         <Route path="/:encMaster/:encModule/:id/edit/*" element={withAdmin(<AdminEncryptedRouter />)} />
