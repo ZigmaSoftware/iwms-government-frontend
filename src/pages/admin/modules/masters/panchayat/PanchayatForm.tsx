@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -23,7 +23,7 @@ import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { panchayatSchema } from "@/schemas/masters/panchayat.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import GeoFenceCoordinates, {
   normalizeCoordinateDrafts,
   serializeCoordinateDrafts,
@@ -214,10 +214,10 @@ function PanchayatEditor({
     });
 
     if (!result.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(result.error),
+        text: toNotifyMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;
@@ -473,7 +473,7 @@ export default function PanchayatForm() {
           !scopeOption("district") &&
           !scopeOption("area_type")
         ) {
-          Swal.fire({
+          notify.fire({
             icon: "error",
             title: t("common.error"),
             text: "Failed to load dropdown data",
@@ -497,7 +497,7 @@ export default function PanchayatForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.error"),
           text: extractErrorMessage(err, t("common.load_failed")),
@@ -511,7 +511,7 @@ export default function PanchayatForm() {
     try {
       if (isEdit && id) {
         await adminApi.panchayats.update(id, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -519,7 +519,7 @@ export default function PanchayatForm() {
         });
       } else {
         await adminApi.panchayats.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -528,7 +528,7 @@ export default function PanchayatForm() {
       }
       navigate(LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),

@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { asArray, errorText, yesNo } from "../utils";
@@ -75,7 +75,7 @@ export default function MasterList({ kind }: Props) {
         typeof (response as any)?.count === "number" ? (response as any).count : asArray(response).length,
       );
     } catch (error) {
-      Swal.fire("Error", errorText(error, "Unable to load records"), "error");
+      notify.fire("Error", errorText(error, "Unable to load records"), "error");
     } finally {
       setIsLoading(false);
     }
@@ -106,6 +106,32 @@ export default function MasterList({ kind }: Props) {
   }, [query, kind]);
 
   const edit = (row: any) => navigate(editPath(row.unique_id));
+
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await api.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      notify.fire("Error", errorText(error, "Failed to delete"), "error");
+    }
+  };
 
   return (
     <div className="p-3">
@@ -173,7 +199,18 @@ export default function MasterList({ kind }: Props) {
         {kind === "slaRule" && <Column field="resolve_within_minutes" header="Resolve Minutes" />}
         {kind === "slaRule" && <Column header="Working Hours" body={(row) => yesNo(row.working_hours_only)} />}
         <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
-        <Column header="Actions" body={(row) => <button className="text-blue-600" onClick={() => edit(row)} title="Edit"><PencilIcon className="size-5" /></button>} style={{ width: "100px" }} />
+        <Column
+          header="Actions"
+          body={(row) => (
+            <RowActionsMenu
+              onEdit={() => edit(row)}
+              onDelete={() => void handleDelete(String(row.unique_id))}
+              editLabel="Edit"
+              deleteLabel="Delete"
+            />
+          )}
+          style={{ width: "100px" }}
+        />
       </DataTable>
     </div>
   );

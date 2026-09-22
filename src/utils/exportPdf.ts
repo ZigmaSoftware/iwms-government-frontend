@@ -1,6 +1,10 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 import QRCode from "qr.js/lib/QRCode";
 import ErrorCorrectLevel from "qr.js/lib/ErrorCorrectLevel";
+
+// jspdf is ~386KB minified — loaded on demand only when a user actually
+// triggers a PDF export, instead of shipping in every list page's chunk.
+const loadJsPdf = () => import("jspdf").then((m) => m.jsPDF);
 
 export type PdfColumn = {
   key: string;
@@ -12,7 +16,7 @@ const display = (value: unknown) =>
     ? "-"
     : String(value);
 
-export const downloadRecordsPdf = ({
+export const downloadRecordsPdf = async ({
   title,
   filename,
   rows,
@@ -25,7 +29,8 @@ export const downloadRecordsPdf = ({
 }) => {
   if (rows.length === 0) throw new Error("No records to export.");
 
-  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const JsPdf = await loadJsPdf();
+  const pdf = new JsPdf({ orientation: "landscape", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const margin = 10;
   const usableWidth = pageWidth - margin * 2;

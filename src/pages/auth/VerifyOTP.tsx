@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import ZigmaLogo from "@/images/logo.png";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { forgotPasswordSchema, otpVerificationSchema } from "@/schemas/auth.schema";
 
 const OTP_LENGTH = 4;
@@ -82,7 +82,7 @@ export default function VerifyOTP() {
       otpCode: otp,
     });
     if (!validation.success) {
-      setError(toSwalMessage(validation.error));
+      setError(toNotifyMessage(validation.error));
       return;
     }
 
@@ -109,7 +109,7 @@ export default function VerifyOTP() {
       email: state?.email ?? "",
     });
     if (!validation.success) {
-      setError(toSwalMessage(validation.error));
+      setError(toNotifyMessage(validation.error));
       return;
     }
     setResending(true);

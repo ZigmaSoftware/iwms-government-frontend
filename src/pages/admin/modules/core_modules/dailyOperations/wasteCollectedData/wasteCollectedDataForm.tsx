@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -28,7 +28,7 @@ import {
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { capitalize } from "@/utils/capitalize";
 import { wasteCollectedDataSchema } from "@/schemas/core_modules/dailyOperations/wasteCollectedData.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 
 
@@ -333,7 +333,7 @@ function WasteCollectedEditor({
       })
       .catch(() => {
         if (cancelled) return;
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
       })
       .finally(() => {
         if (cancelled) return;
@@ -583,7 +583,7 @@ function WasteCollectedEditor({
       sanitaryWaste,
     });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 
@@ -611,14 +611,14 @@ function WasteCollectedEditor({
     try {
       if (isEdit && id) {
         await wasteCollectionApi.update(id, payload);
-        Swal.fire(t("common.success"), t("common.updated_success"), "success");
+        notify.fire(t("common.success"), t("common.updated_success"), "success");
       } else {
         await wasteCollectionApi.create(payload);
-        Swal.fire(t("common.success"), t("admin.household_collection_event.save_success"), "success");
+        notify.fire(t("common.success"), t("admin.household_collection_event.save_success"), "success");
       }
       onDone();
     } catch (err: any) {
-      Swal.fire(t("common.save_failed"), extractError(err) ?? t("common.save_failed_desc"), "error");
+      notify.fire(t("common.save_failed"), extractError(err) ?? t("common.save_failed_desc"), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -892,7 +892,7 @@ export default function WasteCollectedForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? t("common.load_failed") });
+        notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? t("common.load_failed") });
       });
     return () => { cancelled = true; };
   }, [id, isEdit, t]);

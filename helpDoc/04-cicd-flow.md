@@ -9,7 +9,7 @@ workflow's steps actually do — this file is about the **branch flow** and the
 ## Branch flow
 
 ```
-<developer> (sathya, sameer, vinoth, lux, pavithra, ...)
+<developer> (sathya, sameer, vinoth, ...)
         │  PR
         ▼
       dev

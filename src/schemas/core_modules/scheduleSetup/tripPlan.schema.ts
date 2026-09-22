@@ -18,7 +18,7 @@ const stopRowSchema = z.object({
 
 /**
  * Mirrors exactly what the old manual checks in tripPlanForm.tsx's `onSubmit`
- * guarded (same messages, now surfaced through `toSwalMessage`):
+ * guarded (same messages, now surfaced through `toNotifyMessage`):
  *  - State / District / Local Body / Staff Template / Vehicle: required
  *    together (matches the old combined message).
  *  - Waste Type: at least one selection required.

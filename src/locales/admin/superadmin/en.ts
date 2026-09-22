@@ -88,6 +88,7 @@ export default {
     "user_screen_action": "UserScreen Action",
     "user_screen_permission": "User Screen Permission",
     "companywise_user_screen_permission": "User Screen Permission",
+    "app_modules": "App Modules",
     "roleAssigns": "Role Assigns",
     "user_type": "User Type",
     "user_creation": "User Creation",

@@ -4,10 +4,12 @@ import { Column } from "primereact/column";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Button } from "@/components/ui/button";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { dailyTripAssignmentApi, unassignedStaffPoolApi, userCreationApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
+import notify from "@/lib/notify";
 
 type Row = Record<string, any>;
 
@@ -42,6 +44,32 @@ export default function UnassignedStaffPoolList() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await unassignedStaffPoolApi.delete(id);
+      setRows((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch {
+      notify.fire("Error", "Failed to delete.", "error");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
@@ -52,7 +80,15 @@ export default function UnassignedStaffPoolList() {
         <Column field="driver_name" header="Driver" />
         <Column field="daily_trip_assignment_name" header="Daily Trip Assignment" />
         <Column field="status" header="Status" />
-        <Column header="Action" body={(row: Row) => <Button variant="outline" onClick={() => navigate(editPath(row.unique_id))}>Edit</Button>} />
+        <Column
+          header="Action"
+          body={(row: Row) => (
+            <RowActionsMenu
+              onEdit={() => navigate(editPath(row.unique_id))}
+              onDelete={() => void handleDelete(row.unique_id)}
+            />
+          )}
+        />
       </DataTable>
     </div>
   );

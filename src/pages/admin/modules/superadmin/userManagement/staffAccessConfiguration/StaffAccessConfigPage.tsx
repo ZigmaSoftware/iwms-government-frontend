@@ -9,7 +9,7 @@ import Label from "@/components/form/Label";
 import Select, { type SelectOption } from "@/components/form/Select";
 import PasswordInput from "@/components/form/input/PasswordInput";
 import { Input } from "@/components/ui/input";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { capitalize } from "@/utils/capitalize";
 import { adminApi } from "@/helpers/admin/registry";
 import { staffAccessConfigurationApi } from "@/helpers/admin";
@@ -547,7 +547,7 @@ export default function StaffAccessConfigPage() {
             panchayat_union_id: mergeRecord(prev.panchayat_union_id, "panchayat_union", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
             panchayat_id: mergeRecord(prev.panchayat_id, "panchayat", scopedDistrictId ? { district_id: scopedDistrictId } : {}),
           }));
-          Swal.fire("Error", "Failed to load staff access options.", "error");
+          notify.fire("Error", "Failed to load staff access options.", "error");
         }
       } finally {
         if (mounted) setLoadingOptions(false);
@@ -671,7 +671,7 @@ export default function StaffAccessConfigPage() {
       } catch (error) {
         if (!cancelled) {
           const errorMap = extractErrorMap(error);
-          Swal.fire("Error", firstApiError(errorMap, "Failed to load staff access configuration."), "error");
+          notify.fire("Error", firstApiError(errorMap, "Failed to load staff access configuration."), "error");
         }
       } finally {
         if (!cancelled) setLoadingPermissions(false);
@@ -943,7 +943,7 @@ export default function StaffAccessConfigPage() {
         );
         setLoadedPermissionScopeKey(permissionScopeKey);
       } catch {
-        if (!cancelled) Swal.fire("Error", "Failed to load permissions.", "error");
+        if (!cancelled) notify.fire("Error", "Failed to load permissions.", "error");
       } finally {
         if (!cancelled) setLoadingPermissions(false);
       }
@@ -1260,7 +1260,7 @@ export default function StaffAccessConfigPage() {
     } catch {
       // Non-fatal: the rest of the configuration is already saved, and the
       // ticks can be re-applied without redoing the whole form.
-      Swal.fire(
+      notify.fire(
         "Saved with a warning",
         "The configuration saved, but mobile app access could not be updated. Check your permission to edit Staff Access Configuration.",
         "warning",
@@ -1326,12 +1326,12 @@ export default function StaffAccessConfigPage() {
         if (savedStaffId) setCreatedStaffId(savedStaffId);
       }
       await saveAppModules(savedStaffId);
-      await Swal.fire("Saved", "Staff access configuration saved successfully.", "success");
+      await notify.fire("Saved", "Staff access configuration saved successfully.", "success");
       navigate(listPath);
     } catch (error) {
       const errorMap = extractErrorMap(error);
       setApiErrors(errorMap);
-      Swal.fire("Error", firstApiError(errorMap, "Unable to save staff access configuration."), "error");
+      notify.fire("Error", firstApiError(errorMap, "Unable to save staff access configuration."), "error");
     } finally {
       setSaving(false);
     }

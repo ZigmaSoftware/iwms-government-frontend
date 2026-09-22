@@ -3,6 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Dialog } from "primereact/dialog";
 import { InputTextarea } from "primereact/inputtextarea";
 import { Button } from "primereact/button";
+import "primereact/resources/themes/lara-light-blue/theme.css";
+import "primereact/resources/primereact.min.css";
+import "primeicons/primeicons.css";
 import { MultiSelect } from "@/components/form/MultiSelect";
 import { api } from "@/api";
 
@@ -28,7 +31,7 @@ import {
   wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList, staffTemplateLabel, altStaffTemplateLabel } from "@/utils/forms";
@@ -36,7 +39,7 @@ import { staffTemplateInHierarchy } from "@/hooks/useGeoHierarchy";
 import type { DailyTripCollectionPointInline, DailyTripHouseholdCollectionInline } from "./types";
 import { filterLocalBodyLevelsByScope, mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
 import { dailyTripAssignmentSchema } from "@/schemas/core_modules/dailyOperations/dailyTripAssignment.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { capitalize } from "@/utils/capitalize";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -847,7 +850,7 @@ export default function DailyTripAssignmentForm() {
       setProceedMode(null);
       setSelectedCpIds(new Set());
       await refreshStopsAfterProceed();
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Trip Proceeded",
         text: `A new trip (${response.data?.new_assignment_id ?? ""}) has been created for the remaining stops.`,
@@ -857,7 +860,7 @@ export default function DailyTripAssignmentForm() {
     } catch (err: any) {
       const data = err?.response?.data;
       const message = data?.detail ?? data?.remarks ?? data?.collection_point_ids ?? "Unable to proceed with next trip.";
-      Swal.fire("Error", String(Array.isArray(message) ? message[0] : message), "error");
+      notify.fire("Error", String(Array.isArray(message) ? message[0] : message), "error");
     } finally {
       setIsProceeding(false);
     }
@@ -875,7 +878,7 @@ export default function DailyTripAssignmentForm() {
       scheduledTime,
     });
     if (!validation.success) {
-      Swal.fire("Missing details", toSwalMessage(validation.error), "warning");
+      notify.fire("Missing details", toNotifyMessage(validation.error), "warning");
       return;
     }
     setSaving(true);
@@ -944,7 +947,7 @@ export default function DailyTripAssignmentForm() {
             : typeof first === "string"
               ? first
               : "Unable to save the daily trip plan.";
-      Swal.fire("Unable to save", message, "error");
+      notify.fire("Unable to save", message, "error");
     } finally {
       setSaving(false);
     }

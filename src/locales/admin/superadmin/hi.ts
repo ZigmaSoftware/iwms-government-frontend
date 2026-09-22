@@ -60,6 +60,7 @@ export default {
     "main_screen": "मेन स्क्रीन",
     "user_screen": "यूज़र स्क्रीन",
     "user_screen_permission": "यूज़र स्क्रीन अनुमति",
+    "app_modules": "ऐप मॉड्यूल",
     "roleAssigns": "रोल असाइनमेंट",
     "user_type": "यूज़र प्रकार",
     "user_creation": "यूज़र निर्माण",

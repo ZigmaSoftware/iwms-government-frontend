@@ -2,7 +2,7 @@ import type { StaffTemplateAuditRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -29,7 +29,7 @@ export default function StaffTemplateAuditForm() {
     staffTemplateAuditLogApi.read(id)
       .then((res: any) => setRecord(res ?? null))
       .catch(() => {
-        Swal.fire(t("common.error"), t("common.load_failed"), "error");
+        notify.fire(t("common.error"), t("common.load_failed"), "error");
       })
       .finally(() => setLoading(false));
   }, [id, t]);

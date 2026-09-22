@@ -4,9 +4,9 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { vehicleTripAuditSchema } from "@/schemas/masters/transportMasters/vehicleTripAudit.schema";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -254,7 +254,7 @@ export default function VehicleTripAuditForm() {
       .catch((error) => {
         if (cancelled) return;
         setFetching(false);
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(error) ?? t("common.load_failed"),
           "error"
@@ -285,7 +285,7 @@ export default function VehicleTripAuditForm() {
       })
       .catch((error: any) => {
         if (cancelled) return;
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(error) ?? t("common.load_failed"),
           "error"
@@ -339,7 +339,7 @@ export default function VehicleTripAuditForm() {
 
     const validation = vehicleTripAuditSchema.safeParse(formData);
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 
@@ -349,7 +349,7 @@ export default function VehicleTripAuditForm() {
       latValues = parseGpsArray(validation.data.gps_lat);
       lonValues = parseGpsArray(validation.data.gps_lon);
     } catch (error: unknown) {
-      Swal.fire(
+      notify.fire(
         t("common.warning"),
         String(error instanceof Error ? error.message : t("common.invalid_data")),
         "warning"
@@ -362,13 +362,13 @@ export default function VehicleTripAuditForm() {
       !lonValues.length ||
       latValues.length !== lonValues.length
     ) {
-      Swal.fire(t("common.warning"), t("common.invalid_data"), "warning");
+      notify.fire(t("common.warning"), t("common.invalid_data"), "warning");
       return;
     }
 
     const avgSpeed = Number(validation.data.avg_speed);
     if (!Number.isFinite(avgSpeed)) {
-      Swal.fire(t("common.warning"), t("common.invalid_data"), "warning");
+      notify.fire(t("common.warning"), t("common.invalid_data"), "warning");
       return;
     }
 
@@ -392,7 +392,7 @@ export default function VehicleTripAuditForm() {
         await adminApi.vehicleTripAudits.create(payload);
       }
 
-      Swal.fire(
+      notify.fire(
         t("common.success"),
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success"
@@ -400,7 +400,7 @@ export default function VehicleTripAuditForm() {
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
       const message = extractErrorMessage(error) ?? t("common.save_failed_desc");
-      Swal.fire(t("common.save_failed"), message, "error");
+      notify.fire(t("common.save_failed"), message, "error");
     } finally {
       setIsSubmitting(false);
     }

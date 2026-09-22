@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintCategoryApi, complaintSubcategoryApi } from "@/features/complaintTicketing/api";
@@ -55,7 +55,7 @@ export default function CategoryManagementScreen() {
         setCategories(asArray(categoryRes));
         setSubcategories(asArray(subcategoryRes));
       })
-      .catch((err) => Swal.fire("Error", errorText(err, "Unable to load categories"), "error"));
+      .catch((err) => notify.fire("Error", errorText(err, "Unable to load categories"), "error"));
   }, []);
 
   const selectedCategory = useMemo(
@@ -76,6 +76,59 @@ export default function CategoryManagementScreen() {
   const addSubcategory = () => {
     if (!selectedCategoryId) return;
     navigate(`${subcategoryRoutes.newPath}?category=${selectedCategoryId}`);
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await complaintCategoryApi.delete(id);
+      setCategories((current) => current.filter((row) => row.unique_id !== id));
+      if (selectedCategoryId === id) setSelectedCategoryId(null);
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      notify.fire("Error", errorText(error, "Failed to delete"), "error");
+    }
+  };
+
+  const handleDeleteSubcategory = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await complaintSubcategoryApi.delete(id);
+      setSubcategories((current) => current.filter((row) => row.unique_id !== id));
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch (error: any) {
+      notify.fire("Error", errorText(error, "Failed to delete"), "error");
+    }
   };
 
   return (
@@ -126,9 +179,14 @@ export default function CategoryManagementScreen() {
         <Column
           header="Actions"
           body={(row) => (
-            <button className="text-blue-600" onClick={(e) => { e.stopPropagation(); editCategory(row); }} title="Edit">
-              <PencilIcon className="size-5" />
-            </button>
+            <div onClick={(e) => e.stopPropagation()}>
+              <RowActionsMenu
+                onEdit={() => editCategory(row)}
+                onDelete={() => void handleDeleteCategory(String(row.unique_id))}
+                editLabel="Edit"
+                deleteLabel="Delete"
+              />
+            </div>
           )}
           style={{ width: "100px" }}
         />
@@ -168,9 +226,12 @@ export default function CategoryManagementScreen() {
             <Column
               header="Actions"
               body={(row) => (
-                <button className="text-blue-600" onClick={() => editSubcategory(row)} title="Edit">
-                  <PencilIcon className="size-5" />
-                </button>
+                <RowActionsMenu
+                  onEdit={() => editSubcategory(row)}
+                  onDelete={() => void handleDeleteSubcategory(String(row.unique_id))}
+                  editLabel="Edit"
+                  deleteLabel="Delete"
+                />
               )}
               style={{ width: "100px" }}
             />

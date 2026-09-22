@@ -3,7 +3,7 @@ import type { TableFilters } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -45,7 +45,7 @@ export default function StaffTemplateAuditList() {
       const payload: any = await staffTemplateAuditLogApi.readAll();
       setRecords(normalizeList<StaffTemplateAuditRecord>(payload));
     } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }

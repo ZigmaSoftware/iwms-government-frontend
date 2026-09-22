@@ -117,10 +117,33 @@ URL.
 
 ## Full local flow with the backend
 
-1. In `iwms-government-backend`: `docker compose up -d` then
+1. In `iwms-government-backend`: `docker compose up -d --build` (starts `db`
+   + `redis` + `backend`) then
    `docker compose exec -T backend python manage.py migrate`.
 2. In this repo: `npm run dev`.
 3. Log in through the Vite dev URL and exercise the feature.
+
+## Quick reference: rerun everything from scratch (Option B / Docker)
+
+The four commands to go from "nothing running" to "verified healthy":
+
+```bash
+cd iwms-government-frontend
+docker compose build --no-cache
+docker compose up -d
+curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/
+```
+
+| Step | Why it's needed |
+|---|---|
+| `cd iwms-government-frontend` | `docker compose` reads `docker-compose.yml`/`.env` relative to the current directory — there's no global config. |
+| `docker compose build --no-cache` | Bakes the current `.env`'s `VITE_*` values into a fresh image. Plain `build` (no `--no-cache`) can silently reuse a cached `npm run build` layer from a *previous* build with different values — e.g. you build `sk028`'s prod-tagged image, then switch `.env` back to `local` and run a plain `build`: without `--no-cache` you can end up with a "local" image that's still serving the production API. `--no-cache` forces the build args to actually re-bake. |
+| `docker compose up -d` | Starts the container from that image, in the background (`-d`). `build` alone only produces an image on disk — nothing is running until this step. |
+| `curl ...` | Verifies it's actually serving — `200` means the container is up and `serve` is responding on port 3000. `000`/connection-reset right after `up -d` is usually just a startup race; retry, or check `docker compose logs frontend`. |
+
+Use this after any `.env`/`VITE_*` change, or whenever you specifically need
+Docker parity (e.g. confirming the built bundle, not just the dev server) —
+day-to-day UI work is faster with **Option A** (`npm run dev`) above.
 
 ## Tear down
 

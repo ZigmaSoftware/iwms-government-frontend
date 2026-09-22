@@ -2,8 +2,8 @@
    ZIGMA IWMS — animated login (ported from zigma-login-animated-v3.html)
    Everything is scoped under .zigma-login so it can never leak into
    or collide with the rest of the app's styles.
+   Poppins is already loaded globally in index.html — no @import needed here.
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 /* ---------- 1. Tokens ---------- */
 .zigma-login{

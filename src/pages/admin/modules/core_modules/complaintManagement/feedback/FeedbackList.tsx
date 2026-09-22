@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
@@ -40,7 +40,7 @@ export default function FeedbackList() {
         typeof response?.count === "number" ? response.count : asArray<ComplaintFeedback>(response).length,
       );
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Unable to load feedback"), "error");
+      notify.fire("Error", errorText(err, "Unable to load feedback"), "error");
     } finally {
       setIsLoading(false);
     }

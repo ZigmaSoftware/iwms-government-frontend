@@ -6,11 +6,11 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import ComponentCard from "@/components/common/ComponentCard";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { adminApi } from "@/helpers/admin/registry";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { PencilIcon } from "@/icons";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
@@ -93,7 +93,7 @@ export default function StaffAccessConfigList() {
           : rows.length,
       );
     } catch {
-      Swal.fire("Error", "Failed to load staff access configurations.", "error");
+      notify.fire("Error", "Failed to load staff access configurations.", "error");
     } finally {
       setLoading(false);
     }
@@ -150,18 +150,42 @@ export default function StaffAccessConfigList() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    const confirmDelete = await notify.fire({
+      title: "Are you sure?",
+      text: "This action cannot be undone.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+    });
+
+    if (!confirmDelete.isConfirmed) return;
+
+    try {
+      await adminApi.staffAccessConfiguration.delete(id);
+      setRecords((current) =>
+        current.filter((row) => textOf(row.unique_id, row.id) !== id)
+      );
+      notify.fire({
+        icon: "success",
+        title: "Deleted successfully",
+        timer: 1500,
+        showConfirmButton: false,
+      });
+    } catch {
+      notify.fire("Error", "Failed to delete staff access configuration.", "error");
+    }
+  };
+
   const actionTemplate = (row: StaffAccessRecord) => {
     const id = textOf(row.unique_id, row.id);
     if (id === "-") return null;
     return (
-      <button
-        type="button"
-        title="Edit"
-        onClick={() => navigate(editPath(id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <PencilIcon className="size-5" />
-      </button>
+      <RowActionsMenu
+        onEdit={() => navigate(editPath(id))}
+        onDelete={() => void handleDelete(id)}
+      />
     );
   };
 

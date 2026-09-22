@@ -2,7 +2,7 @@ import type { ContinentPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { continentSchema } from "@/schemas/superadmin/commonMasters/continent.schema";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import type { ContinentEditorProps } from "./types";
@@ -84,10 +84,10 @@ function ContinentEditor({
     });
 
     if (!result.success) {
-      Swal.fire({
+      notify.fire({
         icon: "warning",
         title: t("common.warning"),
-        text: toSwalMessage(result.error),
+        text: toNotifyMessage(result.error),
         confirmButtonColor: "#3085d6",
       });
       return;
@@ -192,7 +192,7 @@ function ContinentForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err, t("common.load_failed")) });
+        notify.fire({ icon: "error", title: t("common.error"), text: extractErrorMessage(err, t("common.load_failed")) });
       });
     return () => { cancelled = true; };
   }, [id, isEdit]);
@@ -202,7 +202,7 @@ function ContinentForm() {
     try {
       if (isEdit) {
         await adminApi.continents.update(id as string, payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.updated_success"),
           timer: 1500,
@@ -210,7 +210,7 @@ function ContinentForm() {
         });
       } else {
         await adminApi.continents.create(payload);
-        Swal.fire({
+        notify.fire({
           icon: "success",
           title: t("common.added_success"),
           timer: 1500,
@@ -220,7 +220,7 @@ function ContinentForm() {
 
       navigate(ENC_LIST_PATH);
     } catch (error) {
-      Swal.fire({
+      notify.fire({
         icon: "error",
         title: t("common.save_failed"),
         text: extractErrorMessage(error, t("common.save_failed_desc")),

@@ -1,12 +1,9 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
-// Assembled from the per-module locale folders (see locales/index.ts).
-import { en as enResource, ta as taResource, hi as hiResource } from "@/locales";
+import { loadLocale, type LanguageCode } from "@/locales";
 
 export const LANGUAGE_STORAGE_KEY = "iwms.language";
-
-type LanguageCode = "en" | "ta" | "hi";
 
 const normalizeLanguageCode = (value?: string | null): LanguageCode => {
   if (!value) return "en";
@@ -23,19 +20,39 @@ const normalizeLanguageCode = (value?: string | null): LanguageCode => {
   return "en";
 };
 
-const resources = {
-  en: enResource,
-  ta: taResource,
-  hi: hiResource,
-} as const;
-
 const initialLanguage = (() => {
   if (typeof window === "undefined") return "en";
   return normalizeLanguageCode(localStorage.getItem(LANGUAGE_STORAGE_KEY));
 })();
 
-i18n.use(initReactI18next).init({
-  resources,
+const loadedLanguages = new Set<LanguageCode>();
+
+/**
+ * Ensures a language's resource bundle is loaded into i18next (fetched via
+ * dynamic import() on first use, cached in i18next's own store afterward),
+ * then switches to it. Only the initial language ships in the main bundle —
+ * see locales/index.ts for why.
+ */
+export async function ensureLanguageLoaded(lang: LanguageCode) {
+  if (!loadedLanguages.has(lang)) {
+    const bundle = await loadLocale(lang);
+    i18n.addResourceBundle(lang, "translation", bundle.translation, true, true);
+    loadedLanguages.add(lang);
+  }
+}
+
+export async function switchLanguage(lang: LanguageCode) {
+  await ensureLanguageLoaded(lang);
+  await i18n.changeLanguage(lang);
+}
+
+const initialBundle = await loadLocale(initialLanguage);
+loadedLanguages.add(initialLanguage);
+
+await i18n.use(initReactI18next).init({
+  resources: {
+    [initialLanguage]: initialBundle,
+  },
   lng: initialLanguage,
   fallbackLng: "en",
   supportedLngs: ["en", "ta", "hi"],

@@ -3,7 +3,7 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -17,7 +17,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
 import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import { tripAttendanceSchema } from "@/schemas/masters/transportMasters/tripAttendance.schema";
 
 
@@ -160,7 +160,7 @@ export default function TripAttendanceForm() {
       })
       .catch((error) => {
         const message = extractErrorMessage(error) ?? t("common.load_failed");
-        Swal.fire(t("common.error"), message, "error");
+        notify.fire(t("common.error"), message, "error");
       })
       .finally(() => setFetching(false));
   }, [staffTemplateApi, t, dailyTripAssignmentApi, userApi, vehicleApi]);
@@ -221,7 +221,7 @@ export default function TripAttendanceForm() {
       })
       .catch((error) => {
         const message = extractErrorMessage(error) ?? t("common.load_failed");
-        Swal.fire(t("common.error"), message, "error");
+        notify.fire(t("common.error"), message, "error");
       });
   }, [backendOrigin, id, isEdit, t, tripAttendanceApi]);
 
@@ -317,7 +317,7 @@ export default function TripAttendanceForm() {
 
     const validation = tripAttendanceSchema(isEdit, showField).safeParse(formData);
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 
@@ -328,7 +328,7 @@ export default function TripAttendanceForm() {
       (showField("latitude") && !Number.isFinite(latitude)) ||
       (showField("longitude") && !Number.isFinite(longitude))
     ) {
-      Swal.fire(t("common.warning"), t("common.invalid_data"), "warning");
+      notify.fire(t("common.warning"), t("common.invalid_data"), "warning");
       return;
     }
 
@@ -377,7 +377,7 @@ export default function TripAttendanceForm() {
         await tripAttendanceApi.create(createBody, multipartConfig);
       }
 
-      Swal.fire(
+      notify.fire(
         t("common.success"),
         isEdit ? t("common.updated_success") : t("common.added_success"),
         "success"
@@ -385,7 +385,7 @@ export default function TripAttendanceForm() {
       navigate(ENC_LIST_PATH);
     } catch (error: any) {
       const message = extractErrorMessage(error) ?? t("common.save_failed_desc");
-      Swal.fire(t("common.save_failed"), message, "error");
+      notify.fire(t("common.save_failed"), message, "error");
     } finally {
       setLoading(false);
     }
@@ -546,7 +546,7 @@ export default function TripAttendanceForm() {
                       return;
                     }
                     if (!file.type.startsWith("image/")) {
-                      Swal.fire(
+                      notify.fire(
                         t("admin.staff_creation.invalid_photo_title"),
                         t("admin.staff_creation.invalid_photo_desc"),
                         "warning"

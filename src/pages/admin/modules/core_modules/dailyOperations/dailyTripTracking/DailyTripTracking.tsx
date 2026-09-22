@@ -2,7 +2,7 @@ import type { OptimizationResult, OverviewResponse, Row, Tab, TrackingResponse, 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import {
   alternativeStaffTemplateApi,
   dailyTripAssignmentApi,
@@ -444,7 +444,7 @@ export default function DailyTripTracking() {
       }
     } catch {
       if (!silent) {
-        void Swal.fire("Error", "Unable to load daily trip tracking.", "error");
+        void notify.fire("Error", "Unable to load daily trip tracking.", "error");
       }
     } finally {
       if (!silent) setLoading(false);
@@ -728,7 +728,7 @@ export default function DailyTripTracking() {
         typeof error === "object" && error && "response" in error
           ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
           : undefined;
-      void Swal.fire("Optimization failed", detail ?? "OpenRouteService request failed.", "error");
+      void notify.fire("Optimization failed", detail ?? "OpenRouteService request failed.", "error");
     } finally {
       optimizingRef.current = false;
       setOptimizationCycle((cycle) => cycle + 1);

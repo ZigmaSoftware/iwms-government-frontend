@@ -8,7 +8,7 @@ import {
   Star,
   UserCog,
 } from "lucide-react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -173,7 +173,7 @@ export default function TicketDetail() {
   };
 
   useEffect(() => {
-    load().catch((err) => Swal.fire("Error", errorText(err, "Unable to load ticket"), "error"));
+    load().catch((err) => notify.fire("Error", errorText(err, "Unable to load ticket"), "error"));
   }, [id]);
 
   const onDistrictChange = async (value: string) => {
@@ -200,7 +200,7 @@ export default function TicketDetail() {
     setBusy(true);
     try {
       await fn();
-      Swal.fire("Done", message, "success");
+      notify.fire("Done", message, "success");
       setStatusRemarks("");
       setAssignReason("");
       setResolutionNote("");
@@ -209,7 +209,7 @@ export default function TicketDetail() {
       setFile(null);
       await load();
     } catch (err) {
-      Swal.fire("Error", errorText(err, "Action failed"), "error");
+      notify.fire("Error", errorText(err, "Action failed"), "error");
     } finally {
       setBusy(false);
     }

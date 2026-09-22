@@ -2,7 +2,7 @@ import type { DailyTripLogRecord } from "./types";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -15,6 +15,7 @@ import { MultiSelect } from "@/components/form/MultiSelect";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { dailyTripLogApi, wasteTypeApi } from "@/helpers/admin";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { api } from "@/api";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -626,7 +627,7 @@ export default function DailyTripLogList() {
         typeof (response as any)?.count === "number" ? (response as any).count : toRecordList(response).length,
       );
     } catch (err: any) {
-      Swal.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
+      notify.fire({ icon: "error", title: t("common.error"), text: extractError(err) ?? String(err) });
     } finally {
       setIsLoading(false);
     }
@@ -689,7 +690,7 @@ export default function DailyTripLogList() {
         )
       );
       setModalState(null);
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Verified",
         text: "Trip log has been verified.",
@@ -697,7 +698,7 @@ export default function DailyTripLogList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
+      notify.fire(t("common.error"), extractError(err) ?? "Failed to verify trip log", "error");
     } finally {
       setIsVerifying(false);
     }
@@ -705,7 +706,7 @@ export default function DailyTripLogList() {
 
   /* ── inline status change (Draft ↔ Verify) ── */
   const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
-    const result = await Swal.fire({
+    const result = await notify.fire({
       title: `Change status to ${newStatus}?`,
       text: `This will move the log from "${row.log_status}" to "${newStatus}".`,
       icon: "warning",
@@ -731,7 +732,7 @@ export default function DailyTripLogList() {
             : item
         )
       );
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: "Done",
         text: `Status changed to ${newStatus}.`,
@@ -739,72 +740,39 @@ export default function DailyTripLogList() {
         showConfirmButton: false,
       });
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
+      notify.fire(t("common.error"), extractError(err) ?? "Failed to change status", "error");
     }
   };
 
-  /* ── inline action buttons ── */
+  /* ── kebab action menu: View / Verify / Draft ── */
   const actionTemplate = (row: DailyTripLogRecord) => {
     const isVerified = row.log_status === "Verified";
     const isDraft = row.log_status === "Draft";
-    const isInProgress = (row.trip_assignment as any)?.status === "In Progress";
 
     return (
-      <div className="flex items-center gap-1.5">
-        {/* View — navigates to the dedicated detail report page */}
-        <button
-          title="View details"
-          onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          <i className="pi pi-eye text-xs" />
-          View
-        </button>
-
-        {/* Proceed — trip still In Progress, so it might have stops left to
-            carry over. The checkbox picker itself lives on the report page,
-            not here, so this is a quick "go act on it" shortcut. */}
-        {isInProgress && (
-          <button
-            title="Proceed with Next Trip"
-            onClick={() => row.unique_id && navigate(reportPath(row.unique_id))}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-          >
-            <i className="pi pi-arrow-right text-xs" />
-            Proceed
-          </button>
-        )}
-
-        {/* Verify — disabled when already Verified */}
-        <button
-          title={isVerified ? "Already verified" : "Verify this log"}
-          disabled={isVerified}
-          onClick={() => setModalState({ row, mode: "verify" })}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isVerified
-              ? "bg-green-50 text-green-400 cursor-not-allowed opacity-60"
-              : "bg-green-100 text-green-700 hover:bg-green-200"
-          }`}
-        >
-          <i className="pi pi-check-circle text-xs" />
-          Verify
-        </button>
-
-        {/* Draft — disabled when already Draft */}
-        <button
-          title={isDraft ? "Already in draft" : "Revert to draft"}
-          disabled={isDraft}
-          onClick={() => handleStatusChange(row, "Draft")}
-          className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors ${
-            isDraft
-              ? "bg-gray-50 text-gray-300 cursor-not-allowed opacity-60"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          <i className="pi pi-undo text-xs" />
-          Draft
-        </button>
-      </div>
+      <RowActionsMenu
+        extraItems={[
+          {
+            label: "View details",
+            icon: <i className="pi pi-eye" />,
+            onClick: () => row.unique_id && navigate(reportPath(row.unique_id)),
+          },
+          {
+            label: "Verify this log",
+            icon: <i className="pi pi-check-circle" />,
+            onClick: () => setModalState({ row, mode: "verify" as const }),
+            disabled: isVerified,
+            disabledReason: "Already verified",
+          },
+          {
+            label: "Revert to draft",
+            icon: <i className="pi pi-undo" />,
+            onClick: () => handleStatusChange(row, "Draft"),
+            disabled: isDraft,
+            disabledReason: "Already in draft",
+          },
+        ]}
+      />
     );
   };
 
@@ -895,9 +863,9 @@ export default function DailyTripLogList() {
       });
 
       if (format === "excel") {
-        exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
+        await exportRecordsToExcel(exportRows, getAdminScreenExcelFilename("all"), "Daily Trip Logs");
       } else {
-        downloadRecordsPdf({
+        await downloadRecordsPdf({
           title: "Daily Trip Logs",
           filename: "daily_trip_logs.pdf",
           rows: exportRows,
@@ -905,7 +873,7 @@ export default function DailyTripLogList() {
         });
       }
     } catch (err: any) {
-      Swal.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
+      notify.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
     } finally {
       setIsExporting(false);
     }

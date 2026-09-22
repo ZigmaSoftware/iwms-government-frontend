@@ -735,7 +735,7 @@ export default function StaffAccessDashboard() {
                     size="sm"
                     variant="outline"
                     onClick={() =>
-                      exportRecordsToExcel(
+                      void exportRecordsToExcel(
                         data.staff_rows.results,
                         `staff-access-${selectedName}.xlsx`,
                         "Staff Access",
@@ -791,7 +791,7 @@ export default function StaffAccessDashboard() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => exportRecordsToExcel(data.assignment_rows, `staff-assignments-${selectedName}.xlsx`, "Assignments")}
+                    onClick={() => void exportRecordsToExcel(data.assignment_rows, `staff-assignments-${selectedName}.xlsx`, "Assignments")}
                   >
                     <Download /> Export
                   </Button>

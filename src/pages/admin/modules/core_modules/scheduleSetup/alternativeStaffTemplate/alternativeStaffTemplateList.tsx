@@ -2,7 +2,7 @@ import type { AlternativeStaffTemplate } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -15,6 +15,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 
 const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code"],
@@ -81,7 +82,7 @@ export default function AlternativeStaffTemplateList() {
         typeof response?.count === "number" ? response.count : toRecordList(response).length,
       );
     } catch {
-      Swal.fire(t("common.error"), t("common.load_failed"), "error");
+      notify.fire(t("common.error"), t("common.load_failed"), "error");
     } finally {
       setLoading(false);
     }
@@ -115,15 +116,10 @@ export default function AlternativeStaffTemplateList() {
     rowIndex + 1;
 
   const actionTemplate = (row: AlternativeStaffTemplate) => (
-    <div className="flex justify-center">
-      <button
-        title={t("common.edit")}
-        onClick={() => navigate(ENC_EDIT_PATH(row.unique_id))}
-        className="text-blue-600 hover:text-blue-800"
-      >
-        <i className="pi pi-pencil" />
-      </button>
-    </div>
+    <RowActionsMenu
+      onEdit={() => navigate(ENC_EDIT_PATH(row.unique_id))}
+      editLabel={t("common.edit")}
+    />
   );
 
   return (

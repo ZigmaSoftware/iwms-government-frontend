@@ -2,7 +2,7 @@ import type { VehicleCreationPayload } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { adminApi } from "@/helpers/admin/registry";
 import { vehicleCreationSchema } from "@/schemas/masters/transportMasters/vehicleCreation.schema";
-import { toSwalMessage } from "@/lib/zodErrors";
+import { toNotifyMessage } from "@/lib/zodErrors";
 import LocationFields, {
   emptyGeo,
   LOCAL_BODY_LEVELS,
@@ -101,7 +101,7 @@ export default function VehicleCreationForm() {
       .catch((err: any) => {
         if (cancelled) return;
         setLoadingRecord(false);
-        Swal.fire({
+        notify.fire({
           icon: "error",
           title: t("common.load_failed"),
           text: String(err?.response?.data ?? err?.message ?? t("common.request_failed")),
@@ -394,7 +394,7 @@ export default function VehicleCreationForm() {
       local_body_id: geo.localBodyId,
     });
     if (!validation.success) {
-      Swal.fire(t("common.warning"), toSwalMessage(validation.error), "warning");
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
       return;
     }
 
@@ -460,7 +460,7 @@ export default function VehicleCreationForm() {
         await adminApi.vehicleCreations.create(basePayload);
       }
 
-      Swal.fire({
+      notify.fire({
         icon: "success",
         title: isEdit ? t("common.updated_success") : t("admin.vehicle_creation.save_success"),
         timer: 1500,
@@ -468,7 +468,7 @@ export default function VehicleCreationForm() {
       });
       navigate(ENC_LIST_PATH);
     } catch (error) {
-      Swal.fire(t("common.save_failed"), extractErr(error), "error");
+      notify.fire(t("common.save_failed"), extractErr(error), "error");
     } finally {
       setIsSubmitting(false);
     }

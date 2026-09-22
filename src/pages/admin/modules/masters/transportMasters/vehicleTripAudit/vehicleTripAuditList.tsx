@@ -3,7 +3,7 @@ import type { TableFilters, VehicleTripAuditRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -106,7 +106,7 @@ export default function VehicleTripAuditList() {
       .catch((error) => {
         if (cancelled) return;
         setLoading(false);
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           extractErrorMessage(error, t("common.fetch_failed")),
           "error"

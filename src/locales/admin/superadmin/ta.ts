@@ -60,6 +60,7 @@ export default {
     "main_screen": "மெயின் ஸ்கிரீன்",
     "user_screen": "பயனர் திரை",
     "user_screen_permission": "பயனர் திரை அனுமதி",
+    "app_modules": "ஆப் தொகுதிகள்",
     "roleAssigns": "பங்கு ஒதுக்கீடு",
     "user_type": "பயனர் வகை",
     "user_creation": "பயனர் உருவாக்கம்",

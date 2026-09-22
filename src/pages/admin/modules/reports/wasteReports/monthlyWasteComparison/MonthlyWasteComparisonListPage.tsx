@@ -27,7 +27,7 @@ import {
   Scale,
   Truck,
 } from "lucide-react";
-import Swal from "@/lib/notify";
+import notify from "@/lib/notify";
 import {
   Area,
   AreaChart,
@@ -472,7 +472,7 @@ export default function MonthlyWasteComparisonListPage({
         !scopeOptions("panchayat_union").length &&
         !scopeOptions("panchayat").length
       ) {
-        Swal.fire(
+        notify.fire(
           t("common.error"),
           "Failed to load local body filter options.",
           "error",
@@ -491,7 +491,7 @@ export default function MonthlyWasteComparisonListPage({
           !scopeOptions("panchayat_union").length &&
           !scopeOptions("panchayat").length
         ) {
-          Swal.fire(
+          notify.fire(
             t("common.error"),
             "Failed to load local body filter options.",
             "error",
@@ -724,7 +724,7 @@ export default function MonthlyWasteComparisonListPage({
       const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
         { params },
       );
-      exportRecordsToExcel(
+      await exportRecordsToExcel(
         exportRows.map((r) => ({
           Month: r.month,
           "Local Body Type": r.local_body_type,
@@ -739,7 +739,7 @@ export default function MonthlyWasteComparisonListPage({
         "Monthly Waste Comparison",
       );
     } catch {
-      Swal.fire(
+      notify.fire(
         t("common.error"),
         "Failed to download monthly waste collection data.",
         "error",

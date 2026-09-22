@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import type { jsPDF } from "jspdf";
 
 import type { Bin } from "./types";
 
@@ -92,7 +92,7 @@ const createBinQrPdf = async (bin: Bin): Promise<jsPDF> => {
   context.fillText("Bin QR Details", PAGE_WIDTH / 2, 82);
   context.fillStyle = "#64748b";
   context.font = "22px Arial, sans-serif";
-  context.fillText("Integrated Waste Management System", PAGE_WIDTH / 2, 118);
+  context.fillText("Integrated Waste Management Suite", PAGE_WIDTH / 2, 118);
 
   const qrSize = 350;
   const qrX = 92;
@@ -189,6 +189,7 @@ const createBinQrPdf = async (bin: Bin): Promise<jsPDF> => {
   context.font = "18px Arial, sans-serif";
   context.fillText(`Generated on ${new Date().toLocaleString("en-IN")}`, PAGE_WIDTH / 2, PAGE_HEIGHT - 52);
 
+  const { jsPDF } = await import("jspdf");
   const documentPdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   documentPdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, 210, 297, undefined, "FAST");
   return documentPdf;
