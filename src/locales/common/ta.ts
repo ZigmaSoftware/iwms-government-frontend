@@ -80,6 +80,7 @@ export default {
     "warning": "எச்சரிக்கை",
     "search_placeholder": "தேடு...",
     "search_item_placeholder": "{{item}} தேடு...",
+    "clear_all_filters": "அனைத்து வடிகட்டிகளையும் அழி",
     "add": "Add",
     "add_item": "{{item}} சேர்க்கவும்",
     "edit_item": "{{item}} திருத்தவும்",
