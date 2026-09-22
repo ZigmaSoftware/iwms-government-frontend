@@ -68,7 +68,8 @@ const {
   encStaffTemplate,
   encAlternativeStaffTemplate,
   encCommonAudit,
-  encStaffAudit,
+  encPermissionAudit,
+  encStaffChangeRequests,
   encTripPlans,
   encVehicleBreakdown,
   encTripRetripRequest,
@@ -678,22 +679,32 @@ const auditItems: NavItem[] = [
     screen: "audits",
     subItems: [
       {
+        nameKey: "admin.nav.transaction_audit",
+        path: `/${encAudits}/${encCommonAudit}`,
+        module: "audits",
+        screen: "common-audit",
+        // Visible to anyone holding a view grant on either screen — this
+        // page absorbed the former separate "Collection Audit" screen
+        // (staff-audit), so a grant on that old screen still unlocks it.
+        screens: ["common-audit", "staff-audit"],
+      },
+      {
+        nameKey: "admin.nav.user_access_audit",
+        path: `/${encAudits}/${encPermissionAudit}`,
+        module: "audits",
+        screen: "permission-audit",
+      },
+      {
         nameKey: "admin.nav.login_audit",
         path: `/${encAudits}/${encLoginAudits}`,
         module: "audits",
         screen: "login-audit",
       },
       {
-        nameKey: "admin.nav.common_audit",
-        path: `/${encAudits}/${encCommonAudit}`,
+        nameKey: "admin.nav.change_management",
+        path: `/${encAudits}/${encStaffChangeRequests}`,
         module: "audits",
-        screen: "common-audit",
-      },
-      {
-        nameKey: "admin.nav.staff_audit",
-        path: `/${encAudits}/${encStaffAudit}`,
-        module: "audits",
-        screen: "staff-audit",
+        screen: "staff-change-requests",
       },
     ],
   },
@@ -793,7 +804,7 @@ const AppSidebar: React.FC = () => {
 
     // Regular users: only show items they have permission for
     return subItems.filter((sub) => {
-      return checkPermission(sub.module, sub.screen);
+      return checkAnyPermission(sub.module, sub.screen, sub.screens);
     });
   }, [checkAnyPermission, isSuperAdmin]);
 

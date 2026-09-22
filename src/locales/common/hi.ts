@@ -83,6 +83,7 @@ export default {
     "warning": "चेतावनी",
     "search_placeholder": "खोजें...",
     "search_item_placeholder": "{{item}} खोजें...",
+    "clear_all_filters": "सभी फ़िल्टर हटाएँ",
     "add": "Add",
     "add_item": "{{item}} जोड़ें",
     "edit_item": "{{item}} संपादित करें",

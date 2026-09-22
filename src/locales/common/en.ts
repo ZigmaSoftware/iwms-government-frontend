@@ -80,6 +80,7 @@ export default {
     "warning": "Warning",
     "search_placeholder": "Search",
     "search_item_placeholder": "Search {{item}}...",
+    "clear_all_filters": "Clear All Filters",
     "add": "Add",
     "add_item": "Add {{item}}",
     "edit_item": "Edit {{item}}",

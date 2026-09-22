@@ -126,8 +126,9 @@ const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/report
 const StaffTemplateAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList"));
 const StaffTemplateAuditForm = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditForm"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
-const StaffAuditList = lazy(() => import("@/pages/admin/modules/audits/staffAudit/staffAuditList"));
 const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList"));
+const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
+const StaffChangeRequestList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffChangeRequest/staffChangeRequestList"));
 const UnassignedStaffPoolList = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolList"));
 const UnassignedStaffPoolForm = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolForm"));
 const DailyAttendanceRegList = lazy(() => import("@/pages/admin/modules/core_modules/attendance/DailyAttendanceRegList"));
@@ -256,10 +257,17 @@ export const ROUTES: RouteMap = {
   },
   audits: {
     "common-audit": { list: CommonAuditList },
-    "staff-audit": { list: StaffAuditList },
+    // Both folded into Transaction Audit (commonAuditList.tsx handles
+    // hierarchy auto-scoping and an "Approvals only" toggle itself now) —
+    // old bookmarked URLs land on the same merged page rather than 404ing
+    // or showing a now-unlinked standalone screen.
+    "staff-audit": { list: CommonAuditList },
+    "approval-history": { list: CommonAuditList },
     "login-audit": { list: LoginAuditList },
     "login-audits": { list: LoginAuditList },
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
+    "permission-audit": { list: PermissionAuditList },
+    "staff-change-requests": { list: StaffChangeRequestList },
   },
   reports: {
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
@@ -425,6 +433,9 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   "login-audit": ["login-audit", "login-audits"],
   "login-audits": ["login-audit", "login-audits"],
   "common-audit": ["common-audit"],
+  "approval-history": ["approval-history"],
+  "permission-audit": ["permission-audit"],
+  "staff-change-requests": ["staff-change-requests"],
 
   // Leader login
   "plb-leader-creation": ["plb-leader-creation"],

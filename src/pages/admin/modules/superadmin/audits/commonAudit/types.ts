@@ -4,9 +4,16 @@ export type TableFilters = {
   global: { value: string | null; matchMode: FilterMatchMode };
 };
 
-export type ModuleFilterOption = {
+export type MainScreenOption = {
   label: string;
   value: string;
+  unique_id: string;
+};
+
+export type SubScreenOption = {
+  label: string;
+  value: string;
+  unique_id: string;
 };
 
 export type CommonAuditJsonValue =
@@ -25,6 +32,10 @@ export type CommonAuditRecord = {
   object_id?: string | number;
   createdBy?: string;
   createdAt?: string;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  success?: boolean;
+  reason?: string | null;
   previous_data?: CommonAuditJsonValue;
   new_data?: CommonAuditJsonValue;
   [key: string]: unknown;
