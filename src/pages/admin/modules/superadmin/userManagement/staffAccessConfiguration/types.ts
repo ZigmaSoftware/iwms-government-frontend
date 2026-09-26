@@ -1,14 +1,9 @@
 export type BasicInfoForm = {
   employeeName: string;
-  staffConfigName: string;
   mobileNumber: string;
   officeEmail: string;
-  departmentId: string;
-  designation: string;
   doj: string;
   activeStatus: boolean;
-  scopeAdminId: string;
-  scopeAdminName?: string;
 };
 
 export type LoginConfigForm = {

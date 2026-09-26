@@ -137,7 +137,8 @@ export default function StaffAccessConfigList() {
   const permissionTemplate = (row: StaffAccessRecord) =>
     row.permission_count ?? (Array.isArray(row.permissions) ? row.permissions.length : "-");
   const statusTemplate = (row: StaffAccessRecord) => {
-    const status = row.account_status ?? (row.active_status === false ? "Inactive" : "Active");
+    // Staff status (same flag as Staff Creation), not the login/account toggle.
+    const status = row.active_status === false ? "Inactive" : "Active";
     return (
       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
         String(status).toLowerCase() === "inactive"

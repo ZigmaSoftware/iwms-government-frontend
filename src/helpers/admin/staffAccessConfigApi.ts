@@ -341,14 +341,10 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
   return {
     basicInfo: {
       employee_name: payload.basicInfo.employeeName,
-      staff_config_name: payload.basicInfo.staffConfigName,
       contact_email: payload.basicInfo.officeEmail || null,
-      department_id: payload.basicInfo.departmentId || null,
-      designation: payload.basicInfo.designation || null,
       doj: payload.basicInfo.doj || null,
       active_status: payload.basicInfo.activeStatus,
       contact_mobile: payload.basicInfo.mobileNumber,
-      staff_head_id: payload.basicInfo.scopeAdminId || null,
     },
     loginConfig: {
       username: payload.loginConfig.username,
