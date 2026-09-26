@@ -189,7 +189,8 @@ export default {
     "audits": "Audits",
     "leader_management": "Leader Management",
     "screen_management": "Screen Management",
-    "complaint_management": "Complaint Management"
+    "complaint_management": "Complaint Management",
+    "customer_access_configuration": "Customer Access Configuration",
   },
   "project": {
     "company_id": "Company ID",
