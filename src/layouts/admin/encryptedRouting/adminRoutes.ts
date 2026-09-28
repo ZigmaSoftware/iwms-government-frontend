@@ -128,7 +128,6 @@ const StaffTemplateAuditForm = lazy(() => import("@/pages/admin/modules/superadm
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
 const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList"));
 const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
-const StaffChangeRequestList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffChangeRequest/staffChangeRequestList"));
 const UnassignedStaffPoolList = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolList"));
 const UnassignedStaffPoolForm = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolForm"));
 const DailyAttendanceRegList = lazy(() => import("@/pages/admin/modules/core_modules/attendance/DailyAttendanceRegList"));
@@ -267,7 +266,6 @@ export const ROUTES: RouteMap = {
     "login-audits": { list: LoginAuditList },
     "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
     "permission-audit": { list: PermissionAuditList },
-    "staff-change-requests": { list: StaffChangeRequestList },
   },
   reports: {
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
@@ -435,7 +433,6 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   "common-audit": ["common-audit"],
   "approval-history": ["approval-history"],
   "permission-audit": ["permission-audit"],
-  "staff-change-requests": ["staff-change-requests"],
 
   // Leader login
   "plb-leader-creation": ["plb-leader-creation"],

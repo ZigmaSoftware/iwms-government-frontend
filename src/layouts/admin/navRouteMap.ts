@@ -72,7 +72,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encLoginAudits,
     encApprovalHistory,
     encPermissionAudit,
-    encStaffChangeRequests,
     encUnassignedStaffPool,
     encTripAttendance,
     encHouseholdPickupEvent,
@@ -162,7 +161,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encAudits}/${encApprovalHistory}`, nameKey: "admin.nav.transaction_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encAudits}/${encPermissionAudit}`, nameKey: "admin.nav.user_access_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encAudits}/${encLoginAudits}`, nameKey: "admin.nav.login_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encAudits}/${encStaffChangeRequests}`, nameKey: "admin.nav.change_management", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encAudits}/${encStaffAudit}`, nameKey: "admin.nav.transaction_audit", parentNameKey: "admin.nav.audit_items" },
 
 
