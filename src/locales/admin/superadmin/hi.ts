@@ -120,7 +120,6 @@ export default {
     "transaction_audit": "लेनदेन ऑडिट",
     "approval_history": "अनुमोदन इतिहास",
     "user_access_audit": "उपयोगकर्ता पहुंच ऑडिट",
-    "change_management": "परिवर्तन प्रबंधन",
     "common_audit": "Common Audit",
     "vehicle_trip_audit": "वाहन ट्रिप ऑडिट",
     "trip_exception_log": "ट्रिप अपवाद लॉग",

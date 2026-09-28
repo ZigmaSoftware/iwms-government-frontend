@@ -121,7 +121,6 @@ export default {
     "transaction_audit": "பரிவர்த்தனை ஆய்வு",
     "approval_history": "ஒப்புதல் வரலாறு",
     "user_access_audit": "பயனர் அணுகல் ஆய்வு",
-    "change_management": "மாற்ற மேலாண்மை",
     "common_audit": "Common Audit",
     "vehicle_trip_audit": "வாகன பயண ஆய்வு",
     "trip_exception_log": "பயண விதிவிலக்கு பதிவு",

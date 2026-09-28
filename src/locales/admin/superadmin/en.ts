@@ -150,7 +150,6 @@ export default {
     "transaction_audit": "Transaction Audit",
     "approval_history": "Approval History",
     "user_access_audit": "User Access Audit",
-    "change_management": "Change Management",
     "common_audit": "Common Audit",
     "staff_audit": "Collection Audit",
     "login_audit": "Login Audit",

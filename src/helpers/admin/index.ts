@@ -138,7 +138,6 @@ export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
 export const staffAuditApi = adminApi.staffAudits;
 export const permissionAuditApi = adminApi.permissionAudits;
-export const staffChangeRequestApi = adminApi.staffChangeRequests;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================
