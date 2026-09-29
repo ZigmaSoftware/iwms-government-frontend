@@ -8,9 +8,15 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { Eye, LayoutGrid, List as ListIcon } from "lucide-react";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import { complaintFeedbackApi, complaintTicketApi, geoApi } from "@/features/complaintTicketing/api";
-import type { ComplaintFeedback, ComplaintTicket, GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
-import { asArray, errorText, formatDateTime } from "../utils";
+import { complaintFeedbackApi, complaintTicketApi } from "@/features/complaintTicketing/api";
+import type { ComplaintFeedback, ComplaintTicket } from "@/features/complaintTicketing/types";
+import TicketLocationFilters from "./TicketLocationFilters";
+import {
+  emptyTicketLocationFilter,
+  ticketLocationParams,
+  type TicketLocationFilterValue,
+} from "./ticketLocationFilter";
+import { asArray, errorText, formatDateTime, formatDuration, roleLabel } from "../utils";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
@@ -32,34 +38,6 @@ const STATUS_COLUMN_ORDER = [
 type SourceFilter = "all" | "public" | "internal" | "feedback";
 type ViewMode = "table" | "kanban";
 
-const LOCAL_BODY_TYPE_LABELS: Record<LocalBodyType, string> = {
-  corporation: "Corporation",
-  municipality: "Municipality",
-  town_panchayat: "Town Panchayat",
-  panchayat_union: "Panchayat Union",
-  panchayat: "Panchayat",
-};
-
-const LOCAL_BODY_TYPES: LocalBodyType[] = [
-  "corporation",
-  "municipality",
-  "town_panchayat",
-  "panchayat_union",
-  "panchayat",
-];
-
-const AREA_TYPE_LEVELS: Record<"urban" | "rural", LocalBodyType[]> = {
-  urban: ["corporation", "municipality", "town_panchayat"],
-  rural: ["panchayat_union", "panchayat"],
-};
-
-const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
-  const normalized = name.toLowerCase();
-  if (normalized.includes("urban")) return "urban";
-  if (normalized.includes("rural")) return "rural";
-  return "";
-};
-
 const isPublic = (row: ComplaintTicket) => row.source_code === PUBLIC_SOURCE_CODE;
 
 const toRecordList = (value: unknown): ComplaintTicket[] => {
@@ -70,10 +48,10 @@ const toRecordList = (value: unknown): ComplaintTicket[] => {
   return [];
 };
 
-// Backend `ordering_fields` also includes updated/sla_due_at, but only these
-// two are rendered as columns whose field name matches a real orderable
-// backend column - keep sorting limited to what the server can honor.
-const SORTABLE_FIELDS = new Set(["ticket_no", "created"]);
+// Backend `ordering_fields` also includes `updated`, but only these
+// are rendered as columns whose field name matches a real orderable backend
+// column - keep sorting limited to what the server can honor.
+const SORTABLE_FIELDS = new Set(["ticket_no", "created", "next_escalation_due_at"]);
 
 export default function TicketList() {
   const navigate = useNavigate();
@@ -110,15 +88,8 @@ export default function TicketList() {
   // tab), so it lives here now as a column + quick-filter instead.
   const [feedbackByTicket, setFeedbackByTicket] = useState<Map<string, ComplaintFeedback>>(new Map());
 
-  const [states, setStates] = useState<GeoOption[]>([]);
-  const [districts, setDistricts] = useState<GeoOption[]>([]);
-  const [areaTypes, setAreaTypes] = useState<GeoOption[]>([]);
-  const [cities, setCities] = useState<LocalBodyOption[]>([]);
-  const [stateFilter, setStateFilter] = useState("");
-  const [districtFilter, setDistrictFilter] = useState("");
-  const [areaTypeFilter, setAreaTypeFilter] = useState("");
-  const [localBodyTypeFilter, setLocalBodyTypeFilter] = useState<LocalBodyType | "">("");
-  const [cityFilter, setCityFilter] = useState("");
+  const [location, setLocation] = useState<TicketLocationFilterValue>(emptyTicketLocationFilter);
+  const { state: stateFilter, district: districtFilter, areaType: areaTypeFilter, city: cityFilter } = location;
 
   useEffect(() => {
     complaintFeedbackApi.readAll({ params: { all: 1 } })
@@ -127,25 +98,16 @@ export default function TicketList() {
         setFeedbackByTicket(new Map(rows.map((row) => [String(row.ticket), row])));
       })
       .catch(() => setFeedbackByTicket(new Map()));
-    geoApi.states()
-      .then(setStates)
-      .catch(() => setStates([]));
-    geoApi.districts()
-      .then(setDistricts)
-      .catch(() => setDistricts([]));
   }, []);
 
   // Combines every current filter into the params object sent to the
   // backend for both the table's page fetch and the Kanban board's full
-  // fetch. `localBodyTypeFilter` is deliberately excluded - it only narrows
+  // fetch (see ticketLocationParams). The local body type only narrows
   // the city dropdown's options client-side; `city` already targets the
   // specific local body id directly on the backend.
   const buildTicketParams = () => ({
     ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
-    ...(stateFilter ? { state: stateFilter } : {}),
-    ...(districtFilter ? { district: districtFilter } : {}),
-    ...(areaTypeFilter ? { area_type: areaTypeFilter } : {}),
-    ...(cityFilter ? { city: cityFilter } : {}),
+    ...ticketLocationParams(location),
   });
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
@@ -206,12 +168,7 @@ export default function TicketList() {
         "counts",
         undefined,
         {
-          params: {
-            ...(stateFilter ? { state: stateFilter } : {}),
-            ...(districtFilter ? { district: districtFilter } : {}),
-            ...(areaTypeFilter ? { area_type: areaTypeFilter } : {}),
-            ...(cityFilter ? { city: cityFilter } : {}),
-          },
+          params: ticketLocationParams(location),
         },
       );
       setCounts({
@@ -246,63 +203,6 @@ export default function TicketList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
 
-  const filteredDistricts = useMemo(
-    () => districts.filter((item) => !stateFilter || item.state_id === stateFilter),
-    [districts, stateFilter],
-  );
-  const filteredAreaTypes = useMemo(
-    () => areaTypes.filter((item) => !districtFilter || !item.district_id || item.district_id === districtFilter),
-    [areaTypes, districtFilter],
-  );
-  const selectedAreaType = areaTypes.find((item) => item.unique_id === areaTypeFilter);
-  const selectedAreaCategory = areaTypeCategoryFromName(selectedAreaType?.name ?? "");
-  const availableLocalBodyTypes = selectedAreaCategory
-    ? AREA_TYPE_LEVELS[selectedAreaCategory]
-    : LOCAL_BODY_TYPES;
-
-  const onStateFilterChange = (value: string) => {
-    setStateFilter(value);
-    setDistrictFilter("");
-    setAreaTypeFilter("");
-    setLocalBodyTypeFilter("");
-    setCityFilter("");
-    setAreaTypes([]);
-    setCities([]);
-  };
-
-  const onDistrictFilterChange = async (value: string) => {
-    setDistrictFilter(value);
-    setAreaTypeFilter("");
-    setLocalBodyTypeFilter("");
-    setCityFilter("");
-    setAreaTypes([]);
-    if (!value) {
-      setCities([]);
-      return;
-    }
-    const areaRows = await geoApi.areaTypes(value).catch(() => []);
-    setAreaTypes(areaRows);
-    setCities([]);
-  };
-
-  const onAreaTypeFilterChange = (value: string) => {
-    setAreaTypeFilter(value);
-    setLocalBodyTypeFilter("");
-    setCityFilter("");
-    setCities([]);
-  };
-
-  const onLocalBodyTypeFilterChange = async (value: string) => {
-    const nextType = value as LocalBodyType | "";
-    setLocalBodyTypeFilter(nextType);
-    setCityFilter("");
-    setCities([]);
-    if (districtFilter && areaTypeFilter && nextType) {
-      const cityRows = await geoApi.localBodies(districtFilter, areaTypeFilter, nextType).catch(() => []);
-      setCities(cityRows);
-    }
-  };
-
   const feedbackCount = feedbackByTicket.size;
 
   const feedbackTemplate = (row: ComplaintTicket) => {
@@ -331,14 +231,36 @@ export default function TicketList() {
       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">Internal</span>
     );
 
-  const slaTemplate = (row: ComplaintTicket) => {
-    if (row.sla_breached) {
-      return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Breached</span>;
-    }
-    if (typeof row.sla_time_remaining_seconds === "number" && row.sla_time_remaining_seconds < 0) {
-      return <span className="whitespace-nowrap rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">Overdue</span>;
-    }
-    return <span className="whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">On Track</span>;
+
+  // Who owns the ticket now: the escalatee once escalated, else the assignee.
+  const assignedTemplate = (row: ComplaintTicket) => {
+    const owner = row.escalated_to_staff_name || row.assigned_staff_name;
+    if (!owner) return <span className="text-xs text-slate-400">Unassigned</span>;
+    return (
+      <div className="flex flex-col">
+        <span>{owner}</span>
+        {row.escalation_level ? (
+          <span className={`text-xs ${row.is_escalated ? "text-orange-600" : "text-slate-500"}`}>
+            L{row.escalation_level}
+            {row.escalation_level_name ? ` · ${roleLabel(row.escalation_level_name)}` : ""}
+            {row.is_escalated ? " · Escalated" : ""}
+          </span>
+        ) : null}
+      </div>
+    );
+  };
+
+  const escalationTemplate = (row: ComplaintTicket) => {
+    const remaining = row.escalation_time_remaining_seconds;
+    if (typeof remaining !== "number") return <span className="text-xs text-slate-400">-</span>;
+    return (
+      <div className="flex flex-col">
+        <span className="whitespace-nowrap">{formatDateTime(row.next_escalation_due_at)}</span>
+        <span className={`text-xs ${remaining < 0 ? "font-semibold text-red-600" : "text-slate-500"}`}>
+          {remaining < 0 ? `Overdue ${formatDuration(remaining)}` : `in ${formatDuration(remaining)}`}
+        </span>
+      </div>
+    );
   };
 
   const contextTemplate = (row: ComplaintTicket) => {
@@ -416,61 +338,7 @@ export default function TicketList() {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
-            value={stateFilter}
-            onChange={(e) => onStateFilterChange(e.target.value)}
-          >
-            <option value="">All states</option>
-            {states.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
-            value={districtFilter}
-            onChange={(e) => onDistrictFilterChange(e.target.value)}
-          >
-            <option value="">All districts</option>
-            {filteredDistricts.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
-            value={areaTypeFilter}
-            onChange={(e) => onAreaTypeFilterChange(e.target.value)}
-            disabled={!districtFilter}
-          >
-            <option value="">All area types</option>
-            {filteredAreaTypes.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
-            value={localBodyTypeFilter}
-            onChange={(e) => onLocalBodyTypeFilterChange(e.target.value)}
-            disabled={!areaTypeFilter}
-          >
-            <option value="">All local body types</option>
-            {availableLocalBodyTypes.map((type) => (
-              <option key={type} value={type}>{LOCAL_BODY_TYPE_LABELS[type]}</option>
-            ))}
-          </select>
-          <select
-            className="h-9 rounded-md border px-2 text-sm"
-            value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
-            disabled={!districtFilter || !areaTypeFilter || !localBodyTypeFilter}
-          >
-            <option value="">All local bodies</option>
-            {cities.map((item) => (
-              <option key={item.unique_id} value={item.unique_id}>{item.name}</option>
-            ))}
-          </select>
-        </div>
+        <TicketLocationFilters value={location} onChange={setLocation} />
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode("table")}
@@ -534,9 +402,8 @@ export default function TicketList() {
           <Column header="City" body={(row) => row.city_name || "-"} />
           <Column field="priority_code" header="Priority" />
           <Column header="Status" body={statusTemplate} />
-          <Column field="assigned_team_name" header="Assigned Team" />
-          <Column header="SLA Due" body={(row) => formatDateTime(row.sla_due_at)} />
-          <Column header="SLA" body={slaTemplate}  style={{ width: "120px" }}/>
+          <Column header="Assigned To" body={assignedTemplate} />
+          <Column field="next_escalation_due_at" header="Next Escalation" body={escalationTemplate} sortable />
           <Column header="Feedback" body={feedbackTemplate} />
           <Column
             header="Actions"
@@ -597,9 +464,9 @@ export default function TicketList() {
                           {row.operational_context.incident_type}
                         </span>
                       )}
-                      {row.sla_breached && (
+                      {typeof row.escalation_time_remaining_seconds === "number" && row.escalation_time_remaining_seconds < 0 && (
                         <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                          SLA Breached
+                          Escalating
                         </span>
                       )}
                       {feedbackByTicket.has(String(row.unique_id)) && (

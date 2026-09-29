@@ -15,7 +15,7 @@ type ApiOptionRecord = {
   corporation_name?: string;
   municipality_name?: string;
   town_panchayat_name?: string;
-  panchayat_union_name?: string;
+  union_name?: string;
   panchayat_name?: string;
 };
 
@@ -52,7 +52,7 @@ const optionLabel = (record: ApiOptionRecord) =>
   record.corporation_name ??
   record.municipality_name ??
   record.town_panchayat_name ??
-  record.panchayat_union_name ??
+  record.union_name ??
   record.panchayat_name ??
   record.name ??
   record.unique_id ??

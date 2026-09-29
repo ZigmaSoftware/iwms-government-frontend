@@ -126,10 +126,14 @@ const ensureOption = (items: Option[], selectedValue: string): Option[] => {
 export default function LocationFields({
   value,
   onChange,
+  optional = false,
 }: {
   value: GeoLocationValue;
   onChange: (value: GeoLocationValue) => void;
+  /** Blank is a valid choice (e.g. "applies everywhere"): no `*` markers. */
+  optional?: boolean;
 }) {
+  const mark = optional ? "" : " *";
   const [countries, setCountries] = useState<Option[]>([]);
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
@@ -418,29 +422,29 @@ export default function LocationFields({
   return (
     <>
       <div>
-        <Label htmlFor={countryFieldId}>Country *</Label>
-        <Select id={countryFieldId} value={value.countryId} onChange={(v) => emit({ countryId: v, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={ensureOption(countries, value.countryId)} placeholder="Select Country" className="w-full" disabled={countryLocked} required />
+        <Label htmlFor={countryFieldId}>Country{mark}</Label>
+        <Select id={countryFieldId} value={value.countryId} onChange={(v) => emit({ countryId: v, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={ensureOption(countries, value.countryId)} placeholder="Select Country" className="w-full" disabled={countryLocked} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={stateFieldId}>State *</Label>
-        <Select id={stateFieldId} value={value.stateId} onChange={(v) => emit({ stateId: v, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={filteredStates} placeholder="Select State" className="w-full" disabled={!value.countryId || stateScope.mode === "locked"} required />
+        <Label htmlFor={stateFieldId}>State{mark}</Label>
+        <Select id={stateFieldId} value={value.stateId} onChange={(v) => emit({ stateId: v, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={filteredStates} placeholder="Select State" className="w-full" disabled={!value.countryId || stateScope.mode === "locked"} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={districtFieldId}>District *</Label>
-        <Select id={districtFieldId} value={value.districtId} onChange={(v) => emit({ districtId: v, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={filteredDistricts} placeholder="Select District" className="w-full" disabled={!value.stateId || districtScope.mode === "locked"} required />
+        <Label htmlFor={districtFieldId}>District{mark}</Label>
+        <Select id={districtFieldId} value={value.districtId} onChange={(v) => emit({ districtId: v, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={filteredDistricts} placeholder="Select District" className="w-full" disabled={!value.stateId || districtScope.mode === "locked"} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={areaTypeFieldId}>Area Type *</Label>
-        <Select id={areaTypeFieldId} value={value.areaTypeId} onChange={(v) => emit({ areaTypeId: v, localBodyLevel: "", localBodyId: "" })} options={filteredAreaTypes} placeholder="Select Area Type" className="w-full" disabled={!value.districtId || areaTypeScope.mode === "locked"} required />
+        <Label htmlFor={areaTypeFieldId}>Area Type{mark}</Label>
+        <Select id={areaTypeFieldId} value={value.areaTypeId} onChange={(v) => emit({ areaTypeId: v, localBodyLevel: "", localBodyId: "" })} options={filteredAreaTypes} placeholder="Select Area Type" className="w-full" disabled={!value.districtId || areaTypeScope.mode === "locked"} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={localBodyLevelFieldId}>Local Body *</Label>
-        <Select id={localBodyLevelFieldId} value={value.localBodyLevel} onChange={(v) => emit({ localBodyLevel: v as LocalBodyLevel, localBodyId: "" })} options={scopedLocalBodyLevels} placeholder="Select Local Body" className="w-full" disabled={!value.areaTypeId || scopedLocalBodyLevels.length === 1} required />
+        <Label htmlFor={localBodyLevelFieldId}>Local Body{mark}</Label>
+        <Select id={localBodyLevelFieldId} value={value.localBodyLevel} onChange={(v) => emit({ localBodyLevel: v as LocalBodyLevel, localBodyId: "" })} options={scopedLocalBodyLevels} placeholder="Select Local Body" className="w-full" disabled={!value.areaTypeId || scopedLocalBodyLevels.length === 1} required={!optional} />
       </div>
       {value.localBodyLevel && (
         <div>
-          <Label htmlFor={localBodyFieldId}>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label} *</Label>
-          <Select id={localBodyFieldId} value={value.localBodyId} onChange={(v) => emit({ localBodyId: v })} options={filteredLocalBodies} placeholder="Select" className="w-full" disabled={localBodyScope?.mode === "locked"} required />
+          <Label htmlFor={localBodyFieldId}>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label}{mark}</Label>
+          <Select id={localBodyFieldId} value={value.localBodyId} onChange={(v) => emit({ localBodyId: v })} options={filteredLocalBodies} placeholder="Select" className="w-full" disabled={localBodyScope?.mode === "locked"} required={!optional} />
         </div>
       )}
     </>

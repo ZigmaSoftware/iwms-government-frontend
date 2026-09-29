@@ -100,8 +100,8 @@ const StatusList = lazy(() => import("@/pages/admin/modules/core_modules/complai
 const StatusForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/StatusForm"));
 const SourceList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SourceList"));
 const SourceForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SourceForm"));
-const TeamList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList"));
-const TeamForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm"));
+const MyTasks = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/dashboard/MyTasks"));
+const ComplaintsReportPage = lazy(() => import("@/pages/admin/modules/reports/complaintReports/ComplaintsReportPage"));
 const SlaRuleList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList"));
 const SlaRuleForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleForm"));
 const MainScreenTypeList = lazy(() => import("@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeList"));
@@ -253,7 +253,8 @@ export const ROUTES: RouteMap = {
     priorities: { list: PriorityList, form: PriorityForm },
     statuses: { list: StatusList, form: StatusForm },
     sources: { list: SourceList, form: SourceForm },
-    teams: { list: TeamList, form: TeamForm },
+    "my-tasks": { list: MyTasks },
+    "complaints-report": { list: ComplaintsReportPage },
     "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
     feedback: { list: FeedbackList },
   },
@@ -380,7 +381,8 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   priorities: ["priorities"],
   statuses: ["statuses"],
   sources: ["sources"],
-  teams: ["teams"],
+  "my-tasks": ["my-tasks"],
+  "complaints-report": ["complaints-report"],
   feedback: ["feedback", "feedbacks"],
   feedbacks: ["feedback"],
   "sla-rules": ["sla-rules", "sla-rule", "sla_rules", "slaRules", "slarules", "sla"],

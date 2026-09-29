@@ -5,7 +5,7 @@ import { optionalString, requiredString } from "@/schemas/shared/fields";
 /**
  * `MasterForm` (complaintManagement/masters) is a single generic component
  * shared by every "reference data" entity in the complaint-ticketing module —
- * module, category, subcategory, priority, status, source, team and
+ * module, category, subcategory, priority, status, source and
  * SLA rule — selected at render time via a `kind` prop. Which fields are
  * mandatory therefore depends on `kind`, mirroring the old manual checks that
  * used to live in the component's submit handler:
@@ -13,10 +13,11 @@ import { optionalString, requiredString } from "@/schemas/shared/fields";
  *  - "subcategory" additionally required `category`
  *  - "slaRule" (which has no code/name inputs at all) required
  *    `category` + `priority` instead
- * All other fields (description, module, default_priority, default_team,
- * subcategory/source pickers on the SLA rule form, the *_minutes fields,
- * escalation_level, department/lead_staff/escalates_to/escalation_team, and
- * every boolean flag) were never blocked on and stay optional here too.
+ * All other fields (description, module, default_priority, the
+ * subcategory/source pickers on the SLA rule form and
+ * every boolean flag) were never blocked on and stay optional here too. The
+ * SLA rule's per-level escalation windows live outside this form object and
+ * are checked in MasterForm itself.
  */
 export type MasterKind =
   | "module"
@@ -25,7 +26,6 @@ export type MasterKind =
   | "priority"
   | "status"
   | "source"
-  | "team"
   | "slaRule";
 
 const complaintMasterBaseSchema = z.object({
@@ -38,23 +38,13 @@ const complaintMasterBaseSchema = z.object({
   subcategory: optionalString,
   source: optionalString,
   default_priority: optionalString,
-  default_team: optionalString,
   requires_location: z.boolean(),
   requires_media: z.boolean(),
   requires_address_change_detail: z.boolean(),
   is_sensitive: z.boolean(),
   is_final: z.boolean(),
   allow_reopen: z.boolean(),
-  is_field_team: z.boolean(),
-  escalation_level: optionalString,
-  department: optionalString,
-  lead_staff: optionalString,
-  escalates_to: optionalString,
-  assign_within_minutes: optionalString,
-  resolve_within_minutes: optionalString,
   working_hours_only: z.boolean(),
-  escalation_after_minutes: optionalString,
-  escalation_team: optionalString,
   is_active: z.boolean(),
 });
 

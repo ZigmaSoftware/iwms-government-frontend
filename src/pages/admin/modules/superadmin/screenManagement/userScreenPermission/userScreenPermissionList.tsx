@@ -40,7 +40,7 @@ const localBodyRecordLabel = (record: Record<string, unknown>): string =>
     record.corporation_name ??
       record.municipality_name ??
       record.town_panchayat_name ??
-      record.panchayat_union_name ??
+      record.union_name ??
       record.panchayat_name ??
       record.name ??
       record.unique_id ??

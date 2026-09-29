@@ -284,7 +284,7 @@ export default function StaffHierarchyForm() {
             {t("admin.staff_hierarchy.location_help")}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <LocationFields value={geo} onChange={handleGeoChange} />
+            <LocationFields value={geo} onChange={handleGeoChange} optional />
           </div>
         </div>
 

@@ -67,17 +67,18 @@ export type ComplaintTicket = {
   city_id?: ApiId | null;
   city_name?: string | null;
   city_type?: LocalBodyType | string | null;
-  assigned_team?: ApiId | null;
-  assigned_team_name?: string | null;
   assigned_staff?: ApiId | null;
   assigned_staff_name?: string | null;
   assigned_department_name?: string | null;
+  is_escalated?: boolean;
+  escalated_to_staff?: ApiId | null;
+  escalated_to_staff_name?: string | null;
   escalation_level?: number | null;
-  sla_due_at?: string | null;
-  first_response_due_at?: string | null;
-  sla_time_remaining_seconds?: number | null;
-  sla_breached?: boolean;
-  sla_breached_at?: string | null;
+  escalation_level_name?: string | null;
+  next_escalation_due_at?: string | null;
+  escalation_time_remaining_seconds?: number | null;
+  /** False when the ticket has escalated past the requester: view only. */
+  can_act?: boolean;
   resolved_at?: string | null;
   closed_at?: string | null;
   reopened_count?: number;
@@ -124,8 +125,6 @@ export type ComplaintCategory = {
   description?: string | null;
   default_priority?: ApiId | null;
   default_priority_code?: string | null;
-  default_team?: ApiId | null;
-  default_team_name?: string | null;
   requires_location?: boolean;
   requires_media?: boolean;
   requires_address_change_detail?: boolean;
@@ -189,20 +188,18 @@ export type ComplaintLanguage = {
   is_active?: boolean;
 };
 
-export type ComplaintTeam = {
-  unique_id: string;
-  team_code: string;
-  team_name: string;
-  department?: ApiId | null;
-  department_name?: string | null;
-  lead_staff?: ApiId | null;
-  lead_staff_name?: string | null;
-  escalates_to?: ApiId | null;
-  escalates_to_name?: string | null;
-  escalates_to_code?: string | null;
-  escalation_level?: number;
-  is_field_team?: boolean;
-  is_active?: boolean;
+/** Resolve window for one Staff Hierarchy level of an SLA rule. */
+export type ComplaintSlaEscalationLevel = {
+  unique_id?: string;
+  level: number;
+  is_enabled: boolean;
+  resolve_within_minutes: number;
+};
+
+/** A Staff Hierarchy level and the government roles at it. */
+export type HierarchyLevelOption = {
+  level: number;
+  roles: { unique_id: string; name: string }[];
 };
 
 export type ComplaintSlaRule = {
@@ -213,11 +210,20 @@ export type ComplaintSlaRule = {
   priority: ApiId;
   priority_code?: string | null;
   source?: ApiId | null;
-  assign_within_minutes?: number | null;
-  resolve_within_minutes?: number | null;
   working_hours_only?: boolean;
-  escalation_after_minutes?: number | null;
-  escalation_team?: ApiId | null;
+  escalation_levels?: ComplaintSlaEscalationLevel[];
+  // Location scope — blank means every area; the deepest covering rule wins.
+  country_id?: ApiId | null;
+  state_id?: ApiId | null;
+  district_id?: ApiId | null;
+  area_type_id?: ApiId | null;
+  corporation_id?: ApiId | null;
+  municipality_id?: ApiId | null;
+  town_panchayat_id?: ApiId | null;
+  panchayat_union_id?: ApiId | null;
+  panchayat_id?: ApiId | null;
+  scope_label?: string | null;
+  scope_level?: string | null;
   is_active?: boolean;
 };
 
@@ -248,8 +254,6 @@ export type ComplaintStatusHistory = {
 
 export type ComplaintAssignmentHistory = {
   unique_id: string;
-  from_team_name?: string | null;
-  to_team_name?: string | null;
   from_staff_name?: string | null;
   to_staff_name?: string | null;
   assignment_reason?: string | null;
@@ -259,9 +263,10 @@ export type ComplaintAssignmentHistory = {
 export type ComplaintEscalationHistory = {
   unique_id: string;
   escalation_level?: number;
-  escalated_from_team_name?: string | null;
-  escalated_to_team_name?: string | null;
+  escalated_from_level?: number | null;
+  escalated_from_staff_name?: string | null;
   escalated_to_staff_name?: string | null;
+  escalated_by_system?: boolean;
   reason?: string | null;
   escalated_at?: string;
 };
@@ -421,8 +426,15 @@ export interface Grievance {
   area_type_name?: string;
   latitude?: string | number;
   longitude?: string | number;
-  assigned_team_name?: string;
+  /** Who holds it now: the escalatee once escalated, else the assignee. */
   assigned_staff_name?: string;
+  first_assigned_staff_name?: string;
+  /** The ticket's own unique_id (`unique_id` above carries the ticket no). */
+  ticket_id?: string;
+  is_escalated?: boolean;
+  escalation_level?: number | null;
+  escalation_level_name?: string | null;
+  next_escalation_due_at?: string | null;
   district_name?: string;
   city_name?: string;
   operational_context?: OperationalContext;

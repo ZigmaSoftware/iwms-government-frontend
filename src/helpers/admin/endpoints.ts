@@ -131,7 +131,6 @@ export const adminEndpoints = {
   complaintStatuses: "complaint-ticket/statuses",
   complaintSources: "complaint-ticket/sources",
   complaintLanguages: "complaint-ticket/languages",
-  complaintTeams: "complaint-ticket/teams",
   complaintSlaRules: "complaint-ticket/sla-rules",
   complaintRoutingRules: "complaint-ticket/routing-rules",
   complaintFeedback: "complaint-ticket/feedback",

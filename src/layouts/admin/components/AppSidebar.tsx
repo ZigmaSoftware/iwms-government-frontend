@@ -17,6 +17,7 @@ import {
   CalendarCheck,
   Search,
   X,
+  MessageSquareWarning,
 } from "lucide-react";
 
 import { useSidebar } from "@/contexts/SideBarContext";
@@ -46,7 +47,8 @@ const {
   encComplaint,
   encComplaintModules,
   encComplaintCategories,
-  encComplaintTeams,
+  encMyTasks,
+  encComplaintsReport,
   encComplaintSlaRules,
   encTransportMaster,
   encScheduleMasters,
@@ -139,6 +141,7 @@ type SidebarSectionKey =
   | "scheduleSetup"
   | "scheduleOperations"
   | "scheduleReports"
+  | "complaintReports"
   | "auditItems"
   | "wasteManagement"
   | "workforceManagement"
@@ -197,7 +200,7 @@ const MODULE_GROUPS: {
     key: "reports",
     titleKey: "admin.nav.group_reports",
     accent: "bg-blue-500",
-    sectionKeys: ["scheduleReports"],
+    sectionKeys: ["scheduleReports", "complaintReports"],
   },
 ];
 
@@ -506,6 +509,12 @@ const complaintTicketItems: NavItem[] = [
         screen: "tickets",
       },
       {
+        nameKey: "admin.nav.my_tasks",
+        path: `/${encComplaintTicket}/${encMyTasks}`,
+        module: "complaint-ticket",
+        screen: "my-tasks",
+      },
+      {
         nameKey: "admin.nav.reference_data",
         path: `/${encComplaintTicket}/${encComplaintModules}`,
         module: "complaint-ticket",
@@ -516,12 +525,6 @@ const complaintTicketItems: NavItem[] = [
         path: `/${encComplaintTicket}/${encComplaintCategories}`,
         module: "complaint-ticket",
         screens: ["categories", "subcategories"],
-      },
-      {
-        nameKey: "admin.nav.teams",
-        path: `/${encComplaintTicket}/${encComplaintTeams}`,
-        module: "complaint-ticket",
-        screen: "teams",
       },
       {
         nameKey: "admin.nav.sla_rules",
@@ -672,6 +675,24 @@ const scheduleReportsItems: NavItem[] = [
         path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`,
         module: "schedule-masters",
         screen: "MonthlyWasteComparison",
+      },
+    ],
+  },
+];
+
+// ── Complaint Reports: grievance analytics ─────────────────────────────────
+const complaintReportsItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.complaint_reports",
+    icon: <MessageSquareWarning size={18} />,
+    module: "complaint-ticket",
+    screen: "complaints-report",
+    subItems: [
+      {
+        nameKey: "admin.nav.complaints_report",
+        path: `/${encComplaintTicket}/${encComplaintsReport}`,
+        module: "complaint-ticket",
+        screen: "complaints-report",
       },
     ],
   },
@@ -845,6 +866,7 @@ const AppSidebar: React.FC = () => {
         { key: "scheduleSetup" as const, items: scheduleSetupItems },
         { key: "scheduleOperations" as const, items: scheduleOperationsItems },
         { key: "scheduleReports" as const, items: scheduleReportsItems },
+        { key: "complaintReports" as const, items: complaintReportsItems },
         { key: "auditItems" as const, items: auditItems },
         // { key: "fleetReports" as const, items: fleetReportItems },
         { key: "leaderLogin" as const, items: leaderLoginItems },

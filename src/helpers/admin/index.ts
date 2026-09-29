@@ -107,7 +107,6 @@ export const complaintPriorityApi = adminApi.complaintPriorities;
 export const complaintStatusApi = adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages;
-export const complaintTeamApi = adminApi.complaintTeams;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules;
 export const complaintRoutingRuleApi = adminApi.complaintRoutingRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback;

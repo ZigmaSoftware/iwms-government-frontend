@@ -17,9 +17,9 @@ import Select from "@/components/form/Select";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { wasteTypeApi } from "@/helpers/admin";
-import { complaintPriorityApi, complaintTeamApi } from "@/features/complaintTicketing/api";
+import { complaintPriorityApi } from "@/features/complaintTicketing/api";
 import { asArray } from "@/pages/admin/modules/core_modules/complaintManagement/utils";
-import type { ComplaintPriority, ComplaintTeam } from "@/features/complaintTicketing/types";
+import type { ComplaintPriority } from "@/features/complaintTicketing/types";
 
 const { encWasteMasters, encWasteTypes } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encWasteMasters, encWasteTypes);
@@ -30,11 +30,7 @@ const toStringOrEmpty = (value: unknown): string =>
 const WASTE_TYPE_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
   is_active: ["is_active"],
-  default_team: ["default_team"],
   default_priority: ["default_priority"],
-  assign_within_minutes: ["assign_within_minutes"],
-  resolve_within_minutes: ["resolve_within_minutes"],
-  working_hours_only: ["working_hours_only"],
 };
 
 export default function WasteTypeForm() {
@@ -50,20 +46,14 @@ export default function WasteTypeForm() {
   const [loadingRecord, setLoadingRecord] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [teams, setTeams] = useState<ComplaintTeam[]>([]);
   const [priorities, setPriorities] = useState<ComplaintPriority[]>([]);
-  const [defaultTeam, setDefaultTeam] = useState("");
   const [defaultPriority, setDefaultPriority] = useState("");
-  const [assignWithinMinutes, setAssignWithinMinutes] = useState("");
-  const [resolveWithinMinutes, setResolveWithinMinutes] = useState("");
-  const [workingHoursOnly, setWorkingHoursOnly] = useState(false);
   const schema = useMemo(
     () => requireWhenVisible(wasteTypeSchema, showField),
     [showField],
   );
 
   useEffect(() => {
-    complaintTeamApi.readAll().then((res) => setTeams(asArray(res))).catch(() => {});
     complaintPriorityApi.readAll().then((res) => setPriorities(asArray(res))).catch(() => {});
   }, []);
 
@@ -96,11 +86,7 @@ export default function WasteTypeForm() {
           toStringOrEmpty(res.waste_type_name ?? res.name ?? res.property_name),
         );
         setIsActive(Boolean(res.is_active));
-        setDefaultTeam(toStringOrEmpty(res.default_team));
         setDefaultPriority(toStringOrEmpty(res.default_priority));
-        setAssignWithinMinutes(toStringOrEmpty(res.assign_within_minutes));
-        setResolveWithinMinutes(toStringOrEmpty(res.resolve_within_minutes));
-        setWorkingHoursOnly(Boolean(res.working_hours_only));
       })
       .catch((err: any) => {
         if (cancelled) return;
@@ -115,11 +101,7 @@ export default function WasteTypeForm() {
     const rawPayload = {
       waste_type_name: wasteTypeName.trim(),
       is_active: isActive,
-      default_team: defaultTeam || null,
       default_priority: defaultPriority || null,
-      assign_within_minutes: assignWithinMinutes ? Number(assignWithinMinutes) : null,
-      resolve_within_minutes: resolveWithinMinutes ? Number(resolveWithinMinutes) : null,
-      working_hours_only: workingHoursOnly,
     };
     const validation = schema.safeParse(rawPayload);
     if (!validation.success) {
@@ -183,22 +165,7 @@ export default function WasteTypeForm() {
           </div>
         )}
 
-        {/* Public grievance routing: team/priority/SLA this waste type is assigned to */}
-        {showField("default_team") && (
-          <div>
-            <Label>Default Team</Label>
-            <Select
-              value={defaultTeam || "__none__"}
-              onChange={(v) => setDefaultTeam(v === "__none__" ? "" : v)}
-              options={[
-                { value: "__none__", label: "None" },
-                ...teams.map((team) => ({ value: team.unique_id, label: team.team_name })),
-              ]}
-              placeholder="None"
-            />
-          </div>
-        )}
-
+        {/* Public grievance routing: the priority this waste type is raised with */}
         {showField("default_priority") && (
           <div>
             <Label>Default Priority</Label>
@@ -210,46 +177,6 @@ export default function WasteTypeForm() {
                 ...priorities.map((priority) => ({ value: priority.unique_id, label: priority.priority_name })),
               ]}
               placeholder="None"
-            />
-          </div>
-        )}
-
-        {showField("assign_within_minutes") && (
-          <div>
-            <Label>Assign Within (minutes)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={assignWithinMinutes}
-              onChange={(e) => setAssignWithinMinutes(e.target.value)}
-              placeholder="e.g. 60"
-            />
-          </div>
-        )}
-
-        {showField("resolve_within_minutes") && (
-          <div>
-            <Label>Resolve Within (minutes)</Label>
-            <Input
-              type="number"
-              min={0}
-              value={resolveWithinMinutes}
-              onChange={(e) => setResolveWithinMinutes(e.target.value)}
-              placeholder="e.g. 1440"
-            />
-          </div>
-        )}
-
-        {showField("working_hours_only") && (
-          <div>
-            <Label>Count Only Working Hours</Label>
-            <Select
-              value={workingHoursOnly ? "true" : "false"}
-              onChange={(v) => setWorkingHoursOnly(v === "true")}
-              options={[
-                { value: "true", label: "Yes" },
-                { value: "false", label: "No" },
-              ]}
             />
           </div>
         )}
