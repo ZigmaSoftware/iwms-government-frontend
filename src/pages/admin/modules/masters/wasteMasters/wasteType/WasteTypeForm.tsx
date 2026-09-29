@@ -12,13 +12,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -26,7 +20,6 @@ import { wasteTypeApi } from "@/helpers/admin";
 import { complaintPriorityApi, complaintTeamApi } from "@/features/complaintTicketing/api";
 import { asArray } from "@/pages/admin/modules/core_modules/complaintManagement/utils";
 import type { ComplaintPriority, ComplaintTeam } from "@/features/complaintTicketing/types";
-import { capitalize } from "@/utils/capitalize";
 
 const { encWasteMasters, encWasteTypes } = getEncryptedRoute();
 const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encWasteMasters, encWasteTypes);
@@ -179,13 +172,14 @@ export default function WasteTypeForm() {
         {showField("is_active") && (
           <div>
             <Label>{t("common.status")}</Label>
-            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Select
+              value={isActive ? "true" : "false"}
+              onChange={(v) => setIsActive(v === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+            />
           </div>
         )}
 
@@ -193,30 +187,30 @@ export default function WasteTypeForm() {
         {showField("default_team") && (
           <div>
             <Label>Default Team</Label>
-            <Select value={defaultTeam || "__none__"} onValueChange={(v) => setDefaultTeam(v === "__none__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {teams.map((team) => (
-                  <SelectItem key={team.unique_id} value={team.unique_id}>{capitalize(team.team_name)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Select
+              value={defaultTeam || "__none__"}
+              onChange={(v) => setDefaultTeam(v === "__none__" ? "" : v)}
+              options={[
+                { value: "__none__", label: "None" },
+                ...teams.map((team) => ({ value: team.unique_id, label: team.team_name })),
+              ]}
+              placeholder="None"
+            />
           </div>
         )}
 
         {showField("default_priority") && (
           <div>
             <Label>Default Priority</Label>
-            <Select value={defaultPriority || "__none__"} onValueChange={(v) => setDefaultPriority(v === "__none__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">None</SelectItem>
-                {priorities.map((priority) => (
-                  <SelectItem key={priority.unique_id} value={priority.unique_id}>{capitalize(priority.priority_name)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Select
+              value={defaultPriority || "__none__"}
+              onChange={(v) => setDefaultPriority(v === "__none__" ? "" : v)}
+              options={[
+                { value: "__none__", label: "None" },
+                ...priorities.map((priority) => ({ value: priority.unique_id, label: priority.priority_name })),
+              ]}
+              placeholder="None"
+            />
           </div>
         )}
 
@@ -249,13 +243,14 @@ export default function WasteTypeForm() {
         {showField("working_hours_only") && (
           <div>
             <Label>Count Only Working Hours</Label>
-            <Select value={workingHoursOnly ? "true" : "false"} onValueChange={(v) => setWorkingHoursOnly(v === "true")}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">Yes</SelectItem>
-                <SelectItem value="false">No</SelectItem>
-              </SelectContent>
-            </Select>
+            <Select
+              value={workingHoursOnly ? "true" : "false"}
+              onChange={(v) => setWorkingHoursOnly(v === "true")}
+              options={[
+                { value: "true", label: "Yes" },
+                { value: "false", label: "No" },
+              ]}
+            />
           </div>
         )}
 

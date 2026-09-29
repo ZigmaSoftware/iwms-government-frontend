@@ -1,6 +1,5 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
@@ -13,13 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/form/FieldError";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi } from "@/helpers/admin";
@@ -194,21 +187,15 @@ function DistrictEditor({
               name="state_id"
               render={({ field }) => (
                 <Select
+                  id="stateId"
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onChange={field.onChange}
+                  options={states}
+                  placeholder="Select State"
+                  className="input-validate w-full"
                   disabled={isSubmitting || stateScope.mode === "locked"}
-                >
-                  <SelectTrigger className="input-validate w-full" id="stateId">
-                    <SelectValue placeholder="Select State" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {states.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {capitalize(item.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
             <FieldError message={errors.state_id?.message} />
@@ -276,18 +263,18 @@ function DistrictEditor({
               name="is_active"
               render={({ field }) => (
                 <Select
+                  id="isActive"
                   value={field.value ? "true" : "false"}
-                  onValueChange={(value) => field.onChange(value === "true")}
+                  onChange={(value) => field.onChange(value === "true")}
+                  options={[
+                    { value: "true", label: t("common.active") },
+                    { value: "false", label: t("common.inactive") },
+                  ]}
+                  placeholder={t("common.select_status")}
+                  className="input-validate w-full"
                   disabled={isSubmitting}
-                >
-                  <SelectTrigger className="input-validate w-full" id="isActive">
-                    <SelectValue placeholder={t("common.select_status")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">{t("common.active")}</SelectItem>
-                    <SelectItem value="false">{t("common.inactive")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
           </div>

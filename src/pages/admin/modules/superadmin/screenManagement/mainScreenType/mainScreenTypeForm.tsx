@@ -8,13 +8,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
@@ -158,16 +152,15 @@ export default function MainScreenTypeForm() {
             <Label>{t("common.status")} *</Label>
             <Select
               value={isActive ? "true" : "false"}
-              onValueChange={(v) => setIsActive(v === "true")}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+              onChange={(v) => setIsActive(v === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="input-validate w-full"
+              required
+            />
           </div>
         </div>
 

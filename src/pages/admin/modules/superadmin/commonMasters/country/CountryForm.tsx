@@ -7,13 +7,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
 import type { SelectOption } from "@/types";
@@ -205,16 +199,14 @@ export default function CountryForm() {
             <Label htmlFor="continent">
               {t("admin.nav.continent")} <span className="text-red-500">*</span>
             </Label>
-            <Select value={continentId} onValueChange={setContinentId}>
-              <SelectTrigger id="continent">
-                <SelectValue placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })} />
-              </SelectTrigger>
-              <SelectContent>
-                {continents.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Select
+              id="continent"
+              value={continentId}
+              onChange={setContinentId}
+              options={continents}
+              placeholder={t("common.select_item_placeholder", { item: t("admin.nav.continent") })}
+              required
+            />
           </div>
         )}
 
@@ -265,13 +257,16 @@ export default function CountryForm() {
         {showField("is_active") && (
           <div>
             <Label>{t("common.status")} <span className="text-red-500">*</span></Label>
-            <Select value={isActive ? "true" : "false"} onValueChange={(v) => setIsActive(v === "true")}>
-              <SelectTrigger><SelectValue placeholder={t("common.select_status")} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+            <Select
+              value={isActive ? "true" : "false"}
+              onChange={(v) => setIsActive(v === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              required
+            />
           </div>
         )}
 

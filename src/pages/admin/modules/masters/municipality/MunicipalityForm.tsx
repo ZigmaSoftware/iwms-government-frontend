@@ -1,6 +1,5 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
@@ -13,13 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/form/FieldError";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
@@ -238,25 +231,19 @@ function MunicipalityEditor({
               name="state_id"
               render={({ field }) => (
                 <Select
+                  id="stateId"
                   value={field.value ?? ""}
-                  onValueChange={(value) => {
+                  onChange={(value) => {
                     field.onChange(value);
                     setValue("district_id", "");
                     setValue("area_type_id", "");
                   }}
+                  options={states}
+                  placeholder="Select State"
+                  className="input-validate w-full"
                   disabled={isSubmitting || stateScope.mode === "locked"}
-                >
-                  <SelectTrigger className="input-validate w-full" id="stateId">
-                    <SelectValue placeholder="Select State" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {states.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {capitalize(item.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
             <FieldError message={errors.state_id?.message} />
@@ -273,24 +260,18 @@ function MunicipalityEditor({
               name="district_id"
               render={({ field }) => (
                 <Select
+                  id="districtId"
                   value={field.value ?? ""}
-                  onValueChange={(value) => {
+                  onChange={(value) => {
                     field.onChange(value);
                     setValue("area_type_id", "");
                   }}
+                  options={filteredDistricts}
+                  placeholder="Select District"
+                  className="input-validate w-full"
                   disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
-                >
-                  <SelectTrigger className="input-validate w-full" id="districtId">
-                    <SelectValue placeholder="Select District" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredDistricts.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {capitalize(item.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
             <FieldError message={errors.district_id?.message} />
@@ -307,21 +288,15 @@ function MunicipalityEditor({
               name="area_type_id"
               render={({ field }) => (
                 <Select
+                  id="areaTypeId"
                   value={field.value ?? ""}
-                  onValueChange={field.onChange}
+                  onChange={field.onChange}
+                  options={filteredAreaTypes}
+                  placeholder="Select Area Type"
+                  className="input-validate w-full"
                   disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
-                >
-                  <SelectTrigger className="input-validate w-full" id="areaTypeId">
-                    <SelectValue placeholder="Select Area Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredAreaTypes.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {capitalize(item.label)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
             <FieldError message={errors.area_type_id?.message} />
@@ -374,18 +349,18 @@ function MunicipalityEditor({
               name="is_active"
               render={({ field }) => (
                 <Select
+                  id="isActive"
                   value={field.value ? "true" : "false"}
-                  onValueChange={(value) => field.onChange(value === "true")}
+                  onChange={(value) => field.onChange(value === "true")}
+                  options={[
+                    { value: "true", label: t("common.active") },
+                    { value: "false", label: t("common.inactive") },
+                  ]}
+                  placeholder={t("common.select_status")}
+                  className="input-validate w-full"
                   disabled={isSubmitting}
-                >
-                  <SelectTrigger className="input-validate w-full" id="isActive">
-                    <SelectValue placeholder={t("common.select_status")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">{t("common.active")}</SelectItem>
-                    <SelectItem value="false">{t("common.inactive")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
           </div>

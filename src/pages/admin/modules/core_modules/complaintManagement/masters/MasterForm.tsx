@@ -18,8 +18,14 @@ import { departmentApi, staffCreationApi } from "@/helpers/admin";
 import { asArray, errorText, idOf } from "../utils";
 import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
 import { toNotifyMessage } from "@/lib/zodErrors";
-import { capitalize } from "@/utils/capitalize";
+import Select from "@/components/form/Select";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
+
+// Optional pickers keep an explicit "None"/"Any" entry so a chosen value can be
+// cleared again; the sentinel maps back to "" in the form state.
+const EMPTY_OPTION = "__none__";
+const withEmpty = (label: string, options: { value: string; label: string }[]) => [{ value: EMPTY_OPTION, label }, ...options];
+const fromOptional = (value: string) => (value === EMPTY_OPTION ? "" : value);
 
 type Props = {
   kind: MasterKind;
@@ -224,6 +230,24 @@ export default function MasterForm({ kind }: Props) {
     }
   };
 
+  const toOptions = (items: any[], labelKey: string) =>
+    items.map((item) => ({ value: item.unique_id, label: item[labelKey] }));
+  const categoryOptions = toOptions(categories, "category_name");
+  const priorityOptions = toOptions(priorities, "priority_name");
+  const moduleOptions = toOptions(modules, "module_name");
+  const teamOptions = toOptions(teams, "team_name");
+  const sourceOptions = toOptions(sources, "source_name");
+  const departmentOptions = toOptions(departments, "department_name");
+  const subcategoryOptions = toOptions(
+    subcategories.filter((item) => !form.category || idOf(item.category) === form.category),
+    "subcategory_name",
+  );
+  const escalatesToOptions = toOptions(teams.filter((team) => team.unique_id !== id), "team_name");
+  const leadStaffOptions = staffOptions.map((item) => ({
+    value: item.staff_unique_id ?? item.unique_id,
+    label: item.employee_name ?? item.staff_name ?? item.username ?? item.staff_unique_id,
+  }));
+
   return (
     <ComponentCard title={`${id ? "Edit" : "Add"} ${config.title}`}>
       <form onSubmit={save} className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -231,27 +255,18 @@ export default function MasterForm({ kind }: Props) {
           <>
             <div>
               <Label>Category</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
-                <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-              </select>
+              <Select value={form.category} onChange={(v) => setValue("category", v)} options={categoryOptions} placeholder="Select category" className="w-full" required />
             </div>
             <div>
               <Label>Priority</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
-                <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-              </select>
+              <Select value={form.priority} onChange={(v) => setValue("priority", v)} options={priorityOptions} placeholder="Select priority" className="w-full" required />
             </div>
           </>
         )}
         {kind === "subcategory" && (
           <div>
             <Label>Category</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
-              <option value="">Select category</option>
-              {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-            </select>
+            <Select value={form.category} onChange={(v) => setValue("category", v)} options={categoryOptions} placeholder="Select category" className="w-full" required />
           </div>
         )}
         {kind !== "slaRule" && <div>
@@ -265,45 +280,30 @@ export default function MasterForm({ kind }: Props) {
         {kind === "category" && (
           <div>
             <Label>Module</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.module} onChange={(e) => setValue("module", e.target.value)}>
-              <option value="">None</option>
-              {modules.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.module_name)}</option>)}
-            </select>
+            <Select value={form.module} onChange={(v) => setValue("module", fromOptional(v))} options={withEmpty("None", moduleOptions)} placeholder="None" className="w-full" />
           </div>
         )}
         {["category", "subcategory"].includes(kind) && (
           <div>
             <Label>Default Priority</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_priority} onChange={(e) => setValue("default_priority", e.target.value)}>
-              <option value="">None</option>
-              {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-            </select>
+            <Select value={form.default_priority} onChange={(v) => setValue("default_priority", fromOptional(v))} options={withEmpty("None", priorityOptions)} placeholder="None" className="w-full" />
           </div>
         )}
         {kind === "category" && (
           <div>
             <Label>Default Team</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_team} onChange={(e) => setValue("default_team", e.target.value)}>
-              <option value="">None</option>
-              {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-            </select>
+            <Select value={form.default_team} onChange={(v) => setValue("default_team", fromOptional(v))} options={withEmpty("None", teamOptions)} placeholder="None" className="w-full" />
           </div>
         )}
         {kind === "slaRule" && (
           <>
             <div>
               <Label>Subcategory</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
-                <option value="">Any</option>
-                {subcategories.filter((item) => !form.category || idOf(item.category) === form.category).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
-              </select>
+              <Select value={form.subcategory} onChange={(v) => setValue("subcategory", fromOptional(v))} options={withEmpty("Any", subcategoryOptions)} placeholder="Any" className="w-full" />
             </div>
             <div>
               <Label>Source</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
-                <option value="">Any</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
-              </select>
+              <Select value={form.source} onChange={(v) => setValue("source", fromOptional(v))} options={withEmpty("Any", sourceOptions)} placeholder="Any" className="w-full" />
             </div>
             <div>
               <Label>Assign Within Minutes</Label>
@@ -319,10 +319,7 @@ export default function MasterForm({ kind }: Props) {
             </div>
             <div>
               <Label>Escalation Team</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalation_team} onChange={(e) => setValue("escalation_team", e.target.value)}>
-                <option value="">None</option>
-                {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-              </select>
+              <Select value={form.escalation_team} onChange={(v) => setValue("escalation_team", fromOptional(v))} options={withEmpty("None", teamOptions)} placeholder="None" className="w-full" />
             </div>
           </>
         )}
@@ -330,28 +327,15 @@ export default function MasterForm({ kind }: Props) {
           <>
             <div>
               <Label>Department</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.department} onChange={(e) => setValue("department", e.target.value)}>
-                <option value="">None</option>
-                {departments.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.department_name)}</option>)}
-              </select>
+              <Select value={form.department} onChange={(v) => setValue("department", fromOptional(v))} options={withEmpty("None", departmentOptions)} placeholder="None" className="w-full" />
             </div>
             <div>
               <Label>Lead Staff</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.lead_staff} onChange={(e) => setValue("lead_staff", e.target.value)}>
-                <option value="">None</option>
-                {staffOptions.map((item) => (
-                  <option key={item.staff_unique_id ?? item.unique_id} value={item.staff_unique_id ?? item.unique_id}>
-                    {item.employee_name ?? item.staff_name ?? item.username ?? item.staff_unique_id}
-                  </option>
-                ))}
-              </select>
+              <Select value={form.lead_staff} onChange={(v) => setValue("lead_staff", fromOptional(v))} options={withEmpty("None", leadStaffOptions)} placeholder="None" className="w-full" />
             </div>
             <div>
               <Label>Escalates To</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalates_to} onChange={(e) => setValue("escalates_to", e.target.value)}>
-                <option value="">None</option>
-                {teams.filter((team) => team.unique_id !== id).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-              </select>
+              <Select value={form.escalates_to} onChange={(v) => setValue("escalates_to", fromOptional(v))} options={withEmpty("None", escalatesToOptions)} placeholder="None" className="w-full" />
             </div>
             <div>
               <Label>Escalation Level</Label>
