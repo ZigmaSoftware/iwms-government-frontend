@@ -43,7 +43,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encComplaintPriorities,
     encComplaintStatuses,
     encComplaintSources,
-    encComplaintTeams,
+    encMyTasks,
+    encComplaintsReport,
     encComplaintSlaRules,
     encTransportMaster,
     encFuel,
@@ -58,6 +59,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteManagementMaster,
     encWorkforceManagement,
     encStaffUserType,
+    encStaffHierarchy,
     encMainScreenType,
     encUserScreenAction,
     encMainScreen,
@@ -132,6 +134,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Super Admin > Role Management ──
     { path: `/${encRoleManagement}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.role_management" },
     { path: `/${encRoleManagement}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.role_management" },
+    { path: `/${encRoleManagement}/${encStaffHierarchy}`, nameKey: "admin.nav.staff_hierarchy", parentNameKey: "admin.nav.role_management" },
 
     // ── Super Admin > User Management ──
     { path: `/${encUserManagement}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
@@ -204,13 +207,14 @@ export function buildNavRouteMap(): RouteEntry[] {
 
     // ── Core Modules > Complaint Management ──
     { path: `/${encComplaintTicket}/${encComplaint}`, nameKey: "admin.nav.complaint_tickets", parentNameKey: "admin.nav.complaint_ticket" },
+    { path: `/${encComplaintTicket}/${encMyTasks}`, nameKey: "admin.nav.my_tasks", parentNameKey: "admin.nav.complaint_ticket" },
+    { path: `/${encComplaintTicket}/${encComplaintsReport}`, nameKey: "admin.nav.complaints_report", parentNameKey: "admin.nav.complaint_reports" },
     { path: `/${encComplaintTicket}/${encComplaintModules}`, nameKey: "admin.nav.modules", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintCategories}`, nameKey: "admin.nav.categories", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintSubcategories}`, nameKey: "admin.nav.subcategories", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintPriorities}`, nameKey: "admin.nav.priorities", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintStatuses}`, nameKey: "admin.nav.statuses", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintSources}`, nameKey: "admin.nav.sources", parentNameKey: "admin.nav.complaint_ticket" },
-    { path: `/${encComplaintTicket}/${encComplaintTeams}`, nameKey: "admin.nav.teams", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintSlaRules}`, nameKey: "admin.nav.sla_rules", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.complaint_ticket" },
 

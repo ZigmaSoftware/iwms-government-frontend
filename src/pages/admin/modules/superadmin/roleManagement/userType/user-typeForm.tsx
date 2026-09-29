@@ -5,6 +5,7 @@ import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Select from "@/components/form/Select";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
 import { userTypeSchema } from "@/schemas/superadmin/roleManagement/userType.schema";
@@ -159,14 +160,16 @@ export default function UserTypeForm() {
                 {t("common.status")} <span className="text-red-500">*</span>
               </label>
 
-              <select
+              <Select
                 value={isActive ? "true" : "false"}
-                onChange={(e) => setIsActive(e.target.value === "true")}
+                onChange={(v) => setIsActive(v === "true")}
+                options={[
+                  { value: "true", label: t("common.active") },
+                  { value: "false", label: t("common.inactive") },
+                ]}
                 className="w-full px-3 py-2 border border-green-400 rounded-sm focus:outline-none focus:ring-2 focus:ring-green-200"
-              >
-                <option value="true">{t("common.active")}</option>
-                <option value="false">{t("common.inactive")}</option>
-              </select>
+                required
+              />
             </div>
 
           </div>

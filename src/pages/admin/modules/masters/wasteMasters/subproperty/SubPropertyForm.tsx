@@ -12,20 +12,13 @@ import { useTranslation } from "react-i18next";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { requireWhenVisible } from "@/schemas/shared/visibility";
 import { subPropertySchema } from "@/schemas/masters/wasteMasters/subProperty.schema";
 import type { SubPropertyEditorProps, SubPropertyPayload, SubPropertyOptionRecord } from "./types";
-import { capitalize } from "@/utils/capitalize";
 
 const { encWasteMasters, encSubProperties } = getEncryptedRoute();
 
@@ -121,28 +114,19 @@ function SubPropertyEditor({
             </Label>
 
             <Select
+              id="property"
               value={propertyId || ""}
-              onValueChange={(val) => setPropertyId(val)}
+              onChange={(val) => setPropertyId(val)}
+              options={(properties ?? [])
+                .filter((p) => p.is_active === true)
+                .map((p) => ({ value: String(p.unique_id), label: p.property_name }))}
+              placeholder={t("common.select_item_placeholder", {
+                item: t("admin.nav.property"),
+              })}
+              className="input-validate w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger id="property" className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.property"),
-                  })}
-                />
-              </SelectTrigger>
-
-              <SelectContent>
-                {properties
-                  ?.filter((p) => p.is_active === true)
-                  .map((p) => (
-                    <SelectItem key={p.unique_id} value={String(p.unique_id)}>
-                      {capitalize(p.property_name)}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -170,19 +154,18 @@ function SubPropertyEditor({
             <Label htmlFor="isActive">{t("common.status")} *</Label>
 
             <Select
+              id="isActive"
               value={isActive ? "true" : "false"}
-              onValueChange={(val) => setIsActive(val === "true")}
+              onChange={(val) => setIsActive(val === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="input-validate w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger id="isActive" className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
       </div>

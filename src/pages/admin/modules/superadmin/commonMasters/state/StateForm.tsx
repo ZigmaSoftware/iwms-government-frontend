@@ -1,6 +1,5 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
@@ -10,13 +9,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { continentApi, countryApi } from "@/helpers/admin";
@@ -194,21 +187,15 @@ function StateEditor({
               Continent <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="continentId"
               value={continentId}
-              onValueChange={handleContinentChange}
+              onChange={handleContinentChange}
+              options={continents}
+              placeholder="Select Continent"
+              className="input-validate w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="continentId">
-                <SelectValue placeholder="Select Continent" />
-              </SelectTrigger>
-              <SelectContent>
-                {continents.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -218,23 +205,15 @@ function StateEditor({
               Country <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="countryId"
               value={countryId}
-              onValueChange={(value) => setCountryId(value)}
+              onChange={(value) => setCountryId(value)}
+              options={filteredCountries}
+              placeholder={continentId ? "Select Country" : "Select a continent first"}
+              className="input-validate w-full"
               disabled={isSubmitting || !continentId}
-            >
-              <SelectTrigger className="input-validate w-full" id="countryId">
-                <SelectValue
-                  placeholder={continentId ? "Select Country" : "Select a continent first"}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredCountries.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -277,18 +256,18 @@ function StateEditor({
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="isActive"
               value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
+              onChange={(value) => setIsActive(value === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="input-validate w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
       </div>

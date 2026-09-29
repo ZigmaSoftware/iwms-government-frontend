@@ -17,7 +17,8 @@ export type EncryptedRoutes = {
   encComplaintPriorities: string;
   encComplaintStatuses: string;
   encComplaintSources: string;
-  encComplaintTeams: string;
+  encMyTasks: string;
+  encComplaintsReport: string;
   encComplaintSlaRules: string;
   encContinents: string;
   encCountries: string;
@@ -51,6 +52,7 @@ export type EncryptedRoutes = {
   encCustomerAccessConfiguration: string;
   encStaffAccessDashboard: string;
   encStaffUserType: string;
+  encStaffHierarchy: string;
   encStates: string;
   encSubProperties: string;
   encTripSummary: string;
@@ -152,7 +154,8 @@ const plainRoutes: EncryptedRoutes = {
   encComplaintPriorities: "priorities",
   encComplaintStatuses: "statuses",
   encComplaintSources: "sources",
-  encComplaintTeams: "teams",
+  encMyTasks: "my-tasks",
+  encComplaintsReport: "complaints-report",
   encComplaintSlaRules: "sla-rules",
   encContinents: "continents",
   encCountries: "countries",
@@ -196,6 +199,7 @@ const plainRoutes: EncryptedRoutes = {
   encCustomerAccessConfiguration: "customer-access-configuration",
   encStaffAccessDashboard: "staff-access-dashboard",
   encStaffUserType: "staff-user-type",
+  encStaffHierarchy: "staff-hierarchy",
   encStates: "states",
   encSubProperties: "sub-properties",
   encTripSummary: "trip-summary",

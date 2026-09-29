@@ -93,6 +93,7 @@ export default {
     "user_type": "User Type",
     "user_creation": "User Creation",
     "staff_user_type": "Staff User Type",
+    "staff_hierarchy": "Staff Hierarchy",
     "user_creations": "Staff Creations",
     "staff_creation": "Staff Creation",
     "staff_access_configuration": "Staff Access Configuration",
@@ -120,7 +121,9 @@ export default {
     "priorities": "Priorities",
     "statuses": "Statuses",
     "sources": "Sources",
-    "teams": "Teams",
+    "my_tasks": "My Tasks",
+    "complaints_report": "Complaints Report",
+    "complaint_reports": "Complaint Reports",
     "sla_rules": "SLA Rules",
     "complaints": "Complaints",
     "main_category": "Main Category",
@@ -217,6 +220,16 @@ export default {
   },
   "staff_user_type": {
     "role_label": "Staff User Role"
+  },
+  "staff_hierarchy": {
+    "role": "Government Staff User Type",
+    "reports_to": "Reports To",
+    "level": "Hierarchy Level",
+    "top_of_chain": "Top of chain (reports to Super Admin)",
+    "help_text": "Choose who each government role reports to, optionally for a specific area. The Staff Head dropdown in Staff Creation lists only staff of the reports-to role in the same area, using the most specific location that matches. Roles not configured here keep the default rule (driver/operator → supervisor → admin).",
+    "location": "Location",
+    "location_help": "Leave blank to apply everywhere. Pick a state, district or local body (down to panchayat) to override the chain for that area only — the most specific match wins.",
+    "all_locations": "All locations"
   },
   "staff_template_audit": {
     "title": "Staff Template Audit",

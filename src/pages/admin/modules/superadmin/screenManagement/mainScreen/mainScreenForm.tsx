@@ -9,19 +9,12 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import { useTranslation } from "react-i18next";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { mainScreenSchema } from "@/schemas/superadmin/screenManagement/mainScreen.schema";
 import { toNotifyMessage } from "@/lib/zodErrors";
-import { capitalize } from "@/utils/capitalize";
 
 /* ------------------------------
     ROUTES
@@ -197,33 +190,28 @@ export default function MainScreenForm() {
             <Label>{t("admin.nav.main_screen_type")} *</Label>
             <Select
               value={mainscreenTypeId}
-              onValueChange={(v) => setMainScreenTypeId(v)}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue
-                  placeholder={t("common.select_item_placeholder", {
-                    item: t("admin.nav.main_screen_type"),
-                  })}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {mainScreenTypes.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {!loadingRecord
-                      ? t("common.no_items_found", {
-                          item: t("admin.nav.main_screen_type"),
-                        })
-                      : t("common.loading")}
-                  </div>
-                ) : (
-                  mainScreenTypes.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {capitalize(opt.label)}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+              onChange={(v) => setMainScreenTypeId(v)}
+              options={
+                mainScreenTypes.length === 0
+                  ? [
+                      {
+                        value: "__no_items__",
+                        label: !loadingRecord
+                          ? t("common.no_items_found", {
+                              item: t("admin.nav.main_screen_type"),
+                            })
+                          : t("common.loading"),
+                        disabled: true,
+                      },
+                    ]
+                  : mainScreenTypes
+              }
+              placeholder={t("common.select_item_placeholder", {
+                item: t("admin.nav.main_screen_type"),
+              })}
+              className="input-validate w-full"
+              required
+            />
           </div>
 
           {/* Name */}
@@ -272,16 +260,15 @@ export default function MainScreenForm() {
             <Label>{t("common.status")} *</Label>
             <Select
               value={isActive ? "true" : "false"}
-              onValueChange={(v) => setIsActive(v === "true")}
-            >
-              <SelectTrigger className="input-validate w-full">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+              onChange={(v) => setIsActive(v === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="input-validate w-full"
+              required
+            />
           </div>
         </div>
 

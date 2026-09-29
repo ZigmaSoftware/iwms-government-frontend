@@ -1,7 +1,6 @@
 import type { BinCollectionEventRecord } from "./types";
 import type { ApiObject, TripCollectionPointRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
@@ -9,13 +8,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import { binCollectionEventApi, dailyTripCollectionPointApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
@@ -47,22 +40,15 @@ const ShadcnSelect = ({
       {label}
       {isRequired && <span className="text-red-500 ml-1">*</span>}
     </Label>
-    <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-        <SelectValue placeholder={placeholder || `Select ${label.toLowerCase()}`} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.length > 0 ? (
-          options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {capitalize(option.label)}
-            </SelectItem>
-          ))
-        ) : (
-          <div className="p-2 text-sm text-gray-500">No options available</div>
-        )}
-      </SelectContent>
-    </Select>
+    <Select
+      value={value}
+      onChange={onChange}
+      options={options}
+      placeholder={placeholder || `Select ${label.toLowerCase()}`}
+      className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+      disabled={disabled}
+      required={isRequired}
+    />
   </div>
 );
 };

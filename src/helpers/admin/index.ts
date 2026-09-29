@@ -65,6 +65,7 @@ export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
 export const governmentUserTypeApi = adminApi.governmentUserTypes;
 export const governmentRoleTypesApi = adminApi.governmentRoleTypes;
 export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
+export const staffHierarchyApi = adminApi.staffHierarchy;
 
 /* =========================
    USER CREATION
@@ -106,7 +107,6 @@ export const complaintPriorityApi = adminApi.complaintPriorities;
 export const complaintStatusApi = adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages;
-export const complaintTeamApi = adminApi.complaintTeams;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules;
 export const complaintRoutingRuleApi = adminApi.complaintRoutingRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback;

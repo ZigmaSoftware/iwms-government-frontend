@@ -22,7 +22,6 @@ import { FilterBar } from "@/components/common/FilterBar";
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
   is_active: ["is_active"],
-  default_team: ["default_team"],
 };
 
 const SORTABLE_FIELDS = new Set(["waste_type_name"]);
@@ -261,12 +260,6 @@ export default function WasteTypeListPage() {
             header={t("common.item_name", { item: t("common.waste_type") })}
             sortable
             body={(row: WasteTypeListRecord) => capitalize(row.waste_type_name)}
-          />
-        )}
-        {showCol("default_team") && (
-          <Column
-            header="Default Team"
-            body={(row: WasteTypeListRecord) => row.default_team_name || "-"}
           />
         )}
         {showCol("is_active") && (

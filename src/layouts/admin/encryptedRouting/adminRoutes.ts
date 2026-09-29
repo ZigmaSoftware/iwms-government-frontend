@@ -86,6 +86,8 @@ const WasteCollectedDataList = lazy(() => import("@/pages/admin/modules/core_mod
 const WasteCollectedForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/wasteCollectedData/wasteCollectedDataForm"));
 const StaffUserTypeForm = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeForm"));
 const StaffUserTypeList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeList"));
+const StaffHierarchyForm = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffHierarchy/staffHierarchyForm"));
+const StaffHierarchyList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffHierarchy/staffHierarchyList"));
 const CategoryList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/category/CategoryList"));
 const CategoryForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/category/CategoryForm"));
 const SubcategoryList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/subcategory/SubcategoryList"));
@@ -98,8 +100,8 @@ const StatusList = lazy(() => import("@/pages/admin/modules/core_modules/complai
 const StatusForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/StatusForm"));
 const SourceList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SourceList"));
 const SourceForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SourceForm"));
-const TeamList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList"));
-const TeamForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm"));
+const MyTasks = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/dashboard/MyTasks"));
+const ComplaintsReportPage = lazy(() => import("@/pages/admin/modules/reports/complaintReports/ComplaintsReportPage"));
 const SlaRuleList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList"));
 const SlaRuleForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleForm"));
 const MainScreenTypeList = lazy(() => import("@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeList"));
@@ -171,6 +173,7 @@ export const ROUTES: RouteMap = {
   "role-management": {
     "user-type": { list: UserTypeList, form: UserTypeForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
+    "staff-hierarchy": { list: StaffHierarchyList, form: StaffHierarchyForm },
   },
   "common-masters": {
     continents: { list: ContinentList, form: ContinentForm },
@@ -250,7 +253,8 @@ export const ROUTES: RouteMap = {
     priorities: { list: PriorityList, form: PriorityForm },
     statuses: { list: StatusList, form: StatusForm },
     sources: { list: SourceList, form: SourceForm },
-    teams: { list: TeamList, form: TeamForm },
+    "my-tasks": { list: MyTasks },
+    "complaints-report": { list: ComplaintsReportPage },
     "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
     feedback: { list: FeedbackList },
   },
@@ -327,6 +331,7 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   "user-type": ["user-type"],
   "staff-user-type": ["staff-user-type"],
   staffusertypes: ["staff-user-type"],
+  "staff-hierarchy": ["staff-hierarchy"],
 
   // Staff management
   staffcreation: ["staff-creation"],
@@ -376,7 +381,8 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   priorities: ["priorities"],
   statuses: ["statuses"],
   sources: ["sources"],
-  teams: ["teams"],
+  "my-tasks": ["my-tasks"],
+  "complaints-report": ["complaints-report"],
   feedback: ["feedback", "feedbacks"],
   feedbacks: ["feedback"],
   "sla-rules": ["sla-rules", "sla-rule", "sla_rules", "slaRules", "slarules", "sla"],

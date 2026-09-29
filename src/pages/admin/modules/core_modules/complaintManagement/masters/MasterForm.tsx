@@ -12,14 +12,56 @@ import {
   complaintPriorityApi,
   complaintSourceApi,
   complaintSubcategoryApi,
-  complaintTeamApi,
+  fetchHierarchyLevels,
 } from "@/features/complaintTicketing/api";
-import { departmentApi, staffCreationApi } from "@/helpers/admin";
-import { asArray, errorText, idOf } from "../utils";
+import type { ComplaintSlaEscalationLevel, HierarchyLevelOption } from "@/features/complaintTicketing/types";
+import { asArray, errorText, idOf, roleLabel } from "../utils";
 import { buildComplaintMasterSchema } from "@/schemas/core_modules/complaintManagement/complaintMaster.schema";
 import { toNotifyMessage } from "@/lib/zodErrors";
-import { capitalize } from "@/utils/capitalize";
+import Select from "@/components/form/Select";
+import LocationFields, {
+  emptyGeo,
+  LOCAL_BODY_LEVELS,
+  type GeoLocationValue,
+} from "@/pages/admin/modules/masters/shared/LocationHierarchyFields";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
+
+// Optional pickers keep an explicit "None"/"Any" entry so a chosen value can be
+// cleared again; the sentinel maps back to "" in the form state.
+const EMPTY_OPTION = "__none__";
+const withEmpty = (label: string, options: { value: string; label: string }[]) => [{ value: EMPTY_OPTION, label }, ...options];
+const fromOptional = (value: string) => (value === EMPTY_OPTION ? "" : value);
+
+/** SLA rule scope columns for a picked location (blank = every area). */
+const scopeOf = (geo: GeoLocationValue): Record<string, string | null> => ({
+  country_id: geo.countryId || null,
+  state_id: geo.stateId || null,
+  district_id: geo.districtId || null,
+  area_type_id: geo.areaTypeId || null,
+  ...Object.fromEntries(
+    LOCAL_BODY_LEVELS.map(({ value }) => [value, geo.localBodyLevel === value && geo.localBodyId ? geo.localBodyId : null]),
+  ),
+});
+
+const geoOf = (record: any): GeoLocationValue => {
+  const localBodyLevel = LOCAL_BODY_LEVELS.find((item) => record[item.value])?.value ?? "";
+  return {
+    countryId: String(record.country_id ?? ""),
+    stateId: String(record.state_id ?? ""),
+    districtId: String(record.district_id ?? ""),
+    areaTypeId: String(record.area_type_id ?? ""),
+    localBodyLevel,
+    localBodyId: localBodyLevel ? String(record[localBodyLevel] ?? "") : "",
+  };
+};
+
+// One editable row per Staff Hierarchy level on the SLA rule form.
+type EscalationLevelRow = {
+  level: number;
+  roles: string;
+  enabled: boolean;
+  resolve_within_minutes: string;
+};
 
 type Props = {
   kind: MasterKind;
@@ -35,23 +77,13 @@ const emptyForm = {
   subcategory: "",
   source: "",
   default_priority: "",
-  default_team: "",
   requires_location: true,
   requires_media: false,
   requires_address_change_detail: false,
   is_sensitive: false,
   is_final: false,
   allow_reopen: false,
-  is_field_team: false,
-  escalation_level: "1",
-  department: "",
-  lead_staff: "",
-  escalates_to: "",
-  assign_within_minutes: "",
-  resolve_within_minutes: "",
   working_hours_only: false,
-  escalation_after_minutes: "",
-  escalation_team: "",
   is_active: true,
 };
 
@@ -84,9 +116,10 @@ export default function MasterForm({ kind }: Props) {
   const [priorities, setPriorities] = useState<any[]>([]);
   const [subcategories, setSubcategories] = useState<any[]>([]);
   const [sources, setSources] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [staffOptions, setStaffOptions] = useState<any[]>([]);
+  const [hierarchyLevels, setHierarchyLevels] = useState<HierarchyLevelOption[]>([]);
+  const [savedEscalationLevels, setSavedEscalationLevels] = useState<ComplaintSlaEscalationLevel[]>([]);
+  const [escalationLevels, setEscalationLevels] = useState<EscalationLevelRow[]>([]);
+  const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
   const [saving, setSaving] = useState(false);
 
   const api = useMemo(() => config.api(), [config]);
@@ -97,47 +130,64 @@ export default function MasterForm({ kind }: Props) {
     complaintPriorityApi.readAll().then((res) => setPriorities(asArray(res))).catch(() => {});
     complaintSubcategoryApi.readAll().then((res) => setSubcategories(asArray(res))).catch(() => {});
     complaintSourceApi.readAll().then((res) => setSources(asArray(res))).catch(() => {});
-    complaintTeamApi.readAll().then((res) => setTeams(asArray(res))).catch(() => {});
-    // Department/Lead Staff pickers only matter for the Team form, but they're
-    // cheap enough to preload alongside everything else above.
-    departmentApi.readAll().then((res) => setDepartments(asArray(res))).catch(() => {});
-    staffCreationApi.readAll({ params: { active_status: 1 } }).then((res) => setStaffOptions(asArray(res))).catch(() => {});
   }, []);
+
+  // The levels (and roles at them) follow the chosen location: Anthiyur
+  // Panchayat and Chennai Corporation can each run their own chain.
+  const scopeKey = JSON.stringify(scopeOf(geo));
+  useEffect(() => {
+    if (kind !== "slaRule") return;
+    const params = Object.fromEntries(
+      Object.entries(JSON.parse(scopeKey) as Record<string, string | null>).filter(([, value]) => value),
+    ) as Record<string, string>;
+    fetchHierarchyLevels(params).then((res) => setHierarchyLevels(asArray(res))).catch(() => setHierarchyLevels([]));
+  }, [kind, scopeKey]);
+
+  // One escalation row per Staff Hierarchy level, carrying over the rule's
+  // saved window for that level (a level the rule never configured starts
+  // enabled and empty).
+  useEffect(() => {
+    if (kind !== "slaRule") return;
+    const saved = Object.fromEntries(savedEscalationLevels.map((row) => [row.level, row]));
+    setEscalationLevels(
+      hierarchyLevels.map((option) => ({
+        level: option.level,
+        roles: option.roles.map((role) => roleLabel(role.name)).join(", ") || "-",
+        enabled: saved[option.level]?.is_enabled ?? true,
+        resolve_within_minutes: String(saved[option.level]?.resolve_within_minutes ?? ""),
+      })),
+    );
+  }, [kind, hierarchyLevels, savedEscalationLevels]);
+
+  const setEscalationLevel = (index: number, patch: Partial<EscalationLevelRow>) =>
+    setEscalationLevels((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
   useEffect(() => {
     if (!id) return;
     api.read(id).then((record: any) => {
       setForm({
-        code: record.module_code ?? record.category_code ?? record.subcategory_code ?? record.priority_code ?? record.status_code ?? record.source_code ?? record.team_code ?? "",
-        name: record.module_name ?? record.category_name ?? record.subcategory_name ?? record.priority_name ?? record.status_name ?? record.source_name ?? record.team_name ?? "",
+        code: record.module_code ?? record.category_code ?? record.subcategory_code ?? record.priority_code ?? record.status_code ?? record.source_code ?? "",
+        name: record.module_name ?? record.category_name ?? record.subcategory_name ?? record.priority_name ?? record.status_name ?? record.source_name ?? "",
         description: record.description ?? "",
-        category: idOf(record.category),
-        module: idOf(record.module),
-        priority: idOf(record.priority),
-        subcategory: idOf(record.subcategory),
-        source: idOf(record.source),
-        default_priority: idOf(record.default_priority),
-        default_team: idOf(record.default_team),
+        category: idOf(record.category_id ?? record.category),
+        module: idOf(record.module_id ?? record.module),
+        priority: idOf(record.priority_id ?? record.priority),
+        subcategory: idOf(record.subcategory_id ?? record.subcategory),
+        source: idOf(record.source_id ?? record.source),
+        default_priority: idOf(record.default_priority_id ?? record.default_priority),
         requires_location: record.requires_location ?? true,
         requires_media: Boolean(record.requires_media),
         requires_address_change_detail: Boolean(record.requires_address_change_detail),
         is_sensitive: Boolean(record.is_sensitive),
         is_final: Boolean(record.is_final),
         allow_reopen: Boolean(record.allow_reopen),
-        is_field_team: Boolean(record.is_field_team),
-        escalation_level: String(record.escalation_level ?? 1),
-        department: idOf(record.department),
-        lead_staff: idOf(record.lead_staff),
-        escalates_to: idOf(record.escalates_to),
-        assign_within_minutes: String(record.assign_within_minutes ?? ""),
-        resolve_within_minutes: String(record.resolve_within_minutes ?? ""),
         working_hours_only: Boolean(record.working_hours_only),
-        escalation_after_minutes: String(record.escalation_after_minutes ?? ""),
-        escalation_team: idOf(record.escalation_team),
         is_active: record.is_active !== false,
       });
+      setSavedEscalationLevels(asArray<ComplaintSlaEscalationLevel>(record.escalation_levels));
+      if (kind === "slaRule") setGeo(geoOf(record));
     }).catch((err) => notify.fire("Error", errorText(err, "Unable to load record"), "error"));
-  }, [api, id]);
+  }, [api, id, kind]);
 
   const setValue = (key: keyof typeof emptyForm, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -147,6 +197,13 @@ export default function MasterForm({ kind }: Props) {
     const result = buildComplaintMasterSchema(kind).safeParse(form);
     if (!result.success) {
       notify.fire("Invalid fields", toNotifyMessage(result.error), "warning");
+      return;
+    }
+    const missingWindow = escalationLevels.find(
+      (row) => row.enabled && !(Number(row.resolve_within_minutes) > 0),
+    );
+    if (kind === "slaRule" && missingWindow) {
+      notify.fire("Invalid fields", `Enter resolve-within minutes for enabled level L${missingWindow.level}.`, "warning");
       return;
     }
 
@@ -164,10 +221,9 @@ export default function MasterForm({ kind }: Props) {
             ...common,
             category_code: form.code.trim().toUpperCase(),
             category_name: form.name.trim(),
-            module: form.module || null,
+            module_id: form.module || null,
             description: form.description,
-            default_priority: form.default_priority || null,
-            default_team: form.default_team || null,
+            default_priority_id: form.default_priority || null,
             requires_location: form.requires_location,
             requires_media: form.requires_media,
             requires_address_change_detail: form.requires_address_change_detail,
@@ -176,10 +232,10 @@ export default function MasterForm({ kind }: Props) {
         : kind === "subcategory"
           ? {
               ...common,
-              category: form.category,
+              category_id: form.category,
               subcategory_code: form.code.trim().toUpperCase(),
               subcategory_name: form.name.trim(),
-              default_priority: form.default_priority || null,
+              default_priority_id: form.default_priority || null,
             }
           : kind === "priority"
             ? { ...common, priority_code: form.code.trim().toUpperCase(), priority_name: form.name.trim(), description: form.description }
@@ -187,28 +243,22 @@ export default function MasterForm({ kind }: Props) {
               ? { ...common, status_code: form.code.trim().toUpperCase(), status_name: form.name.trim(), is_final: form.is_final, allow_reopen: form.allow_reopen }
               : kind === "source"
                 ? { ...common, source_code: form.code.trim().toUpperCase(), source_name: form.name.trim() }
-                : kind === "team"
-                ? {
-                    ...common,
-                    team_code: form.code.trim().toUpperCase(),
-                    team_name: form.name.trim(),
-                    department: form.department || null,
-                    lead_staff: form.lead_staff || null,
-                    escalates_to: form.escalates_to || null,
-                    escalation_level: Number(form.escalation_level || 1),
-                    is_field_team: form.is_field_team,
-                  }
                 : {
                     ...common,
-                    category: form.category,
-                    subcategory: form.subcategory || null,
-                    priority: form.priority,
-                    source: form.source || null,
-                    assign_within_minutes: form.assign_within_minutes ? Number(form.assign_within_minutes) : null,
-                    resolve_within_minutes: form.resolve_within_minutes ? Number(form.resolve_within_minutes) : null,
+                    category_id: form.category,
+                    subcategory_id: form.subcategory || null,
+                    priority_id: form.priority,
+                    source_id: form.source || null,
+                    ...scopeOf(geo),
                     working_hours_only: form.working_hours_only,
-                    escalation_after_minutes: form.escalation_after_minutes ? Number(form.escalation_after_minutes) : null,
-                    escalation_team: form.escalation_team || null,
+                    // Disabled levels without a window are simply not stored.
+                    escalation_levels: escalationLevels
+                      .filter((row) => Number(row.resolve_within_minutes) > 0)
+                      .map((row) => ({
+                        level: row.level,
+                        is_enabled: row.enabled,
+                        resolve_within_minutes: Number(row.resolve_within_minutes),
+                      })),
                   };
 
     setSaving(true);
@@ -224,34 +274,50 @@ export default function MasterForm({ kind }: Props) {
     }
   };
 
+  const toOptions = (items: any[], labelKey: string) =>
+    items.map((item) => ({ value: item.unique_id, label: item[labelKey] }));
+  const categoryOptions = toOptions(categories, "category_name");
+  const priorityOptions = toOptions(priorities, "priority_name");
+  const moduleOptions = toOptions(modules, "module_name");
+  const sourceOptions = toOptions(sources, "source_name");
+  const subcategoryOptions = toOptions(
+    subcategories.filter((item) => !form.category || idOf(item.category_id ?? item.category) === form.category),
+    "subcategory_name",
+  );
+
   return (
     <ComponentCard title={`${id ? "Edit" : "Add"} ${config.title}`}>
       <form onSubmit={save} className="grid grid-cols-1 gap-5 md:grid-cols-2">
         {kind === "slaRule" && (
+          <div className="md:col-span-2">
+            <Label>Location</Label>
+            <p className="mb-3 mt-1 text-xs text-muted-foreground">
+              Leave blank for the general rule that applies everywhere. Pick a district or a local body (e.g. Anthiyur
+              Panchayat, Chennai Corporation) to give tickets of this category from that area their own escalation levels
+              and timings — every other area keeps using the general rule. To add area-specific timings, create a new
+              rule rather than adding a location to the general one.
+            </p>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <LocationFields value={geo} onChange={setGeo} optional />
+            </div>
+          </div>
+        )}
+        {kind === "slaRule" && (
           <>
             <div>
               <Label>Category</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
-                <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-              </select>
+              <Select value={form.category} onChange={(v) => setValue("category", v)} options={categoryOptions} placeholder="Select category" className="w-full" required />
             </div>
             <div>
               <Label>Priority</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
-                <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-              </select>
+              <Select value={form.priority} onChange={(v) => setValue("priority", v)} options={priorityOptions} placeholder="Select priority" className="w-full" required />
             </div>
           </>
         )}
         {kind === "subcategory" && (
           <div>
             <Label>Category</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setValue("category", e.target.value)} required>
-              <option value="">Select category</option>
-              {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-            </select>
+            <Select value={form.category} onChange={(v) => setValue("category", v)} options={categoryOptions} placeholder="Select category" className="w-full" required />
           </div>
         )}
         {kind !== "slaRule" && <div>
@@ -265,97 +331,62 @@ export default function MasterForm({ kind }: Props) {
         {kind === "category" && (
           <div>
             <Label>Module</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.module} onChange={(e) => setValue("module", e.target.value)}>
-              <option value="">None</option>
-              {modules.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.module_name)}</option>)}
-            </select>
+            <Select value={form.module} onChange={(v) => setValue("module", fromOptional(v))} options={withEmpty("None", moduleOptions)} placeholder="None" className="w-full" />
           </div>
         )}
         {["category", "subcategory"].includes(kind) && (
           <div>
             <Label>Default Priority</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_priority} onChange={(e) => setValue("default_priority", e.target.value)}>
-              <option value="">None</option>
-              {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-            </select>
-          </div>
-        )}
-        {kind === "category" && (
-          <div>
-            <Label>Default Team</Label>
-            <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.default_team} onChange={(e) => setValue("default_team", e.target.value)}>
-              <option value="">None</option>
-              {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-            </select>
+            <Select value={form.default_priority} onChange={(v) => setValue("default_priority", fromOptional(v))} options={withEmpty("None", priorityOptions)} placeholder="None" className="w-full" />
           </div>
         )}
         {kind === "slaRule" && (
           <>
             <div>
               <Label>Subcategory</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
-                <option value="">Any</option>
-                {subcategories.filter((item) => !form.category || idOf(item.category) === form.category).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
-              </select>
+              <Select value={form.subcategory} onChange={(v) => setValue("subcategory", fromOptional(v))} options={withEmpty("Any", subcategoryOptions)} placeholder="Any" className="w-full" />
             </div>
             <div>
               <Label>Source</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
-                <option value="">Any</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
-              </select>
+              <Select value={form.source} onChange={(v) => setValue("source", fromOptional(v))} options={withEmpty("Any", sourceOptions)} placeholder="Any" className="w-full" />
             </div>
-            <div>
-              <Label>Assign Within Minutes</Label>
-              <Input type="number" value={form.assign_within_minutes} onChange={(e) => setValue("assign_within_minutes", e.target.value)} />
-            </div>
-            <div>
-              <Label>Resolve Within Minutes</Label>
-              <Input type="number" value={form.resolve_within_minutes} onChange={(e) => setValue("resolve_within_minutes", e.target.value)} />
-            </div>
-            <div>
-              <Label>Escalation After Minutes</Label>
-              <Input type="number" value={form.escalation_after_minutes} onChange={(e) => setValue("escalation_after_minutes", e.target.value)} />
-            </div>
-            <div>
-              <Label>Escalation Team</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalation_team} onChange={(e) => setValue("escalation_team", e.target.value)}>
-                <option value="">None</option>
-                {teams.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-              </select>
-            </div>
-          </>
-        )}
-        {kind === "team" && (
-          <>
-            <div>
-              <Label>Department</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.department} onChange={(e) => setValue("department", e.target.value)}>
-                <option value="">None</option>
-                {departments.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.department_name)}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Lead Staff</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.lead_staff} onChange={(e) => setValue("lead_staff", e.target.value)}>
-                <option value="">None</option>
-                {staffOptions.map((item) => (
-                  <option key={item.staff_unique_id ?? item.unique_id} value={item.staff_unique_id ?? item.unique_id}>
-                    {item.employee_name ?? item.staff_name ?? item.username ?? item.staff_unique_id}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label>Escalates To</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.escalates_to} onChange={(e) => setValue("escalates_to", e.target.value)}>
-                <option value="">None</option>
-                {teams.filter((team) => team.unique_id !== id).map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.team_name)}</option>)}
-              </select>
-            </div>
-            <div>
-              <Label>Escalation Level</Label>
-              <Input type="number" value={form.escalation_level} onChange={(e) => setValue("escalation_level", e.target.value)} />
+            <div className="md:col-span-2">
+              <Label>Escalation Levels</Label>
+              <p className="mt-1 text-xs text-muted-foreground">
+                One row per Staff Hierarchy level of the chain that applies in the chosen location. Enable only the levels that should take part: a
+                ticket is first assigned to the lowest enabled level&apos;s staff for its area and,
+                if not resolved in time, auto-escalates to the next enabled level above it. Disabled
+                levels (e.g. Driver, Operator) are skipped entirely.
+              </p>
+              {escalationLevels.length === 0 ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No Staff Hierarchy applies to this location yet — set one up under Role Assigns &rsaquo; Staff Hierarchy first.
+                </p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {escalationLevels.map((row, index) => (
+                    <div key={row.level} className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Enable level ${row.level}`}
+                        checked={row.enabled}
+                        onChange={(e) => setEscalationLevel(index, { enabled: e.target.checked })}
+                      />
+                      <div className="w-10 text-sm font-medium text-muted-foreground">L{row.level}</div>
+                      <div className="w-56 text-sm">{row.roles}</div>
+                      <Input
+                        type="number"
+                        min={1}
+                        className="flex-1"
+                        placeholder="Resolve within minutes"
+                        disabled={!row.enabled}
+                        value={row.resolve_within_minutes}
+                        onChange={(e) => setEscalationLevel(index, { resolve_within_minutes: e.target.value })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -371,8 +402,7 @@ export default function MasterForm({ kind }: Props) {
           {kind === "category" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.requires_media} onChange={(e) => setValue("requires_media", e.target.checked)} /> Requires media</label>}
           {kind === "status" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_final} onChange={(e) => setValue("is_final", e.target.checked)} /> Final status</label>}
           {kind === "status" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.allow_reopen} onChange={(e) => setValue("allow_reopen", e.target.checked)} /> Allow reopen</label>}
-          {kind === "team" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.is_field_team} onChange={(e) => setValue("is_field_team", e.target.checked)} /> Field team</label>}
-          {kind === "slaRule" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.working_hours_only} onChange={(e) => setValue("working_hours_only", e.target.checked)} /> Working hours only</label>}
+          {kind === "slaRule" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.working_hours_only} onChange={(e) => setValue("working_hours_only", e.target.checked)} /> Working hours only (escalation times count 09:00–18:00, Mon–Sat)</label>}
         </div>
         <div className="md:col-span-2 flex justify-end gap-3">
           <button type="button" className="rounded border px-4 py-2" onClick={() => navigate(returnPath)}>Cancel</button>

@@ -10,13 +10,7 @@ import { useTranslation } from "react-i18next";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import PasswordInput from "@/components/form/input/PasswordInput";
@@ -310,20 +304,19 @@ function DistrictLeaderEditor({
           <div>
             <Label htmlFor="is_active">{t("common.status")}</Label>
             <Select
+              id="is_active"
               value={formData.is_active}
-              onValueChange={(v) =>
+              onChange={(v) =>
                 setFormData((prev) => ({ ...prev, is_active: v }))
               }
+              options={[
+                { value: "1", label: t("common.active") },
+                { value: "0", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger className="w-full" id="is_active">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">{t("common.active")}</SelectItem>
-                <SelectItem value="0">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+            />
           </div>
         )}
       </div>

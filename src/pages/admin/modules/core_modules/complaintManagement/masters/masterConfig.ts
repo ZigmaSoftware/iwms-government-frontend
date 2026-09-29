@@ -6,14 +6,13 @@ import {
   complaintSourceApi,
   complaintStatusApi,
   complaintSubcategoryApi,
-  complaintTeamApi,
 } from "@/features/complaintTicketing/api";
 import { getEncryptedRoute } from "@/utils/routeCache";
 
 /**
- * Single source of truth for the 8 "reference data" master kinds that share
+ * Single source of truth for the 7 "reference data" master kinds that share
  * the generic `MasterForm`/`MasterList` engine (module, category,
- * subcategory, priority, status, source, team, slaRule).
+ * subcategory, priority, status, source, slaRule).
  *
  * Before this file, `MasterForm.tsx` and `MasterList.tsx` each kept their own
  * copy of `title`/`routeModule`/`api` lookup maps — nearly identical, but
@@ -22,7 +21,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
  * screens) read from it instead of hard-coding their own copies.
  *
  * Field-level form JSX (which dropdowns appear, category-filtered
- * subcategory pickers, self-excluding "escalates to", etc.) stays inline in
+ * subcategory pickers, the SLA rule's escalation levels, etc.) stays inline in
  * `MasterForm.tsx` — those differ enough per kind (and carry real relational
  * logic) that forcing them through a declarative schema here would trade a
  * small amount of duplication for a much larger risk of subtle behavioural
@@ -35,7 +34,6 @@ export type MasterKind =
   | "priority"
   | "status"
   | "source"
-  | "team"
   | "slaRule";
 
 export type MasterColumn = {
@@ -77,13 +75,12 @@ export const MASTER_CONFIG: Record<MasterKind, MasterConfigEntry> = {
     titlePlural: "Complaint Categories",
     api: () => complaintCategoryApi,
     routeKey: "encComplaintCategories",
-    searchFields: ["category_code", "category_name", "module_name", "default_priority_code", "default_team_name"],
+    searchFields: ["category_code", "category_name", "module_name", "default_priority_code"],
     columns: [
       { field: "category_code", header: "Code", sortable: true },
       { field: "category_name", header: "Category", sortable: true },
       { field: "module_name", header: "Module" },
       { field: "default_priority_code", header: "Default Priority" },
-      { field: "default_team_name", header: "Default Team" },
     ],
   },
   subcategory: {
@@ -133,30 +130,16 @@ export const MASTER_CONFIG: Record<MasterKind, MasterConfigEntry> = {
       { field: "source_name", header: "Source", sortable: true },
     ],
   },
-  team: {
-    title: "Complaint Team",
-    titlePlural: "Teams",
-    api: () => complaintTeamApi,
-    routeKey: "encComplaintTeams",
-    searchFields: ["team_code", "team_name", "department_name", "lead_staff_name"],
-    columns: [
-      { field: "team_code", header: "Code", sortable: true },
-      { field: "team_name", header: "Team", sortable: true },
-      { field: "department_name", header: "Department" },
-      { field: "lead_staff_name", header: "Lead Staff" },
-    ],
-  },
   slaRule: {
     title: "Complaint SLA Rule",
     titlePlural: "SLA Rules",
     api: () => complaintSlaRuleApi,
     routeKey: "encComplaintSlaRules",
-    searchFields: ["category_code", "priority_code"],
+    searchFields: ["scope_label", "category_code", "priority_code"],
     columns: [
+      { field: "scope_label", header: "Location" },
       { field: "category_code", header: "Category", sortable: true },
       { field: "priority_code", header: "Priority", sortable: true },
-      { field: "assign_within_minutes", header: "Assign Minutes" },
-      { field: "resolve_within_minutes", header: "Resolve Minutes" },
       { field: "working_hours_only", header: "Working Hours", render: "yesno" },
     ],
   },

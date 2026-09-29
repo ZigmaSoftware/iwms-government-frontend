@@ -31,13 +31,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
@@ -384,22 +378,15 @@ const ShadcnSelect = ({
         {label}
         {isRequired && <span className="text-red-500 ml-1">*</span>}
       </Label>
-      <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.length > 0 ? (
-            options.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {capitalize(o.label)}
-              </SelectItem>
-            ))
-          ) : (
-            <div className="p-2 text-sm text-gray-500">No options available</div>
-          )}
-        </SelectContent>
-      </Select>
+      <Select
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder}
+        className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+        required={isRequired}
+      />
     </div>
   );
 };
@@ -560,20 +547,12 @@ const FamilyMembersRepeater = ({
                 autoComplete="off"
               />
               <Select
-                value={member.id_proof_type || undefined}
-                onValueChange={(v) => updateMember(index, { id_proof_type: v })}
-              >
-                <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white">
-                  <SelectValue placeholder="ID proof type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {idProofTypeOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {capitalize(o.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                value={member.id_proof_type}
+                onChange={(v) => updateMember(index, { id_proof_type: v })}
+                options={idProofTypeOptions}
+                placeholder="ID proof type"
+                className="w-full border border-gray-300 rounded-md bg-white"
+              />
               <Input
                 value={member.id_no}
                 onChange={(e) => updateMember(index, { id_no: e.target.value })}
@@ -1487,19 +1466,11 @@ function CustomerEditor({
                 </label>
                 <Select
                   value={formData.app_module || "citizen"}
-                  onValueChange={(value) => update("app_module", value)}
-                >
-                  <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select the app this customer opens" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {appModuleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(value) => update("app_module", value)}
+                  options={appModuleOptions}
+                  placeholder="Select the app this customer opens"
+                  className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   Which app opens after sign-in. Whether they may sign in, and
                   which screens they see, is set in Customer Access Configuration.

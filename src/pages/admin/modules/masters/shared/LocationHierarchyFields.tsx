@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { capitalize } from "@/utils/capitalize";
+import Select from "@/components/form/Select";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -126,10 +126,14 @@ const ensureOption = (items: Option[], selectedValue: string): Option[] => {
 export default function LocationFields({
   value,
   onChange,
+  optional = false,
 }: {
   value: GeoLocationValue;
   onChange: (value: GeoLocationValue) => void;
+  /** Blank is a valid choice (e.g. "applies everywhere"): no `*` markers. */
+  optional?: boolean;
 }) {
+  const mark = optional ? "" : " *";
   const [countries, setCountries] = useState<Option[]>([]);
   const [states, setStates] = useState<Option[]>([]);
   const [districts, setDistricts] = useState<Option[]>([]);
@@ -418,47 +422,29 @@ export default function LocationFields({
   return (
     <>
       <div>
-        <Label htmlFor={countryFieldId}>Country *</Label>
-        <select id={countryFieldId} className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.countryId} onChange={(event) => emit({ countryId: event.target.value, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={countryLocked}>
-          <option value="">Select Country</option>
-          {ensureOption(countries, value.countryId).map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
-        </select>
+        <Label htmlFor={countryFieldId}>Country{mark}</Label>
+        <Select id={countryFieldId} value={value.countryId} onChange={(v) => emit({ countryId: v, stateId: "", districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={ensureOption(countries, value.countryId)} placeholder="Select Country" className="w-full" disabled={countryLocked} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={stateFieldId}>State *</Label>
-        <select id={stateFieldId} className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.stateId} onChange={(event) => emit({ stateId: event.target.value, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.countryId || stateScope.mode === "locked"}>
-          <option value="">Select State</option>
-          {filteredStates.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
-        </select>
+        <Label htmlFor={stateFieldId}>State{mark}</Label>
+        <Select id={stateFieldId} value={value.stateId} onChange={(v) => emit({ stateId: v, districtId: "", areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={filteredStates} placeholder="Select State" className="w-full" disabled={!value.countryId || stateScope.mode === "locked"} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={districtFieldId}>District *</Label>
-        <select id={districtFieldId} className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.districtId} onChange={(event) => emit({ districtId: event.target.value, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} disabled={!value.stateId || districtScope.mode === "locked"}>
-          <option value="">Select District</option>
-          {filteredDistricts.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
-        </select>
+        <Label htmlFor={districtFieldId}>District{mark}</Label>
+        <Select id={districtFieldId} value={value.districtId} onChange={(v) => emit({ districtId: v, areaTypeId: "", localBodyLevel: "", localBodyId: "" })} options={filteredDistricts} placeholder="Select District" className="w-full" disabled={!value.stateId || districtScope.mode === "locked"} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={areaTypeFieldId}>Area Type *</Label>
-        <select id={areaTypeFieldId} className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.areaTypeId} onChange={(event) => emit({ areaTypeId: event.target.value, localBodyLevel: "", localBodyId: "" })} disabled={!value.districtId || areaTypeScope.mode === "locked"}>
-          <option value="">Select Area Type</option>
-          {filteredAreaTypes.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
-        </select>
+        <Label htmlFor={areaTypeFieldId}>Area Type{mark}</Label>
+        <Select id={areaTypeFieldId} value={value.areaTypeId} onChange={(v) => emit({ areaTypeId: v, localBodyLevel: "", localBodyId: "" })} options={filteredAreaTypes} placeholder="Select Area Type" className="w-full" disabled={!value.districtId || areaTypeScope.mode === "locked"} required={!optional} />
       </div>
       <div>
-        <Label htmlFor={localBodyLevelFieldId}>Local Body *</Label>
-        <select id={localBodyLevelFieldId} className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.localBodyLevel} onChange={(event) => emit({ localBodyLevel: event.target.value as LocalBodyLevel, localBodyId: "" })} disabled={!value.areaTypeId || scopedLocalBodyLevels.length === 1}>
-          <option value="">Select Local Body</option>
-          {scopedLocalBodyLevels.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
+        <Label htmlFor={localBodyLevelFieldId}>Local Body{mark}</Label>
+        <Select id={localBodyLevelFieldId} value={value.localBodyLevel} onChange={(v) => emit({ localBodyLevel: v as LocalBodyLevel, localBodyId: "" })} options={scopedLocalBodyLevels} placeholder="Select Local Body" className="w-full" disabled={!value.areaTypeId || scopedLocalBodyLevels.length === 1} required={!optional} />
       </div>
       {value.localBodyLevel && (
         <div>
-          <Label htmlFor={localBodyFieldId}>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label} *</Label>
-          <select id={localBodyFieldId} className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={value.localBodyId} onChange={(event) => emit({ localBodyId: event.target.value })} disabled={localBodyScope?.mode === "locked"}>
-            <option value="">Select</option>
-            {filteredLocalBodies.map((option) => <option key={option.value} value={option.value}>{capitalize(option.label)}</option>)}
-          </select>
+          <Label htmlFor={localBodyFieldId}>{LOCAL_BODY_LEVELS.find((item) => item.value === value.localBodyLevel)?.label}{mark}</Label>
+          <Select id={localBodyFieldId} value={value.localBodyId} onChange={(v) => emit({ localBodyId: v })} options={filteredLocalBodies} placeholder="Select" className="w-full" disabled={localBodyScope?.mode === "locked"} required={!optional} />
         </div>
       )}
     </>

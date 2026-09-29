@@ -9,13 +9,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -182,16 +176,15 @@ export default function VehicleTypeCreationForm() {
           </Label>
           <Select
             value={isActive ? "true" : "false"}
-            onValueChange={(value) => setIsActive(value === "true")}
-          >
-            <SelectTrigger className="input-validate w-full">
-              <SelectValue placeholder={t("common.select_status")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="true">{t("common.active")}</SelectItem>
-              <SelectItem value="false">{t("common.inactive")}</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={(value) => setIsActive(value === "true")}
+            options={[
+              { value: "true", label: t("common.active") },
+              { value: "false", label: t("common.inactive") },
+            ]}
+            placeholder={t("common.select_status")}
+            className="input-validate w-full"
+            required
+          />
         </div>
         )}
 

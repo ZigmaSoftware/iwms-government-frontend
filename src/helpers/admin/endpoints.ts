@@ -94,6 +94,7 @@ export const adminEndpoints = {
   governmentUserTypes: "role-assigns/governmentusertypes",
   governmentRoleTypes: "role-assigns/governmentusertypes/role-choices",
   governmentLevelTypes: "role-assigns/governmentusertypes/level-choices",
+  staffHierarchy: "role-assigns/staff-hierarchy",
 
   /* =========================
      USER CREATION
@@ -130,7 +131,6 @@ export const adminEndpoints = {
   complaintStatuses: "complaint-ticket/statuses",
   complaintSources: "complaint-ticket/sources",
   complaintLanguages: "complaint-ticket/languages",
-  complaintTeams: "complaint-ticket/teams",
   complaintSlaRules: "complaint-ticket/sla-rules",
   complaintRoutingRules: "complaint-ticket/routing-rules",
   complaintFeedback: "complaint-ticket/feedback",

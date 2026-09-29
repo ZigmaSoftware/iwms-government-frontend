@@ -15,11 +15,11 @@ import type {
   ComplaintSource,
   ComplaintStatus,
   ComplaintSubcategory,
-  ComplaintTeam,
   ComplaintSlaRule,
   ComplaintTicket,
   GeoOption,
   Grievance,
+  HierarchyLevelOption,
   LocalBodyOption,
   LocalBodyType,
   PublicGrievanceLocationOption,
@@ -36,7 +36,6 @@ export const complaintPriorityApi = adminApi.complaintPriorities as typeof admin
 export const complaintStatusApi = adminApi.complaintStatuses as typeof adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources as typeof adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages as typeof adminApi.complaintLanguages;
-export const complaintTeamApi = adminApi.complaintTeams as typeof adminApi.complaintTeams;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules as typeof adminApi.complaintSlaRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback as typeof adminApi.complaintFeedback;
 export const complaintNotificationApi = adminApi.complaintNotifications as typeof adminApi.complaintNotifications;
@@ -50,7 +49,6 @@ export const complaintTicketingApi = {
   statuses: complaintStatusApi,
   sources: complaintSourceApi,
   languages: complaintLanguageApi,
-  teams: complaintTeamApi,
   slaRules: complaintSlaRuleApi,
   feedback: complaintFeedbackApi,
 };
@@ -65,18 +63,22 @@ export type {
   ComplaintStatus,
   ComplaintSubcategory,
   ComplaintSlaRule,
-  ComplaintTeam,
   ComplaintTicket,
 };
+
+/** Staff Hierarchy levels an SLA rule can set escalation windows for —
+ *  scope params (district_id, panchayat_id, ...) narrow it to that area's chain. */
+export const fetchHierarchyLevels = (scope?: Record<string, string>) =>
+  complaintSlaRuleApi.action<HierarchyLevelOption[]>("hierarchy-levels", undefined, { params: scope });
 
 export const ticketActions = {
   changeStatus: (id: string, payload: { status_code: string; remarks?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/status`, payload),
-  assign: (id: string, payload: { team?: string; staff?: string; reason?: string }) =>
+  assign: (id: string, payload: { staff: string; reason?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/assign`, payload),
   resolve: (id: string, payload: { resolution_note?: string; remarks?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/resolve`, payload),
-  escalate: (id: string, payload: { team?: string; reason?: string }) =>
+  escalate: (id: string, payload: { reason?: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/escalate`, payload),
   comment: (id: string, payload: { comment_text: string; is_internal?: boolean; is_sensitive?: boolean }) =>
     complaintTicketApi.action(`${id}/comments`, payload),
@@ -241,6 +243,7 @@ export async function fetchGrievances(signal?: AbortSignal) {
   return (rows as ComplaintTicket[]).map((ticket, index): Grievance => ({
     id: index,
     unique_id: ticket.ticket_no || ticket.unique_id,
+    ticket_id: ticket.unique_id,
     title: ticket.title || ticket.category_name || "Complaint",
     category: ticket.category_name || "",
     main_category: ticket.category_name || "",
@@ -281,8 +284,12 @@ export async function fetchGrievances(signal?: AbortSignal) {
     area_type_name: ticket.area_type_name || "",
     latitude: ticket.latitude ?? undefined,
     longitude: ticket.longitude ?? undefined,
-    assigned_team_name: ticket.assigned_team_name || "",
-    assigned_staff_name: ticket.assigned_staff_name || "",
+    assigned_staff_name: ticket.escalated_to_staff_name || ticket.assigned_staff_name || "",
+    first_assigned_staff_name: ticket.assigned_staff_name || "",
+    is_escalated: Boolean(ticket.is_escalated),
+    escalation_level: ticket.escalation_level ?? null,
+    escalation_level_name: ticket.escalation_level_name ?? null,
+    next_escalation_due_at: ticket.next_escalation_due_at ?? null,
     district_name: ticket.district_name || "",
     city_name: ticket.city_name || "",
     operational_context: ticket.operational_context,
