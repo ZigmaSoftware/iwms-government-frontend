@@ -1074,10 +1074,11 @@ export default function StaffCreationForm() {
   }, [backendOrigin, id, isEdit]);
 
   useEffect(() => {
-    // Staff head candidates are scoped to the same local body and to one
-    // level up in the government role hierarchy (driver/operator ->
-    // supervisor, supervisor -> admin, admin -> superadmin), so this must
-    // refetch whenever the role or local body selection changes.
+    // Staff head candidates are staff of the role this role reports to in
+    // Role Management > Staff Hierarchy (roles not configured there fall back
+    // to driver/operator -> supervisor -> admin -> superadmin), limited to
+    // heads covering the selected area — so this must refetch whenever the
+    // role or geo selection changes.
     if (userTypeCategory === "government" && !formData.governmentusertype_id) {
       setStaffHeadOptions([]);
       return;
@@ -1089,6 +1090,10 @@ export default function StaffCreationForm() {
         if (id) params.exclude = id;
         if (formData.governmentusertype_id) {
           params.governmentusertype_id = formData.governmentusertype_id;
+        }
+        if (formData.governmentusertype_id) {
+          if (formData.state_id) params.state_id = formData.state_id;
+          if (formData.district_id) params.district_id = formData.district_id;
         }
         if (formData.local_body_level && formData.local_body_id) {
           params[formData.local_body_level] = formData.local_body_id;
@@ -1119,6 +1124,8 @@ export default function StaffCreationForm() {
     id,
     userTypeCategory,
     formData.governmentusertype_id,
+    formData.state_id,
+    formData.district_id,
     formData.local_body_level,
     formData.local_body_id,
   ]);

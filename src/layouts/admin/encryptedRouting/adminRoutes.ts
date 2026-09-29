@@ -86,6 +86,8 @@ const WasteCollectedDataList = lazy(() => import("@/pages/admin/modules/core_mod
 const WasteCollectedForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/wasteCollectedData/wasteCollectedDataForm"));
 const StaffUserTypeForm = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeForm"));
 const StaffUserTypeList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeList"));
+const StaffHierarchyForm = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffHierarchy/staffHierarchyForm"));
+const StaffHierarchyList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffHierarchy/staffHierarchyList"));
 const CategoryList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/category/CategoryList"));
 const CategoryForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/category/CategoryForm"));
 const SubcategoryList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/subcategory/SubcategoryList"));
@@ -171,6 +173,7 @@ export const ROUTES: RouteMap = {
   "role-management": {
     "user-type": { list: UserTypeList, form: UserTypeForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
+    "staff-hierarchy": { list: StaffHierarchyList, form: StaffHierarchyForm },
   },
   "common-masters": {
     continents: { list: ContinentList, form: ContinentForm },
@@ -327,6 +330,7 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   "user-type": ["user-type"],
   "staff-user-type": ["staff-user-type"],
   staffusertypes: ["staff-user-type"],
+  "staff-hierarchy": ["staff-hierarchy"],
 
   // Staff management
   staffcreation: ["staff-creation"],

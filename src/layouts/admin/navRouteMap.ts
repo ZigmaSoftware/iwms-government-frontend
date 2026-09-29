@@ -58,6 +58,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteManagementMaster,
     encWorkforceManagement,
     encStaffUserType,
+    encStaffHierarchy,
     encMainScreenType,
     encUserScreenAction,
     encMainScreen,
@@ -132,6 +133,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Super Admin > Role Management ──
     { path: `/${encRoleManagement}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.role_management" },
     { path: `/${encRoleManagement}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.role_management" },
+    { path: `/${encRoleManagement}/${encStaffHierarchy}`, nameKey: "admin.nav.staff_hierarchy", parentNameKey: "admin.nav.role_management" },
 
     // ── Super Admin > User Management ──
     { path: `/${encUserManagement}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
