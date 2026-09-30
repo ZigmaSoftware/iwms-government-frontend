@@ -70,7 +70,6 @@ type FormValues = {
   localBodies: LocalBodySelection[];
   /** Wards chosen, further narrowing `localBodies` (optional). */
   wardIds: string[];
-  locationNodeIds: string[];
 };
 
 type ApiOptionRecord = {
@@ -253,7 +252,6 @@ const defaultValues: FormValues = {
   localBodyLevels: [],
   localBodies: [],
   wardIds: [],
-  locationNodeIds: [],
 };
 
 const optionLabel = (record: ApiOptionRecord) =>
@@ -585,12 +583,6 @@ export default function StaffAccessConfigPage() {
         setValue("localBodyLevels", localBodyLevels);
         setValue("localBodies", localBodies);
         setValue("wardIds", wardIds);
-        setValue(
-          "locationNodeIds",
-          Array.isArray(dataScope.locationNodes)
-            ? dataScope.locationNodes.map((nodeId) => String(nodeId))
-            : [],
-        );
 
         const [nextActions, rawActions] = await Promise.all([
           fetchUserScreenActions(),
@@ -739,7 +731,6 @@ export default function StaffAccessConfigPage() {
     setValue("localBodyLevels", []);
     setValue("localBodies", []);
     setValue("wardIds", []);
-    setValue("locationNodeIds", []);
   }, [
     isStateScopeSelected,
     setValue,
@@ -1118,7 +1109,6 @@ export default function StaffAccessConfigPage() {
     permissions: modules,
     dashboardPermissions: widgets,
     dataScope: {
-      locationNodes: values.locationNodeIds,
       stateId: values.stateId || null,
       districtId: isStateScopeSelected ? null : values.districtId || null,
       areaTypeId: isStateScopeSelected ? null : values.areaTypeId || null,

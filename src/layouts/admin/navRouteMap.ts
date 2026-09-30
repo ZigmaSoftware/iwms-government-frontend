@@ -68,7 +68,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encUserManagement,
     encStaffTemplate,
     encAlternativeStaffTemplate,
-    encStaffTemplateAudit,
     encCommonAudit,
     encStaffAudit,
     encLoginAudits,
@@ -78,8 +77,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     encTripAttendance,
     encHouseholdPickupEvent,
     encTripPlans,
-    encVehicleTripAudit,
-    encTripExceptionLog,
     encCommonMasters,
     encContinents,
     encCountries,
@@ -238,11 +235,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Reports > Schedule Reports ──
     { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.schedule_reports" },
     { path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`, nameKey: "admin.nav.monthly_waste_comparison", parentNameKey: "admin.nav.schedule_reports" },
-
-    // ── Additional audit items (not in sidebar) ──
-    { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encTransportMaster}/${encTripExceptionLog}`, nameKey: "admin.nav.trip_exception_log", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encStaffMasters}/${encStaffTemplateAudit}`, nameKey: "admin.nav.staff_template_audit", parentNameKey: "admin.nav.audit_items" },
 
     // ── Vehicle Tracking (not in sidebar) ──
     { path: `/${encVehicleTracking}/${encVehicleTrack}`, nameKey: "admin.nav.vehicle_tracking", parentNameKey: "admin.nav.vehicle_tracking" },

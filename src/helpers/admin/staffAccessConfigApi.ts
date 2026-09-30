@@ -370,7 +370,6 @@ const toBackendPayload = (payload: StaffAccessConfigPayload) => {
       .filter((module) => module.userScreens.length > 0),
     dashboardPermissions: payload.dashboardPermissions,
     dataScope: {
-      locationNodes: payload.dataScope.locationNodes ?? [],
       stateId: payload.dataScope.stateId,
       districtId: payload.dataScope.districtId,
       areaTypeId: payload.dataScope.areaTypeId,

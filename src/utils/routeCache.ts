@@ -42,7 +42,6 @@ export type EncryptedRoutes = {
   encDailyOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
-  encStaffTemplateAudit: string;
   encMonthlyDistance: string;
   encProperties: string;
   encReport: string;
@@ -90,13 +89,10 @@ export type EncryptedRoutes = {
   encTripRetripRequest: string;
   encSchedulerConfig: string;
   encDailyWasteComparison: string;
-  encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
   encUnassignedStaffPool: string;
   encTripAttendance: string;
-  encVehicleTripAudit: string;
-  encTripExceptionLog: string;
 
   // dashboard
   encDashboardOverall: string;
@@ -189,7 +185,6 @@ const plainRoutes: EncryptedRoutes = {
   encDailyOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
-  encStaffTemplateAudit: "staff-template-audit",
   encMonthlyDistance: "monthly-distance",
   encProperties: "properties",
   encReport: "reports",
@@ -237,13 +232,10 @@ const plainRoutes: EncryptedRoutes = {
   encTripRetripRequest: "retrip-requests",
   encSchedulerConfig: "scheduler-config",
   encDailyWasteComparison: "daily-waste-comparisons",
-  encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",
   encUnassignedStaffPool: "unassigned-staff-pool",
   encTripAttendance: "trip-attendance",
-  encVehicleTripAudit: "vehicle-trip-audit",
-  encTripExceptionLog: "trip-exception-log",
 
   // palakkad
 

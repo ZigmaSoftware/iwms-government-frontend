@@ -68,7 +68,6 @@ export interface FormDataType {
   state_id: string;
   district_id: string;
   area_type_id: string;
-  location_node_id: string;
   corporation_id: string;
   municipality_id: string;
   town_panchayat_id: string;
@@ -104,7 +103,6 @@ export type Customer = {
   sqft?: string | number | null;
   water_consumption_lpd?: string | number | null;
   waste_collection_kg_per_day?: string | number | null;
-  location_node_id?: string;
   location_name?: string;
   location_level?: string;
   state_name?: string;

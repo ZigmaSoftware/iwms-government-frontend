@@ -73,10 +73,6 @@ const TripPlanList = lazy(() => import("@/pages/admin/modules/core_modules/sched
 const TripPlanForm = lazy(() => import("@/pages/admin/modules/core_modules/scheduleSetup/tripPlan/tripPlanForm"));
 const TripAttendanceList = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripAttendance/tripAttendanceList"));
 const TripAttendanceForm = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripAttendance/tripAttendanceForm"));
-const VehicleTripAuditList = lazy(() => import("@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditList"));
-const VehicleTripAuditForm = lazy(() => import("@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditForm"));
-const TripExceptionLogList = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogList"));
-const TripExceptionLogForm = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogForm"));
 const DailyTripAssignmentList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentList"));
 const DailyTripAssignmentForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentForm"));
 const DailyTripTracking = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripTracking/DailyTripTracking"));
@@ -125,8 +121,6 @@ const VehicleBreakdownForm = lazy(() => import("@/pages/admin/modules/core_modul
 const TripRetripRequestList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList"));
 const SchedulerConfigPage = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/schedulerConfig/SchedulerConfigPage"));
 const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList"));
-const StaffTemplateAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList"));
-const StaffTemplateAuditForm = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditForm"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
 const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList"));
 const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
@@ -213,8 +207,6 @@ export const ROUTES: RouteMap = {
     "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
     "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
     "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
-    "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
-    "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
   },
   "schedule-setup": {
     "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
@@ -268,7 +260,6 @@ export const ROUTES: RouteMap = {
     "approval-history": { list: CommonAuditList },
     "login-audit": { list: LoginAuditList },
     "login-audits": { list: LoginAuditList },
-    "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
     "permission-audit": { list: PermissionAuditList },
   },
   reports: {
@@ -398,8 +389,6 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   fuels: ["fuel"],
   fuel: ["fuel"],
   "trip-attendance": ["trip-attendance"],
-  "vehicle-trip-audit": ["vehicle-trip-audit"],
-  "trip-exception-log": ["trip-exception-log"],
 
   // Schedule setup
   "staff-templates": ["staff-template"],
