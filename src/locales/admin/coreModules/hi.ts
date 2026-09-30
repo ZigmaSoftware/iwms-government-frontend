@@ -13,8 +13,6 @@ export default {
     "primary_operator": "ऑपरेटर",
     "extra_staff": "अतिरिक्त ऑपरेटर्स",
     "extra_staff_placeholder": "कॉमा से अलग किए गए ऑपरेटर आईडी",
-    "approval_status": "अनुमोदन स्थिति",
-    "approved_by": "अनुमोदित द्वारा",
     "created_by": "बनाया",
     "updated_by": "अपडेट किया",
     "columns": {
@@ -22,7 +20,6 @@ export default {
       "primary_driver": "ड्राइवर",
       "primary_operator": "ऑपरेटर",
       "extra_staff": "अतिरिक्त ऑपरेटर्स",
-      "approval_status": "अनुमोदन स्थिति",
       "created_at": "बनाया गया",
       "updated_at": "अपडेट किया गया"
     }
@@ -30,14 +27,13 @@ export default {
   "alternative_staff_template": {
     "title_add": "वैकल्पिक स्टाफ टेम्पलेट जोड़ें",
     "title_edit": "वैकल्पिक स्टाफ टेम्पलेट संपादित करें",
-    "subtitle": "अनुमोदन के साथ अस्थायी स्टाफ प्रतिस्थापन।",
+    "subtitle": "अस्थायी स्टाफ प्रतिस्थापन।",
     "list_title": "वैकल्पिक स्टाफ टेम्पलेट सूची",
-    "list_subtitle": "लंबित/अनुमोदित वैकल्पिक असाइनमेंट",
+    "list_subtitle": "वैकल्पिक स्टाफ असाइनमेंट",
     "create_button": "वैकल्पिक टेम्पलेट बनाएँ",
     "search_placeholder": "वैकल्पिक टेम्पलेट खोजें",
     "empty_message": "कोई वैकल्पिक स्टाफ टेम्पलेट नहीं मिला",
     "error_same_driver_operator": "ड्राइवर और ऑपरेटर समान नहीं हो सकते।",
-    "approved_locked": "Approved records cannot be modified.",
     "staff_template": "स्टाफ टेम्पलेट",
     "effective_date": "प्रभावी तिथि",
     "driver": "ड्राइवर",
@@ -53,8 +49,7 @@ export default {
       "driver": "ड्राइवर",
       "operator": "ऑपरेटर",
       "extra_operator": "अतिरिक्त ऑपरेटर",
-      "change_reason": "कारण",
-      "approval_status": "अनुमोदन स्थिति"
+      "change_reason": "कारण"
     }
   },
   "trip_plans": {

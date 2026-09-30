@@ -25,7 +25,6 @@ const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   operator_name: ["operator", "operator_id", "operator_name"],
   extra_operator: ["extra_operator", "extra_operator_id", "extra_staff"],
   change_reason: ["change_reason"],
-  approval_status: ["approval_status"],
   created_at: ["created_at"],
 };
 
@@ -37,7 +36,7 @@ const toRecordList = (value: unknown): AlternativeStaffTemplate[] => {
   return [];
 };
 
-const SORTABLE_FIELDS = new Set(["approval_status"]);
+const SORTABLE_FIELDS = new Set<string>([]);
 
 
 export default function AlternativeStaffTemplateList() {
@@ -225,14 +224,6 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="change_reason"
             header={t("admin.alternative_staff_template.columns.change_reason")}
-          />
-        )}
-
-        {showCol("approval_status") && (
-          <Column
-            field="approval_status"
-            header={t("admin.alternative_staff_template.columns.approval_status")}
-            sortable={SORTABLE_FIELDS.has("approval_status")}
           />
         )}
 

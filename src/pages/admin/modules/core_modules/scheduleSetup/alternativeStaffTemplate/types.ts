@@ -56,7 +56,6 @@ export type FormState = {
   extra_operator: string[];
   change_reason: string;
   change_remarks: string;
-  approval_status?: string;
   display_code?: string;
 };
 
@@ -81,7 +80,6 @@ export type AlternativeStaffTemplate = {
   extra_operator_names?: string[] | null;
   change_reason: string;
   change_remarks?: string;
-  approval_status: string;
   created_at: string;
   [key: string]: unknown;
 };
@@ -92,5 +90,4 @@ export type TableFilters = {
   driver_name: { value: string | null; matchMode: FilterMatchMode };
   operator_name: { value: string | null; matchMode: FilterMatchMode };
   change_reason: { value: string | null; matchMode: FilterMatchMode };
-  approval_status: { value: string | null; matchMode: FilterMatchMode };
 };
