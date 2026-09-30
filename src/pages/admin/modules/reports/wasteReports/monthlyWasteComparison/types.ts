@@ -12,8 +12,6 @@ export type ReportRow = {
   collection_points_covered: number;
   average_weight_per_trip: number;
   report_status?: string;
-  location_node_id?: string;
-  location_node_name?: string;
   total_agreed_weight?: number;
   variance_kg?: number;
   variance_percent?: number;
@@ -40,8 +38,6 @@ export type WasteTypeBreakdownRow = {
   collection_points_covered: number;
   share_percent: number;
   report_status?: string;
-  location_node_id?: string;
-  location_node_name?: string;
   total_agreed_weight?: number;
   variance_kg?: number;
   variance_percent?: number;

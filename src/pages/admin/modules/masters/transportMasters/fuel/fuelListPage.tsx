@@ -22,6 +22,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 
 const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
   fuel_type: ["fuel_type", "fuel"],
+  description: ["description"],
   is_active: ["is_active", "active_status", "status"],
 };
 
@@ -254,6 +255,15 @@ export default function FuelList() {
             sortable={SORTABLE_FIELDS.has("fuel_type")}
             body={(row: Fuel) => capitalize(row.fuel_type)}
             style={{ minWidth: "200px" }}
+          />
+        )}
+
+        {showCol("description") && (
+          <Column
+            field="description"
+            header={t("common.description")}
+            body={(row: Fuel) => row.description || "-"}
+            style={{ minWidth: "250px" }}
           />
         )}
 

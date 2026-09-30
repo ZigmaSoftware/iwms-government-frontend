@@ -141,7 +141,6 @@ export type DataScope = {
   /** Wards the staff is scoped to (further narrows local body scope). */
   wards?: DataScopeRef[];
   depot?: DataScopeRef;
-  location_nodes?: Array<{ unique_id: string; name: string }>;
   /** Additive scope-expansion fields (login feature). */
   granted_level?: ScopeGrantedLevel | null;
   descendants?: ScopeDescendants | null;

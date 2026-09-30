@@ -138,7 +138,6 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
   area_type_id: ["area_type_id", "area_type"],
-  location_node_id: ["location_node_id", "location_node"],
   corporation_id: ["corporation_id", "corporation"],
   municipality_id: ["municipality_id", "municipality"],
   town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
@@ -726,7 +725,6 @@ function CustomerEditor({
     state_id: initialPayload.state_id,
     district_id: initialPayload.district_id,
     area_type_id: initialPayload.area_type_id,
-    location_node_id: initialPayload.location_node_id,
     corporation_id: initialPayload.corporation_id,
     municipality_id: initialPayload.municipality_id,
     town_panchayat_id: initialPayload.town_panchayat_id,
@@ -1040,7 +1038,6 @@ function CustomerEditor({
     setSelectedHierarchyType(level);
     setFormData((prev) => ({
       ...prev,
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -1056,7 +1053,6 @@ function CustomerEditor({
     setSelectedHierarchyType("");
     setFormData((prev) => ({
       ...prev,
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -1070,7 +1066,6 @@ function CustomerEditor({
     setSelectedHierarchyType("");
     setFormData((prev) => ({
       ...prev,
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -1585,7 +1580,6 @@ function CustomerEditor({
                   state_id: v,
                   district_id: "",
                   area_type_id: "",
-                  location_node_id: "",
                   corporation_id: "",
                   municipality_id: "",
                   town_panchayat_id: "",
@@ -1611,7 +1605,6 @@ function CustomerEditor({
                   ...prev,
                   district_id: v,
                   area_type_id: "",
-                  location_node_id: "",
                   corporation_id: "",
                   municipality_id: "",
                   town_panchayat_id: "",
@@ -1651,7 +1644,6 @@ function CustomerEditor({
                 setFormData((prev) => ({
                   ...prev,
                   area_type_id: v,
-                  location_node_id: "",
                   corporation_id: "",
                   municipality_id: "",
                   town_panchayat_id: "",
@@ -2528,7 +2520,6 @@ export default function CustomerCreationForm() {
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
-      location_node_id: String(d.location_node_id ?? d.location_node?.unique_id ?? ""),
       corporation_id: corporationId,
       municipality_id: municipalityId,
       town_panchayat_id: townPanchayatId,
@@ -2579,7 +2570,6 @@ export default function CustomerCreationForm() {
       state_id: "",
       district_id: "",
       area_type_id: "",
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",

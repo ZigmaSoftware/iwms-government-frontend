@@ -55,7 +55,6 @@ export type LocalBodySelection = {
 };
 
 export type DataScopeForm = {
-  locationNodes?: string[];
   stateId: string | null;
   districtId: string | null;
   areaTypeId: string | null;

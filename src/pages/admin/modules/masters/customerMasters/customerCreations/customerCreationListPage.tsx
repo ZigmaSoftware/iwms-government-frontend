@@ -39,7 +39,7 @@ const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   contact_no: ["contact_no", "mobile"],
   property_name: ["property_id", "property_name"],
   sub_property_name: ["sub_property_id", "sub_property_name"],
-  location_name: ["location_node_id", "location_node", "location_name"],
+  location_name: ["location_name"],
   ward_name: ["ward_id", "ward_name"],
   waste_types: ["waste_type_ids", "waste_types", "waste_type"],
   qr_code: ["qr_code"],

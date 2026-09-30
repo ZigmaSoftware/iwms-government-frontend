@@ -149,13 +149,8 @@ export const adminEndpoints = {
   /* =========================
      AUDITS
   ========================= */
-  vehicleTripAudits: "audits/vehicle-trip-audit",
-  tripExceptionLogs: "audits/trip-exception-log",
-  binLoadLogs: "audits/bin-load-log",
-  staffTemplateAuditLogs: "audits/stafftemplate-audit-log",
    loginAudits: "audits/login-audit",
    commonAudits: "audits/common-audit",
-   staffAudits: "audits/staff-audit",
    permissionAudits: "audits/permission-audit",
 } as const;
 

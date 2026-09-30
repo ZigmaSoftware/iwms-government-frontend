@@ -51,9 +51,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "waste-collected-data": "wasteCollections",
   "unassigned-staff-pool": "unassignedStaffPool",
   "trip-attendance": "tripAttendances",
-  "vehicle-trip-audit": "vehicleTripAudits",
-  "trip-exception-log": "tripExceptionLogs",
-  "bin-load-log": "binLoadLogs",
 };
 
 const readPlainPathSegments = () => {
