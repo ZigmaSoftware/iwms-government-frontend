@@ -24,7 +24,6 @@ const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   operator_name: ["operator_id", "operator_name", "primary_operator", "operator"],
   extra_operator_id: ["extra_operator_id", "extra_staff", "extra_operator"],
   status: ["status", "active_status"],
-  approval_status: ["approval_status"],
   created_at: ["created_at"],
   updated_at: ["updated_at"],
 };
@@ -45,7 +44,7 @@ const BACKEND_ORDER_FIELD: Record<string, string> = {
   unique_id: "display_code",
 };
 
-const SORTABLE_FIELDS = new Set(["status", "approval_status", "unique_id"]);
+const SORTABLE_FIELDS = new Set(["status", "unique_id"]);
 
 export default function StaffTemplateList() {
   const { t } = useTranslation();
@@ -279,14 +278,6 @@ export default function StaffTemplateList() {
             header={t("common.status")}
             body={statusBodyTemplate}
             style={{ width: 120 }}
-          />
-        )}
-
-        {showCol("approval_status") && (
-          <Column
-            field="approval_status"
-            header={t("admin.staff_template.columns.approval_status")}
-            sortable
           />
         )}
 
