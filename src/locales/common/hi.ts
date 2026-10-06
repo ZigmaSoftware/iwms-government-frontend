@@ -1,5 +1,7 @@
 export default {
   "common": {
+    "access_denied_title": "पहुंच अस्वीकृत",
+    "access_denied_message": "आपको यह पेज खोलने की अनुमति नहीं है। अपने व्यवस्थापक से स्टाफ एक्सेस कॉन्फ़िगरेशन में यह अनुमति देने के लिए कहें।",
     "appName": "एकीकृत अपशिष्ट प्रबंधन प्रणाली",
     "language_en": "English",
     "language_ta": "தமிழ்",

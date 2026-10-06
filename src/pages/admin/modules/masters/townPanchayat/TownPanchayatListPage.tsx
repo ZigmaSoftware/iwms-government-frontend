@@ -14,6 +14,7 @@ import { townPanchayatApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type TownPanchayatListRecord = {
   unique_id: string;
@@ -177,12 +178,14 @@ export default function TownPanchayatListPage() {
         title="Town Panchayat"
         subtitle="Manage Town Panchayat records"
         actions={
-          <Button
-            label="Add Town Panchayat"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Town Panchayat"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

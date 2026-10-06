@@ -1,17 +1,21 @@
-import type { PermissionAuditRecord } from "./types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  PermissionAuditFilterOptions,
+  PermissionAuditRecord,
+} from "./types";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Column } from "primereact/column";
-import { MultiSelect } from "@/components/ui/multi-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { ShieldCheck, KeyRound, CalendarClock } from "lucide-react";
 import type {
@@ -20,16 +24,18 @@ import type {
   SortOrder,
 } from "primereact/datatable";
 
-import { permissionAuditApi, staffUserTypeApi } from "@/helpers/admin";
+import { permissionAuditApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import PermissionAuditDetail, { MethodBadge } from "./PermissionAuditDetail";
 
-const SORTABLE_FIELDS = new Set(["timestamp", "action_type"]);
+const SORTABLE_FIELDS = new Set(["timestamp", "action_type", "http_method"]);
 
-type RawStaffUserType = {
-  unique_id?: string;
-  name?: string;
-};
+const ACTION_TYPES = ["CREATED", "UPDATED", "DELETED"] as const;
+
+// A save can touch many modules; the list shows the first few and View
+// shows them all.
+const MODULES_SHOWN = 3;
 
 const toRecordList = (value: unknown): PermissionAuditRecord[] => {
   if (Array.isArray(value)) return value as PermissionAuditRecord[];
@@ -46,17 +52,49 @@ const toRecordList = (value: unknown): PermissionAuditRecord[] => {
 const formatDateTime = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "-";
 
-const stateLabel = (active?: boolean | null) => {
-  if (active === true) return "Active";
-  if (active === false) return "Inactive";
-  return "-";
-};
+const toOptions = (items?: { unique_id: string; name: string }[]) =>
+  (items ?? []).map((item) => ({ label: item.name, value: item.unique_id }));
+
+/** An access save carries granted/revoked counts; a per-grant row (older
+ *  GRANT_CHANGE rows) is a single change. */
+const isAccessSave = (r: PermissionAuditRecord) =>
+  r.granted_count != null || r.revoked_count != null;
+
+const StatCard = ({
+  icon,
+  tone,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  tone: string;
+  label: string;
+  value: ReactNode;
+}) => (
+  <Card>
+    <CardContent className="flex items-center gap-3 p-4">
+      <div className={`rounded-md p-2 ${tone}`}>{icon}</div>
+      <div className="min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="text-xl font-semibold">{value}</div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default function PermissionAuditList() {
   const { t } = useTranslation();
+  const { moduleLabel, screenLabel } = usePermissionLabels();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
-  const [roleFilter, setRoleFilter] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [localBodyFilter, setLocalBodyFilter] = useState("");
+  const [mainscreenFilter, setMainscreenFilter] = useState("");
+  const [actionTypeFilter, setActionTypeFilter] = useState("");
+  const [filterOptions, setFilterOptions] =
+    useState<PermissionAuditFilterOptions | null>(null);
+
   const [selectedRecord, setSelectedRecord] =
     useState<PermissionAuditRecord | null>(null);
   const [rows, setRows] = useState<PermissionAuditRecord[]>([]);
@@ -64,92 +102,43 @@ export default function PermissionAuditList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const requestIdRef = useRef(0);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [roleOptions, setRoleOptions] = useState<
-    { label: string; value: string }[]
-  >([]);
 
   const loading = isLoading && rows.length === 0;
 
-  const hasActiveFilters = Boolean(globalFilterValue) || roleFilter.length > 0;
+  const hasActiveFilters =
+    Boolean(globalFilterValue) ||
+    Boolean(sourceFilter) ||
+    Boolean(localBodyFilter) ||
+    Boolean(mainscreenFilter) ||
+    Boolean(actionTypeFilter);
 
   const handleClearFilters = useCallback(() => {
     setGlobalFilterValue("");
-    setRoleFilter([]);
+    setSourceFilter("");
+    setLocalBodyFilter("");
+    setMainscreenFilter("");
+    setActionTypeFilter("");
     setFirst(0);
   }, []);
 
-  const openDetails = useCallback((record: PermissionAuditRecord) => {
-    setSelectedRecord(record);
-  }, []);
-
-  const closeDetails = useCallback(() => {
-    setSelectedRecord(null);
-  }, []);
-
-  const actionTemplate = useCallback(
-    (row: PermissionAuditRecord) => (
-      <div className="flex justify-center">
-        <button
-          title={t("common.view")}
-          onClick={() => openDetails(row)}
-          className="text-blue-600 hover:text-blue-800"
-        >
-          {t("common.view")}
-        </button>
-      </div>
-    ),
-    [openDetails, t],
+  const sourceOptions = useMemo(
+    () => toOptions(filterOptions?.sources),
+    [filterOptions],
   );
-
-  const actionTypeTemplate = useCallback((row: PermissionAuditRecord) => {
-    const color =
-      row.action_type === "DELETED"
-        ? "text-red-600"
-        : row.action_type === "CREATED"
-          ? "text-green-600"
-          : "text-amber-600";
-    return <span className={`font-medium ${color}`}>{row.action_type ?? "-"}</span>;
-  }, []);
-
-  const loadRows = useCallback(
-    async (
-      page: number,
-      limit: number,
-      search: string,
-      ordering?: string,
-      roleValues?: string[],
-    ) => {
-      setIsLoading(true);
-      try {
-        const response = await permissionAuditApi.readAllwithPaginated(
-          page,
-          limit,
-          {
-            params: {
-              ...(search ? { search } : {}),
-              ...(ordering ? { ordering } : {}),
-              ...(roleValues && roleValues.length
-                ? { staffusertype_id: roleValues.join(",") }
-                : {}),
-            },
-          },
-        );
-        setRows(toRecordList(response));
-        setTotalRecords(
-          typeof response?.count === "number"
-            ? response.count
-            : toRecordList(response).length,
-        );
-      } catch {
-        notify.fire(t("common.error"), t("common.fetch_failed"), "error");
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [t],
+  const localBodyOptions = useMemo(
+    () => toOptions(filterOptions?.local_bodies),
+    [filterOptions],
+  );
+  const mainscreenOptions = useMemo(
+    () => toOptions(filterOptions?.mainscreens),
+    [filterOptions],
+  );
+  const actionTypeOptions = useMemo(
+    () => ACTION_TYPES.map((value) => ({ label: value, value })),
+    [],
   );
 
   const ordering = useMemo(
@@ -160,29 +149,66 @@ export default function PermissionAuditList() {
     [sortField, sortOrder],
   );
 
-  const roleFilterKey = roleFilter.join(",");
+  const queryParams = useMemo(
+    () => ({
+      ...(searchTerm ? { search: searchTerm } : {}),
+      ...(sourceFilter ? { source: sourceFilter } : {}),
+      ...(localBodyFilter ? { local_body_id: localBodyFilter } : {}),
+      ...(mainscreenFilter ? { mainscreen_id: mainscreenFilter } : {}),
+      ...(actionTypeFilter ? { action_type: actionTypeFilter } : {}),
+    }),
+    [searchTerm, sourceFilter, localBodyFilter, mainscreenFilter, actionTypeFilter],
+  );
+
+  const loadRows = useCallback(
+    async (page: number, limit: number, params: Record<string, string>) => {
+      const requestId = ++requestIdRef.current;
+      setIsLoading(true);
+      try {
+        const response = await permissionAuditApi.readAllwithPaginated(
+          page,
+          limit,
+          { params },
+        );
+        if (requestId !== requestIdRef.current) return;
+
+        const list = toRecordList(response);
+        setRows(list);
+        setTotalRecords(
+          typeof response?.count === "number" ? response.count : list.length,
+        );
+      } catch {
+        if (requestId !== requestIdRef.current) return;
+        notify.fire(t("common.error"), t("common.fetch_failed"), "error");
+      } finally {
+        if (requestId === requestIdRef.current) setIsLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
-    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering, roleFilter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, roleFilterKey]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, {
+      ...queryParams,
+      ...(ordering ? { ordering } : {}),
+    });
+  }, [first, rowsPerPage, queryParams, ordering, loadRows]);
 
+  // Dropdown choices come from the backend's scoped `filter-options`
+  // action, so a scoped user is only offered their own local bodies.
   useEffect(() => {
     let mounted = true;
-    const loadRoles = async () => {
+    const loadFilterOptions = async () => {
       try {
-        const data = await staffUserTypeApi.readAllForExport();
-        if (!mounted) return;
-        const options = (data as RawStaffUserType[])
-          .filter((role) => role.unique_id && role.name)
-          .map((role) => ({ label: role.name as string, value: role.unique_id as string }))
-          .sort((a, b) => a.label.localeCompare(b.label));
-        setRoleOptions(options);
+        const data = (await permissionAuditApi.read(
+          "filter-options",
+        )) as unknown as PermissionAuditFilterOptions;
+        if (mounted && data) setFilterOptions(data);
       } catch {
-        // Non-fatal: dropdown simply won't have options if this fails.
+        // Non-fatal: dropdowns simply won't have options if this fails.
       }
     };
-    void loadRoles();
+    void loadFilterOptions();
     return () => {
       mounted = false;
     };
@@ -207,8 +233,114 @@ export default function PermissionAuditList() {
     setSortOrder(event.sortOrder);
   };
 
-  const grantedOnPage = rows.filter((r) => r.is_active === true).length;
-  const revokedOnPage = rows.length - grantedOnPage;
+  const filterSelect = (
+    value: string,
+    setValue: (value: string) => void,
+    options: { label: string; value: string }[],
+    label: string,
+  ) => (
+    <div className="flex w-full flex-col gap-1 sm:w-56">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <FilterBarSelect
+        value={value}
+        onChange={(next) => {
+          setFirst(0);
+          setValue(next);
+        }}
+        options={options}
+        placeholder={t("common.all", "All")}
+        className="w-full"
+        aria-label={label}
+      />
+    </div>
+  );
+
+  const actionTypeTemplate = useCallback((row: PermissionAuditRecord) => {
+    const color =
+      row.action_type === "DELETED"
+        ? "text-red-600"
+        : row.action_type === "CREATED"
+          ? "text-green-600"
+          : "text-amber-600";
+    return <span className={`font-medium ${color}`}>{row.action_type ?? "-"}</span>;
+  }, []);
+
+  const moduleTemplate = (r: PermissionAuditRecord) => {
+    if (!r.changed_modules) return r.mainscreen_name ? moduleLabel(r.mainscreen_name) : "-";
+    if (r.changed_modules.length === 0) return "-";
+    const names = r.changed_modules.map((name) => moduleLabel(name));
+    const shown = names.slice(0, MODULES_SHOWN).join(", ");
+    const more = names.length - MODULES_SHOWN;
+    return (
+      <span title={names.join(", ")}>
+        {shown}
+        {more > 0 && (
+          <span className="text-muted-foreground">
+            {" "}
+            {t("admin.permission_audit.more_modules", "+{{count}} more", {
+              count: more,
+            })}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  const permissionTemplate = (r: PermissionAuditRecord) => {
+    if (isAccessSave(r)) {
+      return (
+        <div className="flex flex-col text-xs">
+          {(r.granted_count ?? 0) > 0 && (
+            <span className="text-green-700 dark:text-green-400">
+              + {r.granted_count} {t("admin.permission_audit.granted", "Granted")}
+            </span>
+          )}
+          {(r.revoked_count ?? 0) > 0 && (
+            <span className="text-red-700 dark:text-red-400">
+              − {r.revoked_count} {t("admin.permission_audit.revoked", "Revoked")}
+            </span>
+          )}
+        </div>
+      );
+    }
+    const change = r.is_active
+      ? t("admin.permission_audit.granted", "Granted")
+      : t("admin.permission_audit.revoked", "Revoked");
+    const target =
+      [
+        r.userscreen_name && screenLabel(r.userscreen_name, r.mainscreen_name),
+        r.userscreenaction_name,
+      ]
+        .filter(Boolean)
+        .join(" › ") ||
+      "-";
+    return (
+      <span>
+        {target}{" "}
+        <span
+          className={
+            r.is_active
+              ? "text-xs text-green-700 dark:text-green-400"
+              : "text-xs text-red-700 dark:text-red-400"
+          }
+        >
+          ({change})
+        </span>
+      </span>
+    );
+  };
+
+  const grantedOnPage = rows.reduce(
+    (sum, r) =>
+      sum + (isAccessSave(r) ? (r.granted_count ?? 0) : r.is_active ? 1 : 0),
+    0,
+  );
+  const revokedOnPage = rows.reduce(
+    (sum, r) =>
+      sum + (isAccessSave(r) ? (r.revoked_count ?? 0) : r.is_active ? 0 : 1),
+    0,
+  );
+  const thisPage = t("common.this_page", "this page");
 
   return (
     <div className="p-3">
@@ -219,63 +351,30 @@ export default function PermissionAuditList() {
       />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-md bg-blue-50 p-2 text-blue-600 dark:bg-blue-950/40">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-muted-foreground">
-                {t("admin.permission_audit.stat_total", "Total Access Changes")}
-              </div>
-              <div className="text-xl font-semibold">
-                {totalRecords.toLocaleString()}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-md bg-green-50 p-2 text-green-600 dark:bg-green-950/40">
-              <KeyRound className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-muted-foreground">
-                {t("admin.permission_audit.granted", "Granted")} ({t("common.this_page", "this page")})
-              </div>
-              <div className="text-xl font-semibold">{grantedOnPage}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-md bg-red-50 p-2 text-red-600 dark:bg-red-950/40">
-              <KeyRound className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-muted-foreground">
-                {t("admin.permission_audit.revoked", "Revoked")} ({t("common.this_page", "this page")})
-              </div>
-              <div className="text-xl font-semibold">{revokedOnPage}</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <div className="rounded-md bg-slate-100 p-2 text-slate-600 dark:bg-slate-800">
-              <CalendarClock className="h-5 w-5" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-muted-foreground">
-                {t("common_audit.stat_page_size", "Rows per Page")}
-              </div>
-              <div className="text-xl font-semibold">{rowsPerPage}</div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard
+          icon={<ShieldCheck className="h-5 w-5" />}
+          tone="bg-blue-50 text-blue-600 dark:bg-blue-950/40"
+          label={t("admin.permission_audit.stat_total", "Total Access Changes")}
+          value={totalRecords.toLocaleString()}
+        />
+        <StatCard
+          icon={<KeyRound className="h-5 w-5" />}
+          tone="bg-green-50 text-green-600 dark:bg-green-950/40"
+          label={`${t("admin.permission_audit.granted", "Granted")} (${thisPage})`}
+          value={grantedOnPage}
+        />
+        <StatCard
+          icon={<KeyRound className="h-5 w-5" />}
+          tone="bg-red-50 text-red-600 dark:bg-red-950/40"
+          label={`${t("admin.permission_audit.revoked", "Revoked")} (${thisPage})`}
+          value={revokedOnPage}
+        />
+        <StatCard
+          icon={<CalendarClock className="h-5 w-5" />}
+          tone="bg-slate-100 text-slate-600 dark:bg-slate-800"
+          label={t("common_audit.stat_page_size", "Rows per Page")}
+          value={rowsPerPage}
+        />
       </div>
 
       <Card>
@@ -297,18 +396,30 @@ export default function PermissionAuditList() {
               </button>
             }
           >
-            <div className="w-full sm:w-64">
-              <MultiSelect
-                value={roleFilter}
-                onChange={(next) => {
-                  setRoleFilter(next);
-                  setFirst(0);
-                }}
-                options={roleOptions}
-                placeholder={t("admin.permission_audit.role_filter")}
-                aria-label={t("admin.permission_audit.role_filter")}
-              />
-            </div>
+            {filterSelect(
+              sourceFilter,
+              setSourceFilter,
+              sourceOptions,
+              t("admin.permission_audit.source_filter_label", "Granted From"),
+            )}
+            {filterSelect(
+              localBodyFilter,
+              setLocalBodyFilter,
+              localBodyOptions,
+              t("admin.permission_audit.local_body_filter_label", "Local Body"),
+            )}
+            {filterSelect(
+              mainscreenFilter,
+              setMainscreenFilter,
+              mainscreenOptions,
+              t("admin.permission_audit.main_screen_filter_label", "Main Screen"),
+            )}
+            {filterSelect(
+              actionTypeFilter,
+              setActionTypeFilter,
+              actionTypeOptions,
+              t("admin.permission_audit.change_type_filter_label", "Change Type"),
+            )}
           </FilterBar>
 
           <DataTable
@@ -318,6 +429,7 @@ export default function PermissionAuditList() {
             paginator
             first={first}
             rows={rowsPerPage}
+            rowsPerPageOptions={[5, 10, 25, 50]}
             totalRecords={totalRecords}
             onPage={onPage}
             sortField={sortField}
@@ -335,38 +447,43 @@ export default function PermissionAuditList() {
               style={{ width: 70 }}
             />
             <Column
-              field="role_display"
-              header={t("admin.permission_audit.role")}
-              body={(r: PermissionAuditRecord) => r.role_display ?? "-"}
+              field="source_label"
+              header={t("admin.permission_audit.source", "Granted From")}
+              body={(r: PermissionAuditRecord) => r.source_label ?? "-"}
             />
             <Column
-              field="mainscreen_name"
-              header={t("admin.permission_audit.main_screen")}
-              body={(r: PermissionAuditRecord) => r.mainscreen_name ?? "-"}
+              field="target_name"
+              header={t("admin.permission_audit.granted_to", "Granted To")}
+              body={(r: PermissionAuditRecord) =>
+                r.target_name ?? r.role_display ?? "-"
+              }
             />
             <Column
-              field="userscreen_name"
-              header={t("admin.permission_audit.sub_screen")}
-              body={(r: PermissionAuditRecord) => r.userscreen_name ?? "-"}
+              field="local_body_name"
+              header={t("admin.permission_audit.local_body", "Local Body")}
+              body={(r: PermissionAuditRecord) => r.local_body_name ?? "-"}
             />
             <Column
-              field="userscreenaction_name"
-              header={t("admin.permission_audit.action")}
-              body={(r: PermissionAuditRecord) => r.userscreenaction_name ?? "-"}
+              header={t("admin.permission_audit.module", "Module")}
+              body={moduleTemplate}
+            />
+            <Column
+              header={t("admin.permission_audit.permissions", "Permissions")}
+              body={permissionTemplate}
+            />
+            <Column
+              field="http_method"
+              header={t("admin.permission_audit.http_method", "Method")}
+              body={(r: PermissionAuditRecord) => (
+                <MethodBadge method={r.http_method} />
+              )}
+              sortable
             />
             <Column
               field="action_type"
               header={t("admin.permission_audit.action_type")}
               body={actionTypeTemplate}
               sortable
-            />
-            <Column
-              header={t("admin.permission_audit.previous_state")}
-              body={(r: PermissionAuditRecord) => stateLabel(r.previous_is_active)}
-            />
-            <Column
-              header={t("admin.permission_audit.new_state")}
-              body={(r: PermissionAuditRecord) => stateLabel(r.is_active)}
             />
             <Column
               field="updated_by_name"
@@ -381,88 +498,27 @@ export default function PermissionAuditList() {
             />
             <Column
               header={t("common.actions")}
-              body={actionTemplate}
+              body={(row: PermissionAuditRecord) => (
+                <div className="flex justify-center">
+                  <button
+                    title={t("common.view")}
+                    onClick={() => setSelectedRecord(row)}
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    {t("common.view")}
+                  </button>
+                </div>
+              )}
               style={{ width: 120 }}
             />
           </DataTable>
         </CardContent>
       </Card>
 
-      <Dialog
-        open={Boolean(selectedRecord)}
-        onOpenChange={(open) => !open && closeDetails()}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{t("admin.permission_audit.detail_title")}</DialogTitle>
-          </DialogHeader>
-
-          {selectedRecord && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    {t("admin.permission_audit.role")}
-                  </div>
-                  <div>{selectedRecord.role_display ?? "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    {t("admin.permission_audit.main_screen")}
-                  </div>
-                  <div>{selectedRecord.mainscreen_name ?? "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    {t("admin.permission_audit.sub_screen")}
-                  </div>
-                  <div>{selectedRecord.userscreen_name ?? "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    {t("admin.permission_audit.action")}
-                  </div>
-                  <div>{selectedRecord.userscreenaction_name ?? "-"}</div>
-                </div>
-              </div>
-
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                      <th className="p-2 text-left font-medium">Field</th>
-                      <th className="p-2 text-left font-medium">Old Value</th>
-                      <th className="p-2 text-left font-medium">New Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-t">
-                      <td className="p-2">Active</td>
-                      <td className="p-2">{stateLabel(selectedRecord.previous_is_active)}</td>
-                      <td className="p-2">{stateLabel(selectedRecord.is_active)}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    {t("admin.permission_audit.updated_by")}
-                  </div>
-                  <div>{selectedRecord.updated_by_name ?? "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">
-                    {t("admin.permission_audit.timestamp")}
-                  </div>
-                  <div>{formatDateTime(selectedRecord.timestamp)}</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PermissionAuditDetail
+        record={selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+      />
     </div>
   );
 }

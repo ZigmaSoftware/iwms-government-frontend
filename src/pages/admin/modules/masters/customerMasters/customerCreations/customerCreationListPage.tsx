@@ -33,6 +33,7 @@ import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -570,12 +571,14 @@ export default function CustomerCreationListPage() {
           title={t("admin.customer_creation.title")}
           subtitle={t("admin.customer_creation.subtitle")}
           actions={
-            <Button
-              label={t("admin.customer_creation.add")}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("admin.customer_creation.add")}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />

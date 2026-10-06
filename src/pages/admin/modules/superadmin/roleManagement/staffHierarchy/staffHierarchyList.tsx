@@ -17,6 +17,7 @@ import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { staffHierarchyApi } from "@/helpers/admin";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 // Role names are resolved server-side, so only the table's own columns can
 // be ordered by the backend.
@@ -243,12 +244,14 @@ export default function StaffHierarchyList() {
           item: t("admin.nav.staff_hierarchy"),
         })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.staff_hierarchy") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.staff_hierarchy") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

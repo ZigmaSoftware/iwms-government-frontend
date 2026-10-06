@@ -16,6 +16,7 @@ import notify from "@/lib/notify";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -230,12 +231,14 @@ export default function HierarchyListPage() {
           item: t("admin.nav.hierarchy"),
         })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

@@ -19,6 +19,7 @@ import { formatCoordinates } from "../../../masters/shared/formatCoordinates";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 
 const toDisplay = (value: unknown): string =>
@@ -246,12 +247,14 @@ export default function CollectionPointListPage() {
         title={t("admin.nav.collection_point")}
         subtitle={t("common.manage_item_records", { item: t("admin.nav.collection_point") })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.collection_point") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.collection_point") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

@@ -26,6 +26,7 @@ import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 // ─── Template columns ──────────────────────────────────────────────────────────
 const DISTRICT_LEADER_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
@@ -280,12 +281,14 @@ export default function DistrictLeaderListPage() {
         title="District Leader"
         subtitle="Manage District Leader records"
         actions={
-          <Button
-            label="Add District Leader"
-            icon="pi pi-plus"
-            className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add District Leader"
+              icon="pi pi-plus"
+              className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

@@ -26,6 +26,7 @@ import {
 } from "@/utils/exportExcel";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -450,12 +451,14 @@ export default function VehicleCreationListPage() {
               hidden
               onChange={handleVehicleFileUpload}
             />
-            <Button
-              label={t("admin.vehicle_creation.add")}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("admin.vehicle_creation.add")}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           </>
         }
         className="mb-6"

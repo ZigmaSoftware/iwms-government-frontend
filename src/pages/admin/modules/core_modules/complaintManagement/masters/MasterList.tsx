@@ -14,6 +14,7 @@ import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
 import type { ComplaintSlaEscalationLevel } from "@/features/complaintTicketing/types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type Props = {
   kind: MasterKind;
@@ -138,7 +139,9 @@ export default function MasterList({ kind }: Props) {
         title={config.titlePlural}
         subtitle="Complaint ticketing setup"
         actions={
-          <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          <Can action="add">
+            <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          </Can>
         }
         className="mb-6"
       />

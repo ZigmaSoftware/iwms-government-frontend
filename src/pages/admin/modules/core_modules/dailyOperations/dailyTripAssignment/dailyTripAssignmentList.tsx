@@ -21,6 +21,7 @@ import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/expor
 import { drawQrCode } from "@/utils/exportPdf";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 type SchedulerStatus = {
   enabled?: boolean;
   is_enabled?: boolean;
@@ -790,12 +791,14 @@ export default function DailyTripAssignmentList() {
               onClick={runSchedulerNow}
             />
 
-            <Button
-              label="New Daily Trip Plan"
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label="New Daily Trip Plan"
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           </div>
         }
         className="mb-6"

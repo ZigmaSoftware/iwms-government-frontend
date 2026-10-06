@@ -24,6 +24,7 @@ import { createBinQrPdfBlob, downloadBinQrPdf } from "./binQrPdf";
 import { downloadAllBinsPdf } from "./binAllDetailsPdf";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
 const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -401,12 +402,14 @@ export default function BinList() {
               disabled={isExportingPdf}
               onClick={handleDownloadPdf}
             />
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           </>
         }
         className="mb-6"

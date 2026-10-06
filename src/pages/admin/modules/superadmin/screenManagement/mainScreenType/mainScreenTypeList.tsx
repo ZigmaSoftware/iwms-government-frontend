@@ -18,6 +18,7 @@ import { mainScreenTypeApi } from "@/helpers/admin";
 import type { MainScreenType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const toRecordList = (value: unknown): MainScreenType[] => {
   if (Array.isArray(value)) return value as MainScreenType[];
@@ -176,14 +177,16 @@ export default function MainScreenTypeList() {
             item: t("admin.nav.main_screen_type"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.nav.main_screen_type"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.nav.main_screen_type"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />

@@ -19,6 +19,7 @@ import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -502,12 +503,14 @@ export default function VehicleBreakdownList() {
         title="Vehicle Breakdowns"
         subtitle="Report breakdowns and arrange replacement vehicles for trips"
         actions={
-          <Button
-            label="Report Breakdown"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(newPath)}
-          />
+          <Can action="add">
+            <Button
+              label="Report Breakdown"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(newPath)}
+            />
+          </Can>
         }
         className="mb-6"
       />

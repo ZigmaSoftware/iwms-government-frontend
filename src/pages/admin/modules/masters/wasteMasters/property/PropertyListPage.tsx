@@ -18,6 +18,7 @@ import { capitalize } from "@/utils/capitalize";
 import type { PropertyRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -228,12 +229,14 @@ export default function PropertyList() {
         title={t("admin.nav.property")}
         subtitle={t("common.manage_item_records", { item: t("admin.nav.property") })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.property") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.property") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

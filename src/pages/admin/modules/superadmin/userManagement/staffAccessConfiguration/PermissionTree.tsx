@@ -2,6 +2,7 @@ import { ChevronDown, LayoutGrid } from "lucide-react";
 
 import type { ModulePermission, UserActionOption } from "./types";
 import type { AllowedActionsMap } from "@/helpers/admin/staffAccessConfigApi";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 type PermissionTreeProps = {
   modules: ModulePermission[];
@@ -63,6 +64,7 @@ export default function PermissionTree({
   allowedActions,
   readOnly = false,
 }: PermissionTreeProps) {
+  const { moduleLabel, screenLabel } = usePermissionLabels();
   const updateModule = (moduleIndex: number, enabled: boolean) => {
     const next = cloneModules(modules);
     next[moduleIndex].enabled = enabled;
@@ -110,7 +112,7 @@ export default function PermissionTree({
             <summary className="flex cursor-pointer list-none items-center gap-3 bg-stone-50 px-3 py-2.5 dark:bg-gray-900">
             <LayoutGrid className="h-3.5 w-3.5 text-gray-500" />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
-              {module.mainScreenName}
+              {moduleLabel(module.mainScreenName)}
             </span>
             <Toggle
               checked={module.enabled}
@@ -138,7 +140,9 @@ export default function PermissionTree({
                       onClick={(event) => event.stopPropagation()}
                     >
                       <span className="truncate text-sm font-medium text-gray-700 dark:text-gray-200">
-                        {screen.userScreenName ?? screen.userScreenId}
+                        {screen.userScreenName
+                          ? screenLabel(screen.userScreenName, module.mainScreenName)
+                          : screen.userScreenId}
                       </span>
                     </label>
 

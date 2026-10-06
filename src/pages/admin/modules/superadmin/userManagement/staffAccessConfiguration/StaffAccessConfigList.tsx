@@ -13,6 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type StaffAccessRecord = {
   unique_id?: string;
@@ -196,12 +197,14 @@ export default function StaffAccessConfigList() {
         title="Staff Access Configuration"
         subtitle="Manage staff access, permissions, and scope."
         actions={
-          <Button
-            label="New staff access"
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(newPath)}
-          />
+          <Can action="add">
+            <Button
+              label="New staff access"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(newPath)}
+            />
+          </Can>
         }
         className="mb-6"
       />

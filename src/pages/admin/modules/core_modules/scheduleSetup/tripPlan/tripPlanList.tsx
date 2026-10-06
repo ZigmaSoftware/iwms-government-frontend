@@ -17,6 +17,7 @@ import { normalizeList } from "@/utils/forms";
 import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const SORTABLE_FIELDS = new Set(["display_code", "approval_status"]);
 
@@ -204,7 +205,9 @@ export default function TripPlanList() {
         title="Trip Plans"
         subtitle="Manage trip route, staff, vehicle, schedule, and stop list"
         actions={
-          <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          <Can action="add">
+            <Button label="Add Trip Plan" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          </Can>
         }
         className="mb-6"
       />

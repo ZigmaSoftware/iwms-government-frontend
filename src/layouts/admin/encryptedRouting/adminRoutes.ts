@@ -124,6 +124,8 @@ const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/report
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
 const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList"));
 const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
+const ComplaintAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/complaintAudit/ComplaintAuditList"));
+const AuditDashboard = lazy(() => import("@/pages/admin/modules/superadmin/audits/auditDashboard/AuditDashboard"));
 const UnassignedStaffPoolList = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolList"));
 const UnassignedStaffPoolForm = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolForm"));
 const DailyAttendanceRegList = lazy(() => import("@/pages/admin/modules/core_modules/attendance/DailyAttendanceRegList"));
@@ -251,6 +253,7 @@ export const ROUTES: RouteMap = {
     feedback: { list: FeedbackList },
   },
   audits: {
+    "audit-dashboard": { component: AuditDashboard },
     "common-audit": { list: CommonAuditList },
     // Both folded into Transaction Audit (commonAuditList.tsx handles
     // hierarchy auto-scoping and an "Approvals only" toggle itself now) —
@@ -261,6 +264,7 @@ export const ROUTES: RouteMap = {
     "login-audit": { list: LoginAuditList },
     "login-audits": { list: LoginAuditList },
     "permission-audit": { list: PermissionAuditList },
+    "complaint-audit": { list: ComplaintAuditList },
   },
   reports: {
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },

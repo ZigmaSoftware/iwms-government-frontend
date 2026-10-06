@@ -18,6 +18,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { userScreenActionApi } from "@/helpers/admin";
 
 import type { UserScreenAction } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const toRecordList = (value: unknown): UserScreenAction[] => {
   if (Array.isArray(value)) return value as UserScreenAction[];
@@ -190,14 +191,16 @@ export default function UserScreenActionList() {
             item: t("admin.nav.user_screen_action"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.user_screen_action.action_label"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.user_screen_action.action_label"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />

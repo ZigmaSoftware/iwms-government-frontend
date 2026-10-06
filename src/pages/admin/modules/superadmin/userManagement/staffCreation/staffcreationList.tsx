@@ -27,6 +27,7 @@ import {
   localBodyNameOf,
 } from "./staffQrPdf";
 import { downloadAllStaffPdf } from "./staffAllDetailsPdf";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
@@ -433,12 +434,14 @@ export default function StaffCreationList() {
           subtitle={t("admin.staff_creation.subtitle")}
           actions={
             <div className="flex flex-wrap gap-2">
-              <Button
-                label={t("admin.staff_creation.create")}
-                icon="pi pi-plus"
-                className="p-button-success p-button-sm"
-                onClick={() => navigate(ENC_NEW_PATH)}
-              />
+              <Can action="add">
+                <Button
+                  label={t("admin.staff_creation.create")}
+                  icon="pi pi-plus"
+                  className="p-button-success p-button-sm"
+                  onClick={() => navigate(ENC_NEW_PATH)}
+                />
+              </Can>
             </div>
           }
           filters={

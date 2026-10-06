@@ -1,13 +1,15 @@
 import type {
+  AuditFilterOptions,
   CommonAuditJsonValue,
   CommonAuditRecord,
   DiffLine,
   MainScreenOption,
   SubScreenOption,
 } from "./types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import {
@@ -36,7 +38,7 @@ import type {
 
 import { commonAuditApi, mainScreenApi, userScreenApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 type RawMainScreen = {
   unique_id?: string;
@@ -245,6 +247,7 @@ const DiffJsonViewer = ({
 
 export default function CommonAuditList() {
   const { t } = useTranslation();
+  const { moduleLabel, screenLabel } = usePermissionLabels();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [mainScreenFilter, setMainScreenFilter] = useState<string[]>([]);
@@ -252,6 +255,16 @@ export default function CommonAuditList() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [approvalOnly, setApprovalOnly] = useState(false);
+  // "" = all; districts/local bodies stand in for the private build's
+  // company/project filters, since rows here are scoped by geography.
+  const [districtFilter, setDistrictFilter] = useState("");
+  const [localBodyFilter, setLocalBodyFilter] = useState("");
+  // "" = all, "true"/"false" = only successful / only rejected writes.
+  const [statusFilter, setStatusFilter] = useState("");
+  const [filterOptions, setFilterOptions] = useState<AuditFilterOptions | null>(
+    null,
+  );
+  const requestIdRef = useRef(0);
   const [selectedRecord, setSelectedRecord] =
     useState<CommonAuditRecord | null>(null);
   const [rows, setRows] = useState<CommonAuditRecord[]>([]);
@@ -267,13 +280,31 @@ export default function CommonAuditList() {
   const [subScreensLoading, setSubScreensLoading] = useState(false);
 
   const mainScreenOptions = useMemo(
-    () => mainScreens.map((m) => ({ value: m.value, label: m.label })),
-    [mainScreens],
+    () => mainScreens.map((m) => ({ value: m.value, label: moduleLabel(m.label) })),
+    [mainScreens, moduleLabel],
   );
 
   const subScreenOptions = useMemo(
-    () => subScreens.map((s) => ({ value: s.value, label: s.label })),
-    [subScreens],
+    () => subScreens.map((s) => ({ value: s.value, label: screenLabel(s.label) })),
+    [subScreens, screenLabel],
+  );
+
+  const districtOptions = useMemo(
+    () =>
+      (filterOptions?.districts ?? []).map((d) => ({
+        label: d.name,
+        value: d.unique_id,
+      })),
+    [filterOptions],
+  );
+
+  const localBodyOptions = useMemo(
+    () =>
+      (filterOptions?.local_bodies ?? []).map((b) => ({
+        label: b.level ? `${b.name} (${b.level})` : b.name,
+        value: b.unique_id,
+      })),
+    [filterOptions],
   );
 
   const loading = isLoading && rows.length === 0;
@@ -306,18 +337,46 @@ export default function CommonAuditList() {
     [],
   );
 
+  // Every active filter as API params — shared by the paginated table and
+  // the "all data" Excel export so both always cover the same rows.
+  const mainScreenFilterKey = mainScreenFilter.join(",");
+  const subScreenFilterKey = subScreenFilter.join(",");
+
+  const filterParams = useMemo(
+    () => ({
+      ...(searchTerm ? { search: searchTerm } : {}),
+      ...(mainScreenFilterKey ? { main_screen: mainScreenFilterKey } : {}),
+      ...(subScreenFilterKey ? { sub_screen: subScreenFilterKey } : {}),
+      ...(dateFrom ? { date_from: dateFrom } : {}),
+      ...(dateTo ? { date_to: dateTo } : {}),
+      ...(approvalOnly ? { approval_only: true } : {}),
+      ...(districtFilter ? { district_id: districtFilter } : {}),
+      ...(localBodyFilter ? { local_body_id: localBodyFilter } : {}),
+      ...(statusFilter ? { success: statusFilter } : {}),
+    }),
+    [
+      searchTerm,
+      mainScreenFilterKey,
+      subScreenFilterKey,
+      dateFrom,
+      dateTo,
+      approvalOnly,
+      districtFilter,
+      localBodyFilter,
+      statusFilter,
+    ],
+  );
+
   const loadRows = useCallback(
     async (
       page: number,
       limit: number,
-      search: string,
+      params: Record<string, unknown>,
       ordering?: string,
-      mainScreenValues?: string[],
-      subScreenValues?: string[],
-      dateFromValue?: string,
-      dateToValue?: string,
-      approvalOnlyValue?: boolean,
     ) => {
+      // Rapid filter changes can resolve out of order; only the latest
+      // request may write to the table.
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       try {
         const response = await commonAuditApi.readAllwithPaginated(
@@ -325,20 +384,12 @@ export default function CommonAuditList() {
           limit,
           {
             params: {
-              ...(search ? { search } : {}),
+              ...params,
               ...(ordering ? { ordering } : {}),
-              ...(mainScreenValues && mainScreenValues.length
-                ? { main_screen: mainScreenValues.join(",") }
-                : {}),
-              ...(subScreenValues && subScreenValues.length
-                ? { sub_screen: subScreenValues.join(",") }
-                : {}),
-              ...(dateFromValue ? { date_from: dateFromValue } : {}),
-              ...(dateToValue ? { date_to: dateToValue } : {}),
-              ...(approvalOnlyValue ? { approval_only: true } : {}),
             },
           },
         );
+        if (requestId !== requestIdRef.current) return;
         setRows(toRecordList(response));
         setTotalRecords(
           typeof response?.count === "number"
@@ -346,9 +397,10 @@ export default function CommonAuditList() {
             : toRecordList(response).length,
         );
       } catch {
+        if (requestId !== requestIdRef.current) return;
         notify.fire(t("common.error"), t("common.fetch_failed"), "error");
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) setIsLoading(false);
       }
     },
     [t],
@@ -359,33 +411,49 @@ export default function CommonAuditList() {
       ? `${sortOrder === -1 ? "-" : ""}${sortField}`
       : undefined;
 
-  const mainScreenFilterKey = mainScreenFilter.join(",");
-  const subScreenFilterKey = subScreenFilter.join(",");
-
   useEffect(() => {
-    void loadRows(
-      first / rowsPerPage + 1,
-      rowsPerPage,
-      searchTerm,
-      ordering,
-      mainScreenFilter,
-      subScreenFilter,
-      dateFrom,
-      dateTo,
-      approvalOnly,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    first,
-    rowsPerPage,
-    searchTerm,
-    ordering,
-    mainScreenFilterKey,
-    subScreenFilterKey,
-    dateFrom,
-    dateTo,
-    approvalOnly,
-  ]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, filterParams, ordering);
+  }, [first, rowsPerPage, filterParams, ordering, loadRows]);
+
+  // Distinct district/local body values for the dropdowns, served by the
+  // backend's `filter-options` action rather than derived from the current
+  // page, so the lists stay complete — and stay scoped: a staff user is
+  // never offered a local body outside their own hierarchy.
+  //
+  // Refetched when the district changes so the local body list only ever
+  // offers bodies within the selected district.
+  useEffect(() => {
+    let mounted = true;
+
+    const loadFilterOptions = async () => {
+      try {
+        const data = (await commonAuditApi.read("filter-options", {
+          params: districtFilter ? { district_id: districtFilter } : {},
+        })) as unknown as AuditFilterOptions;
+        if (!mounted || !data) return;
+        setFilterOptions(data);
+      } catch {
+        // Non-fatal: dropdowns simply won't have options if this fails.
+      }
+    };
+
+    void loadFilterOptions();
+
+    return () => {
+      mounted = false;
+    };
+  }, [districtFilter]);
+
+  // Feeds the table's "Download Excel" button: re-fetches every audit row
+  // matching the current filters, since the table is lazily paginated and
+  // only holds one page.
+  const loadAllExportRows = useCallback(
+    async () =>
+      toRecordList(
+        await commonAuditApi.readAllForExport({ params: filterParams }),
+      ) as unknown as Record<string, unknown>[],
+    [filterParams],
+  );
 
   // Main Screen options come from the real MainScreen master data (the same
   // records that build the admin sidebar), not from whatever module names
@@ -641,6 +709,48 @@ export default function CommonAuditList() {
                 )}
               />
             </div>
+            <FilterBarSelect
+              value={districtFilter}
+              onChange={(value) => {
+                setFirst(0);
+                setDistrictFilter(value);
+                // A local body belongs to one district, so a stale local body
+                // filter would silently return nothing after switching.
+                setLocalBodyFilter("");
+              }}
+              options={districtOptions}
+              placeholder={t("admin.common_audit.district_filter", "All Districts")}
+              aria-label={t("admin.common_audit.district_filter", "All Districts")}
+            />
+            <FilterBarSelect
+              value={localBodyFilter}
+              onChange={(value) => {
+                setFirst(0);
+                setLocalBodyFilter(value);
+              }}
+              options={localBodyOptions}
+              placeholder={t(
+                "admin.common_audit.local_body_filter",
+                "All Local Bodies",
+              )}
+              aria-label={t(
+                "admin.common_audit.local_body_filter",
+                "All Local Bodies",
+              )}
+            />
+            <FilterBarSelect
+              value={statusFilter}
+              onChange={(value) => {
+                setFirst(0);
+                setStatusFilter(value);
+              }}
+              options={[
+                { label: t("admin.common_audit.status_success", "Successful"), value: "true" },
+                { label: t("admin.common_audit.status_failed", "Failed"), value: "false" },
+              ]}
+              placeholder={t("admin.common_audit.status_filter", "All Statuses")}
+              aria-label={t("admin.common_audit.status_filter", "All Statuses")}
+            />
             <label className="text-sm text-gray-700">
               <span className="mb-1 block">
                 {t("admin.common_audit.date_from", "From Date")}
@@ -692,6 +802,7 @@ export default function CommonAuditList() {
           </FilterBar>
 
           <DataTable
+            onExportRequest={loadAllExportRows}
             value={rows}
             dataKey="uuid"
             lazy
@@ -734,9 +845,43 @@ export default function CommonAuditList() {
               body={(r: CommonAuditRecord) => r.object_id ?? "-"}
             />
             <Column
+              field="district_name"
+              header={t("common.district")}
+              body={(r: CommonAuditRecord) => r.district_name ?? "-"}
+            />
+            <Column
+              field="local_body_name"
+              header={t("admin.common_audit.local_body", "Local Body")}
+              body={(r: CommonAuditRecord) =>
+                r.local_body_name ? (
+                  <div className="leading-tight">
+                    <div>{r.local_body_name}</div>
+                    {r.local_body_level ? (
+                      <div className="text-xs text-gray-500">
+                        {r.local_body_level}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  "-"
+                )
+              }
+            />
+            <Column
               field="createdBy"
               header={t("admin.common_audit.created_by")}
-              body={(r: CommonAuditRecord) => r.createdBy ?? "-"}
+              body={(r: CommonAuditRecord) => {
+                const name = r.created_by_name ?? r.createdBy;
+                if (!name) return "-";
+                return (
+                  <div className="leading-tight">
+                    <div className="font-medium text-gray-800">{name}</div>
+                    {r.created_by_id ? (
+                      <div className="text-xs text-gray-500">{r.created_by_id}</div>
+                    ) : null}
+                  </div>
+                );
+              }}
             />
             <Column
               field="ip_address"
@@ -758,17 +903,20 @@ export default function CommonAuditList() {
             <Column
               field="success"
               header={t("admin.common_audit.success", "Success")}
-              body={(r: CommonAuditRecord) => (
-                <span
-                  className={
-                    r.success === false
-                      ? "font-medium text-red-600"
-                      : "font-medium text-green-600"
-                  }
-                >
-                  {r.success === false ? t("common.no") : t("common.yes")}
-                </span>
-              )}
+              body={(r: CommonAuditRecord) =>
+                r.success === false ? (
+                  <span
+                    title={r.reason ?? undefined}
+                    className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+                  >
+                    {t("admin.common_audit.status_failed", "Failed")}
+                  </span>
+                ) : (
+                  <span className="rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    {t("admin.common_audit.status_success", "Successful")}
+                  </span>
+                )
+              }
             />
             <Column
               field="reason"
@@ -805,6 +953,61 @@ export default function CommonAuditList() {
           <DialogHeader>
             <DialogTitle>{t("admin.common_audit.detail_title")}</DialogTitle>
           </DialogHeader>
+
+          <div className="grid gap-3 rounded-md border bg-gray-50 p-3 text-sm sm:grid-cols-2">
+            <div>
+              <div className="text-xs text-gray-500">{t("common.status")}</div>
+              <div
+                className={
+                  selectedRecord?.success === false
+                    ? "font-medium text-red-700"
+                    : "font-medium text-green-700"
+                }
+              >
+                {selectedRecord?.success === false
+                  ? t("admin.common_audit.status_failed", "Failed")
+                  : t("admin.common_audit.status_success", "Successful")}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.ip_address", "IP Address")}
+              </div>
+              <div>{selectedRecord?.ip_address || "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.created_by")}
+              </div>
+              <div>
+                {selectedRecord?.created_by_name ?? selectedRecord?.createdBy ?? "-"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">{t("common.location")}</div>
+              <div>
+                {[selectedRecord?.local_body_name, selectedRecord?.district_name]
+                  .filter(Boolean)
+                  .join(", ") || "-"}
+              </div>
+            </div>
+            {selectedRecord?.reason ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500">
+                  {t("admin.common_audit.reason", "Reason")}
+                </div>
+                <div className="text-red-700">{selectedRecord.reason}</div>
+              </div>
+            ) : null}
+            <div className="min-w-0 sm:col-span-2">
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.user_agent", "User Agent")}
+              </div>
+              <div className="break-words text-xs text-gray-700">
+                {selectedRecord?.user_agent || "-"}
+              </div>
+            </div>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <JsonViewer

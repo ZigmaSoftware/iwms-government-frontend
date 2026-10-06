@@ -17,6 +17,7 @@ import notify from "@/lib/notify";
 import type { ContinentRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 
 const { encCommonMasters, encContinents } = getEncryptedRoute();
@@ -247,12 +248,14 @@ export default function ContinentList() {
           item: t("admin.nav.continent"),
         })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.continent") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.continent") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
