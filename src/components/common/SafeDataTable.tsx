@@ -2,6 +2,13 @@ import {
   DataTable as PrimeDataTable,
   type DataTableProps,
 } from "primereact/datatable";
+import { useTranslation } from "react-i18next";
+import {
+  DEFAULT_ROWS_PER_PAGE_OPTIONS,
+  PAGE_REPORT_FALLBACK,
+  PAGE_REPORT_KEY,
+  PAGINATOR_TEMPLATE,
+} from "@/components/common/paginatorDefaults";
 
 // Centralized here (not per-page) so only bundles that actually render a
 // PrimeReact table pay for this CSS, instead of every page in the app.
@@ -413,6 +420,7 @@ const DataTableHeaderActions = ({
 export const DataTable = <TValue extends SafeTableRows>(
   props: SafeDataTableProps<TValue>,
 ) => {
+  const { t } = useTranslation();
   const {
     exportable = true,
     showExportButton = true,
@@ -468,6 +476,9 @@ export const DataTable = <TValue extends SafeTableRows>(
       <PrimeDataTable
         responsiveLayout="stack"
         breakpoint="768px"
+        paginatorTemplate={PAGINATOR_TEMPLATE}
+        currentPageReportTemplate={t(PAGE_REPORT_KEY, PAGE_REPORT_FALLBACK)}
+        rowsPerPageOptions={DEFAULT_ROWS_PER_PAGE_OPTIONS}
         {...tableProps}
         header={header}
         value={safeRows}

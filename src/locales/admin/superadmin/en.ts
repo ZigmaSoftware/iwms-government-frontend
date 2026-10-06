@@ -381,7 +381,6 @@ export default {
     "search_placeholder": "Search user, action, record…",
     "loading": "Loading…",
     "no_records": "No records match these filters. Widen the date range or clear the search.",
-    "page_report": "{first}–{last} of {totalRecords} records",
     "hours_value": "{{value}} hrs",
     "tat_open": "{{value}} (open)",
     "module_common": "Common Audit",

@@ -108,6 +108,7 @@ export default {
     "invalid_data": "Invalid data",
     "update_status_failed": "Failed to update status",
     "fetch_failed": "Failed to fetch records",
+    "page_report": "{first}–{last} of {totalRecords} records",
     "delete_failed": "Delete failed",
     "record_removed": "Record removed successfully",
     "select_item_placeholder": "Select {{item}}",

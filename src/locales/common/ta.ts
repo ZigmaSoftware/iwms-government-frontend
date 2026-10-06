@@ -107,6 +107,7 @@ export default {
     "invalid_data": "தவறான தரவு",
     "update_status_failed": "நிலையை புதுப்பிக்க முடியவில்லை",
     "fetch_failed": "தரவை பெற முடியவில்லை",
+    "page_report": "{totalRecords} பதிவுகளில் {first}–{last}",
     "delete_failed": "அழித்தல் தோல்வியடைந்தது",
     "record_removed": "பதிவு வெற்றிகரமாக நீக்கப்பட்டது",
     "select_item_placeholder": "{{item}} தேர்ந்தெடுக்கவும்",
