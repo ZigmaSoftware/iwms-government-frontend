@@ -18,6 +18,7 @@ import { vehicleTypeApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -208,12 +209,14 @@ export default function VehicleTypeCreationList() {
         title={t("admin.vehicle_type.title")}
         subtitle={t("admin.vehicle_type.subtitle")}
         actions={
-          <Button
-            label={t("admin.vehicle_type.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.vehicle_type.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

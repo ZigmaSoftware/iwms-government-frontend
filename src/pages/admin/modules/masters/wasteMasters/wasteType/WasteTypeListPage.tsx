@@ -18,6 +18,7 @@ import { capitalize } from "@/utils/capitalize";
 import type { WasteTypeListRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
@@ -201,12 +202,14 @@ export default function WasteTypeListPage() {
         title={t("common.waste_type")}
         subtitle={t("common.manage_item_records", { item: t("common.waste_type") })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("common.waste_type") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("common.waste_type") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

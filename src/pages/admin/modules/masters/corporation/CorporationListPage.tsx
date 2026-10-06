@@ -14,6 +14,7 @@ import { corporationApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type CorporationListRecord = {
   unique_id: string;
@@ -177,12 +178,14 @@ export default function CorporationListPage() {
         title="Corporation"
         subtitle="Manage Corporation records"
         actions={
-          <Button
-            label="Add Corporation"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Corporation"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

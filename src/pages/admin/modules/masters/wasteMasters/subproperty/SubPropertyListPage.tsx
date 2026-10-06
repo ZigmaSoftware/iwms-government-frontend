@@ -18,6 +18,7 @@ import { capitalize } from "@/utils/capitalize";
 import type { SubPropertyRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -224,12 +225,14 @@ export default function SubPropertyList() {
             item: t("admin.nav.sub_property"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.sub_property") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", { item: t("admin.nav.sub_property") })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />

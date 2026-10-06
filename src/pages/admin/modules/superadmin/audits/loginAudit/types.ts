@@ -7,6 +7,10 @@ export type LoginAuditRecord = {
   project_unique_id?: string | null;
   project_name?: string | null;
   user_unique_id?: string | null;
+  user_name?: string | null;
+  district_name?: string | null;
+  local_body_name?: string | null;
+  local_body_level?: string | null;
   module_name?: string | null;
   username?: string | null;
   ip_address?: string | null;

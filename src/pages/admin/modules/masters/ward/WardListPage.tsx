@@ -13,6 +13,7 @@ import { wardApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type WardListRecord = {
   unique_id: string;
@@ -181,12 +182,14 @@ export default function WardListPage() {
         title="Ward"
         subtitle="Manage Ward records"
         actions={
-          <Button
-            label="Add Ward"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Ward"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

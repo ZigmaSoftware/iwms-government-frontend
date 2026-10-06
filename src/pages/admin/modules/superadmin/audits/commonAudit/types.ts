@@ -24,6 +24,23 @@ export type CommonAuditJsonValue =
   | CommonAuditJsonValue[]
   | { [key: string]: CommonAuditJsonValue };
 
+export type AuditFilterOption = {
+  unique_id: string;
+  name: string;
+  level?: string;
+};
+
+// Served by the backend's `filter-options` action, drawn from the
+// requester's scoped rows (districts/local bodies stand in for the private
+// build's companies/projects).
+export type AuditFilterOptions = {
+  districts: AuditFilterOption[];
+  local_bodies: AuditFilterOption[];
+  modules: string[];
+  methods: string[];
+  users: AuditFilterOption[];
+};
+
 export type CommonAuditRecord = {
   uuid?: string | number;
   module_name?: string;
@@ -32,6 +49,12 @@ export type CommonAuditRecord = {
   object_id?: string | number;
   createdBy?: string;
   createdAt?: string;
+  created_by_id?: string | null;
+  created_by_name?: string | null;
+  created_by_type?: string | null;
+  district_name?: string | null;
+  local_body_name?: string | null;
+  local_body_level?: string | null;
   ip_address?: string | null;
   user_agent?: string | null;
   success?: boolean;

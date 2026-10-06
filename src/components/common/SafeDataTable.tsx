@@ -20,6 +20,7 @@ import {
 } from "react";
 import notify from "@/lib/notify";
 import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
 import {
@@ -430,6 +431,8 @@ export const DataTable = <TValue extends SafeTableRows>(
     onPdfRequest,
     ...tableProps
   } = props;
+  // Excel import creates records, so it needs "add" on the current page.
+  const { canAdd } = useScreenAccess();
   const safeRows = toSafeRows(tableProps.value);
   const rowsForExport = exportRows ?? safeRows;
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
@@ -443,7 +446,7 @@ export const DataTable = <TValue extends SafeTableRows>(
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
         importColumns={resolvedImportColumns}
-        bulkImportable={bulkImportable}
+        bulkImportable={bulkImportable && canAdd}
         importApi={resolvedImportApi}
         importDefaults={importDefaults}
         importTemplateFilename={importTemplateFilename}

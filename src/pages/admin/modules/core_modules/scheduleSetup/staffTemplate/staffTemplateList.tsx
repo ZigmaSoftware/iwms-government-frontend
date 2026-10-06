@@ -17,6 +17,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code", "template_id"],
@@ -203,12 +204,14 @@ export default function StaffTemplateList() {
         title={t("admin.staff_template.list_title")}
         subtitle={t("admin.staff_template.list_subtitle")}
         actions={
-          <Button
-            label={t("admin.staff_template.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.staff_template.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

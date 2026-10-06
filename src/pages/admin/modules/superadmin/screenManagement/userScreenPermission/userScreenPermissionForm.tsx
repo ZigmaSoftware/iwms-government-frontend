@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import Select from "@/components/form/Select";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -130,7 +131,13 @@ export default function UserScreenPermissionForm() {
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [loadingWidgets, setLoadingWidgets] = useState(false);
 
-  const [mainScreens, setMainScreens] = useState<Option[]>([]);
+  const [rawMainScreens, setMainScreens] = useState<Option[]>([]);
+  // Shown with the sidebar's names ("Daily Operations"), not the stored keys.
+  const { moduleLabel } = usePermissionLabels();
+  const mainScreens = useMemo(
+    () => rawMainScreens.map((opt) => ({ ...opt, label: moduleLabel(opt.label) })),
+    [rawMainScreens, moduleLabel]
+  );
   const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
   const [actions, setActions] = useState<Option[]>([]);
 

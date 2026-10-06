@@ -18,6 +18,7 @@ import type { UserType } from "@/pages/admin/modules/superadmin/screenManagement
 import { userTypeApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const toRecordList = (value: unknown): UserType[] => {
   if (Array.isArray(value)) return value as UserType[];
@@ -179,12 +180,14 @@ export default function UserTypePage() {
             item: t("admin.nav.user_type"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.user_type") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", { item: t("admin.nav.user_type") })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />

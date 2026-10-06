@@ -1,4 +1,5 @@
 import { api } from "@/api";
+import { PERMISSION_CATALOG } from "@/generated/permissionCatalog";
 import type {
   DashboardWidget,
   LocalBodyLevel,
@@ -48,90 +49,14 @@ type RawMainScreen = {
   is_deleted?: boolean;
 };
 
-const APP_SIDEBAR_PERMISSION_CATALOG: Array<{ module: string; screens: string[] }> = [
-  { module: "dashboard", screens: ["Dashboard"] },
-  { module: "common-masters", screens: ["continents", "countries", "states"] },
-  {
-    module: "masters",
-    screens: [
-      "districts",
-      "area-types",
-      "corporations",
-      "municipalities",
-      "town-panchayats",
-      "panchayat-unions",
-      "panchayats",
-    ],
-  },
-  { module: "waste-types", screens: ["properties", "subproperties"] },
-  { module: "assets", screens: ["bins", "wastetypes"] },
-  {
-    module: "screen-managements",
-    screens: [
-      "mainscreentype",
-      "mainscreens",
-      "userscreens",
-      "userscreen-action",
-      "userscreenpermissions",
-    ],
-  },
-  { module: "role-assigns", screens: ["user-type", "staff-user-type"] },
-  {
-    module: "user-creations",
-    screens: [
-      "staffcreation",
-      "staff-access-configuration",
-      "staff-access-dashboard",
-    ],
-  },
-  { module: "customers", screens: ["customercreations", "feedbacks"] },
-  {
-    module: "complaint-ticket",
-    screens: [
-      "tickets",
-      "modules",
-      "categories",
-      "subcategories",
-      "priorities",
-      "statuses",
-      "sources",
-      "teams",
-      "sla-rules",
-      "feedback",
-    ],
-  },
-  { module: "transport-masters", screens: ["vehicle-type", "vehicle-creation", "fuels"] },
-  {
-    module: "schedule-masters",
-    screens: [
-      "staff-templates",
-      "alternative-staff-templates",
-      "collection-points",
-      "trip-plans",
-      "daily-trip-assignments",
-      "daily-trip-collection-points",
-      "daily-trip-household-collections",
-      "bin-collection-events",
-      "vehicle-breakdowns",
-      "retrip-requests",
-      "daily-trip-logs",
-      "wastecollections",
-      "daily-waste-comparisons",
-      "MonthlyWasteComparison",
-    ],
-  },
-  { module: "audits", screens: ["common-audit", "login-audit"] },
-  {
-    module: "vehicle-tracking",
-    screens: ["VehicleTrack", "VehicleHistory"],
-  },
-  {
-    module: "reports",
-    screens: ["TripSummary", "MonthlyDistance", "WasteCollectedSummary"],
-  },
-  { module: "workforce", screens: ["WorkforceManagement"] },
-  { module: "leader-login", screens: ["plb-leader-creation", "district-leader-creation"] },
-];
+// Every sidebar module and screen, from the backend permission catalog
+// (src/generated/permissionCatalog.ts), so a State/District-scoped staff
+// member can be granted exactly what the sidebar offers.
+const APP_SIDEBAR_PERMISSION_CATALOG: Array<{ module: string; screens: string[] }> =
+  Object.entries(PERMISSION_CATALOG).map(([module, { screens }]) => ({
+    module,
+    screens: Object.keys(screens),
+  }));
 
 const catalogKey = (value: unknown) =>
   String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");

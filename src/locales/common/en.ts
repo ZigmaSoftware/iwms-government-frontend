@@ -1,5 +1,7 @@
 export default {
   "common": {
+    "access_denied_title": "Access denied",
+    "access_denied_message": "You do not have permission to open this page. Ask your administrator to grant it in Staff Access Configuration.",
     "appName": "Integrated Waste Management Suite",
     "language_en": "English",
     "language_ta": "தமிழ்",
@@ -32,6 +34,7 @@ export default {
     "area_type": "Area Type",
     "address": "Address",
     "location": "Location",
+    "this_page": "this page",
     "owner": "Owner",
     "mobile": "Mobile",
     "vehicle": "Vehicle",

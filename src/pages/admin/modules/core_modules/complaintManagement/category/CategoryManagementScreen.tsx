@@ -13,6 +13,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintCategoryApi, complaintSubcategoryApi } from "@/features/complaintTicketing/api";
 import { asArray, errorText, idOf, yesNo } from "../utils";
 import { MASTER_CONFIG } from "../masters/masterConfig";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 /**
  * "Categories & Subcategories" — merges what used to be two separate
@@ -138,7 +139,9 @@ export default function CategoryManagementScreen() {
           <h1 className="text-3xl font-bold text-gray-800">Categories &amp; Subcategories</h1>
           <p className="text-sm text-gray-500">Complaint ticketing setup</p>
         </div>
-        <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />
+        <Can action="add">
+          <Button label="Add Category" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(categoryRoutes.newPath)} />
+        </Can>
       </div>
 
       <DataTable
@@ -203,7 +206,9 @@ export default function CategoryManagementScreen() {
             </p>
           </div>
           {selectedCategory && (
-            <Button label="Add Subcategory" icon="pi pi-plus" className="p-button-success" onClick={addSubcategory} />
+            <Can action="add">
+              <Button label="Add Subcategory" icon="pi pi-plus" className="p-button-success" onClick={addSubcategory} />
+            </Can>
           )}
         </div>
 

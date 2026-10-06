@@ -8,6 +8,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -18,6 +19,7 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
 import { encodeLocalBodyRouteId } from "./userScreenPermissionForm";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
   corporation: "Corporation",
@@ -73,6 +75,7 @@ type GroupedRow = {
 
 export default function UserScreenPermissionList() {
   const { t } = useTranslation();
+  const { moduleLabel } = usePermissionLabels();
   const navigate = useNavigate();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -167,7 +170,9 @@ export default function UserScreenPermissionList() {
         const localBodyType = String(item.local_body_type ?? "");
         const localBodyId = String(item.local_body_id ?? "");
         const screenId = String(item.mainscreen_id ?? "");
-        const screenName = String(item.mainscreen_name ?? t("common.unknown"));
+        const screenName = item.mainscreen_name
+          ? moduleLabel(String(item.mainscreen_name))
+          : t("common.unknown");
         const permissionType = String(item.permission_type ?? "screen");
         const isLegacy = !localBodyType || !localBodyId;
         const key = isLegacy
@@ -207,7 +212,7 @@ export default function UserScreenPermissionList() {
         ...row,
         mainscreen_names_joined: row.mainscreen_names.join(", "),
       }));
-  }, [permissionRows, localBodyLabels, t]);
+  }, [permissionRows, localBodyLabels, t, moduleLabel]);
 
   /* -----------------------------------------------------------
      DELETE RECORD
@@ -320,14 +325,16 @@ export default function UserScreenPermissionList() {
         title={t("admin.user_screen_permission.title")}
         subtitle={t("admin.user_screen_permission.subtitle")}
         actions={
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.user_screen_permission.permission_label"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.user_screen_permission.permission_label"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { KebabMenuIcon, PencilIcon, TrashBinIcon } from "@/icons";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 export type RowActionsMenuItem = {
   label: string;
@@ -29,6 +30,10 @@ export function RowActionsMenu({
   deleteLabel = "Delete",
   extraItems = [],
 }: RowActionsMenuProps) {
+  // Edit / Delete only for users the current page grants them to.
+  const { canEdit, canDelete } = useScreenAccess();
+  if (!canEdit) onEdit = undefined;
+  if (!canDelete) onDelete = undefined;
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -82,6 +87,8 @@ export function RowActionsMenu({
       window.removeEventListener("resize", handleReposition);
     };
   }, [open]);
+
+  if (!items.length) return null;
 
   return (
     <div className="flex justify-center">

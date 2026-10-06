@@ -13,6 +13,7 @@ import { panchayatUnionApi } from "@/helpers/admin";
 import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 type PanchayatUnionListRecord = {
   unique_id: string;
@@ -171,12 +172,14 @@ export default function PanchayatUnionListPage() {
         title="Panchayat Union"
         subtitle="Manage Panchayat Union records"
         actions={
-          <Button
-            label="Add Panchayat Union"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Panchayat Union"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

@@ -19,6 +19,7 @@ import {
 import { asArray, errorText, formatDateTime, formatDuration, roleLabel } from "../utils";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const PUBLIC_SOURCE_CODE = "PUBLIC_GRIEVANCE";
 
@@ -310,7 +311,9 @@ export default function TicketList() {
         title="Complaint Tickets"
         subtitle="Track submitted complaints and operational actions"
         actions={
-          <Button label="Add Ticket" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          <Can action="add">
+            <Button label="Add Ticket" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          </Can>
         }
         className="mb-6"
       />

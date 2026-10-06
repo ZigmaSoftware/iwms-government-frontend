@@ -21,6 +21,7 @@ const HomeDashboard = lazy(() =>
   import("@/pages/dashboard/pages/Dashboard/HomeDashboard").then((m) => ({ default: m.HomeDashboard })),
 );
 const AdminHome = lazy(() => import("@/pages/admin/AdminHome"));
+const AdminHomeGate = lazy(() => import("@/layouts/admin/AdminHomeGate"));
 const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
 const DashboardEncryptedRouter = lazy(() => import("@/layouts/dashboard/encryptedRouting/DashboardEncryptedRouter"));
@@ -148,7 +149,7 @@ export default function App() {
         <Route path="/dashboard" element={withDashboard(<HomeDashboard />)} />
         <Route path="/dashboard/overview" element={withDashboard(<Dashboard />)} />
         <Route path="/dashboard/:encModule" element={withDashboard(<DashboardEncryptedRouter />)} />
-        <Route path="/admin" element={withAdmin(<AdminHome />)} />
+        <Route path="/admin" element={withAdmin(<AdminHomeGate><AdminHome /></AdminHomeGate>)} />
         <Route path="/audits/common-audit" element={withAdmin(<CommonAuditList />)} />
         {/* staff-audit ("Collection Audit") folded into Transaction Audit —
             CommonAuditList handles hierarchy auto-scoping itself now, so an

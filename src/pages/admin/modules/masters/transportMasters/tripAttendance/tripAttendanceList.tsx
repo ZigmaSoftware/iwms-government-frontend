@@ -18,6 +18,7 @@ import { normalizeList } from "@/utils/forms";
 import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
   daily_trip_assignment_id: ["daily_trip_assignment_id", "daily_trip_assignment"],
@@ -152,12 +153,14 @@ export default function TripAttendanceList() {
         title={t("admin.trip_attendance.list_title")}
         subtitle={t("admin.trip_attendance.list_subtitle")}
         actions={
-          <Button
-            label={t("admin.trip_attendance.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.trip_attendance.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />

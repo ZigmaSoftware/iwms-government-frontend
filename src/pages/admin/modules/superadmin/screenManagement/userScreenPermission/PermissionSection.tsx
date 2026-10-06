@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { useEffect, useMemo, useState, useRef, Fragment } from "react";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -97,6 +98,7 @@ export default function PermissionSection({
   onAccessDenied,
 }: PermissionSectionProps) {
   const { t } = useTranslation();
+  const { screenLabel } = usePermissionLabels();
 
   const [description, setDescription] = useState("");
   const [screenMatrix, setScreenMatrix] = useState<ScreenMatrixRow[]>([]);
@@ -479,7 +481,7 @@ export default function PermissionSection({
                     {/* ── Action row ── */}
                     <tr className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm">{i + 1}</td>
-                      <td className="px-4 py-3 text-sm font-medium">{row.userscreen_name}</td>
+                      <td className="px-4 py-3 text-sm font-medium">{screenLabel(row.userscreen_name)}</td>
                       <td className="px-4 py-3 text-center">
                         <input
                           type="checkbox"

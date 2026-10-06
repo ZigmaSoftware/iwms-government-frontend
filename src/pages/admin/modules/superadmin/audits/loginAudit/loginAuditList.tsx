@@ -1,5 +1,5 @@
 import type { LoginAuditRecord } from "./types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar } from "@/components/common/FilterBar";
+import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
 
 const toRecordList = (value: unknown): LoginAuditRecord[] => {
   if (Array.isArray(value)) return value as LoginAuditRecord[];
@@ -34,7 +34,13 @@ const LOGIN_MODULES = [
   "auto",
 ] as const;
 
-const SORTABLE_FIELDS = new Set(["module_name", "username", "timestamp"]);
+const SORTABLE_FIELDS = new Set([
+  "module_name",
+  "username",
+  "ip_address",
+  "success",
+  "timestamp",
+]);
 
 const formatModuleName = (value?: string | null) => {
   if (!value) return "-";
@@ -75,44 +81,77 @@ export default function LoginAuditList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  // "" = all, "true"/"false" = only successful logins / only failed attempts.
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const requestIdRef = useRef(0);
 
-  const loadRows = async (
-    page: number,
-    limit: number,
-    search: string,
-    ordering?: string,
-    moduleNames?: string[],
-  ) => {
-    setIsLoading(true);
-    try {
-      const response = await adminApi.loginAudits.readAllwithPaginated(page, limit, {
-        params: {
-          ...(search ? { search } : {}),
-          ...(ordering ? { ordering } : {}),
-          ...(moduleNames && moduleNames.length ? { module_name: moduleNames.join(",") } : {}),
-        },
-      });
-      setRows(normalizeList(toRecordList(response)) as LoginAuditRecord[]);
-      setTotalRecords(
-        typeof response?.count === "number" ? response.count : toRecordList(response).length,
-      );
-    } catch (err: unknown) {
-      notify.fire(t("common.error"), String(err), "error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const moduleFilterKey = moduleFilter.join(",");
+
+  // Every active filter as API params — shared by the paginated table and
+  // the "all data" Excel export so both always cover the same rows.
+  const filterParams = useMemo(
+    () => ({
+      ...(searchTerm ? { search: searchTerm } : {}),
+      ...(moduleFilterKey ? { module_name: moduleFilterKey } : {}),
+      ...(statusFilter ? { success: statusFilter } : {}),
+      ...(dateFrom ? { date_from: dateFrom } : {}),
+      ...(dateTo ? { date_to: dateTo } : {}),
+    }),
+    [searchTerm, moduleFilterKey, statusFilter, dateFrom, dateTo],
+  );
+
+  const loadRows = useCallback(
+    async (
+      page: number,
+      limit: number,
+      params: Record<string, unknown>,
+      ordering?: string,
+    ) => {
+      // Rapid filter changes can resolve out of order; only the latest
+      // request may write to the table.
+      const requestId = ++requestIdRef.current;
+      setIsLoading(true);
+      try {
+        const response = await adminApi.loginAudits.readAllwithPaginated(page, limit, {
+          params: {
+            ...params,
+            ...(ordering ? { ordering } : {}),
+          },
+        });
+        if (requestId !== requestIdRef.current) return;
+        setRows(normalizeList(toRecordList(response)) as LoginAuditRecord[]);
+        setTotalRecords(
+          typeof response?.count === "number" ? response.count : toRecordList(response).length,
+        );
+      } catch (err: unknown) {
+        if (requestId !== requestIdRef.current) return;
+        notify.fire(t("common.error"), String(err), "error");
+      } finally {
+        if (requestId === requestIdRef.current) setIsLoading(false);
+      }
+    },
+    [t],
+  );
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
     : undefined;
 
-  const moduleFilterKey = moduleFilter.join(",");
-
   useEffect(() => {
-    void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering, moduleFilter);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, moduleFilterKey]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, filterParams, ordering);
+  }, [first, rowsPerPage, filterParams, ordering, loadRows]);
+
+  // Feeds the table's "Download Excel" button: re-fetches every login row
+  // matching the current filters, since the table only holds one page.
+  const loadAllExportRows = useCallback(
+    async () =>
+      normalizeList(
+        toRecordList(await adminApi.loginAudits.readAllForExport({ params: filterParams })),
+      ) as Record<string, unknown>[],
+    [filterParams],
+  );
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -163,6 +202,7 @@ export default function LoginAuditList() {
       />
 
       <DataTable
+        onExportRequest={loadAllExportRows}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -198,6 +238,51 @@ export default function LoginAuditList() {
                 aria-label={t("admin.login_audit.module_filter", "Filter by module")}
               />
             </div>
+            <FilterBarSelect
+              value={statusFilter}
+              onChange={(value) => {
+                setFirst(0);
+                setStatusFilter(value);
+              }}
+              options={[
+                { label: t("admin.login_audit.status_success", "Successful"), value: "true" },
+                { label: t("admin.login_audit.status_failed", "Failed"), value: "false" },
+              ]}
+              placeholder={t("admin.login_audit.status_filter", "All Statuses")}
+              aria-label={t("admin.login_audit.status_filter", "All Statuses")}
+            />
+            <label className="text-sm text-gray-700">
+              <span className="mb-1 block">
+                {t("admin.login_audit.date_from", "From Date")}
+              </span>
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={(event) => {
+                  setFirst(0);
+                  setDateFrom(event.target.value);
+                }}
+                className="h-10 rounded-md border px-3"
+                aria-label={t("admin.login_audit.date_from", "From Date")}
+              />
+            </label>
+            <label className="text-sm text-gray-700">
+              <span className="mb-1 block">
+                {t("admin.login_audit.date_to", "To Date")}
+              </span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={(event) => {
+                  setFirst(0);
+                  setDateTo(event.target.value);
+                }}
+                className="h-10 rounded-md border px-3"
+                aria-label={t("admin.login_audit.date_to", "To Date")}
+              />
+            </label>
           </FilterBar>
         }
         stripedRows
@@ -218,12 +303,29 @@ export default function LoginAuditList() {
           sortable
         />
         <Column field="username" header="Username" sortable />
-        <Column field="ip_address" header="IP Address" />
+        <Column
+          field="user_name"
+          header={t("admin.login_audit.user", "User")}
+          body={(row: LoginAuditRecord) =>
+            row.user_name ? (
+              <div className="leading-tight">
+                <div className="font-medium text-gray-800">{row.user_name}</div>
+                {row.user_unique_id ? (
+                  <div className="text-xs text-gray-500">{row.user_unique_id}</div>
+                ) : null}
+              </div>
+            ) : (
+              row.user_unique_id ?? "-"
+            )
+          }
+        />
+        <Column field="ip_address" header="IP Address" sortable />
         <Column field="user_agent" header="User Agent" />
         <Column
           field="success"
           header="Success"
           body={(row: LoginAuditRecord) => formatAuditValue(row.success)}
+          sortable
         />
         <Column field="reason" header="Reason" />
         <Column
@@ -231,6 +333,27 @@ export default function LoginAuditList() {
           header="Timestamp"
           body={(row: LoginAuditRecord) => formatDateTime(row.timestamp)}
           sortable
+        />
+        <Column
+          field="district_name"
+          header={t("common.district")}
+          body={(row: LoginAuditRecord) => row.district_name ?? "-"}
+        />
+        <Column
+          field="local_body_name"
+          header={t("admin.login_audit.local_body", "Local Body")}
+          body={(row: LoginAuditRecord) =>
+            row.local_body_name ? (
+              <div className="leading-tight">
+                <div>{row.local_body_name}</div>
+                {row.local_body_level ? (
+                  <div className="text-xs text-gray-500">{row.local_body_level}</div>
+                ) : null}
+              </div>
+            ) : (
+              "-"
+            )
+          }
         />
         <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 120 }} />
       </DataTable>
@@ -254,6 +377,24 @@ export default function LoginAuditList() {
               <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Username</p>
                 <p className="font-semibold text-gray-900">{selectedAudit?.username ?? "-"}</p>
+              </div>
+              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  {t("admin.login_audit.user", "User")}
+                </p>
+                <p className="font-semibold text-gray-900">
+                  {selectedAudit?.user_name ?? selectedAudit?.user_unique_id ?? "-"}
+                </p>
+              </div>
+              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
+                <p className="text-xs uppercase tracking-wide text-gray-500">
+                  {t("common.location")}
+                </p>
+                <p className="font-semibold text-gray-900">
+                  {[selectedAudit?.local_body_name, selectedAudit?.district_name]
+                    .filter(Boolean)
+                    .join(", ") || "-"}
+                </p>
               </div>
               <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
                 <p className="text-xs uppercase tracking-wide text-gray-500">IP Address</p>

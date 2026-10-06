@@ -3,6 +3,9 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
 
 import { decryptSegment } from "@/utils/routeCrypto";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { AccessDenied, ScreenPermissionProvider } from "@/contexts/ScreenPermissionContext";
+import { useHasScreenPermission, type ScreenPermission } from "@/contexts/screenPermission";
+import { SIDEBAR_PAGES } from "../sidebarMenu";
 import {
   ROUTES,
   MASTER_ALIASES,
@@ -73,9 +76,41 @@ const resolveComponent = (config: RouteConfig | undefined, mode: "view" | "new" 
   return config.list;
 };
 
+// The permission of every page the sidebar opens, keyed by the component it
+// renders — so an alias route ("staff-audit" for the common audit) that
+// renders the same page needs the same permission.
+let pagePermissions: Map<ModuleComponent, ScreenPermission> | undefined;
+
+const permissionForRoute = (config: RouteConfig): ScreenPermission | null => {
+  if (!pagePermissions) {
+    pagePermissions = new Map();
+    for (const page of SIDEBAR_PAGES) {
+      const [encMaster = "", encModule = ""] = page.path.split("/").filter(Boolean);
+      const pageConfig = resolveRouteConfig(
+        decryptSegment(encMaster) ?? "",
+        decryptSegment(encModule) ?? "",
+      );
+      const component = pageConfig?.component ?? pageConfig?.list;
+      if (!component) continue;
+      const known = pagePermissions.get(component);
+      pagePermissions.set(
+        component,
+        known && known.module === page.module
+          ? { module: page.module, screens: [...new Set([...known.screens, ...page.screens])] }
+          : { module: page.module, screens: page.screens },
+      );
+    }
+  }
+  const component = config.component ?? config.list;
+  return (component && pagePermissions.get(component)) ?? null;
+};
+
+const ACTION_FOR_MODE = { view: "view", new: "add", edit: "edit" } as const;
+
 export default function AdminEncryptedRouter() {
   const { encMaster, encModule, id } = useParams();
   const location = useLocation();
+  const hasScreenPermission = useHasScreenPermission();
 
   const { master, moduleName } = useMemo(() => {
     return {
@@ -101,9 +136,19 @@ export default function AdminEncryptedRouter() {
     return <Navigate to="/" replace />;
   }
 
+  // A page the sidebar gates needs the same grant here: "view" for the
+  // page, "add" for its new form, "edit" for its edit form. Superadmins and
+  // pages the sidebar does not list fall through (the API still checks).
+  const permission = permissionForRoute(moduleRoutes);
+  if (!hasScreenPermission(permission, ACTION_FOR_MODE[mode])) {
+    return <AccessDenied />;
+  }
+
   return (
-    <Suspense fallback={<PageLoader fullHeight />}>
-      {createElement(Component)}
-    </Suspense>
+    <ScreenPermissionProvider value={permission}>
+      <Suspense fallback={<PageLoader fullHeight />}>
+        {createElement(Component)}
+      </Suspense>
+    </ScreenPermissionProvider>
   );
 }

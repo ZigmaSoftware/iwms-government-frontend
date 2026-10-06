@@ -73,6 +73,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encLoginAudits,
     encApprovalHistory,
     encPermissionAudit,
+    encComplaintAudit,
+    encAuditDashboard,
     encUnassignedStaffPool,
     encTripAttendance,
     encHouseholdPickupEvent,
@@ -157,11 +159,13 @@ export function buildNavRouteMap(): RouteEntry[] {
     // respectively) — their routes stay registered in adminRoutes.ts for
     // old bookmarks/permission grants, but no longer have their own nav
     // entry, so both breadcrumb labels now point at the merged screen.
-    { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.transaction_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encAudits}/${encApprovalHistory}`, nameKey: "admin.nav.transaction_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encAudits}/${encPermissionAudit}`, nameKey: "admin.nav.user_access_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encAuditDashboard}`, nameKey: "admin.nav.audit_dashboard", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encApprovalHistory}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encAudits}/${encLoginAudits}`, nameKey: "admin.nav.login_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encAudits}/${encStaffAudit}`, nameKey: "admin.nav.transaction_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encPermissionAudit}`, nameKey: "admin.nav.user_access_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encComplaintAudit}`, nameKey: "admin.nav.complaint_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encStaffAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
 
 
     // ── Masters > (general) ──

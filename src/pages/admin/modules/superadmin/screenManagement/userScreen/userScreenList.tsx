@@ -17,6 +17,7 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
 import type { UserScreen } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 export default function UserScreenList() {
   const { t } = useTranslation();
@@ -142,14 +143,16 @@ export default function UserScreenList() {
             item: t("admin.nav.user_screen"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.nav.user_screen"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.nav.user_screen"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />

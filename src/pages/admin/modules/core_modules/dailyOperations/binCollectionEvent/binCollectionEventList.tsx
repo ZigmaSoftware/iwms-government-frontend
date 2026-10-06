@@ -18,6 +18,7 @@ import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 const extractError = (error: unknown): string | null => {
   const data = (error as any)?.response?.data;
@@ -339,12 +340,14 @@ export default function BinCollectionEventList() {
               disabled={isExporting}
               onClick={() => void handlePdfDownload()}
             />
-            <Button
-              label="Add Bin Collection Event"
-              icon="pi pi-plus"
-              className="p-button-success p-button-sm"
-              onClick={() => navigate(NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label="Add Bin Collection Event"
+                icon="pi pi-plus"
+                className="p-button-success p-button-sm"
+                onClick={() => navigate(NEW_PATH)}
+              />
+            </Can>
           </div>
         }
         className="mb-6"
