@@ -1,20 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
-import {
-  AlertTriangle, ArrowDownRight, ArrowUpRight, Building2, ChevronDown,
-  ChevronRight, Clock, Download, Droplets, Filter, Home, Landmark, Leaf, LogOut,
-  MapPin, Recycle, RefreshCw, Search, Shield, Trash2, Triangle, Truck, Users, X,
-} from "lucide-react";
-import {
-  Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie,
-  PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
-} from "recharts";
+import { Download, LogOut, Search, TableProperties } from "lucide-react";
 import ZigmaLogo from "../../images/logo.png";
+import LeaderGeoMap, { type LbFilter, type LeaderMapPayload, type MapLocalBody } from "@/components/maps/LeaderGeoMap";
+import { DISTRICT_ACCENT, LB_TYPES, MAP_LINE, SERIES, TYPE_CATEGORY, TYPE_COLOR, TYPE_LABEL, skyShades, wasteTypeColors } from "@/components/maps/leaderMapTheme";
+import { ChartAccent } from "@/components/leader/chartTheme";
+import { Card, Change, Donut, EmptyNote, MultiLineTrend, Segmented, Shimmer, Spinner } from "@/components/leader/DashboardKit";
+import { currentMonth, fmtInt, fmtWeight, weightParts } from "@/components/leader/format";
+import type { LeaderSummary } from "@/components/leader/types";
+import ComparisonView, { type CmpTable, type CmpView } from "@/components/leader/ComparisonView";
 
-/* ─── axios instance ─────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────
+   District Leader dashboard — every figure is live:
+     /districtbody/map/      the district's local bodies (type, status,
+                             wards, boundary) + the month's collection
+     /districtbody/summary/  today / 7-day / month totals, 7-day trend and
+                             waste-type split, grievances, fleet
+   The header stays put; the dashboard body scrolls beneath it.
+   ──────────────────────────────────────────────────────────────────── */
+
 const IS_PROD = import.meta.env.VITE_PROD === "true";
 const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
 
@@ -25,1145 +32,674 @@ dbApi.interceptors.request.use((config) => {
   return config;
 });
 
-/* ─── types ──────────────────────────────────────────────── */
-type PanchayatRow = {
-  unique_id: string;
-  panchayat_name: string;
-  agreed_weight_kg: number;
-  [key: string]: unknown;
-};
-
-type DistrictDashboardResponse = {
-  district_name: string;
-  district_unique_id?: string;
-  panchayats: PanchayatRow[];
-  trip_analytics: null | Record<string, unknown>;
-};
-
 function clearDistrictSession() {
   ["db_access_token", "db_district_unique_id", "db_district_name", "db_leader_name", "db_role"]
     .forEach((k) => localStorage.removeItem(k));
 }
 
-const fmt = (v?: number | null, dec = 0) =>
-  v == null ? "—" : Number(v).toLocaleString("en-IN", { maximumFractionDigits: dec });
+// an expired token answers 401 everywhere — send the leader back to sign in
+dbApi.interceptors.response.use(
+  (r) => r,
+  (error) => {
+    if (error?.response?.status === 401) {
+      clearDistrictSession();
+      window.location.replace("/district");
+    }
+    return Promise.reject(error);
+  }
+);
 
-const todayStr = () => new Date().toISOString().split("T")[0];
-const monthStartStr = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-};
+type Source = "all" | "bin" | "household";
+type Tab = "overview" | "monthly" | "daily";
 
-/* ─── local-body category model ──────────────────────────────────────
-   The district API returns only a flat panchayat_name + agreed_weight_kg
-   per local body — there is no Corporation/Municipality/Town Panchayat/
-   Panchayat Union/Village Panchayat classification, ward/village count or
-   active status yet. We detect a category from the real name where
-   possible and otherwise distribute the remaining real bodies into a
-   realistic urban→rural pyramid (calibrated against typical Tamil Nadu
-   district proportions), then derive wards/villages from per-body
-   averages also calibrated to real-world figures. Swap this block for
-   live backend fields once `local_body_type` and ward/village counts are
-   available per body. ── */
-type LocalBodyCategory = "Corporation" | "Municipality" | "Town Panchayat" | "Panchayat Union" | "Village Panchayat";
-type LbGroup = "rural" | "urban";
-type Period = "This Week" | "This Month" | "This Quarter" | "This Year" | "Custom Range";
-
-const CATEGORIES: LocalBodyCategory[] = ["Corporation", "Municipality", "Town Panchayat", "Panchayat Union", "Village Panchayat"];
-const PERIODS: Period[] = ["This Week", "This Month", "This Quarter", "This Year", "Custom Range"];
-
-/* local bodies split into Rural vs Urban, each with its own sub-types */
-const CATEGORY_GROUP: Record<LocalBodyCategory, LbGroup> = {
-  "Corporation": "urban",
-  "Municipality": "urban",
-  "Town Panchayat": "urban",
-  "Panchayat Union": "rural",
-  "Village Panchayat": "rural",
-};
-const LB_GROUPS: Record<LbGroup, { label: string; types: LocalBodyCategory[] }> = {
-  rural: { label: "Rural Local Body", types: ["Panchayat Union", "Village Panchayat"] },
-  urban: { label: "Urban Local Body", types: ["Corporation", "Municipality", "Town Panchayat"] },
-};
-
-const CATEGORY_META: Record<LocalBodyCategory, { icon: React.ReactNode; color: string; soft: string; chipBg: string; chipText: string }> = {
-  "Corporation":       { icon: <Landmark className="h-4 w-4" />,  color: "#2563eb", soft: "#eff6ff", chipBg: "bg-blue-50",    chipText: "text-blue-600" },
-  "Municipality":      { icon: <Building2 className="h-4 w-4" />, color: "#16a34a", soft: "#f0fdf4", chipBg: "bg-green-50",   chipText: "text-green-600" },
-  "Town Panchayat":    { icon: <Triangle className="h-4 w-4" />,  color: "#ea580c", soft: "#fff7ed", chipBg: "bg-orange-50",  chipText: "text-orange-600" },
-  "Panchayat Union":   { icon: <Users className="h-4 w-4" />,     color: "#7c3aed", soft: "#f5f3ff", chipBg: "bg-violet-50",  chipText: "text-violet-600" },
-  "Village Panchayat": { icon: <Home className="h-4 w-4" />,      color: "#0d9488", soft: "#f0fdfa", chipBg: "bg-teal-50",    chipText: "text-teal-600" },
-};
-
-/* per-body averages, calibrated to typical TN district figures */
-const WARDS_PER_BODY: Partial<Record<LocalBodyCategory, number>> = { Corporation: 60, Municipality: 42, "Town Panchayat": 15 };
-const VILLAGES_PER_VILLAGE_PANCHAYAT = 3.86;
-
-const detectCategoryFromName = (name: string): LocalBodyCategory | null => {
-  const n = name.toLowerCase();
-  if (n.includes("corporation")) return "Corporation";
-  if (n.includes("municipality") || n.includes("municipal")) return "Municipality";
-  if (n.includes("town panchayat")) return "Town Panchayat";
-  if (n.includes("panchayat union") || n.includes("block") || / union\b/.test(n)) return "Panchayat Union";
-  return null;
-};
-
-type CategorySummaryRow = {
-  category: LocalBodyCategory;
-  count: number;
-  active: number;
-  inactive: number;
-  wards: number | null;
-  villages: number | null;
-};
-
-/* ─── module tabs (Waste Collection / Grievances / Fleet / Segregation) ──
-   Only Waste Collection has a real backing figure (the district's agreed
-   weight, summed from real panchayat data below). Grievances, Fleet
-   Management and Segregation have no API or data model anywhere in this
-   system yet — their numbers are derived from the real local-body count
-   as a scaled preview so the tab layout can be reviewed now, and are
-   flagged with the Preview badge. Swap in real endpoints once those
-   modules exist. ── */
-type ModuleTab = "waste" | "grievances" | "fleet" | "segregation";
-
-const MODULE_TABS: Array<{ key: ModuleTab; label: string; icon: React.ReactNode; accent: string }> = [
-  { key: "waste", label: "Waste Collection", icon: <Trash2 className="h-4 w-4" />, accent: "#0d9488" },
-  { key: "grievances", label: "Grievances", icon: <AlertTriangle className="h-4 w-4" />, accent: "#ea580c" },
-  { key: "fleet", label: "Fleet Management", icon: <Truck className="h-4 w-4" />, accent: "#2563eb" },
-  { key: "segregation", label: "Segregation", icon: <Recycle className="h-4 w-4" />, accent: "#7c3aed" },
-];
-
-/* waste-type series palette, shared across Waste Collection + Segregation */
-const WET = "#16a34a", DRY = "#2563eb", SANITARY = "#f59e0b", SPECIAL = "#7c3aed";
-
-type TipEntry = { name?: string; value?: number; color?: string; stroke?: string; fill?: string };
-
-/* ─── module sample datasets (UI preview — no backend for these yet) ── */
-const WASTE_TRENDS = [
-  { day: "Mon", wet: 432, dry: 288, sanitary: 96, special: 42 },
-  { day: "Tue", wet: 455, dry: 305, sanitary: 100, special: 45 },
-  { day: "Wed", wet: 405, dry: 268, sanitary: 92, special: 40 },
-  { day: "Thu", wet: 492, dry: 338, sanitary: 108, special: 52 },
-  { day: "Fri", wet: 470, dry: 322, sanitary: 104, special: 48 },
-  { day: "Sat", wet: 360, dry: 250, sanitary: 88, special: 38 },
-  { day: "Sun", wet: 300, dry: 175, sanitary: 80, special: 32 },
-];
-const WASTE_BREAKDOWN = [
-  { name: "Wet Waste", value: 485, color: WET },
-  { name: "Dry Waste", value: 323, color: DRY },
-  { name: "Sanitary", value: 121, color: SANITARY },
-  { name: "Special Care", value: 81, color: SPECIAL },
-];
-const GRIEV_TRENDS = [
-  { month: "Jan", received: 240, resolved: 210 },
-  { month: "Feb", received: 312, resolved: 288 },
-  { month: "Mar", received: 285, resolved: 262 },
-  { month: "Apr", received: 355, resolved: 332 },
-  { month: "May", received: 292, resolved: 270 },
-  { month: "Jun", received: 267, resolved: 249 },
-];
-const GRIEV_CATEGORIES = [
-  { name: "Non-Collection", resolved: 128, received: 142 },
-  { name: "Overflow Bins", resolved: 76, received: 89 },
-  { name: "Vehicle Nuisance", resolved: 51, received: 56 },
-  { name: "Illegal Dumping", resolved: 39, received: 43 },
-  { name: "Others", resolved: 35, received: 38 },
-];
-const FLEET_ZONES = [
-  { zone: "North", active: 37, idle: 5, maintenance: 2 },
-  { zone: "South", active: 44, idle: 7, maintenance: 4 },
-  { zone: "East", active: 30, idle: 4, maintenance: 1 },
-  { zone: "West", active: 34, idle: 4, maintenance: 1 },
-  { zone: "Central", active: 28, idle: 3, maintenance: 1 },
-];
-const SEG_CATEGORIES: Array<{ name: string; sub: string; mt: number; pct: number; trend: number; eff: number; color: string; Icon: React.ComponentType<{ className?: string }> }> = [
-  { name: "Wet Waste", sub: "Kitchen & organic", mt: 485, pct: 48, trend: 3.2, eff: 82, color: WET, Icon: Droplets },
-  { name: "Dry Waste", sub: "Paper, plastic, metal", mt: 323, pct: 32, trend: 1.8, eff: 91, color: DRY, Icon: Recycle },
-  { name: "Sanitary Waste", sub: "Medical & hygiene", mt: 121, pct: 12, trend: -0.5, eff: 76, color: SANITARY, Icon: Shield },
-  { name: "Special Care", sub: "E-waste, hazardous", mt: 81, pct: 8, trend: 0.9, eff: 68, color: SPECIAL, Icon: Leaf },
-];
-const SEG_WEEKLY = [
-  { day: "Mon", wet: 350, dry: 250, sanitary: 95, special: 70 },
-  { day: "Tue", wet: 380, dry: 275, sanitary: 60, special: 60 },
-  { day: "Wed", wet: 360, dry: 250, sanitary: 70, special: 55 },
-  { day: "Thu", wet: 420, dry: 300, sanitary: 90, special: 80 },
-  { day: "Fri", wet: 400, dry: 280, sanitary: 85, special: 75 },
-  { day: "Sat", wet: 300, dry: 150, sanitary: 40, special: 30 },
-  { day: "Sun", wet: 260, dry: 150, sanitary: 35, special: 25 },
-];
-
-const computeTotals = (rows: CategorySummaryRow[]) => {
-  const hasBoth = rows.some((c) => c.category === "Panchayat Union") && rows.some((c) => c.category === "Village Panchayat");
-  const villages = hasBoth
-    ? (rows.find((c) => c.category === "Village Panchayat")?.villages ?? 0)
-    : rows.reduce((s, c) => s + (c.villages ?? 0), 0);
-  return {
-    count: rows.reduce((s, c) => s + c.count, 0),
-    wards: rows.reduce((s, c) => s + (c.wards ?? 0), 0),
-    villages,
-    active: rows.reduce((s, c) => s + c.active, 0),
-    inactive: rows.reduce((s, c) => s + c.inactive, 0),
+/* /districtbody/{monthly,daily}-waste-comparison/ (app/utils/leader_comparison.py) */
+type LbComparisonResponse = {
+  kpis: {
+    total_actual_weight: number; total_trips: number; collection_points_covered: number;
+    average_weight_per_trip: number; waste_type_count: number; local_body_count: number;
   };
+  trends: Array<{ period: string; total_actual_weight: number; total_trips: number }>;
+  waste_type_breakdown: Array<{ waste_type_id: string; waste_type: string; total_actual_weight: number; share_percent: number }>;
+  comparison: Array<{
+    id: string; type: MapLocalBody["type"]; name: string; total_actual_weight: number;
+    total_trips: number; collection_points_covered: number; average_weight_per_trip: number;
+  }>;
+  results: Array<{
+    unique_id: string; period: string; id: string; type: MapLocalBody["type"]; name: string;
+    waste_type_id: string; waste_type: string; total_actual_weight: number; total_trips: number;
+  }>;
+  results_total: number;
 };
 
-/* ════════════════════════════════════════════════════════════
-    COMPONENT
-════════════════════════════════════════════════════════════ */
+/** a comparison response tagged with the request key ([tab, params]) it answers */
+type Keyed = { key: string; data: LbComparisonResponse | null };
+
+const fetchComparison = (key: string, set: (k: Keyed) => void, isCancelled: () => boolean) => {
+  const [t, params] = JSON.parse(key) as [Tab, Record<string, string>];
+  dbApi
+    .get<LbComparisonResponse>(`/districtbody/${t}-waste-comparison/`, { params })
+    .then(({ data }) => { if (!isCancelled()) set({ key, data }); })
+    .catch(() => { if (!isCancelled()) set({ key, data: null }); });
+};
+
+const toCmpView = (d: LbComparisonResponse): CmpView => ({
+  kpis: {
+    weight: d.kpis.total_actual_weight, trips: d.kpis.total_trips, points: d.kpis.collection_points_covered,
+    avg: d.kpis.average_weight_per_trip, groups: d.kpis.local_body_count, wasteTypes: d.kpis.waste_type_count,
+  },
+  trend: d.trends.map((t) => ({ label: t.period, weight: t.total_actual_weight })),
+  breakdown: d.waste_type_breakdown.map((w) => ({ name: w.waste_type, weight: w.total_actual_weight })),
+  detail: d.results.map((r) => ({ key: r.unique_id, period: r.period, id: r.id, name: r.name, wasteType: r.waste_type, weight: r.total_actual_weight, trips: r.total_trips })),
+  detailTotal: d.results_total,
+});
+type SideTab = "category" | "wards" | "status";
+type OpsTab = "collection" | "grievances" | "fleet" | "segregation";
+
+const matches = (lb: MapLocalBody, f: LbFilter) => f === "all" || f === lb.category || f === lb.type;
+const ACTIVE_COLOR = SERIES[2];
+const INACTIVE_COLOR = "#c3c2b7";
+
 export default function DistrictDashboard() {
-  const navigate     = useNavigate();
-  const leaderName   = localStorage.getItem("db_leader_name") ?? "Leader";
-  const districtName = localStorage.getItem("db_district_name") ?? "";
+  const navigate = useNavigate();
+  const leaderName = localStorage.getItem("db_leader_name") ?? "Leader";
 
   useEffect(() => {
-    const role  = localStorage.getItem("db_role");
+    const role = localStorage.getItem("db_role");
     const token = localStorage.getItem("db_access_token");
     if (role !== "district_leader" || !token) navigate("/district", { replace: true });
   }, [navigate]);
 
-  /* ── data ── */
-  const [panchayats, setPanchayats] = useState<PanchayatRow[]>([]);
-  const [districtLabel, setDistrictLabel] = useState(districtName);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [asOf, setAsOf] = useState(() => new Date());
-
   /* ── filters ── */
-  const [lbCategory, setLbCategory] = useState<LbGroup | "all">("all");
-  const [lbSub, setLbSub] = useState<LocalBodyCategory | "all">("all");
-  const [period, setPeriod] = useState<Period>("This Quarter");
-  const [dateFrom, setDateFrom] = useState(monthStartStr());
-  const [dateTo, setDateTo] = useState(todayStr());
+  const [month, setMonth] = useState(currentMonth());
+  const [source, setSource] = useState<Source>("all");
+  const [lbFilter, setLbFilter] = useState<LbFilter>("all");
+  const [sideTab, setSideTab] = useState<SideTab>("category");
+  const [opsTab, setOpsTab] = useState<OpsTab>("collection");
   const [search, setSearch] = useState("");
-  const [highlighted, setHighlighted] = useState<LocalBodyCategory | null>(null);
-  const [moduleTab, setModuleTab] = useState<ModuleTab>("waste");
-  const [drillCategory, setDrillCategory] = useState<LocalBodyCategory | null>(null); // place-name drill-down
 
-  const applyPreset = (p: Period) => {
-    const now = new Date();
-    if (p === "This Week") {
-      const d = new Date(now); d.setDate(now.getDate() - 6);
-      setDateFrom(d.toISOString().split("T")[0]); setDateTo(todayStr());
-    } else if (p === "This Month") {
-      setDateFrom(monthStartStr()); setDateTo(todayStr());
-    } else if (p === "This Quarter") {
-      const d = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-      setDateFrom(d.toISOString().split("T")[0]); setDateTo(todayStr());
-    } else if (p === "This Year") {
-      setDateFrom(`${now.getFullYear()}-01-01`); setDateTo(todayStr());
-    }
-  };
+  /* ── data ── */
+  const [mapData, setMapData] = useState<LeaderMapPayload | null>(null);
+  const [summary, setSummary] = useState<LeaderSummary | null>(null);
+  const [error, setError] = useState("");
 
-  const handlePeriodChange = (p: Period) => {
-    setPeriod(p);
-    if (p !== "Custom Range") applyPreset(p);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    dbApi
+      .get<LeaderMapPayload>("/districtbody/map/", { params: { month: month || currentMonth(), source } })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setError("");
+        setMapData(data);
+        if (data?.district_name) localStorage.setItem("db_district_name", data.district_name);
+      })
+      .catch(() => { if (!cancelled) { setMapData(null); setError("Unable to load the district's local bodies."); } });
+    return () => { cancelled = true; };
+  }, [month, source]);
 
-  const resetFilters = () => {
-    setLbCategory("all");
-    setLbSub("all");
-    setPeriod("This Quarter");
-    applyPreset("This Quarter");
-    setSearch("");
-    setHighlighted(null);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    dbApi
+      .get<LeaderSummary>("/districtbody/summary/", { params: { source } })
+      .then(({ data }) => { if (!cancelled) setSummary(data); })
+      .catch(() => { if (!cancelled) setSummary(null); });
+    return () => { cancelled = true; };
+  }, [source]);
 
-  const fetchData = async () => {
-    setLoading(true); setError("");
-    try {
-      const { data } = await dbApi.get<DistrictDashboardResponse>("/districtbody/dashboard/");
-      setPanchayats(Array.isArray(data?.panchayats) ? data.panchayats : []);
-      if (data?.district_name) {
-        setDistrictLabel(data.district_name);
-        localStorage.setItem("db_district_name", data.district_name);
-      }
-      setAsOf(new Date());
-    } catch {
-      setPanchayats([]);
-      setError("Unable to load data. Please try again.");
-    } finally { setLoading(false); }
-  };
-  useEffect(() => { void fetchData(); }, []);
+  const districtName = mapData?.district_name || localStorage.getItem("db_district_name") || "District";
+  const lbs = useMemo(() => mapData?.local_bodies ?? [], [mapData]);
+  const monthLabel = new Date(`${month || currentMonth()}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
-  const rankedByWeight = useMemo(
-    () => [...panchayats].sort((a, b) => Number(b.agreed_weight_kg ?? 0) - Number(a.agreed_weight_kg ?? 0)),
-    [panchayats],
-  );
+  /* ── Monthly / Daily tabs: local-body comparison ──
+     `all` (every local body) feeds the map and the comparison table; a
+     local body picked on the map / in a table re-requests the same
+     comparison narrowed to it for the KPIs, charts and detailed rows.
+     Responses are keyed by tab + filters (+ pick) so a slow, stale reply
+     is never shown for a newer choice. */
+  const [tab, setTab] = useState<Tab>("overview");
+  const [cmMonth, setCmMonth] = useState("");
+  const [cmSource, setCmSource] = useState<Source>("bin");
+  const [cmSort, setCmSort] = useState<"weight" | "trips">("weight");
+  const [cdMonth, setCdMonth] = useState(currentMonth());
+  const [cdDate, setCdDate] = useState("");
+  const [cdSource, setCdSource] = useState<Source>("bin");
+  const [cdSort, setCdSort] = useState<"weight" | "trips">("weight");
+  const [cmpLbId, setCmpLbId] = useState<string | null>(null);
+  const [cmpTable, setCmpTable] = useState<CmpTable>("comparison");
 
-  /* ── category classification (preview — see note above) ── */
-  const categorizedPanchayats = useMemo(() => {
-    const withName = rankedByWeight.map((p) => ({ ...p, category: detectCategoryFromName(p.panchayat_name) }));
-    const total = withName.length;
-    const need: Record<"Corporation" | "Municipality" | "Town Panchayat" | "Panchayat Union", number> = {
-      Corporation: withName.some((p) => p.category === "Corporation") ? 0 : (total > 0 ? 1 : 0),
-      Municipality: Math.max(0, Math.round(total * 0.014) - withName.filter((p) => p.category === "Municipality").length),
-      "Town Panchayat": Math.max(0, Math.round(total * 0.034) - withName.filter((p) => p.category === "Town Panchayat").length),
-      "Panchayat Union": Math.max(0, Math.round(total * 0.0425) - withName.filter((p) => p.category === "Panchayat Union").length),
-    };
-    return withName.map((p) => {
-      if (p.category) return p as PanchayatRow & { category: LocalBodyCategory };
-      if (need.Corporation > 0) { need.Corporation--; return { ...p, category: "Corporation" as const }; }
-      if (need.Municipality > 0) { need.Municipality--; return { ...p, category: "Municipality" as const }; }
-      if (need["Town Panchayat"] > 0) { need["Town Panchayat"]--; return { ...p, category: "Town Panchayat" as const }; }
-      if (need["Panchayat Union"] > 0) { need["Panchayat Union"]--; return { ...p, category: "Panchayat Union" as const }; }
-      return { ...p, category: "Village Panchayat" as const };
-    });
-  }, [rankedByWeight]);
-
-  const categorySummary = useMemo(() => {
-    const villagePanchayatCount = categorizedPanchayats.filter((p) => p.category === "Village Panchayat").length;
-    return CATEGORIES.map((category) => {
-      const bucket = categorizedPanchayats.filter((p) => p.category === category);
-      const count = bucket.length;
-      const wardsPerBody = WARDS_PER_BODY[category];
-      const wards = wardsPerBody ? count * wardsPerBody : null;
-      const villages = category === "Panchayat Union"
-        ? villagePanchayatCount
-        : category === "Village Panchayat"
-        ? Math.round(count * VILLAGES_PER_VILLAGE_PANCHAYAT)
+  const cmpTab = tab === "overview" ? null : tab;
+  const cmpParams: Record<string, string> | null =
+    cmpTab === "monthly"
+      ? { source: cmSource, sort: cmSort, ...(cmMonth ? { month: cmMonth } : {}) }
+      : cmpTab === "daily"
+        ? { source: cdSource, sort: cdSort, ...(cdDate ? { date: cdDate } : cdMonth ? { month: cdMonth } : {}) }
         : null;
-      return { category, count, active: count, inactive: 0, wards, villages };
-    });
-  }, [categorizedPanchayats]);
+  const allKey = cmpTab && cmpParams ? JSON.stringify([cmpTab, cmpParams]) : null;
+  const scopedKey = allKey && cmpLbId ? JSON.stringify([cmpTab, { ...cmpParams, local_body_id: cmpLbId }]) : null;
+  const [allResp, setAllResp] = useState<Keyed | null>(null);
+  const [scopedResp, setScopedResp] = useState<Keyed | null>(null);
 
-  const overallTotals = useMemo(() => computeTotals(categorySummary), [categorySummary]);
+  useEffect(() => {
+    if (!allKey) return;
+    let cancelled = false;
+    fetchComparison(allKey, setAllResp, () => cancelled);
+    return () => { cancelled = true; };
+  }, [allKey]);
+  useEffect(() => {
+    if (!scopedKey) return;
+    let cancelled = false;
+    fetchComparison(scopedKey, setScopedResp, () => cancelled);
+    return () => { cancelled = true; };
+  }, [scopedKey]);
 
-  const categoryDistribution = useMemo(
-    () => categorySummary.map((c) => ({ name: c.category, value: c.count, color: CATEGORY_META[c.category].color })),
-    [categorySummary],
+  /* ── per-type summary (category cards, category / wards / status donuts) ── */
+  const byType = useMemo(
+    () =>
+      LB_TYPES.map((t) => {
+        const rows = lbs.filter((l) => l.type === t);
+        return {
+          type: t,
+          count: rows.length,
+          active: rows.filter((l) => l.is_active).length,
+          wards: TYPE_CATEGORY[t] === "ulb" ? rows.reduce((a, l) => a + (l.wards ?? 0), 0) : null,
+        };
+      }),
+    [lbs]
+  );
+  const totals = useMemo(
+    () => ({
+      count: lbs.length,
+      active: lbs.filter((l) => l.is_active).length,
+      wards: byType.reduce((a, t) => a + (t.wards ?? 0), 0),
+    }),
+    [lbs, byType]
   );
 
-  const wardWiseUrban = useMemo(
-    () => categorySummary
-      .filter((c) => c.wards != null && c.wards > 0)
-      .map((c) => ({ name: c.category, value: c.wards as number, color: CATEGORY_META[c.category].color })),
-    [categorySummary],
-  );
-
-  const villageWiseRural = useMemo(
-    () => categorySummary
-      .filter((c) => c.villages != null && c.villages > 0)
-      .map((c) => ({ name: c.category, value: c.villages as number, color: CATEGORY_META[c.category].color })),
-    [categorySummary],
-  );
-
-  const filteredRows = useMemo(() => {
-    let base = categorySummary;
-    if (lbCategory !== "all") {
-      base = lbSub !== "all"
-        ? categorySummary.filter((c) => c.category === lbSub)
-        : categorySummary.filter((c) => CATEGORY_GROUP[c.category] === lbCategory);
-    }
+  /* ── details table ── */
+  const tableRows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? base.filter((c) => c.category.toLowerCase().includes(q)) : base;
-  }, [categorySummary, lbCategory, lbSub, search]);
+    return lbs
+      .filter((l) => matches(l, lbFilter) && (!q || l.name.toLowerCase().includes(q)))
+      .sort((a, b) => b.weight - a.weight || a.name.localeCompare(b.name));
+  }, [lbs, lbFilter, search]);
 
-  const filteredTotals = useMemo(() => computeTotals(filteredRows), [filteredRows]);
+  const detailsRef = useRef<HTMLDivElement>(null);
 
-  const updatedAgo = useMemo(() => {
-    const mins = Math.max(0, Math.round((Date.now() - asOf.getTime()) / 60000));
-    return mins < 1 ? "just now" : `${mins} min ago`;
-  }, [asOf]);
-
-  /* ── actions ── */
-  const downloadExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(filteredRows.map((c) => ({
-      "Category": c.category, "Count": c.count,
-      "Total Wards": c.wards ?? "—", "Total Villages": c.villages ?? "—",
-      "Active": c.active, "Inactive": c.inactive,
-    })));
+  const exportReport = () => {
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "District Overview");
-    saveAs(new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })]),
-      `district-overview-${districtLabel}.xlsx`);
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        tableRows.map((l) => ({
+          "Local body": l.name,
+          Type: TYPE_LABEL[l.type],
+          Category: l.category.toUpperCase(),
+          Wards: l.wards ?? "",
+          Status: l.is_active ? "Active" : "Inactive",
+          [`Collected kg (${monthLabel})`]: l.weight,
+          Trips: l.trips,
+          "Points covered": l.points,
+        }))
+      ),
+      "Local bodies"
+    );
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(byType.map((t) => ({ Type: TYPE_LABEL[t.type], Count: t.count, Active: t.active, Wards: t.wards ?? "" }))),
+      "By type"
+    );
+    if (summary)
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(summary.trend.map((d) => ({ Date: d.date, "Collected kg": d.weight, Trips: d.trips, ...d.by_type }))),
+        "Last 7 days"
+      );
+    const out = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    saveAs(new Blob([out], { type: "application/octet-stream" }), `${districtName}_district_report_${month}.xlsx`);
   };
 
-  /* ════════════════════════════════════════════════════════════
-      PRESENTATIONAL PIECES
-  ════════════════════════════════════════════════════════════ */
-  const Header = (
-    <header className="sticky top-0 z-30 flex items-center justify-between px-6 h-16 bg-white/85 backdrop-blur-xl border-b border-slate-200/70">
-      <div className="flex items-center gap-3">
-        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 flex items-center justify-center shadow-sm">
-          <img src={ZigmaLogo} className="h-7 w-7 object-contain" alt="Zigma" />
+  /* ── chart data ── */
+  // pie charts keep their categorical colours; the 7-day trend lines use sky shades
+  const wasteColors = useMemo(() => wasteTypeColors(summary?.waste_types ?? []), [summary]);
+  const wasteLineColors = useMemo(() => skyShades(summary?.waste_types ?? []), [summary]);
+  const trendData = useMemo(
+    () => (summary?.trend ?? []).map((d) => ({ date: d.date, ...Object.fromEntries((summary?.waste_types ?? []).map((w) => [w, d.by_type[w] ?? 0])) })),
+    [summary]
+  );
+
+  const sideDonut = (() => {
+    if (sideTab === "category")
+      return { data: byType.map((t) => ({ name: TYPE_LABEL[t.type], value: t.count, color: TYPE_COLOR[t.type] })), center: fmtInt(totals.count), label: "local bodies" };
+    if (sideTab === "wards")
+      return {
+        data: byType.filter((t) => t.wards != null).map((t) => ({ name: TYPE_LABEL[t.type], value: t.wards ?? 0, color: TYPE_COLOR[t.type] })),
+        center: fmtInt(totals.wards),
+        label: "wards (ULB)",
+      };
+    return {
+      data: [
+        { name: "Active", value: totals.active, color: ACTIVE_COLOR },
+        { name: "Inactive", value: totals.count - totals.active, color: INACTIVE_COLOR },
+      ],
+      center: fmtInt(totals.active),
+      label: "active",
+    };
+  })();
+
+  function renderComparison() {
+    const monthly = tab === "monthly";
+    const allReady = !!allKey && allResp?.key === allKey;
+    const all = allReady ? allResp!.data : null;
+    const scopedReady = !!scopedKey && scopedResp?.key === scopedKey;
+    const view = cmpLbId ? (scopedReady ? scopedResp!.data : null) : all;
+    const byId = new Map((all?.comparison ?? []).map((r) => [r.id, r]));
+    const lbById = new Map(lbs.map((l) => [l.id, l]));
+    const pickedName = cmpLbId ? byId.get(cmpLbId)?.name ?? lbById.get(cmpLbId)?.name ?? cmpLbId : null;
+    const sort = monthly ? cmSort : cdSort;
+    const field = selectCls;
+    const label = "mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-gray-500";
+
+    // the district map re-coloured with this tab's per-local-body figures
+    const cmpMapData: LeaderMapPayload | null = mapData && {
+      ...mapData,
+      local_bodies: mapData.local_bodies.map((l) => {
+        const r = byId.get(l.id);
+        return { ...l, weight: r?.total_actual_weight ?? 0, trips: r?.total_trips ?? 0, points: r?.collection_points_covered ?? 0 };
+      }),
+      totals: { weight: all?.kpis.total_actual_weight ?? 0, trips: all?.kpis.total_trips ?? 0, points: all?.kpis.collection_points_covered ?? 0 },
+    };
+
+    const sourceSelect = (value: Source, set: (v: Source) => void) => (
+      <div>
+        <label className={label}>Source</label>
+        <select value={value} onChange={(e) => set(e.target.value as Source)} className={field}>
+          <option value="bin">Bin collection</option>
+          <option value="household">Household collection</option>
+          <option value="all">All sources</option>
+        </select>
+      </div>
+    );
+    const sortSelect = (value: "weight" | "trips", set: (v: "weight" | "trips") => void) => (
+      <div>
+        <label className={label}>Sort by</label>
+        <select value={value} onChange={(e) => set(e.target.value as "weight" | "trips")} className={field}>
+          <option value="weight">Weight</option>
+          <option value="trips">Trips</option>
+        </select>
+      </div>
+    );
+    const filters = monthly ? (
+      <>
+        <div>
+          <label className={label}>Month</label>
+          <input type="month" value={cmMonth} onChange={(e) => setCmMonth(e.target.value)} className={field} />
+        </div>
+        {sourceSelect(cmSource, setCmSource)}
+        {sortSelect(cmSort, setCmSort)}
+        {cmMonth && (
+          <button onClick={() => setCmMonth("")} className={`${field} font-semibold hover:bg-amber-50`}>Clear month (show all)</button>
+        )}
+      </>
+    ) : (
+      <>
+        <div>
+          <label className={label}>Month</label>
+          <input type="month" value={cdMonth} onChange={(e) => { setCdMonth(e.target.value); setCdDate(""); }} className={field} />
         </div>
         <div>
-          <p className="text-sm font-bold text-slate-800 leading-tight tracking-tight">IWMS Portal</p>
-          <p className="text-[11px] text-slate-400 leading-tight">District Leader Dashboard</p>
+          <label className={label}>Specific date (optional)</label>
+          <input type="date" value={cdDate} onChange={(e) => setCdDate(e.target.value)} className={field} />
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-full pl-1 pr-3 py-1">
-          <span className="h-7 w-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
-            {(leaderName[0] ?? "L").toUpperCase()}
-          </span>
-          <span className="text-xs font-semibold text-slate-700 hidden sm:block">{leaderName}</span>
-        </div>
-        <button
-          onClick={() => { clearDistrictSession(); navigate("/district", { replace: true }); }}
-          className="flex items-center gap-1.5 bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 hover:border-red-200 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Logout
-        </button>
-      </div>
-    </header>
-  );
-
-  /* ── category KPI card ── */
-  const CategoryStatCard = ({ category, count, active, metricLabel, metricValue }: {
-    category: LocalBodyCategory; count: number; active: number; metricLabel: string; metricValue: number | null;
-  }) => {
-    const meta = CATEGORY_META[category];
-    const isOn = highlighted === category;
-    const pct = count > 0 ? Math.round((active / count) * 100) : 0;
-    return (
-      <button
-        onClick={() => setHighlighted(isOn ? null : category)}
-        className={`group relative text-left bg-white rounded-2xl border p-4 overflow-hidden transition-all duration-200 hover:-translate-y-0.5 ${
-          isOn
-            ? "border-transparent shadow-lg"
-            : "border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] hover:shadow-lg"
-        }`}
-        style={isOn ? { boxShadow: `0 0 0 2px ${meta.color}, 0 12px 28px -14px ${meta.color}80` } : undefined}
-      >
-        <span className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${meta.color}, ${meta.color}66)` }} />
-        <div className="flex items-center gap-2 mb-3 mt-1">
-          <span className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: meta.soft, color: meta.color }}>{meta.icon}</span>
-          <span className="text-[11px] font-semibold text-slate-500 leading-tight">{category}</span>
-        </div>
-        <p className="text-3xl font-bold text-slate-800 leading-none tabular-nums tracking-tight">{loading ? "—" : fmt(count)}</p>
-        <p className="text-[11px] text-slate-400 mt-1.5">
-          {metricLabel}: <span className="font-semibold text-slate-600">{loading || metricValue == null ? "—" : fmt(metricValue)}</span>
-        </p>
-        <div className="mt-3 pt-2.5 border-t border-slate-100">
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-slate-400">Active</span>
-            <span className="font-bold tabular-nums" style={{ color: meta.color }}>{loading ? "—" : fmt(active)}</span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: meta.color }} />
-          </div>
-        </div>
-      </button>
+        {sourceSelect(cdSource, setCdSource)}
+        {sortSelect(cdSort, setCdSort)}
+        {cdDate && (
+          <button onClick={() => setCdDate("")} className={`${field} font-semibold hover:bg-amber-50`}>Clear date (show month)</button>
+        )}
+      </>
     );
-  };
 
-  /* ── donut card ── */
-  const DonutCard = ({ title, subtitle, data, total, totalLabel }: {
-    title: string; subtitle: string; data: Array<{ name: string; value: number; color: string }>; total: number; totalLabel: string;
-  }) => (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] p-5">
-      <div className="mb-4">
-        <p className="text-sm font-semibold text-slate-800 tracking-tight">{title}</p>
-        <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="relative w-32 h-32 shrink-0">
-          <ResponsiveContainer>
-            <PieChart>
-              <Pie data={data} dataKey="value" nameKey="name" innerRadius={40} outerRadius={62} paddingAngle={2.5} strokeWidth={0} cornerRadius={4}>
-                {data.map((d) => <Cell key={d.name} fill={d.color} />)}
-              </Pie>
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null;
-                  const p = payload[0];
-                  const pct = total ? (((p.value as number) / total) * 100).toFixed(1) : "0.0";
-                  return (
-                    <div className="bg-slate-900 text-white shadow-xl px-2.5 py-1.5 rounded-lg text-[11px]">
-                      <p className="font-semibold">{p.name}</p>
-                      <p className="text-slate-300">{fmt(p.value as number)} &middot; {pct}%</p>
-                    </div>
-                  );
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-xl font-bold text-slate-800 tabular-nums tracking-tight">{fmt(total)}</span>
-            <span className="text-[9px] text-slate-400 text-center leading-tight max-w-[70px]">{totalLabel}</span>
-          </div>
-        </div>
-        <div className="flex-1 min-w-0 space-y-1.5">
-          {data.map((d) => (
-            <div key={d.name} className="flex items-center gap-2 text-[11px] rounded-lg px-1.5 py-1 hover:bg-slate-50 transition-colors">
-              <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: d.color }} />
-              <span className="text-slate-600 font-medium truncate flex-1">{d.name}</span>
-              <span className="text-slate-800 font-semibold tabular-nums shrink-0">{fmt(d.value)}</span>
-              <span className="text-slate-400 tabular-nums shrink-0 w-11 text-right">{total ? ((d.value / total) * 100).toFixed(1) : "0.0"}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
-  const PreviewBadge = () => (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-2.5 py-1 shrink-0">
-      <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" /> Preview data
-    </span>
-  );
-
-  const SectionHeading = ({ title, hint }: { title: string; hint?: string }) => (
-    <div className="flex items-center gap-2.5">
-      <span className="h-4 w-1 rounded-full bg-gradient-to-b from-amber-400 to-orange-500" />
-      <h2 className="text-sm font-bold text-slate-800 tracking-tight">{title}</h2>
-      {hint && <span className="text-[11px] text-slate-400 font-normal">· {hint}</span>}
-    </div>
-  );
-
-  /* ── module tab building blocks ── */
-  const ChartTip = ({ active, payload, label, unit = "" }: { active?: boolean; payload?: TipEntry[]; label?: string; unit?: string }) => {
-    if (!active || !payload?.length) return null;
     return (
-      <div className="bg-slate-900 text-white rounded-lg px-3 py-2 text-[11px] shadow-xl">
-        {label && <p className="font-semibold mb-1">{label}</p>}
-        <div className="space-y-0.5">
-          {payload.map((p, idx) => (
-            <p key={idx} className="flex items-center gap-1.5 text-slate-200">
-              <span className="h-2 w-2 rounded-full" style={{ background: p.color ?? p.stroke ?? p.fill ?? "#64748b" }} />
-              {p.name}: <span className="font-semibold text-white tabular-nums">{fmt(p.value)}{unit}</span>
-            </p>
-          ))}
-        </div>
-      </div>
+      <ComparisonView
+        granularity={monthly ? "month" : "day"}
+        filters={filters}
+        error={allReady && !all ? "Unable to load the local-body comparison." : undefined}
+        entity={{ one: "Local body", many: "Local bodies" }}
+        view={view ? toCmpView(view) : null}
+        viewLoading={!allReady || (!!cmpLbId && !scopedReady)}
+        comparison={(all?.comparison ?? []).map((r) => ({
+          id: r.id, name: r.name, weight: r.total_actual_weight, trips: r.total_trips,
+          points: r.collection_points_covered, avg: r.average_weight_per_trip,
+        }))}
+        comparisonLoading={!allReady}
+        picked={cmpLbId && pickedName ? { id: cmpLbId, name: pickedName } : null}
+        onPick={setCmpLbId}
+        sort={sort}
+        wasteColors={wasteTypeColors(
+          summary?.waste_types?.length ? summary.waste_types : (all?.waste_type_breakdown ?? []).map((w) => w.waste_type)
+        )}
+        trendNote={monthly ? (cmMonth ? "selected month" : "all months") : cdDate || "this month"}
+        table={cmpTable}
+        onTableChange={setCmpTable}
+        nameCell={(id, name) => {
+          const t = byId.get(id)?.type ?? lbById.get(id)?.type;
+          return (
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <span className="truncate">{name}</span>
+              {t && <span className="shrink-0 text-[10px] font-normal text-gray-400">{TYPE_LABEL[t]}</span>}
+            </span>
+          );
+        }}
+        map={
+          <LeaderGeoMap
+            mode="district"
+            data={cmpMapData}
+            showSummary={false}
+            selectedLocalBodyId={cmpLbId}
+            onSelectLocalBody={(id) => { setCmpLbId(id); if (id) setCmpTable("rows"); }}
+          />
+        }
+      />
     );
-  };
+  }
 
-  const TrendPill = ({ v, label, invert = false }: { v: number; label: string; invert?: boolean }) => {
-    const up = v >= 0;
-    const good = invert ? !up : up;
-    return (
-      <span className={`inline-flex items-center gap-1 font-semibold ${good ? "text-emerald-600" : "text-rose-500"}`}>
-        {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-        {up ? "+" : ""}{v}% <span className="text-slate-400 font-normal">{label}</span>
-      </span>
-    );
-  };
-
-  const StatTile = ({ label, value, foot }: { label: string; value: string; foot?: React.ReactNode }) => (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] p-5">
-      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
-      <p className="text-[26px] font-bold text-slate-900 mt-1.5 tabular-nums tracking-tight leading-none">{loading ? "—" : value}</p>
-      {foot && <div className="mt-2 text-[11px]">{foot}</div>}
-    </div>
-  );
-
-  const Panel = ({ title, accent, right, children, className }: { title: string; accent: string; right?: React.ReactNode; children: React.ReactNode; className?: string }) => (
-    <div className={`bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] p-5 ${className ?? ""}`}>
-      <div className="flex items-center justify-between mb-4 gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="h-4 w-1 rounded-full shrink-0" style={{ background: accent }} />
-          <h3 className="text-sm font-bold text-slate-800 tracking-tight truncate">{title}</h3>
-        </div>
-        {right}
-      </div>
-      {children}
-    </div>
-  );
-
-  const axisX = { tick: { fontSize: 11, fill: "#94a3b8" }, tickLine: false, axisLine: false } as const;
-  const axisY = { tick: { fontSize: 11, fill: "#94a3b8" }, tickLine: false, axisLine: false } as const;
-  const legendStyle = { fontSize: 11, paddingTop: 8 } as const;
-
-  /* ── WASTE COLLECTION ── */
-  const renderWaste = () => {
-    const total = WASTE_BREAKDOWN.reduce((s, d) => s + d.value, 0);
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <StatTile label="Daily Average" value="4,827 MT" foot={<TrendPill v={8.2} label="vs yesterday" />} />
-          <StatTile label="Weekly Total" value="32,580 MT" foot={<TrendPill v={4.1} label="vs last week" />} />
-          <StatTile label="Monthly Total" value="1,28,450 MT" foot={<TrendPill v={6.7} label="vs last month" />} />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Panel title="7-Day Collection Trends" accent={WET} className="lg:col-span-2" right={<span className="text-[11px] text-slate-400">MT per day</span>}>
-            <ResponsiveContainer width="100%" height={260}>
-              <ComposedChart data={WASTE_TRENDS} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gWet" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={WET} stopOpacity={0.28} /><stop offset="100%" stopColor={WET} stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gDry" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={DRY} stopOpacity={0.24} /><stop offset="100%" stopColor={DRY} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="day" {...axisX} />
-                <YAxis domain={[0, 600]} ticks={[0, 150, 300, 450, 600]} {...axisY} />
-                <Tooltip content={<ChartTip unit=" MT" />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={legendStyle} />
-                <Area type="monotone" dataKey="wet" name="Wet" stroke={WET} strokeWidth={2} fill="url(#gWet)" />
-                <Area type="monotone" dataKey="dry" name="Dry" stroke={DRY} strokeWidth={2} fill="url(#gDry)" />
-                <Line type="monotone" dataKey="sanitary" name="Sanitary" stroke={SANITARY} strokeWidth={2} strokeDasharray="5 4" dot={false} />
-                <Line type="monotone" dataKey="special" name="Special" stroke={SPECIAL} strokeWidth={2} strokeDasharray="5 4" dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </Panel>
-          <Panel title="Today's Breakdown" accent={DRY}>
-            <div className="relative w-full h-40 mb-3">
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={WASTE_BREAKDOWN} dataKey="value" nameKey="name" innerRadius={48} outerRadius={70} paddingAngle={2.5} cornerRadius={4} strokeWidth={0}>
-                    {WASTE_BREAKDOWN.map((d) => <Cell key={d.name} fill={d.color} />)}
-                  </Pie>
-                  <Tooltip content={<ChartTip unit=" MT" />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-2">
-              {WASTE_BREAKDOWN.map((d) => (
-                <div key={d.name} className="flex items-center gap-2 text-xs">
-                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: d.color }} />
-                  <span className="text-slate-600 font-medium flex-1">{d.name}</span>
-                  <span className="text-slate-500 tabular-nums">{fmt(d.value)} MT</span>
-                  <span className="font-bold text-slate-800 tabular-nums w-9 text-right">{((d.value / total) * 100).toFixed(0)}%</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
-      </div>
-    );
-  };
-
-  /* ── GRIEVANCES ── */
-  const renderGrievances = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatTile label="Total Received" value="267" foot={<span className="text-slate-400">This month</span>} />
-        <StatTile label="Resolved" value="249" foot={<span className="text-emerald-600 font-semibold">93.3% resolution rate</span>} />
-        <StatTile label="Pending" value="18" foot={<TrendPill v={-23} label="vs last week" invert />} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Panel title="Monthly Received vs Resolved" accent={SANITARY}>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={GRIEV_TRENDS} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-              <XAxis dataKey="month" {...axisX} />
-              <YAxis domain={[0, 360]} ticks={[0, 90, 180, 270, 360]} {...axisY} />
-              <Tooltip content={<ChartTip />} cursor={{ fill: "#f8fafc" }} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={legendStyle} />
-              <Bar dataKey="received" name="Received" fill={SANITARY} radius={[4, 4, 0, 0]} maxBarSize={22} />
-              <Bar dataKey="resolved" name="Resolved" fill={WET} radius={[4, 4, 0, 0]} maxBarSize={22} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Panel>
-        <Panel title="Category Resolution Performance" accent="#e11d48">
-          <div className="space-y-4 pt-1">
-            {GRIEV_CATEGORIES.map((c) => {
-              const pct = Math.round((c.resolved / c.received) * 100);
-              const good = pct >= 90;
-              return (
-                <div key={c.name} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-700">{c.name}</span>
-                    <span className="flex items-center gap-2">
-                      <span className="text-slate-400 text-[11px] tabular-nums">{c.resolved}/{c.received}</span>
-                      <span className={`font-bold text-[11px] tabular-nums ${good ? "text-emerald-600" : "text-orange-500"}`}>{pct}%</span>
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: good ? WET : SANITARY }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Panel>
-      </div>
-    </div>
-  );
-
-  /* ── FLEET MANAGEMENT ── */
-  const renderFleet = () => (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Total Fleet" value="205" foot={<span className="text-slate-400">All vehicle types</span>} />
-        <StatTile label="On Route" value="173" foot={<span className="text-emerald-600 font-semibold">84.4% utilization</span>} />
-        <StatTile label="Idle" value="23" foot={<span className="text-amber-600 font-semibold">Awaiting dispatch</span>} />
-        <StatTile label="Maintenance" value="9" foot={<span className="text-rose-500 font-semibold">Temporarily offline</span>} />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Panel title="Zone-wise Fleet Utilization" accent={DRY}>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={FLEET_ZONES} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-              <XAxis type="number" domain={[0, 60]} ticks={[0, 15, 30, 45, 60]} {...axisX} />
-              <YAxis type="category" dataKey="zone" width={54} {...axisY} />
-              <Tooltip content={<ChartTip />} cursor={{ fill: "#f8fafc" }} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={legendStyle} />
-              <Bar dataKey="active" name="Active" stackId="a" fill={DRY} maxBarSize={20} />
-              <Bar dataKey="idle" name="Idle" stackId="a" fill={SANITARY} maxBarSize={20} />
-              <Bar dataKey="maintenance" name="Maintenance" stackId="a" fill="#f43f5e" radius={[0, 4, 4, 0]} maxBarSize={20} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Panel>
-        <Panel title="GPS Status by Zone" accent={WET}>
-          <div className="space-y-3.5 pt-1">
-            {FLEET_ZONES.map((z) => {
-              const total = z.active + z.idle + z.maintenance;
-              const a = (z.active / total) * 100, i = (z.idle / total) * 100, m = (z.maintenance / total) * 100;
-              return (
-                <div key={z.zone} className="flex items-center gap-3 text-xs">
-                  <span className="w-14 text-slate-500 font-medium shrink-0">{z.zone}</span>
-                  <div className="flex-1 h-2.5 rounded-full overflow-hidden flex bg-slate-100">
-                    <div style={{ width: `${a}%`, background: DRY }} />
-                    <div style={{ width: `${i}%`, background: SANITARY }} />
-                    <div style={{ width: `${m}%`, background: "#f43f5e" }} />
-                  </div>
-                  <span className="w-10 text-right font-bold text-blue-600 tabular-nums shrink-0">{Math.round(a)}%</span>
-                </div>
-              );
-            })}
-            <div className="flex items-center gap-4 pt-2 text-[11px] text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: DRY }} /> Active</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: SANITARY }} /> Idle</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-500" /> Maintenance</span>
-            </div>
-          </div>
-        </Panel>
-      </div>
-    </div>
-  );
-
-  /* ── SEGREGATION ── */
-  const renderSegregation = () => {
-    const total = SEG_CATEGORIES.reduce((s, c) => s + c.mt, 0);
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {SEG_CATEGORIES.map((c) => (
-            <div key={c.name} className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] p-5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[11px] text-slate-400 truncate">{c.sub}</p>
-                  <p className="text-sm font-bold text-slate-800">{c.name}</p>
-                </div>
-                <span className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${c.color}14`, color: c.color }}><c.Icon className="h-4 w-4" /></span>
-              </div>
-              <p className="mt-3 flex items-baseline gap-1.5">
-                <span className="text-2xl font-bold text-slate-900 tabular-nums tracking-tight">{c.mt} MT</span>
-                <span className="text-xs text-slate-400 font-semibold">{c.pct}%</span>
-              </p>
-              <div className="mt-1.5 text-[11px]"><TrendPill v={c.trend} label="vs yesterday" /></div>
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-[11px] mb-1">
-                  <span className="text-slate-400">Seg. efficiency</span>
-                  <span className="font-bold tabular-nums" style={{ color: c.color }}>{c.eff}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${c.eff}%`, background: c.color }} />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Panel title="Segregation Distribution" accent={SPECIAL}>
-            <div className="flex flex-col sm:flex-row items-center gap-5">
-              <div className="relative w-40 h-40 shrink-0">
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie data={SEG_CATEGORIES} dataKey="mt" nameKey="name" innerRadius={48} outerRadius={70} paddingAngle={2.5} cornerRadius={4} strokeWidth={0}>
-                      {SEG_CATEGORIES.map((c) => <Cell key={c.name} fill={c.color} />)}
-                    </Pie>
-                    <Tooltip content={<ChartTip unit=" MT" />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-lg font-bold text-slate-800 tabular-nums">{fmt(total)}</span>
-                  <span className="text-[9px] text-slate-400">Total MT</span>
-                </div>
-              </div>
-              <div className="flex-1 w-full space-y-3">
-                {SEG_CATEGORIES.map((c) => (
-                  <div key={c.name}>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="flex items-center gap-1.5 font-medium text-slate-700">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} /> {c.name}
-                      </span>
-                      <span className="font-bold text-slate-800 tabular-nums">{c.pct}%</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mt-1">
-                      <div className="h-full rounded-full" style={{ width: `${c.pct}%`, background: c.color }} />
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5 tabular-nums">{c.mt} MT</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Panel>
-          <Panel title="Weekly Segregation Trend" accent={WET}>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={SEG_WEEKLY} margin={{ top: 10, right: 10, left: -18, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="day" {...axisX} />
-                <YAxis domain={[0, 1200]} ticks={[0, 300, 600, 900, 1200]} {...axisY} />
-                <Tooltip content={<ChartTip unit=" MT" />} cursor={{ fill: "#f8fafc" }} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={legendStyle} />
-                <Bar dataKey="wet" name="Wet" stackId="a" fill={WET} maxBarSize={30} />
-                <Bar dataKey="dry" name="Dry" stackId="a" fill={DRY} maxBarSize={30} />
-                <Bar dataKey="sanitary" name="Sanitary" stackId="a" fill={SANITARY} maxBarSize={30} />
-                <Bar dataKey="special" name="Special" stackId="a" fill={SPECIAL} radius={[4, 4, 0, 0]} maxBarSize={30} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Panel>
-        </div>
-      </div>
-    );
-  };
-
-  const renderModuleContent = () => {
-    if (moduleTab === "waste") return renderWaste();
-    if (moduleTab === "grievances") return renderGrievances();
-    if (moduleTab === "fleet") return renderFleet();
-    return renderSegregation();
-  };
+  const selectCls =
+    "rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm focus:border-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-100";
 
   return (
-    <div className="min-h-screen font-sans bg-slate-50 text-slate-800">
-      {Header}
-
-      {/* decorative top glow */}
-      <div className="relative">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-56"
-          style={{ background: "radial-gradient(120% 100% at 50% 0%, rgba(251,146,60,0.10) 0%, rgba(251,146,60,0) 60%)" }}
+    <ChartAccent.Provider value={DISTRICT_ACCENT}>
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-100 font-sans">
+      {/* ── header ── */}
+      <header className="z-20 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 bg-white px-4 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <img src={ZigmaLogo} className="h-9 w-9 rounded-lg object-contain p-0.5 ring-1 ring-slate-200" alt="Zigma" />
+          <div className="leading-tight">
+            <h1 className="text-[15px] font-bold text-gray-900">{districtName}</h1>
+            <p className="text-[11px] text-gray-500">District overview{mapData?.state_name ? ` · ${mapData.state_name}` : ""}</p>
+          </div>
+        </div>
+        <Segmented
+          size="md"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "overview", label: "Overview" },
+            { value: "monthly", label: "Monthly" },
+            { value: "daily", label: "Daily" },
+          ]}
         />
-
-        <main className="relative p-5 sm:p-6 space-y-5 max-w-7xl mx-auto">
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0" /> {error}
-            </div>
+        {tab === "overview" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={selectCls} title="Month" />
+          <select value={lbFilter} onChange={(e) => setLbFilter(e.target.value as LbFilter)} className={selectCls} title="Local bodies">
+            <option value="all">All local bodies</option>
+            <optgroup label="Urban (ULB)">
+              <option value="ulb">All ULB</option>
+              {LB_TYPES.filter((t) => TYPE_CATEGORY[t] === "ulb").map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+            </optgroup>
+            <optgroup label="Rural (RLB)">
+              <option value="rlb">All RLB</option>
+              {LB_TYPES.filter((t) => TYPE_CATEGORY[t] === "rlb").map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}
+            </optgroup>
+          </select>
+          <select value={source} onChange={(e) => setSource(e.target.value as Source)} className={selectCls} title="Source">
+            <option value="all">All sources</option>
+            <option value="bin">Bin collection</option>
+            <option value="household">Household collection</option>
+          </select>
+        </div>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          {tab === "overview" && (
+          <>
+          <button
+            onClick={() => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm hover:bg-slate-50"
+          >
+            <TableProperties size={13} /> View details table
+          </button>
+          <button
+            onClick={exportReport}
+            disabled={!mapData}
+            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-50"
+          >
+            <Download size={13} /> Export report
+          </button>
+          </>
           )}
+          <span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" />
+          <span className="hidden text-xs font-semibold text-gray-900 sm:block">{leaderName}</span>
+          <button
+            onClick={() => { clearDistrictSession(); navigate("/district", { replace: true }); }}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          >
+            <LogOut size={13} /> Logout
+          </button>
+        </div>
+      </header>
 
-          {/* ── Page header ── */}
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
-                <MapPin className="h-5 w-5" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-none">{districtLabel || "District"}</h1>
-                <p className="text-sm text-slate-400 mt-1">District Wise Overview</p>
-              </div>
-            </div>
+      {/* ── scrollable dashboard body ── */}
+      <main className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+        {tab !== "overview" ? renderComparison() : (
+        <div className="flex flex-col gap-3 lg:h-full">
+        {error && <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</div>}
+
+        {/* KPI row: one card per local-body type · total · period collection */}
+        <div className="grid shrink-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(0,1.05fr)_minmax(0,1.7fr)]">
+          {byType.map((t) => (
             <button
-              onClick={downloadExcel}
-              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl px-4 py-2.5 text-xs font-semibold shadow-lg shadow-slate-900/10 transition-all hover:-translate-y-0.5"
+              key={t.type}
+              onClick={() => setLbFilter(lbFilter === t.type ? "all" : t.type)}
+              className={`relative min-w-0 overflow-hidden rounded-xl border bg-white px-4 py-3 text-left shadow-sm transition-shadow hover:shadow-md ${
+                lbFilter === t.type ? "border-slate-900 ring-1 ring-slate-900" : "border-slate-200"
+              }`}
+              title={`Show only ${TYPE_LABEL[t.type]}s on the map and in the table`}
             >
-              <Download className="h-4 w-4" /> Export Report
-            </button>
-          </div>
-
-          {/* ── Filter bar ── */}
-          <div className="flex flex-wrap items-center gap-2.5 bg-white/70 backdrop-blur rounded-2xl border border-slate-200/80 shadow-sm px-4 py-3">
-            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700 shrink-0">
-              <Filter className="h-3.5 w-3.5 text-amber-500" /> Filters
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 shrink-0">
-              <MapPin className="h-3.5 w-3.5 text-slate-400" /> District: <strong className="text-slate-800">{districtLabel || "—"}</strong>
-            </span>
-            {/* Local Bodies → Rural / Urban */}
-            <div className="relative">
-              <select
-                value={lbCategory}
-                onChange={(e) => { setLbCategory(e.target.value as LbGroup | "all"); setLbSub("all"); }}
-                className={`appearance-none text-xs font-medium border rounded-lg pl-3 pr-8 py-2 bg-white cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-300 transition-colors ${lbCategory !== "all" ? "border-amber-300 text-amber-700" : "border-slate-200 text-slate-700"}`}
-              >
-                <option value="all">All Local Bodies</option>
-                <option value="rural">Rural Local Body</option>
-                <option value="urban">Urban Local Body</option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-
-            {/* dependent sub-type dropdown (only when a category is chosen) */}
-            {lbCategory !== "all" && (
-              <div className="relative">
-                <select
-                  value={lbSub}
-                  onChange={(e) => setLbSub(e.target.value as LocalBodyCategory | "all")}
-                  className={`appearance-none text-xs font-medium border rounded-lg pl-3 pr-8 py-2 bg-white cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-300 transition-colors ${lbSub !== "all" ? "border-amber-300 text-amber-700" : "border-slate-200 text-slate-700"}`}
-                >
-                  <option value="all">All {LB_GROUPS[lbCategory].label} Types</option>
-                  {LB_GROUPS[lbCategory].types.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            )}
-            <div className="relative">
-              <select
-                value={period}
-                onChange={(e) => handlePeriodChange(e.target.value as Period)}
-                className="appearance-none text-xs font-medium border border-slate-200 rounded-lg pl-3 pr-8 py-2 bg-white text-slate-700 cursor-pointer hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-300 transition-colors"
-              >
-                {PERIODS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            </div>
-            {period === "Custom Range" && (
-              <div className="flex items-center gap-2 border border-slate-200 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="outline-none bg-transparent" />
-                <span className="text-slate-300">–</span>
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="outline-none bg-transparent" />
-              </div>
-            )}
-            <button
-              onClick={resetFilters}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 rounded-lg px-3 py-2 hover:bg-slate-100 transition-colors"
-            >
-              Clear
-            </button>
-            <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-400 shrink-0">
-              <Clock className="h-3.5 w-3.5" /> Updated {updatedAgo}
-              <button onClick={() => void fetchData()} disabled={loading} title="Refresh" className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-amber-600 hover:bg-amber-50 disabled:opacity-50 transition-colors">
-                <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-              </button>
-            </div>
-          </div>
-
-          {/* ── Overall District Summary ── */}
-          <SectionHeading title="Overall District Summary" hint="Local body distribution across the district" />
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {categorySummary.map((c) => (
-              <CategoryStatCard
-                key={c.category}
-                category={c.category}
-                count={c.count}
-                active={c.active}
-                metricLabel={c.wards != null ? "Wards" : "Villages"}
-                metricValue={c.wards ?? c.villages}
-              />
-            ))}
-
-            {/* Overall Total — premium dark card */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 p-4 shadow-lg shadow-slate-900/20">
-              <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-500/20 blur-2xl" />
-              <div className="relative flex items-center gap-2 mb-3 mt-1">
-                <span className="h-8 w-8 rounded-xl bg-white/10 text-amber-300 flex items-center justify-center shrink-0"><Users className="h-4 w-4" /></span>
-                <span className="text-[11px] font-semibold text-slate-300">Overall Total</span>
-              </div>
-              <p className="relative text-3xl font-bold text-white leading-none tabular-nums tracking-tight">{loading ? "—" : fmt(overallTotals.count)}</p>
-              <p className="relative text-[11px] text-slate-400 mt-1.5">Local bodies</p>
-              <div className="relative mt-3 pt-2.5 border-t border-white/10 grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Wards</p>
-                  <p className="text-sm font-bold text-white tabular-nums">{loading ? "—" : fmt(overallTotals.wards)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Villages</p>
-                  <p className="text-sm font-bold text-white tabular-nums">{loading ? "—" : fmt(overallTotals.villages)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Donut summary row ── */}
-          {!loading && categorizedPanchayats.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <DonutCard title="Category Distribution" subtitle="Local bodies by type" data={categoryDistribution} total={overallTotals.count} totalLabel="Total Units" />
-              <DonutCard title="Ward Summary" subtitle="All urban local bodies" data={wardWiseUrban} total={overallTotals.wards} totalLabel="Total Wards" />
-              <DonutCard title="Village Summary" subtitle="Rural local bodies" data={villageWiseRural} total={overallTotals.villages} totalLabel="Total Villages" />
-            </div>
-          )}
-
-          {/* ── Module tabs ── */}
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex items-center gap-1 bg-white rounded-xl p-1 border border-slate-200/80 shadow-sm overflow-x-auto">
-                {MODULE_TABS.map((t) => {
-                  const on = moduleTab === t.key;
-                  return (
-                    <button
-                      key={t.key}
-                      onClick={() => setModuleTab(t.key)}
-                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-all ${
-                        on ? "bg-slate-50 shadow-sm ring-1 ring-slate-200/60" : "text-slate-500 hover:text-slate-700"
-                      }`}
-                      style={on ? { color: t.accent } : undefined}
-                    >
-                      {t.icon} {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <PreviewBadge />
-            </div>
-
-            {renderModuleContent()}
-          </div>
-
-          {/* ── Details table ── */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_20px_-12px_rgba(0,0,0,0.15)] overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
-              <SectionHeading title="Details by Category" hint={lbCategory === "all" ? "All local body types" : lbSub !== "all" ? lbSub : LB_GROUPS[lbCategory].label} />
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search category…"
-                  className="pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:bg-white transition-all w-44"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              {loading ? (
-                <div className="flex items-center justify-center h-40 text-slate-400 text-sm gap-2">
-                  <span className="animate-spin h-5 w-5 border-2 border-slate-200 rounded-full border-t-amber-500" />
-                  Loading data…
-                </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr>
-                      <th rowSpan={2} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300 bg-slate-800 text-left align-middle">Category</th>
-                      <th rowSpan={2} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300 bg-slate-800 text-right align-middle">Count</th>
-                      <th colSpan={2} className="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-300 bg-slate-800 text-center border-b border-white/10">Administrative Units</th>
-                      <th rowSpan={2} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300 bg-slate-800 text-right align-middle">Active</th>
-                      <th rowSpan={2} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300 bg-slate-800 text-right align-middle">Inactive</th>
-                      <th rowSpan={2} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-300 bg-slate-800 text-right align-middle">Actions</th>
-                    </tr>
-                    <tr>
-                      <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-800/95 text-right">Wards</th>
-                      <th className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-800/95 text-right">Villages</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-12 text-slate-400 text-sm">No categories match &quot;{search}&quot;.</td>
-                      </tr>
-                    ) : filteredRows.map((c) => {
-                      const meta = CATEGORY_META[c.category];
-                      const on = highlighted === c.category;
-                      return (
-                        <tr
-                          key={c.category}
-                          className="border-b border-slate-50 last:border-0 transition-colors cursor-pointer hover:bg-slate-50/70"
-                          style={on ? { background: meta.soft } : undefined}
-                          onClick={() => setHighlighted(on ? null : c.category)}
-                        >
-                          <td className="px-4 py-3 font-semibold text-slate-700">
-                            <span className="flex items-center gap-2.5">
-                              <span className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: meta.soft, color: meta.color }}>{meta.icon}</span>
-                              {c.category}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right font-bold text-slate-800 tabular-nums">{fmt(c.count)}</td>
-                          <td className="px-4 py-3 text-right text-slate-600 tabular-nums">{c.wards != null ? fmt(c.wards) : "—"}</td>
-                          <td className="px-4 py-3 text-right text-slate-600 tabular-nums">{c.villages != null ? fmt(c.villages) : "—"}</td>
-                          <td className="px-4 py-3 text-right tabular-nums">
-                            <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> {fmt(c.active)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right text-slate-400 tabular-nums">{fmt(c.inactive)}</td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setDrillCategory(c.category); }}
-                              className="inline-flex items-center gap-0.5 text-xs font-semibold text-blue-600 hover:text-blue-700 group"
-                            >
-                              View Details <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                  {filteredRows.length > 0 && (
-                    <tfoot>
-                      <tr className="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200">
-                        <td className="px-4 py-3.5">Total</td>
-                        <td className="px-4 py-3.5 text-right tabular-nums">{fmt(filteredTotals.count)}</td>
-                        <td className="px-4 py-3.5 text-right tabular-nums">{fmt(filteredTotals.wards)}</td>
-                        <td className="px-4 py-3.5 text-right tabular-nums">{fmt(filteredTotals.villages)}</td>
-                        <td className="px-4 py-3.5 text-right text-emerald-600 tabular-nums">{fmt(filteredTotals.active)}</td>
-                        <td className="px-4 py-3.5 text-right text-slate-400 tabular-nums">{fmt(filteredTotals.inactive)}</td>
-                        <td className="px-4 py-3.5" />
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              )}
-            </div>
-          </div>
-
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            Category and ward/village figures are modeled from real local-body counts as a design preview — they will switch to live backend fields once local-body classification and ward/village counts are available per body.
-          </p>
-        </main>
-      </div>
-
-      {/* ── Place-name drill-down drawer ── */}
-      {drillCategory && (() => {
-        const meta = CATEGORY_META[drillCategory];
-        const rows = categorizedPanchayats.filter((p) => p.category === drillCategory);
-        const totalKg = rows.reduce((s, p) => s + Number(p.agreed_weight_kg ?? 0), 0);
-        const nameLabel = `${drillCategory} Name`;
-        return (
-          <div className="fixed inset-0 z-[60] flex justify-end">
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px]" onClick={() => setDrillCategory(null)} />
-            <div className="relative h-full w-full max-w-2xl bg-slate-50 shadow-2xl flex flex-col">
-              <div className="bg-white border-b border-slate-200 px-5 py-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: meta.soft, color: meta.color }}>{meta.icon}</span>
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900 leading-none">{drillCategory}</h2>
-                    <p className="text-xs text-slate-400 mt-1">{districtLabel || "District"} · {rows.length} local {rows.length === 1 ? "body" : "bodies"}</p>
-                  </div>
-                </div>
-                <button onClick={() => setDrillCategory(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors" aria-label="Close">
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-auto p-4">
-                <div className="rounded-lg overflow-hidden border border-slate-200 shadow-sm bg-white">
-                  <div className="text-white text-sm font-bold px-4 py-2.5" style={{ background: "#334155" }}>{drillCategory} ({rows.length})</div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[420px]">
-                      <thead>
-                        <tr className="bg-slate-200 text-slate-600">
-                          <th className="px-4 py-2 font-semibold text-left w-14">S.No</th>
-                          <th className="px-4 py-2 font-semibold text-left">{nameLabel}</th>
-                          <th className="px-4 py-2 font-semibold text-right w-40">Waste Collected (MT)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.length === 0 ? (
-                          <tr><td colSpan={3} className="px-4 py-10 text-center text-slate-400">No local bodies in this category.</td></tr>
-                        ) : rows.map((p, i) => (
-                          <tr key={p.unique_id ?? i} className="border-t border-slate-100 odd:bg-white even:bg-slate-50/60">
-                            <td className="px-4 py-2 text-blue-600 tabular-nums">{i + 1}</td>
-                            <td className="px-4 py-2 text-slate-700 font-medium">{p.panchayat_name}</td>
-                            <td className="px-4 py-2 text-right font-semibold text-emerald-600 tabular-nums">{fmt(Number(p.agreed_weight_kg ?? 0) / 1000, 1)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      {rows.length > 0 && (
-                        <tfoot>
-                          <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold text-slate-700">
-                            <td className="px-4 py-2.5">Total</td>
-                            <td className="px-4 py-2.5" />
-                            <td className="px-4 py-2.5 text-right tabular-nums">{fmt(totalKg / 1000, 1)}</td>
-                          </tr>
-                        </tfoot>
-                      )}
-                    </table>
-                  </div>
-                </div>
-              </div>
-
-              <p className="border-t border-slate-200 bg-white px-5 py-2.5 text-[10px] text-slate-400 leading-relaxed">
-                Place names and waste collected (agreed weight) are the district's live local-body records; category classification is a preview model until the backend supplies <code>local_body_type</code> per body.
+              <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: MAP_LINE }} />
+              <p className="truncate text-[10px] font-bold uppercase tracking-wider text-gray-500">{TYPE_LABEL[t.type]}</p>
+              <p className="mt-1 text-[26px] font-bold leading-none tabular-nums tracking-tight text-gray-900">{mapData ? fmtInt(t.count) : <Shimmer className="mt-0.5 h-6 w-14" />}</p>
+              <p className="mt-1.5 truncate text-[11px] text-gray-500">
+                {t.wards != null && `${fmtInt(t.wards)} ward${t.wards === 1 ? "" : "s"} · `}
+                {fmtInt(t.active)} active
               </p>
+            </button>
+          ))}
+          <div className="min-w-0 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 shadow-sm">
+            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-300">Total local bodies</p>
+            <p className="mt-1 text-[26px] font-bold leading-none tabular-nums tracking-tight text-white">{mapData ? fmtInt(totals.count) : <Shimmer className="mt-0.5 h-6 w-16 bg-slate-700" />}</p>
+            <p className="mt-1.5 truncate text-[11px] text-slate-400">{fmtInt(totals.wards)} ward{totals.wards === 1 ? "" : "s"} · {fmtInt(totals.active)} active</p>
+          </div>
+          <div className="col-span-2 grid min-w-0 grid-cols-3 divide-x divide-slate-100 rounded-xl border border-slate-200 bg-white py-3 shadow-sm md:col-span-3 xl:col-span-1">
+            {(["today", "week", "month"] as const).map((k) => {
+              const p = summary?.periods[k];
+              const w = weightParts(p?.weight ?? 0);
+              return (
+                <div key={k} className="min-w-0 px-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{{ today: "Daily", week: "Weekly", month: "Monthly" }[k]}</p>
+                  <p className="mt-1 flex items-baseline gap-1">
+                    <span className="text-xl font-bold leading-none tabular-nums text-gray-900">{summary ? w.value : <Shimmer className="h-5 w-12" />}</span>
+                    <span className="text-[10px] font-semibold text-gray-500">{w.unit}</span>
+                  </p>
+                  <p className="mt-1.5 text-[11px]">{summary ? <Change pct={p?.change_percent ?? null} /> : " "}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* map · analytics · table — side by side, filling the viewport; the
+            analytics column and the table scroll inside their own panels */}
+        <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)_minmax(0,1.2fr)]">
+          {/* 1 — map */}
+          <div className="relative h-[460px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:h-auto lg:min-h-[380px]">
+            <LeaderGeoMap mode="district" data={mapData} lbFilter={lbFilter} onLbFilterChange={setLbFilter} />
+          </div>
+
+          {/* 2 — analytics */}
+          <div className="flex min-w-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto">
+            <Card
+              title={
+                <Segmented
+                  value={sideTab}
+                  onChange={setSideTab}
+                  options={[
+                    { value: "category", label: "Category" },
+                    { value: "wards", label: "Wards" },
+                    { value: "status", label: "Status" },
+                  ]}
+                />
+              }
+              className="shrink-0"
+            >
+              {mapData ? <Donut data={sideDonut.data} center={sideDonut.center} centerLabel={sideDonut.label} /> : <Spinner />}
+            </Card>
+
+            <Card
+              title={
+                <Segmented
+                  value={opsTab}
+                  onChange={setOpsTab}
+                  options={[
+                    { value: "collection", label: "Collection" },
+                    { value: "grievances", label: "Grievances" },
+                    { value: "fleet", label: "Fleet" },
+                    { value: "segregation", label: "Segregation" },
+                  ]}
+                />
+              }
+              className="shrink-0"
+            >
+              {!summary ? (
+                <Spinner />
+              ) : opsTab === "collection" ? (
+                <>
+                  <p className="mb-2 text-[11px] text-gray-500">
+                    {summary.today_breakdown.length ? "Today's breakdown" : `No collection logged today — ${monthLabel} so far`}
+                  </p>
+                  {(() => {
+                    const rows = summary.today_breakdown.length ? summary.today_breakdown : summary.month_breakdown;
+                    const total = rows.reduce((a, r) => a + r.weight, 0);
+                    return (
+                      <Donut
+                        data={rows.map((r) => ({ name: r.waste_type, value: r.weight, color: wasteColors[r.waste_type] ?? "#8f8d86" }))}
+                        center={weightParts(total).value}
+                        centerLabel={weightParts(total).unit}
+                        format={fmtWeight}
+                      />
+                    );
+                  })()}
+                </>
+              ) : opsTab === "grievances" ? (
+                <>
+                  <p className="mb-2 text-[11px] text-gray-500">
+                    {fmtInt(summary.grievances.open)} open · {fmtInt(summary.grievances.this_month)} raised this month
+                  </p>
+                  <Donut
+                    data={summary.grievances.by_status.map((r, i) => ({ name: r.status, value: r.count, color: SERIES[i] ?? "#8f8d86" }))}
+                    center={fmtInt(summary.grievances.total)}
+                    centerLabel="tickets"
+                  />
+                </>
+              ) : opsTab === "fleet" ? (
+                <>
+                  <p className="mb-2 text-[11px] text-gray-500">
+                    {fmtInt(summary.fleet.on_trip_today)} on a trip today · {fmtInt(summary.fleet.open_breakdowns)} open breakdown{summary.fleet.open_breakdowns === 1 ? "" : "s"}
+                  </p>
+                  <Donut
+                    data={[
+                      { name: "Active", value: summary.fleet.active, color: ACTIVE_COLOR },
+                      { name: "Inactive", value: summary.fleet.inactive, color: INACTIVE_COLOR },
+                    ]}
+                    center={fmtInt(summary.fleet.total)}
+                    centerLabel="vehicles"
+                  />
+                </>
+              ) : (
+                <>
+                  <p className="mb-2 text-[11px] text-gray-500">Waste-type mix · {monthLabel} so far</p>
+                  {(() => {
+                    const total = summary.month_breakdown.reduce((a, r) => a + r.weight, 0);
+                    return (
+                      <Donut
+                        data={summary.month_breakdown.map((r) => ({ name: r.waste_type, value: r.weight, color: wasteColors[r.waste_type] ?? "#8f8d86" }))}
+                        center={weightParts(total).value}
+                        centerLabel={weightParts(total).unit}
+                        format={fmtWeight}
+                      />
+                    );
+                  })()}
+                </>
+              )}
+            </Card>
+
+            <Card title="7-day collection trend" right={<span className="text-[11px] text-gray-500">kg / day</span>} className="shrink-0" bodyClassName="h-[240px]">
+          {summary ? (
+            <MultiLineTrend
+              data={trendData}
+              series={(summary.waste_types ?? []).map((w) => ({ key: w, color: wasteLineColors[w] }))}
+              format={fmtWeight}
+            />
+          ) : (
+                <Spinner />
+              )}
+            </Card>
+          </div>
+
+          {/* 3 — local bodies table */}
+          <div ref={detailsRef} className="flex h-[520px] min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:h-auto">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
+              <p className="text-[13px] font-bold text-gray-900">
+                Local bodies <span className="font-normal text-gray-500">· {monthLabel} · {fmtInt(tableRows.length)} shown</span>
+              </p>
+              <label className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-sm focus-within:ring-2 focus-within:ring-sky-100">
+                <Search size={13} className="text-gray-400" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search local body…" className="w-40 bg-transparent outline-none" />
+              </label>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              <table className="w-full text-left text-[13px]">
+                <thead className="sticky top-0 z-10 bg-white">
+                  <tr className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-gray-500">
+                    <th className="px-3 py-2 font-semibold">Local body</th>
+                    <th className="px-3 py-2 text-right font-semibold">Wards</th>
+                    <th className="px-3 py-2 font-semibold">Status</th>
+                    <th className="px-3 py-2 text-right font-semibold">Collected</th>
+                    <th className="px-3 py-2 text-right font-semibold">Trips</th>
+                    <th className="px-3 py-2 text-right font-semibold">Points</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {!mapData ? (
+                    <tr><td colSpan={6}><Spinner /></td></tr>
+                  ) : tableRows.length === 0 ? (
+                    <tr><td colSpan={6}><EmptyNote>No local bodies match.</EmptyNote></td></tr>
+                  ) : (
+                    tableRows.map((l) => (
+                      <tr key={l.id} className="border-b border-slate-50 last:border-0 hover:bg-amber-50/40">
+                        <td className="px-3 py-2">
+                          <span className="block font-medium text-gray-900">{l.name}</span>
+                          <span className="text-[10px] text-gray-500">{TYPE_LABEL[l.type]} · {l.category.toUpperCase()}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{l.wards != null ? fmtInt(l.wards) : "—"}</td>
+                        <td className="px-3 py-2">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${l.is_active ? "text-green-700" : "text-slate-500"}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${l.is_active ? "bg-green-500" : "bg-slate-400"}`} />
+                            {l.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtWeight(l.weight)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtInt(l.trips)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{fmtInt(l.points)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-        );
-      })()}
+        </div>
+        </div>
+        )}
+      </main>
     </div>
+    </ChartAccent.Provider>
   );
 }
