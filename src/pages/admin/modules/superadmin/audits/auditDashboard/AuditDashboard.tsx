@@ -26,7 +26,9 @@ import {
   Tooltip,
 } from "chart.js";
 import { Bar, Doughnut } from "react-chartjs-2";
-import { Paginator, type PaginatorPageChangeEvent } from "primereact/paginator";
+import type { PaginatorPageChangeEvent } from "primereact/paginator";
+import { ListPaginator } from "@/components/common/ListPaginator";
+import { DEFAULT_ROWS_PER_PAGE_OPTIONS } from "@/components/common/paginatorDefaults";
 
 import notify from "@/lib/notify";
 import { adminApi } from "@/helpers/admin/registry";
@@ -44,7 +46,7 @@ ChartJS.register(
 
 const auditDashboardApi = adminApi.auditDashboard;
 
-const PAGE_SIZES = [10, 25, 50, 100];
+const PAGE_SIZES = DEFAULT_ROWS_PER_PAGE_OPTIONS;
 const RANGES = [7, 30, 90] as const;
 const ALL = "";
 
@@ -893,8 +895,8 @@ export default function AuditDashboard() {
             </tbody>
           </table>
         </div>
-        <Paginator
-          className="mt-2.5 justify-end bg-transparent p-0"
+        <ListPaginator
+          className="mt-2.5 bg-transparent p-0"
           first={(page - 1) * rowsPerPage}
           rows={rowsPerPage}
           totalRecords={records?.count ?? 0}
@@ -903,11 +905,6 @@ export default function AuditDashboard() {
             setRowsPerPage(event.rows);
             setPage(event.page + 1);
           }}
-          template="CurrentPageReport FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink RowsPerPageDropdown"
-          currentPageReportTemplate={t(
-            "admin.audit_dashboard.page_report",
-            "{first}–{last} of {totalRecords} records",
-          )}
         />
       </section>
     </div>

@@ -3,8 +3,6 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
   Download,
   KeyRound,
   Route,
@@ -28,6 +26,9 @@ import {
 import type { DailyReportResponse } from "@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/types";
 import type { ReportResponse as MonthlyReportResponse } from "@/pages/admin/modules/reports/wasteReports/monthlyWasteComparison/types";
 import { exportRecordsToExcel } from "@/utils/exportExcel";
+import type { PaginatorPageChangeEvent } from "primereact/paginator";
+import { ListPaginator } from "@/components/common/ListPaginator";
+import { PAGINATOR_TEMPLATE } from "@/components/common/paginatorDefaults";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,36 +132,17 @@ function PaginationBar({
   if (total === 0) return null;
   const totalPages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
   const safePage = Math.min(Math.max(page, 1), totalPages);
-  const start = (safePage - 1) * PAGE_SIZE + 1;
-  const end = Math.min(safePage * PAGE_SIZE, total);
+  // Same layout as every list page, minus the page-size dropdown: these
+  // tables page at a fixed PAGE_SIZE.
   return (
-    <div className="flex flex-col gap-2 border-t bg-slate-50/70 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-      <span>
-        Showing <b className="text-foreground">{start}–{end}</b> of{" "}
-        <b className="text-foreground">{total}</b> · 10 per page
-      </span>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={safePage <= 1}
-          onClick={() => onChange(safePage - 1)}
-        >
-          <ChevronLeft className="h-4 w-4" /> Previous
-        </Button>
-        <Badge variant="secondary">
-          Page {safePage} of {totalPages}
-        </Badge>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={safePage >= totalPages}
-          onClick={() => onChange(safePage + 1)}
-        >
-          Next <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    <ListPaginator
+      className="border-t bg-slate-50/70 px-4 py-2"
+      first={(safePage - 1) * PAGE_SIZE}
+      rows={PAGE_SIZE}
+      totalRecords={total}
+      onPageChange={(event: PaginatorPageChangeEvent) => onChange(event.page + 1)}
+      template={PAGINATOR_TEMPLATE.replace(" RowsPerPageDropdown", "")}
+    />
   );
 }
 

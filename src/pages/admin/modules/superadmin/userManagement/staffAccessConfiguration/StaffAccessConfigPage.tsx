@@ -434,11 +434,11 @@ export default function StaffAccessConfigPage() {
           adminApi.states.readAll(),
           adminApi.districts.readAll(),
           adminApi.areatypes.readAll(),
-          adminApi.corporations.readAll(),
-          adminApi.municipalities.readAll(),
-          adminApi.townPanchayats.readAll(),
-          adminApi.panchayatUnions.readAll(),
-          adminApi.panchayats.readAll(),
+          adminApi.corporations.readAll({ params: { lite: 1 } }),
+          adminApi.municipalities.readAll({ params: { lite: 1 } }),
+          adminApi.townPanchayats.readAll({ params: { lite: 1 } }),
+          adminApi.panchayatUnions.readAll({ params: { lite: 1 } }),
+          adminApi.panchayats.readAll({ params: { lite: 1 } }),
         ]);
         if (!mounted) return;
         const valueOrEmpty = (result: PromiseSettledResult<unknown>) =>

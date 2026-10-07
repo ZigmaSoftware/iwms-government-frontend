@@ -110,6 +110,7 @@ export default {
     "invalid_data": "अमान्य डेटा",
     "update_status_failed": "स्थिति अपडेट नहीं हो पाई",
     "fetch_failed": "डेटा प्राप्त नहीं हो पाया",
+    "page_report": "{totalRecords} में से {first}–{last} रिकॉर्ड",
     "delete_failed": "हटाना विफल",
     "record_removed": "रिकॉर्ड सफलतापूर्वक हटाया गया",
     "select_item_placeholder": "{{item}} चुनें",
