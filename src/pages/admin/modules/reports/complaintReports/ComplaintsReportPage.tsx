@@ -4,7 +4,7 @@ import type {
   ComplaintStatusBucket,
   PendingAgingBucket,
 } from "./types";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import TicketLocationFilters from "@/pages/admin/modules/core_modules/complaintManagement/tickets/TicketLocationFilters";
@@ -14,28 +14,22 @@ import {
   type TicketLocationFilterValue,
 } from "@/pages/admin/modules/core_modules/complaintManagement/tickets/ticketLocationFilter";
 import {
-  AlertTriangle,
-  BarChart3,
-  CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Download,
   FileSpreadsheet,
-  Inbox,
-  Loader,
   MapPin,
-  MessageSquareWarning,
   Printer,
   RefreshCw,
+  RotateCcw,
   Search,
-  ShieldCheck,
   Tags,
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Swal from "@/lib/notify";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -236,7 +230,6 @@ export default function ComplaintsReportPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [showAllAreas, setShowAllAreas] = useState(false);
 
   const buildParams = (): Record<string, string> => {
     const params: Record<string, string> = {
@@ -287,7 +280,6 @@ export default function ComplaintsReportPage() {
     return Array.from({ length: visibleCount }, (_, i) => start + i);
   }, [page, pageCount]);
   const maxCategory = Math.max(1, ...report.category_breakdown.map((c) => c.count));
-  const areas = showAllAreas ? report.area_breakdown : report.area_breakdown.slice(0, 5);
   const firstRow = report.count ? (page - 1) * pageSize + 1 : 0;
   const lastRow = Math.min(page * pageSize, report.count);
 
@@ -351,283 +343,259 @@ export default function ComplaintsReportPage() {
     }
   };
 
-  const applyFilters = () => setApplied({ ...draft });
   const resetFilters = () => {
     const fresh = initialFilters();
     setDraft(fresh);
     setApplied(fresh);
   };
 
-  const fieldClass =
-    "w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50";
-  const labelClass = "flex flex-col gap-1 text-xs font-medium text-gray-500";
+  /* filters apply as soon as they change (no separate Go / Apply step) */
+  const setFilter = (patch: Partial<Filters>) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    setApplied((a) => ({ ...a, ...patch }));
+  };
+
+  /* the page fills the space left in the admin shell (no page scroll);
+     the register / area tables scroll inside their card. Measured, since
+     the shell's header / breadcrumb / paddings vary with the sidebar. */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fitHeight, setFitHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = rootRef.current;
+      if (!el || window.innerWidth < 1024) return setFitHeight(null);
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      // the shell's bottom padding / borders + anything laid out after us
+      let below = 0;
+      for (let child: Element = el, n = el.parentElement; n && n.tagName !== "BODY"; child = n, n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        below += parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth) + parseFloat(getComputedStyle(child).marginBottom);
+        for (let sib = child.nextElementSibling; sib; sib = sib.nextElementSibling) {
+          const pos = getComputedStyle(sib).position;
+          if (pos !== "absolute" && pos !== "fixed") below += sib.getBoundingClientRect().height;
+        }
+      }
+      setFitHeight(Math.max(480, Math.floor(window.innerHeight - top - below)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure); // same value → React skips the update
+    ro.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  const [bottomTab, setBottomTab] = useState<"register" | "areas">("register");
+
+  const locationFiltered = !!(applied.location.state || applied.location.district || applied.location.city);
+  const card = "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm";
+  const label = "mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400";
+  const fieldCls = "h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-teal-100";
+  const iconBtn = "flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50";
+  const th = "px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-left";
+  const td = "px-3 py-2 text-xs whitespace-nowrap";
+  const spinner = (
+    <div className="flex h-full min-h-[120px] flex-col items-center justify-center gap-2 text-xs text-slate-400">
+      <span className="h-7 w-7 animate-spin rounded-full border-[3px] border-slate-200 border-t-teal-600" />
+      Loading…
+    </div>
+  );
+  const empty = (msg: string) => <div className="flex h-full min-h-[120px] items-center justify-center text-xs text-slate-400">{msg}</div>;
+  const periodLabel = period.from_date ? `${fmtDayLabel(period.from_date)} – ${fmtPeriodDate(period.to_date)}` : "";
+
+  const kpiTiles = [
+    { label: "Total received", value: kpis.total, sub: `${kpis.resolved_percent.toFixed(1)}% resolved`, tone: "text-slate-900" },
+    { label: "Open", value: kpis.open, sub: "awaiting action", tone: "text-amber-600" },
+    { label: "In progress", value: kpis.in_progress, sub: "being worked on", tone: "text-sky-600" },
+    { label: "Resolved", value: kpis.resolved, sub: kpis.avg_resolution_hours != null ? `avg ${kpis.avg_resolution_hours.toFixed(1)} h to close` : "—", tone: "text-emerald-600" },
+    { label: "Escalated", value: kpis.escalated, sub: `SLA ${kpis.sla_compliance_percent.toFixed(1)}% compliance`, tone: "text-red-600" },
+    { label: "Pending", value: kpis.pending, sub: `${fmt(kpis.district_count)} districts · ${fmt(kpis.local_body_count)} local bodies`, tone: "text-violet-600" },
+  ];
 
   /* ══════════════════════════════════════════════════════════════
-      RENDER
+      RENDER — one screen: header + KPIs + 3 cards + tables
   ══════════════════════════════════════════════════════════════ */
   return (
-    <div className="min-h-screen space-y-5 bg-[#F5F7FB] p-5 font-sans text-slate-900">
-      {/* ── Header ── */}
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-br from-[#0F2744] via-[#115E6D] to-[#0F766E] shadow-[0_20px_60px_-28px_rgba(15,39,68,0.65)]">
-        <div
-          className="absolute inset-0 opacity-[0.09]"
-          style={{ backgroundImage: "radial-gradient(circle at 20% 20%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
-        />
-        <div className="absolute -right-20 -top-32 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
-        <div className="relative grid gap-7 px-7 py-8 md:px-10 lg:grid-cols-[1.65fr_0.8fr] lg:items-stretch">
-          <div className="flex flex-col justify-between gap-6">
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
-                  <MessageSquareWarning className="h-4 w-4 text-emerald-300" />
-                </div>
-                <span className="font-mono text-[10px] tracking-[0.22em] text-cyan-100/70">
-                  CITIZEN GRIEVANCES · COMPLAINTS ANALYTICS
-                </span>
-              </div>
-              <h1 className="text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
-                Complaints Report
-              </h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-cyan-50/65">
-                Complaints received, resolved and pending
-                {period.from_date && `, ${fmtPeriodDate(period.from_date)} to ${fmtPeriodDate(period.to_date)}`} · {scopeLabel}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2.5 print:hidden">
+    <div
+      ref={rootRef}
+      className="flex flex-col gap-3 bg-[#F5F7FB] font-sans text-slate-900"
+      style={fitHeight ? { minHeight: fitHeight } : undefined}
+    >
+      {/* ── header: title + filters + actions ── */}
+      <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight">Complaints Report</h1>
+          <p className="mt-0.5 truncate text-xs text-slate-400">
+            {scopeLabel}{periodLabel && ` · ${periodLabel}`}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 print:hidden">
+          <div className="shrink-0">
+            <span className={label}>Date range</span>
+            <div className={`${fieldCls} flex items-center gap-1`}>
               <input
                 type="date"
                 value={draft.fromDate}
                 max={draft.toDate || undefined}
-                onChange={(e) => setDraft((d) => ({ ...d, fromDate: e.target.value }))}
+                onChange={(e) => setFilter({ fromDate: e.target.value })}
                 aria-label="From date"
-                className="h-10 rounded-xl border border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                className="w-[104px] bg-transparent outline-none"
               />
-              <span className="text-sm text-cyan-50/65">to</span>
+              <span className="text-slate-400">–</span>
               <input
                 type="date"
                 value={draft.toDate}
                 min={draft.fromDate || undefined}
                 max={isoDate(new Date())}
-                onChange={(e) => setDraft((d) => ({ ...d, toDate: e.target.value }))}
+                onChange={(e) => setFilter({ toDate: e.target.value })}
                 aria-label="To date"
-                className="h-10 rounded-xl border border-white/20 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-300"
+                className="w-[104px] bg-transparent outline-none"
               />
-              <button
-                type="button"
-                onClick={applyFilters}
-                className="h-10 rounded-xl bg-emerald-400 px-5 text-sm font-semibold text-emerald-950 shadow-sm transition-colors hover:bg-emerald-300"
-              >
-                Go
-              </button>
-              <button
-                type="button"
-                onClick={() => void fetchReport()}
-                disabled={loading}
-                className="flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-50"
-                aria-label="Refresh"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              </button>
-              <div className="flex flex-wrap gap-2.5 lg:ml-auto">
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-white/15"
-                >
-                  <Printer className="h-4 w-4" /> Print
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExcel}
-                  disabled={!report.count || !!exporting}
-                  className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-white/15 disabled:opacity-50"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  {exporting === "excel" ? "Exporting..." : "Excel"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePdf}
-                  disabled={!report.count || !!exporting}
-                  className="flex h-10 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-white/15 disabled:opacity-50"
-                >
-                  <Download className="h-4 w-4" />
-                  {exporting === "pdf" ? "Preparing..." : "PDF"}
-                </button>
-              </div>
             </div>
           </div>
-          <div className="flex min-h-56 flex-col justify-center rounded-2xl border border-white/10 bg-white/[0.07] p-6 shadow-inner backdrop-blur-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/70">
-                  SLA compliance
-                </p>
-                <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-white md:text-4xl">
-                  {kpis.sla_compliance_percent.toFixed(1)}
-                  <span className="ml-1 text-sm font-medium text-cyan-100/70">%</span>
-                </p>
-              </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-400/15 ring-1 ring-inset ring-emerald-300/20">
-                <ShieldCheck className="h-5 w-5 text-emerald-300" />
-              </div>
-            </div>
-            <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-white/10 pt-5">
-              {[
-                ["Avg resolution", kpis.avg_resolution_hours != null ? `${kpis.avg_resolution_hours.toFixed(1)} h` : "—"],
-                ["Resolved", `${kpis.resolved_percent.toFixed(1)}%`],
-                ["Districts", fmt(kpis.district_count)],
-                ["Local bodies", fmt(kpis.local_body_count)],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <p className="text-[10px] uppercase tracking-wider text-cyan-100/50">{label}</p>
-                  <p className="mt-1 font-mono text-lg font-semibold text-white">{value}</p>
+
+          <div>
+            <span className={label}>Location</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className={`${fieldCls} flex max-w-[170px] items-center gap-1.5 ${locationFiltered ? "border-teal-600" : ""}`}>
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="truncate">{locationFiltered ? scopeLabel : "All areas"}</span>
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[520px] p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-bold text-slate-600">Filter by location</p>
+                  {locationFiltered && (
+                    <button type="button" onClick={() => setFilter({ location: emptyTicketLocationFilter })} className="text-xs font-semibold text-teal-700 hover:underline">
+                      Clear
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
+                <TicketLocationFilters value={draft.location} onChange={(location) => setFilter({ location })} />
+              </PopoverContent>
+            </Popover>
           </div>
-        </div>
-      </div>
 
-      {/* ── Filters ── */}
-      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm print:hidden">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-800">
-            <MapPin className="h-4 w-4 text-teal-600" /> Filter by Location, Category and Source
-          </h2>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="text-xs font-semibold text-teal-700 hover:text-teal-900"
-          >
-            Reset filters
+          <div>
+            <span className={label}>Category</span>
+            <select value={draft.categoryId} onChange={(e) => setFilter({ categoryId: e.target.value })} className={`${fieldCls} max-w-[150px]`}>
+              <option value="">All categories</option>
+              {report.filter_options.categories.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <span className={label}>Source</span>
+            <select value={draft.sourceId} onChange={(e) => setFilter({ sourceId: e.target.value })} className={`${fieldCls} max-w-[130px]`}>
+              <option value="">All sources</option>
+              {report.filter_options.sources.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <button type="button" onClick={() => void fetchReport()} disabled={loading} className={iconBtn} aria-label="Refresh" title="Refresh">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
-        </div>
-        <div className="mb-3">
-          <TicketLocationFilters
-            value={draft.location}
-            onChange={(location) => setDraft((d) => ({ ...d, location }))}
-          />
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className={labelClass}>
-            Category
-            <select
-              value={draft.categoryId}
-              onChange={(e) => setDraft((d) => ({ ...d, categoryId: e.target.value }))}
-              className={fieldClass}
-            >
-              <option value="">All Categories</option>
-              {report.filter_options.categories.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-          <label className={labelClass}>
-            Source
-            <select
-              value={draft.sourceId}
-              onChange={(e) => setDraft((d) => ({ ...d, sourceId: e.target.value }))}
-              className={fieldClass}
-            >
-              <option value="">All Sources</option>
-              {report.filter_options.sources.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={applyFilters}
-            className="h-9 rounded-lg bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-800"
-          >
-            Apply filters
+          <button type="button" onClick={resetFilters} className={iconBtn} title="Reset filters (last 14 days, all areas)" aria-label="Reset filters">
+            <RotateCcw className="h-3.5 w-3.5" />
+          </button>
+          <button type="button" onClick={() => window.print()} className={iconBtn} title="Print">
+            <Printer className="h-3.5 w-3.5" /> <span className="hidden 2xl:inline">Print</span>
+          </button>
+          <button type="button" onClick={handleExcel} disabled={!report.count || !!exporting} className={iconBtn} title="Download Excel">
+            <FileSpreadsheet className="h-3.5 w-3.5" /> <span className="hidden 2xl:inline">{exporting === "excel" ? "…" : "Excel"}</span>
+          </button>
+          <button type="button" onClick={handlePdf} disabled={!report.count || !!exporting} className={iconBtn} title="Download PDF">
+            <Download className="h-3.5 w-3.5" /> <span className="hidden 2xl:inline">{exporting === "pdf" ? "…" : "PDF"}</span>
           </button>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-          {error}
-        </div>
-      )}
+      {error && <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</div>}
 
-      {/* ── KPI cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        {[
-          { label: "Total Received", value: fmt(kpis.total), accent: "border-t-teal-700", icon: <Inbox className="h-4 w-4" /> },
-          { label: "Open", value: fmt(kpis.open), accent: "border-t-amber-500", icon: <Clock className="h-4 w-4" /> },
-          { label: "In Progress", value: fmt(kpis.in_progress), accent: "border-t-cyan-500", icon: <Loader className="h-4 w-4" /> },
-          { label: "Resolved", value: fmt(kpis.resolved), accent: "border-t-emerald-500", icon: <CheckCircle2 className="h-4 w-4" /> },
-          { label: "Escalated", value: fmt(kpis.escalated), accent: "border-t-red-500", icon: <AlertTriangle className="h-4 w-4" /> },
-          { label: "Pending", value: fmt(kpis.pending), accent: "border-t-violet-500", icon: <BarChart3 className="h-4 w-4" /> },
-        ].map((k) => (
-          <div
-            key={k.label}
-            className={`bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden border-t-4 ${k.accent} flex flex-col gap-2 p-4`}
-          >
-            <div className="flex items-start justify-between">
-              <p className="text-xs font-medium text-gray-500 leading-tight">{k.label}</p>
-              <span className="text-gray-400">{k.icon}</span>
-            </div>
-            <p className="text-xl font-bold text-gray-800 leading-none">{loading ? "—" : k.value}</p>
+      {/* ── KPI strip ── */}
+      <div className="grid shrink-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {kpiTiles.map((k) => (
+          <div key={k.label} className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <p className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">{k.label}</p>
+            {loading ? (
+              <>
+                <span className="mt-2 block h-6 w-16 animate-pulse rounded-md bg-slate-100" />
+                <span className="mt-2 block h-3 w-28 animate-pulse rounded-md bg-slate-100" />
+              </>
+            ) : (
+              <>
+                <p className={`mt-1 text-2xl font-bold tabular-nums tracking-tight ${k.tone}`}>{fmt(k.value)}</p>
+                <p className="mt-0.5 truncate text-[11px] text-slate-400">{k.sub}</p>
+              </>
+            )}
           </div>
         ))}
       </div>
 
-      {/* ── Trend + categories ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 lg:col-span-2">
-          <h2 className="text-sm font-semibold text-gray-800">Daily Trend</h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-4">Complaints received and resolved per day</p>
-          {report.daily_trend.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">No trend data yet.</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={report.daily_trend} margin={{ top: 6, right: 20, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tickFormatter={fmtDayLabel}
-                  tick={{ fontSize: 11, fill: "#9ca3af" }}
-                  axisLine={false}
-                  tickLine={false}
-                  minTickGap={16}
-                />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#9ca3af" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<TrendTooltip />} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Line type="monotone" dataKey="received" name="Received" stroke={RECEIVED_COLOR} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="resolved" name="Resolved" stroke={RESOLVED_COLOR} strokeWidth={2.5} strokeDasharray="6 4" dot={false} activeDot={{ r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
+      {/* ── trend · category · pending by age ── */}
+      <div className="grid shrink-0 gap-3 lg:grid-cols-3">
+        <div className={`${card} h-[180px] p-4`}>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-sm font-bold">Daily trend</h2>
+            <span className="flex items-center gap-2.5 text-[10px] text-slate-500">
+              <span className="flex items-center gap-1"><span className="h-0.5 w-3 rounded" style={{ background: RECEIVED_COLOR }} /> Received</span>
+              <span className="flex items-center gap-1"><span className="h-0.5 w-3 rounded border-t-2 border-dashed" style={{ borderColor: RESOLVED_COLOR }} /> Resolved</span>
+            </span>
+          </div>
+          <div className="min-h-0 flex-1">
+            {loading ? spinner : report.daily_trend.length === 0 ? empty("No trend data for this period.") : (
+              <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 1, height: 1 }}>
+                <LineChart data={report.daily_trend} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={fmtDayLabel} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} minTickGap={16} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} width={28} />
+                  <Tooltip content={<TrendTooltip />} />
+                  <Line type="monotone" dataKey="received" name="Received" stroke={RECEIVED_COLOR} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="resolved" name="Resolved" stroke={RESOLVED_COLOR} strokeWidth={2} strokeDasharray="6 4" dot={false} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-            <Tags className="h-4 w-4 text-gray-400" /> By Category
+
+        <div className={`${card} h-[180px] p-4`}>
+          <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
+            <Tags className="h-4 w-4 text-slate-400" /> By category
           </h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-4">Share of complaints received</p>
-          {report.category_breakdown.length === 0 ? (
-            <div className="h-52 flex items-center justify-center text-gray-400 text-sm">No complaints in this period.</div>
-          ) : (
-            <div className="space-y-1 max-h-[240px] overflow-y-auto pr-1">
-              {report.category_breakdown.map((c) => (
-                <div key={c.category_id || c.category_name} className="py-2 border-b border-gray-50 last:border-0">
-                  <div className="flex justify-between gap-3 mb-1.5">
-                    <p className="text-xs font-semibold text-gray-800 truncate" title={c.category_name}>{c.category_name}</p>
-                    <span className="text-xs font-bold text-gray-700 shrink-0">
-                      {fmt(c.count)} <span className="font-medium text-gray-400">({c.share_percent.toFixed(1)}%)</span>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {loading ? spinner : report.category_breakdown.length === 0 ? empty("No complaints in this period.") : (
+              report.category_breakdown.map((c) => (
+                <div key={c.category_id || c.category_name}>
+                  <div className="flex justify-between gap-3 text-xs">
+                    <span className="truncate font-semibold text-slate-800" title={c.category_name}>{c.category_name}</span>
+                    <span className="shrink-0 font-semibold tabular-nums text-slate-700">
+                      {fmt(c.count)} <span className="font-normal text-slate-400">({c.share_percent.toFixed(0)}%)</span>
                     </span>
                   </div>
-                  <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-teal-600 to-emerald-400 transition-all duration-700"
-                      style={{ width: `${(c.count / maxCategory) * 100}%` }}
-                    />
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-teal-600" style={{ width: `${(c.count / maxCategory) * 100}%` }} />
                   </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className={`${card} h-[180px] p-4`}>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-bold">Pending by age</h2>
+            <span className="text-[10px] text-slate-400">{fmt(kpis.pending)} unresolved</span>
+          </div>
+          {loading ? spinner : (
+            <div className="grid min-h-0 flex-1 grid-cols-2 gap-2">
+              {report.pending_aging.map((a) => (
+                <div key={a.key} className={`flex flex-col justify-center rounded-xl border px-3 py-1.5 ${AGING_STYLE[a.key].box}`}>
+                  <span className="text-[10px] font-medium text-slate-500">{a.label}</span>
+                  <span className={`text-lg font-bold leading-tight tabular-nums ${AGING_STYLE[a.key].value}`}>{fmt(a.count)}</span>
                 </div>
               ))}
             </div>
@@ -635,253 +603,199 @@ export default function ComplaintsReportPage() {
         </div>
       </div>
 
-      {/* ── Aging + areas ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-sm font-semibold text-gray-800">Pending by Age</h2>
-          <p className="text-xs text-gray-400 mt-0.5 mb-4">{fmt(kpis.pending)} unresolved complaints</p>
-          <div className="grid grid-cols-2 gap-3">
-            {report.pending_aging.map((a) => (
-              <div key={a.key} className={`rounded-xl border p-4 flex flex-col gap-1 ${AGING_STYLE[a.key].box}`}>
-                <span className="text-xs font-medium text-gray-500">{a.label}</span>
-                <span className={`text-2xl font-semibold leading-none ${AGING_STYLE[a.key].value}`}>{fmt(a.count)}</span>
-                <span className="text-[10px] text-gray-400">{AGING_STYLE[a.key].note}</span>
+      {/* ── register / areas ── */}
+      <div className={`${card} h-[520px] lg:h-auto lg:min-h-[260px] lg:shrink lg:grow lg:basis-[0px]`}>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 px-4 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5">
+              {([
+                { key: "register", label: "Complaint register" },
+                { key: "areas", label: "Areas by pendency" },
+              ] as const).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setBottomTab(t.key)}
+                  className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${bottomTab === t.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-400"}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            {bottomTab === "register" && (
+              <div className="flex flex-wrap gap-1 print:hidden" role="group" aria-label="Filter by status">
+                {STATUS_TABS.map((tab) => {
+                  const selected = tab.key === activeTab;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold transition-colors ${
+                        selected ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {tab.label}
+                      <span className={`rounded px-1 tabular-nums ${selected ? "bg-white/20" : "bg-slate-100"}`}>{fmt(report.status_counts[tab.key])}</span>
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden lg:col-span-2">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
-              <MapPin className="h-4 w-4 text-gray-400" />
-              {showAllAreas ? "All Areas by Pendency" : "Top 5 Areas by Pendency"}
-            </h2>
-            {report.area_breakdown.length > 5 && (
-              <button
-                type="button"
-                onClick={() => setShowAllAreas((v) => !v)}
-                className="text-xs font-semibold text-teal-700 hover:text-teal-900 print:hidden"
-              >
-                {showAllAreas ? "Show top 5" : `View all areas (${report.area_breakdown.length})`}
-              </button>
             )}
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
-                  <th className="px-4 py-3 text-left font-semibold">Local Body / District</th>
-                  <th className="px-4 py-3 text-right font-semibold">Received</th>
-                  <th className="px-4 py-3 text-right font-semibold">Resolved</th>
-                  <th className="px-4 py-3 text-right font-semibold">Pending</th>
-                  <th className="px-4 py-3 text-right font-semibold">Escalated</th>
-                  <th className="px-4 py-3 text-left font-semibold">SLA Compliance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {areas.length ? (
-                  areas.map((w) => (
-                    <tr key={`${w.local_body_id}|${w.district_id}`} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">
+          {bottomTab === "register" ? (
+            <form
+              className="flex h-8 w-56 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 print:hidden"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(searchInput.trim());
+              }}
+            >
+              <Search className="h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  if (!e.target.value) setSearch("");
+                }}
+                placeholder="Search complaint ID"
+                aria-label="Search complaint ID"
+                className="w-full bg-transparent text-xs outline-none"
+              />
+            </form>
+          ) : (
+            <span className="text-[11px] text-slate-400">{fmt(report.area_breakdown.length)} areas</span>
+          )}
+        </div>
+
+        <div className="m-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200">
+          <div className="min-h-0 flex-1 overflow-auto">
+            {bottomTab === "register" ? (
+              loading && !report.results.length ? spinner : !report.results.length ? empty("No complaints match these filters for the selected period.") : (
+                <table className="min-w-full">
+                  <thead className="sticky top-0 z-10 bg-slate-50 text-slate-400">
+                    <tr>
+                      <th className={th}>Complaint ID</th>
+                      <th className={th}>Received</th>
+                      <th className={th}>Category</th>
+                      <th className={th}>Local body / District</th>
+                      <th className={th}>Source</th>
+                      <th className={th}>With</th>
+                      <th className={th}>Escalation</th>
+                      <th className={th}>Status</th>
+                      <th className={`${th} text-right print:hidden`}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y divide-slate-100 ${loading ? "opacity-50" : ""}`}>
+                    {report.results.map((r) => (
+                      <tr key={r.unique_id} className="hover:bg-slate-50">
+                        <td className={`${td} font-semibold text-slate-800`}>{r.ticket_no}</td>
+                        <td className={`${td} text-slate-500`}>{fmtReceived(r.created)}</td>
+                        <td className={`${td} text-slate-600`}>{r.category_name || "—"}</td>
+                        <td className={`${td} text-slate-600`}>{areaLabel(r.local_body_name, r.district_name)}</td>
+                        <td className={`${td} text-slate-500`}>{r.source_name || "—"}</td>
+                        <td className={`${td} text-slate-600`}>{r.assigned_staff_name || "Unassigned"}</td>
+                        <td className={`${td} ${r.is_breached ? "font-semibold text-red-600" : "text-slate-500"}`}>{slaLabel(r)}</td>
+                        <td className={td}>
+                          <span title={r.status_name} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${BUCKET_BADGE[r.status_bucket]}`}>
+                            {BUCKET_LABEL[r.status_bucket]}
+                          </span>
+                        </td>
+                        <td className={`${td} text-right print:hidden`}>
+                          <button type="button" onClick={() => navigate(editPath(r.unique_id))} className="text-xs font-semibold text-teal-700 hover:underline">
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            ) : loading && !report.area_breakdown.length ? spinner : !report.area_breakdown.length ? empty("No area data for this period.") : (
+              <table className="min-w-full">
+                <thead className="sticky top-0 z-10 bg-slate-50 text-slate-400">
+                  <tr>
+                    <th className={th}>Local body / District</th>
+                    <th className={`${th} text-right`}>Received</th>
+                    <th className={`${th} text-right`}>Resolved</th>
+                    <th className={`${th} text-right`}>Pending</th>
+                    <th className={`${th} text-right`}>Escalated</th>
+                    <th className={th}>SLA compliance</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {report.area_breakdown.map((w) => (
+                    <tr key={`${w.local_body_id}|${w.district_id}`} className="hover:bg-slate-50">
+                      <td className={`${td} font-semibold text-slate-800`}>
                         {areaLabel(w.local_body_name, w.district_name)}
-                        {w.local_body_type && <span className="ml-1.5 font-normal text-gray-400">{w.local_body_type}</span>}
+                        {w.local_body_type && <span className="ml-1.5 font-normal text-slate-400">{w.local_body_type}</span>}
                       </td>
-                      <td className="px-4 py-3 text-right text-gray-600">{fmt(w.received)}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{fmt(w.resolved)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-amber-700">{fmt(w.pending)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-red-600">{fmt(w.escalated)}</td>
-                      <td className="px-4 py-3">
+                      <td className={`${td} text-right tabular-nums text-slate-600`}>{fmt(w.received)}</td>
+                      <td className={`${td} text-right tabular-nums text-slate-600`}>{fmt(w.resolved)}</td>
+                      <td className={`${td} text-right font-semibold tabular-nums text-amber-700`}>{fmt(w.pending)}</td>
+                      <td className={`${td} text-right font-semibold tabular-nums text-red-600`}>{fmt(w.escalated)}</td>
+                      <td className={td}>
                         <div className="flex items-center gap-2">
-                          <div className="h-2 w-28 rounded-full bg-gray-100 overflow-hidden">
+                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
                             <div className="h-full rounded-full bg-teal-600" style={{ width: `${w.sla_compliance_percent}%` }} />
                           </div>
-                          <span className="font-medium text-gray-700">{w.sla_compliance_percent.toFixed(1)}%</span>
+                          <span className="font-medium tabular-nums text-slate-700">{w.sla_compliance_percent.toFixed(1)}%</span>
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No area data for this period.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-        </div>
-      </div>
 
-      {/* ── Complaint register ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div
-          className="flex flex-wrap items-center justify-between gap-3 px-6 py-5 border-b border-gray-100"
-          style={{ background: "linear-gradient(135deg,#ECFDF5 0%,#ECFEFF 100%)" }}
-        >
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-teal-700 flex items-center justify-center shadow-sm">
-              <MessageSquareWarning className="h-5 w-5 text-white" />
-            </div>
-            <div>
-              <p className="text-base font-bold text-gray-800">Complaint Register</p>
-              <p className="text-xs text-gray-500 mt-0.5">Newest first · {fmt(report.count)} complaint{report.count !== 1 ? "s" : ""}</p>
-            </div>
-          </div>
-          <form
-            className="flex h-9 w-full items-center gap-2 rounded-lg border border-emerald-100 bg-white px-3 sm:w-72 print:hidden"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setSearch(searchInput.trim());
-            }}
-          >
-            <Search className="h-4 w-4 text-gray-400" />
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value);
-                if (!e.target.value) setSearch("");
-              }}
-              placeholder="Search complaint ID"
-              aria-label="Search complaint ID"
-              className="w-full bg-transparent text-sm outline-none"
-            />
-          </form>
-        </div>
-
-        <div className="flex flex-wrap gap-2 px-6 py-3 border-b border-gray-100 print:hidden" role="group" aria-label="Filter by status">
-          {STATUS_TABS.map((tab) => {
-            const selected = tab.key === activeTab;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-                  selected
-                    ? "border-teal-700 bg-teal-700 text-white"
-                    : "border-emerald-100 bg-white text-teal-700 hover:bg-emerald-50"
-                }`}
-              >
-                {tab.label}
-                <span className={`rounded-md px-1.5 font-mono ${selected ? "bg-white/20" : "bg-emerald-50"}`}>
-                  {fmt(report.status_counts[tab.key])}
+          {bottomTab === "register" && report.count > 0 && (
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-200 px-3 py-2 print:hidden">
+              <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                <span>Showing {firstRow}–{lastRow} of {fmt(report.count)}</span>
+                {/* inline buttons, not a native <select> — its list would open off-screen here */}
+                <span className="inline-flex items-center gap-0.5" role="group" aria-label="Rows per page">
+                  {[10, 25, 50, 100].map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setPageSize(size)}
+                      aria-pressed={pageSize === size}
+                      className={`h-6 rounded-md border px-1.5 text-[11px] font-semibold tabular-nums ${
+                        pageSize === size ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-500"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                  <span className="ml-1">/ page</span>
                 </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="bg-gray-50 text-gray-500 uppercase tracking-wide text-[10px]">
-                <th className="px-4 py-3 text-left font-semibold">Complaint ID</th>
-                <th className="px-4 py-3 text-left font-semibold">Received</th>
-                <th className="px-4 py-3 text-left font-semibold">Category</th>
-                <th className="px-4 py-3 text-left font-semibold">Local Body / District</th>
-                <th className="px-4 py-3 text-left font-semibold">Source</th>
-                <th className="px-4 py-3 text-left font-semibold">With</th>
-                <th className="px-4 py-3 text-left font-semibold">Escalation</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-right font-semibold print:hidden">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
-              {report.results.length ? (
-                report.results.map((r) => (
-                  <tr key={r.unique_id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{r.ticket_no}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmtReceived(r.created)}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.category_name || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{areaLabel(r.local_body_name, r.district_name)}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{r.source_name || "—"}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.assigned_staff_name || "Unassigned"}</td>
-                    <td className={`px-4 py-3 whitespace-nowrap ${r.is_breached ? "font-semibold text-red-600" : "text-gray-500"}`}>
-                      {slaLabel(r)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span
-                        title={r.status_name}
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${BUCKET_BADGE[r.status_bucket]}`}
-                      >
-                        {BUCKET_LABEL[r.status_bucket]}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => navigate(editPath(r.unique_id))}
-                        className="text-xs font-semibold text-teal-700 hover:text-teal-900"
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
-                    {loading ? "Loading complaints…" : "No complaints match these filters for the selected period."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-col gap-3 px-6 py-4 border-t border-gray-100 sm:flex-row sm:items-center sm:justify-between print:hidden">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span>Rows per page</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="h-8 rounded-lg border border-emerald-100 bg-emerald-50 px-2 font-mono text-teal-900 outline-none focus:ring-2 focus:ring-emerald-300"
-              aria-label="Rows per page"
-            >
-              {[10, 25, 50, 100].map((size) => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-            <span className="font-mono text-gray-600">
-              {firstRow}–{lastRow} of {report.count}
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-white text-teal-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            {visiblePages.map((n) => (
-              <button
-                key={n}
-                type="button"
-                aria-current={n === page ? "page" : undefined}
-                onClick={() => setPage(n)}
-                className={`h-8 min-w-8 rounded-lg border px-2 font-mono text-xs transition-colors ${
-                  n === page
-                    ? "border-teal-700 bg-teal-700 text-white"
-                    : "border-emerald-100 bg-white text-teal-700 hover:bg-emerald-50"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              disabled={page >= pageCount}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-100 bg-white text-teal-700 transition-colors hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 disabled:opacity-40" aria-label="Previous page">
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+                {visiblePages.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-current={n === page ? "page" : undefined}
+                    onClick={() => setPage(n)}
+                    className={`h-6 min-w-6 rounded-md border px-1.5 text-[11px] font-semibold tabular-nums ${
+                      n === page ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button type="button" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page >= pageCount} className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 disabled:opacity-40" aria-label="Next page">
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
