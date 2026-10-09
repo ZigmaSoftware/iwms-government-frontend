@@ -20,6 +20,8 @@ import { vehicleBreakdownApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -31,6 +33,11 @@ const STATUS_STYLES: Record<BreakdownStatus, string> = {
 const STATUS_LABELS: Record<BreakdownStatus, string> = {
   REPORTED: "Reported",
   REPLACEMENT_ARRANGED: "Replacement Arranged",
+  REJECTED: "Rejected",
+};
+const APPROVAL_LABELS: Record<ApprovalStatus, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
   REJECTED: "Rejected",
 };
 const APPROVAL_STYLES: Record<ApprovalStatus, string> = {
@@ -296,6 +303,21 @@ export default function VehicleBreakdownList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const statusFilter = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: (Object.keys(STATUS_LABELS) as BreakdownStatus[]).map((value) => ({ value, label: STATUS_LABELS[value] })),
+    onAppliedChange: () => setFirst(0),
+  });
+  const approvalFilter = useOptionFilter({
+    param: "approval_status",
+    label: "Approval",
+    options: (Object.keys(APPROVAL_LABELS) as ApprovalStatus[]).map((value) => ({ value, label: APPROVAL_LABELS[value] })),
+    onAppliedChange: () => setFirst(0),
+  });
+  const filterParams = { ...geo.applied, ...statusFilter.applied, ...approvalFilter.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const [verifyTarget, setVerifyTarget] = useState<VehicleBreakdownRecord | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -308,6 +330,7 @@ export default function VehicleBreakdownList() {
     try {
       const response = await vehicleBreakdownApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -330,7 +353,7 @@ export default function VehicleBreakdownList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -530,6 +553,7 @@ export default function VehicleBreakdownList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
+        filterPanel={combineFilters(geo, statusFilter, approvalFilter)}
         header={
           <FilterBar
             searchValue={globalFilterValue}

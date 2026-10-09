@@ -13,7 +13,7 @@ import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "@/components/common/SafeDataTable";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -23,7 +23,8 @@ import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { adminApi } from "@/helpers/admin/registry";
-import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { FilterSection } from "@/components/common/ListToolbar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { capitalize } from "@/utils/capitalize";
@@ -101,13 +102,15 @@ export default function WasteCollectedDataList() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [imageRow, setImageRow] = useState<WasteCollection | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hierarchyParams = geo.applied;
   const [dateFilter, setDateFilter] = useState("");
+  const [draftDate, setDraftDate] = useState("");
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -139,12 +142,6 @@ export default function WasteCollectedDataList() {
       setLoading(false);
     }
   };
-
-  // Reset to page 1 whenever a non-pagination filter changes.
-  useEffect(() => {
-    setFirst(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hierarchyParams, dateFilter]);
 
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
@@ -189,7 +186,7 @@ export default function WasteCollectedDataList() {
     }));
 
   const handleExcelDownload = async () => {
-    setIsExporting(true);
+    setExporting("excel");
     try {
       const all = await adminApi.wasteCollections.readAllForExport({
         params: {
@@ -206,12 +203,12 @@ export default function WasteCollectedDataList() {
     } catch (error) {
       notify.fire(t("common.error"), error instanceof Error ? error.message : "Export failed.", "error");
     } finally {
-      setIsExporting(false);
+      setExporting(null);
     }
   };
 
   const handlePdfDownload = async () => {
-    setIsExporting(true);
+    setExporting("pdf");
     try {
       const all = await adminApi.wasteCollections.readAllForExport({
         params: {
@@ -233,7 +230,7 @@ export default function WasteCollectedDataList() {
     } catch (error) {
       notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
-      setIsExporting(false);
+      setExporting(null);
     }
   };
 
@@ -309,32 +306,35 @@ export default function WasteCollectedDataList() {
 
   const indexTemplate = (_: WasteCollection, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
-  const renderHeader = () => (
-    <div className="space-y-4">
-      <HierarchyFilterBar onChange={setHierarchyParams} />
-      <div className="flex flex-wrap gap-3 text-sm">
-        <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {dailyWeight.toFixed(2)}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Overall (page): {overallWeight.toFixed(2)}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Records (page): {rawRows.length}</span>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
-          <Button label={isExporting ? "Downloading…" : "Download Excel"} icon="pi pi-file-excel" className="p-button-outlined p-button-sm" disabled={isExporting || totalRecords === 0} onClick={() => void handleExcelDownload()} />
-          <Button label={isExporting ? "Generating…" : "Download PDF"} icon="pi pi-file-pdf" className="p-button-outlined p-button-sm" disabled={isExporting || totalRecords === 0} onClick={() => void handlePdfDownload()} />
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3 rounded-full border bg-white px-3 py-1">
-            <InputText type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="border-none text-sm" />
-          </div>
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={setGlobalFilterValue}
-            searchPlaceholder={t("admin.household_collection_event.search_placeholder")}
-          />
-        </div>
-      </div>
-    </div>
-  );
+  const setDate = (value: string) => {
+    setDraftDate(value);
+    setDateFilter(value);
+    setFirst(0);
+  };
+
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + (dateFilter ? 1 : 0),
+    onApply: () => {
+      geo.apply();
+      setDate(draftDate);
+    },
+    onReset: () => {
+      geo.reset();
+      setDate("");
+    },
+    chips: [
+      ...geo.chips,
+      ...(dateFilter ? [{ key: "date", label: "Collection date", value: dateFilter, onRemove: () => setDate("") }] : []),
+    ],
+    content: (
+      <>
+        {geo.field}
+        <FilterSection label="Collection date">
+          <InputText type="date" value={draftDate} onChange={(event) => setDraftDate(event.target.value)} className="p-inputtext-sm w-full" />
+        </FilterSection>
+      </>
+    ),
+  };
 
   return (
     <div className="p-3">
@@ -354,8 +354,19 @@ export default function WasteCollectedDataList() {
         className="mb-6"
       />
 
+      <div className="mb-3 flex flex-wrap gap-3 text-sm">
+        <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {dailyWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Overall (page): {overallWeight.toFixed(2)}</span>
+        <span className="rounded-full bg-slate-100 px-4 py-2">Records (page): {rawRows.length}</span>
+      </div>
+
       <DataTable
         exportable={false}
+        filterPanel={filterPanel}
+        documentActions={{
+          downloadExcel: { onClick: () => void handleExcelDownload(), busy: exporting === "excel", disabled: exporting !== null || totalRecords === 0 },
+          downloadPdf: { onClick: () => void handlePdfDownload(), busy: exporting === "pdf", disabled: exporting !== null || totalRecords === 0 },
+        }}
         value={rawRows}
         dataKey="unique_id"
         lazy
@@ -369,7 +380,13 @@ export default function WasteCollectedDataList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading && rawRows.length === 0}
-        header={renderHeader()}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={setGlobalFilterValue}
+            searchPlaceholder={t("admin.household_collection_event.search_placeholder")}
+          />
+        }
         stripedRows
         showGridlines
         emptyMessage={t("admin.household_collection_event.empty_message")}

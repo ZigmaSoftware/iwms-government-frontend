@@ -18,6 +18,8 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 
 const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code", "template_id"],
@@ -47,6 +49,12 @@ const BACKEND_ORDER_FIELD: Record<string, string> = {
 
 const SORTABLE_FIELDS = new Set(["status", "unique_id"]);
 
+// the template's own `status` column (ACTIVE / INACTIVE) is what the list toggles
+const STATUS_OPTIONS = [
+  { label: "Active", value: "ACTIVE" },
+  { label: "Inactive", value: "INACTIVE" },
+];
+
 export default function StaffTemplateList() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -67,6 +75,15 @@ export default function StaffTemplateList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: STATUS_OPTIONS,
+    onAppliedChange: () => setFirst(0),
+  });
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -81,6 +98,7 @@ export default function StaffTemplateList() {
     try {
       const response = await staffTemplateApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -103,7 +121,7 @@ export default function StaffTemplateList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   /* ================= FILTERS ================= */
 
@@ -228,6 +246,7 @@ export default function StaffTemplateList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={loading}
+        filterPanel={combineFilters(geo, status)}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -281,20 +300,6 @@ export default function StaffTemplateList() {
             header={t("common.status")}
             body={statusBodyTemplate}
             style={{ width: 120 }}
-          />
-        )}
-
-        {showCol("created_at") && (
-          <Column
-            header={t("admin.staff_template.columns.created_at")}
-            body={(r: StaffTemplate) => new Date(r.created_at).toLocaleDateString()}
-          />
-        )}
-
-        {showCol("updated_at") && (
-          <Column
-            header={t("admin.staff_template.columns.updated_at")}
-            body={(r: StaffTemplate) => new Date(r.updated_at).toLocaleDateString()}
           />
         )}
 

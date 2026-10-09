@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "@/components/common/SafeDataTable";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
@@ -16,12 +16,21 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { binApi, customerCreationApi, dailyTripAssignmentApi } from "@/helpers/admin";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
-import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { drawQrCode } from "@/utils/exportPdf";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+const COLLECTION_TYPE_FILTER_LABELS: Record<"all" | Exclude<CollectionTypeKey, "unknown">, string> = {
+  all: "All Types",
+  bin: "Bin Collection",
+  household: "Household Collection",
+  bulk: "Bulk Waste Collection",
+  mixed: "Mixed Collection",
+};
+
 type SchedulerStatus = {
   enabled?: boolean;
   is_enabled?: boolean;
@@ -303,8 +312,10 @@ export default function DailyTripAssignmentList() {
   const [schedulerRunTime, setSchedulerRunTime] = useState("04:00");
   const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [collectionTypeFilter, setCollectionTypeFilter] = useState<"all" | CollectionTypeKey>("all");
-  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
-  const [filterResetKey, setFilterResetKey] = useState(0);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hierarchyParams = geo.applied;
+  // what the Filters panel is editing; committed on "Apply filters"
+  const [draft, setDraft] = useState({ date: schedulerDate, collectionType: collectionTypeFilter });
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -341,14 +352,6 @@ export default function DailyTripAssignmentList() {
       setIsLoading(false);
     }
   };
-
-  /* ── reset to first page whenever hierarchy/date filters change (NOT on
-     pagination/sort/collectionTypeFilter — collectionTypeFilter is a pure
-     client post-filter and never needs a refetch) ── */
-  useEffect(() => {
-    setFirst(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hierarchyParams, schedulerDate]);
 
   /* ── debounce the global search box into the server-side `?search=` param ── */
   useEffect(() => {
@@ -704,17 +707,67 @@ export default function DailyTripAssignmentList() {
     }
   };
 
-  const hasActiveFilters =
-    Object.keys(hierarchyParams).length > 0 ||
-    collectionTypeFilter !== "all" ||
-    schedulerDate !== toDateInputValue();
-
-  const clearListFilters = () => {
-    setHierarchyParams({});
-    setCollectionTypeFilter("all");
-    setSchedulerDate(toDateInputValue());
-    setFirst(0);
-    setFilterResetKey((key) => key + 1);
+  /* ── Filters panel. The trip date is always set (it is also the manual
+     scheduler's date), so its chip resets it to today rather than clearing. ── */
+  const commitFilters = (next: typeof draft) => {
+    setDraft(next);
+    // collectionTypeFilter is a pure client post-filter; only the date refetches
+    if (next.date !== schedulerDate) setFirst(0);
+    setSchedulerDate(next.date);
+    setCollectionTypeFilter(next.collectionType);
+  };
+  const today = toDateInputValue();
+  const extraChips: ActiveFilterChip[] = [
+    ...(collectionTypeFilter !== "all"
+      ? [{
+          key: "collection_type",
+          label: "Collection",
+          value: collectionTypeFilter === "unknown" ? "Unknown" : COLLECTION_TYPE_FILTER_LABELS[collectionTypeFilter],
+          onRemove: () => commitFilters({ date: schedulerDate, collectionType: "all" }),
+        }]
+      : []),
+    ...(schedulerDate !== today
+      ? [{ key: "date", label: "Trip date", value: schedulerDate, onRemove: () => commitFilters({ date: today, collectionType: collectionTypeFilter }) }]
+      : []),
+  ];
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + extraChips.length,
+    chips: [...geo.chips, ...extraChips],
+    onApply: () => {
+      geo.apply();
+      commitFilters({ ...draft, date: draft.date || today });
+    },
+    onReset: () => {
+      geo.reset();
+      commitFilters({ date: today, collectionType: "all" });
+    },
+    content: (
+      <>
+        {geo.field}
+        <FilterSection label="Trip">
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={draft.collectionType}
+              onChange={(event) => setDraft((d) => ({ ...d, collectionType: event.target.value as "all" | CollectionTypeKey }))}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Collection type"
+            >
+              {(Object.keys(COLLECTION_TYPE_FILTER_LABELS) as Array<keyof typeof COLLECTION_TYPE_FILTER_LABELS>).map((k) => (
+                <option key={k} value={k}>{COLLECTION_TYPE_FILTER_LABELS[k]}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={draft.date}
+              onChange={(event) => setDraft((d) => ({ ...d, date: event.target.value }))}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              title="Trip date filter and manual scheduler date"
+              aria-label="Trip date"
+            />
+          </div>
+        </FilterSection>
+      </>
+    ),
   };
 
   /* ── column templates ── */
@@ -769,21 +822,6 @@ export default function DailyTripAssignmentList() {
         actions={
           <div className="flex items-center gap-3">
             <Button
-              label={isExportingExcel ? "Exporting…" : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined"
-              disabled={isExportingExcel || totalRecords === 0}
-              onClick={handleExcelDownload}
-            />
-            <Button
-              label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-              icon="pi pi-file-pdf"
-              className="p-button-outlined"
-              disabled={isExportingPdf || totalRecords === 0}
-              onClick={handlePdfDownload}
-            />
-
-            <Button
               label={isSchedulerRunning ? "Running..." : "Run Scheduler"}
               icon="pi pi-clock"
               className="p-button-outlined"
@@ -803,45 +841,6 @@ export default function DailyTripAssignmentList() {
         }
         className="mb-6"
       />
-
-      <div className="mb-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-8">
-        <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">Collection Type</label>
-          <select
-            value={collectionTypeFilter}
-            onChange={(event) => setCollectionTypeFilter(event.target.value as "all" | CollectionTypeKey)}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="all">All Types</option>
-            <option value="bin">Bin Collection</option>
-            <option value="household">Household Collection</option>
-            <option value="bulk">Bulk Waste Collection</option>
-            <option value="mixed">Mixed Collection</option>
-          </select>
-        </div>
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">Trip Date</label>
-          <input
-            type="date"
-            value={schedulerDate}
-            onChange={(event) => setSchedulerDate(event.target.value)}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            title="Trip date filter and manual scheduler date"
-          />
-        </div>
-        <div>
-          <button
-            type="button"
-            onClick={clearListFilters}
-            disabled={!hasActiveFilters}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <i className="pi pi-filter-slash text-xs" />
-            Clear All Filters
-          </button>
-        </div>
-      </div>
 
       {/* ── Auto-generate config bar ── */}
       <div className="mb-4 rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
@@ -897,6 +896,11 @@ export default function DailyTripAssignmentList() {
 
       <DataTable
         exportable={false}
+        filterPanel={filterPanel}
+        documentActions={{
+          downloadExcel: { onClick: () => void handleExcelDownload(), busy: isExportingExcel, disabled: totalRecords === 0 },
+          downloadPdf: { onClick: () => void handlePdfDownload(), busy: isExportingPdf, disabled: totalRecords === 0 },
+        }}
         value={rows}
         dataKey="unique_id"
         lazy

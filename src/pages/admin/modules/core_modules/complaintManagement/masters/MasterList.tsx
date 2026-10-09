@@ -15,6 +15,8 @@ import type { ComplaintSlaEscalationLevel } from "@/features/complaintTicketing/
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 type Props = {
   kind: MasterKind;
@@ -49,6 +51,12 @@ export default function MasterList({ kind }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
+  // Only SLA rules carry a location (their scope); the other masters are global.
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hasLocation = kind === "slaRule";
+  const filterParams = { ...status.applied, ...(hasLocation ? geo.applied : {}) };
+  const filterKey = JSON.stringify(filterParams);
 
   const api = useMemo(() => config.api(), [config]);
 
@@ -66,6 +74,7 @@ export default function MasterList({ kind }: Props) {
     try {
       const response = await api.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(sortOrdering ? { ordering: sortOrdering } : {}),
         },
@@ -84,7 +93,7 @@ export default function MasterList({ kind }: Props) {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, first, rowsPerPage, searchTerm, ordering]);
+  }, [api, first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -146,6 +155,7 @@ export default function MasterList({ kind }: Props) {
         className="mb-6"
       />
       <DataTable
+        filterPanel={hasLocation ? combineFilters(geo, status) : combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy

@@ -10,12 +10,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { complaintFeedbackApi, complaintTicketApi } from "@/features/complaintTicketing/api";
 import type { ComplaintFeedback, ComplaintTicket } from "@/features/complaintTicketing/types";
-import TicketLocationFilters from "./TicketLocationFilters";
-import {
-  emptyTicketLocationFilter,
-  ticketLocationParams,
-  type TicketLocationFilterValue,
-} from "./ticketLocationFilter";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { ActiveFilterChips, FilterPanel } from "@/components/common/ListToolbar";
 import { asArray, errorText, formatDateTime, formatDuration, roleLabel } from "../utils";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
@@ -89,8 +85,9 @@ export default function TicketList() {
   // tab), so it lives here now as a column + quick-filter instead.
   const [feedbackByTicket, setFeedbackByTicket] = useState<Map<string, ComplaintFeedback>>(new Map());
 
-  const [location, setLocation] = useState<TicketLocationFilterValue>(emptyTicketLocationFilter);
-  const { state: stateFilter, district: districtFilter, areaType: areaTypeFilter, city: cityFilter } = location;
+  // State → District → Area type → Local body, in the table's Filters panel.
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const geoKey = JSON.stringify(geo.applied);
 
   useEffect(() => {
     complaintFeedbackApi.readAll({ params: { all: 1 } })
@@ -103,12 +100,10 @@ export default function TicketList() {
 
   // Combines every current filter into the params object sent to the
   // backend for both the table's page fetch and the Kanban board's full
-  // fetch (see ticketLocationParams). The local body type only narrows
-  // the city dropdown's options client-side; `city` already targets the
-  // specific local body id directly on the backend.
+  // fetch.
   const buildTicketParams = () => ({
     ...(sourceFilter !== "all" ? { source: sourceFilter } : {}),
-    ...ticketLocationParams(location),
+    ...geo.applied,
   });
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
@@ -140,12 +135,12 @@ export default function TicketList() {
   // itself changes, so the user isn't left stranded on an out-of-range page.
   useEffect(() => {
     setFirst(0);
-  }, [searchTerm, ordering, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+  }, [searchTerm, ordering, sourceFilter, geoKey]);
 
   useEffect(() => {
     void loadTableRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+  }, [first, rowsPerPage, searchTerm, ordering, sourceFilter, geoKey]);
 
   useEffect(() => {
     const timeout = setTimeout(() => setSearchTerm(query), 400);
@@ -169,7 +164,7 @@ export default function TicketList() {
         "counts",
         undefined,
         {
-          params: ticketLocationParams(location),
+          params: geo.applied,
         },
       );
       setCounts({
@@ -185,7 +180,7 @@ export default function TicketList() {
   useEffect(() => {
     void loadCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+  }, [geoKey]);
 
   const loadKanbanRows = async () => {
     setKanbanLoading(true);
@@ -202,7 +197,7 @@ export default function TicketList() {
   useEffect(() => {
     if (viewMode === "kanban") void loadKanbanRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, sourceFilter, stateFilter, districtFilter, areaTypeFilter, cityFilter]);
+  }, [viewMode, sourceFilter, geoKey]);
 
   const feedbackCount = feedbackByTicket.size;
 
@@ -341,8 +336,14 @@ export default function TicketList() {
             </button>
           ))}
         </div>
-        <TicketLocationFilters value={location} onChange={setLocation} />
         <div className="flex gap-2">
+          {/* The table shows the Filters panel in its own toolbar; the board
+              has no table, so it gets the same panel here. */}
+          {viewMode === "kanban" && (
+            <FilterPanel activeCount={geo.count} onApply={geo.apply} onReset={geo.reset}>
+              {geo.field}
+            </FilterPanel>
+          )}
           <button
             onClick={() => setViewMode("table")}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition ${
@@ -362,8 +363,15 @@ export default function TicketList() {
         </div>
       </div>
 
+      {viewMode === "kanban" && geo.chips.length > 0 && (
+        <div className="mb-4">
+          <ActiveFilterChips chips={geo.chips} onClearAll={geo.reset} />
+        </div>
+      )}
+
       {viewMode === "table" ? (
         <DataTable
+          filterPanel={geo.panel}
           value={tableRows}
           dataKey="unique_id"
           lazy

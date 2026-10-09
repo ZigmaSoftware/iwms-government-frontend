@@ -26,7 +26,9 @@ import type {
 
 import { permissionAuditApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 import PermissionAuditDetail, { MethodBadge } from "./PermissionAuditDetail";
 
 const SORTABLE_FIELDS = new Set(["timestamp", "action_type", "http_method"]);
@@ -88,10 +90,6 @@ export default function PermissionAuditList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [sourceFilter, setSourceFilter] = useState("");
-  const [localBodyFilter, setLocalBodyFilter] = useState("");
-  const [mainscreenFilter, setMainscreenFilter] = useState("");
-  const [actionTypeFilter, setActionTypeFilter] = useState("");
   const [filterOptions, setFilterOptions] =
     useState<PermissionAuditFilterOptions | null>(null);
 
@@ -108,28 +106,8 @@ export default function PermissionAuditList() {
 
   const loading = isLoading && rows.length === 0;
 
-  const hasActiveFilters =
-    Boolean(globalFilterValue) ||
-    Boolean(sourceFilter) ||
-    Boolean(localBodyFilter) ||
-    Boolean(mainscreenFilter) ||
-    Boolean(actionTypeFilter);
-
-  const handleClearFilters = useCallback(() => {
-    setGlobalFilterValue("");
-    setSourceFilter("");
-    setLocalBodyFilter("");
-    setMainscreenFilter("");
-    setActionTypeFilter("");
-    setFirst(0);
-  }, []);
-
   const sourceOptions = useMemo(
     () => toOptions(filterOptions?.sources),
-    [filterOptions],
-  );
-  const localBodyOptions = useMemo(
-    () => toOptions(filterOptions?.local_bodies),
     [filterOptions],
   );
   const mainscreenOptions = useMemo(
@@ -149,15 +127,42 @@ export default function PermissionAuditList() {
     [sortField, sortOrder],
   );
 
+  // Filters panel: location (replaces the old Local Body dropdown) plus
+  // source / main screen / change type, committed on "Apply filters".
+  const resetPage = () => setFirst(0);
+  const geo = useHierarchyFilter(resetPage);
+  const source = useOptionFilter({
+    param: "source",
+    label: t("admin.permission_audit.source_filter_label", "Granted From"),
+    options: sourceOptions,
+    allLabel: t("common.all", "All"),
+    onAppliedChange: resetPage,
+  });
+  const mainscreen = useOptionFilter({
+    param: "mainscreen_id",
+    label: t("admin.permission_audit.main_screen_filter_label", "Main Screen"),
+    options: mainscreenOptions,
+    allLabel: t("common.all", "All"),
+    onAppliedChange: resetPage,
+  });
+  const actionType = useOptionFilter({
+    param: "action_type",
+    label: t("admin.permission_audit.change_type_filter_label", "Change Type"),
+    options: actionTypeOptions,
+    allLabel: t("common.all", "All"),
+    onAppliedChange: resetPage,
+  });
+  const geoKey = JSON.stringify(geo.applied);
+
   const queryParams = useMemo(
     () => ({
       ...(searchTerm ? { search: searchTerm } : {}),
-      ...(sourceFilter ? { source: sourceFilter } : {}),
-      ...(localBodyFilter ? { local_body_id: localBodyFilter } : {}),
-      ...(mainscreenFilter ? { mainscreen_id: mainscreenFilter } : {}),
-      ...(actionTypeFilter ? { action_type: actionTypeFilter } : {}),
+      ...(JSON.parse(geoKey) as Record<string, string>),
+      ...(source.value ? { source: source.value } : {}),
+      ...(mainscreen.value ? { mainscreen_id: mainscreen.value } : {}),
+      ...(actionType.value ? { action_type: actionType.value } : {}),
     }),
-    [searchTerm, sourceFilter, localBodyFilter, mainscreenFilter, actionTypeFilter],
+    [searchTerm, geoKey, source.value, mainscreen.value, actionType.value],
   );
 
   const loadRows = useCallback(
@@ -232,28 +237,6 @@ export default function PermissionAuditList() {
     setSortField(event.sortField);
     setSortOrder(event.sortOrder);
   };
-
-  const filterSelect = (
-    value: string,
-    setValue: (value: string) => void,
-    options: { label: string; value: string }[],
-    label: string,
-  ) => (
-    <div className="flex w-full flex-col gap-1 sm:w-56">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      <FilterBarSelect
-        value={value}
-        onChange={(next) => {
-          setFirst(0);
-          setValue(next);
-        }}
-        options={options}
-        placeholder={t("common.all", "All")}
-        className="w-full"
-        aria-label={label}
-      />
-    </div>
-  );
 
   const actionTypeTemplate = useCallback((row: PermissionAuditRecord) => {
     const color =
@@ -379,50 +362,16 @@ export default function PermissionAuditList() {
 
       <Card>
         <CardContent className="p-4">
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={setGlobalFilterValue}
-            searchPlaceholder={t("admin.permission_audit.search_placeholder")}
-            className="mb-4"
-            trailing={
-              <button
-                type="button"
-                onClick={handleClearFilters}
-                disabled={!hasActiveFilters}
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                <i className="pi pi-filter-slash text-xs" />
-                {t("common.clear_all_filters", "Clear All Filters")}
-              </button>
-            }
-          >
-            {filterSelect(
-              sourceFilter,
-              setSourceFilter,
-              sourceOptions,
-              t("admin.permission_audit.source_filter_label", "Granted From"),
-            )}
-            {filterSelect(
-              localBodyFilter,
-              setLocalBodyFilter,
-              localBodyOptions,
-              t("admin.permission_audit.local_body_filter_label", "Local Body"),
-            )}
-            {filterSelect(
-              mainscreenFilter,
-              setMainscreenFilter,
-              mainscreenOptions,
-              t("admin.permission_audit.main_screen_filter_label", "Main Screen"),
-            )}
-            {filterSelect(
-              actionTypeFilter,
-              setActionTypeFilter,
-              actionTypeOptions,
-              t("admin.permission_audit.change_type_filter_label", "Change Type"),
-            )}
-          </FilterBar>
-
           <DataTable
+            filterPanel={combineFilters(geo, source, mainscreen, actionType)}
+            header={
+              <FilterBar
+                searchValue={globalFilterValue}
+                onSearchChange={setGlobalFilterValue}
+                searchPlaceholder={t("admin.permission_audit.search_placeholder")}
+                className="mb-4"
+              />
+            }
             value={rows}
             dataKey="id"
             lazy

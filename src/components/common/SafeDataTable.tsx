@@ -18,7 +18,6 @@ import "primeicons/primeicons.css";
 import {
   Children,
   isValidElement,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -30,6 +29,28 @@ import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
 import { useScreenAccess } from "@/contexts/screenPermission";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
+import {
+  ActiveFilterChips,
+  DocumentsMenu,
+  FilterPanel,
+  type ActiveFilterChip,
+  type DocumentActions,
+} from "@/components/common/ListToolbar";
+
+/**
+ * The table toolbar's "Filters" button + panel. `content` is the panel's
+ * fields (e.g. `useHierarchyFilter().field` plus page-specific ones); the
+ * page owns draft/applied state and commits on `onApply`.
+ */
+export type TableFilters = {
+  content: ReactNode;
+  activeCount: number;
+  onApply: () => void;
+  onReset: () => void;
+  /** "State: Tamil Nadu ✕" chips shown under the toolbar */
+  chips?: ActiveFilterChip[];
+  width?: number;
+};
 import {
   exportRecordsToExcel,
   exportTemplateToExcel,
@@ -57,6 +78,15 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     onImportComplete?: () => void | Promise<void>;
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
     onPdfRequest?: () => void | Promise<void>;
+    /** Filters button + panel in the toolbar (see TableFilters). Named
+     *  filterPanel: `filters` is PrimeReact's own column-filter prop. */
+    filterPanel?: TableFilters;
+    /**
+     * Page-specific Documents menu actions; each one given replaces the
+     * built-in one (e.g. a server-side Excel export), and `downloadQr`
+     * adds a "Download QR" item for lists with QR codes.
+     */
+    documentActions?: DocumentActions;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -168,6 +198,10 @@ type DataTableHeaderActionsProps = {
   sheetName?: string;
   showExportButton?: boolean;
   onPdfRequest?: () => void | Promise<void>;
+  /** false: no built-in import/export, only `documentActions` */
+  builtIns: boolean;
+  filters?: TableFilters;
+  documentActions?: DocumentActions;
 };
 
 const DataTableHeaderActions = ({
@@ -186,25 +220,15 @@ const DataTableHeaderActions = ({
   sheetName,
   showExportButton = true,
   onPdfRequest,
+  builtIns,
+  filters,
+  documentActions,
 }: DataTableHeaderActionsProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(false);
-  const reportsRef = useRef<HTMLDivElement | null>(null);
   const resolvedColumns = importColumns;
-
-  useEffect(() => {
-    if (!reportsOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!reportsRef.current?.contains(event.target as Node)) {
-        setReportsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [reportsOpen]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -330,88 +354,55 @@ const DataTableHeaderActions = ({
   };
 
   const canImport =
+    builtIns &&
     bulkImportable &&
     resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
-  const canPdf = Boolean(onPdfRequest);
-  const hasAnyReport = canImport || showExportButton || canPdf;
 
-  const iconButtonClass =
-    "inline-flex h-10 w-10 items-center justify-center rounded-md border text-base shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50";
+  // built-in actions first; the page's own `documentActions` replace them
+  const actions: DocumentActions = {
+    ...(canImport
+      ? {
+          uploadExcel: { onClick: () => fileInputRef.current?.click(), busy: importing },
+          downloadTemplate: { onClick: () => void handleTemplate() },
+        }
+      : {}),
+    ...(builtIns && showExportButton
+      ? {
+          downloadExcel: {
+            onClick: () => void handleExport(),
+            busy: exporting,
+            disabled: !onExportRequest && rows.length === 0,
+          },
+        }
+      : {}),
+    ...(builtIns && onPdfRequest ? { downloadPdf: { onClick: () => void handlePdf(), busy: generatingPdf } } : {}),
+    ...(documentActions ?? {}),
+  };
 
   return (
-    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-      <div className="min-w-0 flex-1">{header}</div>
-      {hasAnyReport && (
-        <div className="relative shrink-0" ref={reportsRef}>
-          <button
-            type="button"
-            onClick={() => setReportsOpen((open) => !open)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
+    <div className="flex min-w-0 flex-col gap-2.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className={filters ? "min-w-0" : "min-w-0 flex-1"}>{header}</div>
+        {filters && (
+          <FilterPanel
+            activeCount={filters.activeCount}
+            onApply={filters.onApply}
+            onReset={filters.onReset}
+            width={filters.width}
           >
-            <i className="pi pi-folder-open" />
-            Reports
-            <i className={`pi ${reportsOpen ? "pi-chevron-up" : "pi-chevron-down"} text-xs`} />
-          </button>
-          {reportsOpen && (
-            <div className="absolute right-0 z-20 mt-2 flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
-              {canImport && (
-                <>
-                  <button
-                    type="button"
-                    title="Download Template"
-                    aria-label="Download Template"
-                    onClick={handleTemplate}
-                    className={`${iconButtonClass} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`}
-                  >
-                    <i className="pi pi-file-excel" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Upload Excel"
-                    aria-label="Upload Excel"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={importing}
-                    className={`${iconButtonClass} border-blue-200 bg-blue-600 text-white hover:bg-blue-700`}
-                  >
-                    <i className={importing ? "pi pi-spin pi-spinner" : "pi pi-upload"} />
-                  </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls"
-                    hidden
-                    onChange={handleImport}
-                  />
-                </>
-              )}
-              {showExportButton && (
-                <button
-                  type="button"
-                  title="Download Excel"
-                  aria-label="Download Excel"
-                  onClick={() => void handleExport()}
-                  disabled={exporting || (!onExportRequest && rows.length === 0)}
-                  className={`${iconButtonClass} border-green-200 bg-green-600 text-white hover:bg-green-700`}
-                >
-                  <i className={exporting ? "pi pi-spin pi-spinner" : "pi pi-file-excel"} />
-                </button>
-              )}
-              {canPdf && (
-                <button
-                  type="button"
-                  title="Download PDF"
-                  aria-label="Download PDF"
-                  onClick={() => void handlePdf()}
-                  disabled={generatingPdf}
-                  className={`${iconButtonClass} border-red-200 bg-red-600 text-white hover:bg-red-700`}
-                >
-                  <i className={generatingPdf ? "pi pi-spin pi-spinner" : "pi pi-file-pdf"} />
-                </button>
-              )}
-            </div>
-          )}
+            {filters.content}
+          </FilterPanel>
+        )}
+        <div className="ml-auto shrink-0">
+          <DocumentsMenu {...actions} />
         </div>
+        {canImport && (
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" hidden onChange={handleImport} />
+        )}
+      </div>
+      {filters?.chips && filters.chips.length > 0 && (
+        <ActiveFilterChips chips={filters.chips} onClearAll={filters.onReset} />
       )}
     </div>
   );
@@ -437,6 +428,8 @@ export const DataTable = <TValue extends SafeTableRows>(
     onImportComplete,
     onImportRows,
     onPdfRequest,
+    filterPanel,
+    documentActions,
     ...tableProps
   } = props;
   // Excel import creates records, so it needs "add" on the current page.
@@ -449,7 +442,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     [importColumns, tableProps.children],
   );
   const header =
-    exportable && typeof tableProps.header !== "function" ? (
+    (exportable || filterPanel || documentActions) && typeof tableProps.header !== "function" ? (
       <DataTableHeaderActions
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
@@ -466,6 +459,9 @@ export const DataTable = <TValue extends SafeTableRows>(
         sheetName={exportSheetName}
         showExportButton={showExportButton}
         onPdfRequest={onPdfRequest}
+        builtIns={exportable}
+        filters={filterPanel}
+        documentActions={documentActions}
       />
     ) : (
       tableProps.header

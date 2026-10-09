@@ -14,9 +14,11 @@ export async function loadDesignationRows(
   limit: number,
   search: string,
   ordering?: string,
+  filters: Record<string, string> = {},
 ) {
   const response = await designationApi.readAllwithPaginated(page, limit, {
     params: {
+      ...filters,
       ...(search ? { search } : {}),
       ...(ordering ? { ordering } : {}),
     },
@@ -29,8 +31,8 @@ export async function loadDesignationRows(
   return { rows, totalRecords };
 }
 
-export async function loadDesignationsForExport() {
-  return toRecordList<DesignationListRecord>(await designationApi.readAllForExport());
+export async function loadDesignationsForExport(filters: Record<string, string> = {}) {
+  return toRecordList<DesignationListRecord>(await designationApi.readAllForExport({ params: filters }));
 }
 
 export async function updateDesignationStatus(row: DesignationListRecord, value: boolean) {

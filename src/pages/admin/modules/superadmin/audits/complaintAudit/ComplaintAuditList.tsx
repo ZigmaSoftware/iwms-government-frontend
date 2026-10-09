@@ -13,8 +13,10 @@ import type { DataTablePageEvent } from "primereact/datatable";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
-import { Input } from "@/components/ui/input";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter, type FilterPart } from "@/components/filters/useOptionFilter";
 import ComplaintAuditDetail from "./ComplaintAuditDetail";
 import { formatDateTime, formatDuration, STATUS_COLORS } from "./format";
 
@@ -28,12 +30,71 @@ const toRecordList = (value: unknown): ComplaintAuditRecord[] => {
   return [];
 };
 
-const LabeledFilter = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div className="flex min-w-0 flex-col gap-1">
-    <label className="text-xs font-medium text-gray-600 dark:text-gray-300">{label}</label>
-    {children}
-  </div>
-);
+const DATE_INPUT_CLASS = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+
+/** "Raised from / to" for the Filters panel: a draft committed on Apply. */
+function useDateRangeFilter({
+  section,
+  fromLabel,
+  toLabel,
+  onAppliedChange,
+}: {
+  section: string;
+  fromLabel: string;
+  toLabel: string;
+  onAppliedChange?: () => void;
+}) {
+  const [applied, setApplied] = useState({ from: "", to: "" });
+  const [draft, setDraft] = useState({ from: "", to: "" });
+
+  const commit = (next: { from: string; to: string }) => {
+    setDraft(next);
+    if (next.from !== applied.from || next.to !== applied.to) {
+      setApplied(next);
+      onAppliedChange?.();
+    }
+  };
+
+  const chips: ActiveFilterChip[] = [
+    ...(applied.from
+      ? [{ key: "date_from", label: fromLabel, value: applied.from, onRemove: () => commit({ ...applied, from: "" }) }]
+      : []),
+    ...(applied.to
+      ? [{ key: "date_to", label: toLabel, value: applied.to, onRemove: () => commit({ ...applied, to: "" }) }]
+      : []),
+  ];
+
+  return {
+    from: applied.from,
+    to: applied.to,
+    field: (
+      <FilterSection label={section}>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            value={draft.from}
+            max={draft.to || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={fromLabel}
+          />
+          <input
+            type="date"
+            value={draft.to}
+            min={draft.from || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={toLabel}
+          />
+        </div>
+      </FilterSection>
+    ),
+    chips,
+    count: chips.length,
+    apply: () => commit(draft),
+    reset: () => commit({ from: "", to: "" }),
+  } satisfies FilterPart & Record<string, unknown>;
+}
 
 const StatTile = ({ label, value }: { label: string; value: ReactNode }) => (
   <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -54,15 +115,6 @@ export default function ComplaintAuditList() {
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
-  const [districtFilter, setDistrictFilter] = useState("");
-  const [localBodyFilter, setLocalBodyFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [historyFilter, setHistoryFilter] = useState("");
-  const [deletedFilter, setDeletedFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [filterOptions, setFilterOptions] = useState<ComplaintAuditFilterOptions | null>(null);
 
   const [selectedDetail, setSelectedDetail] = useState<DetailRecord | null>(null);
@@ -93,44 +145,62 @@ export default function ComplaintAuditList() {
 
   const toOptions = (items?: { unique_id: string; name: string }[]) =>
     (items ?? []).map((item) => ({ label: item.name, value: item.unique_id }));
-  const stateOptions = useMemo(() => toOptions(filterOptions?.states), [filterOptions]);
-  const districtOptions = useMemo(() => toOptions(filterOptions?.districts), [filterOptions]);
-  const localBodyOptions = useMemo(
-    () =>
-      (filterOptions?.local_bodies ?? []).map((item) => ({
-        label: item.type ? `${item.name} (${item.type})` : item.name,
-        value: item.unique_id,
-      })),
-    [filterOptions],
-  );
   const statusOptions = useMemo(() => toOptions(filterOptions?.statuses), [filterOptions]);
   const categoryOptions = useMemo(() => toOptions(filterOptions?.categories), [filterOptions]);
+
+  // Filters panel: location + status / category / history / deleted / dates,
+  // each edited as a draft and committed on "Apply filters".
+  const resetPage = () => setFirst(0);
+  const geo = useHierarchyFilter(resetPage);
+  const status = useOptionFilter({
+    param: "status",
+    label: t("admin.complaint_audit.status", "Status"),
+    options: statusOptions,
+    allLabel: t("common.all"),
+    onAppliedChange: resetPage,
+  });
+  const category = useOptionFilter({
+    param: "category",
+    label: t("admin.complaint_audit.category", "Category"),
+    options: categoryOptions,
+    allLabel: t("common.all"),
+    onAppliedChange: resetPage,
+  });
+  const history = useOptionFilter({
+    param: "history",
+    label: t("admin.complaint_audit.history", "History"),
+    options: historyOptions,
+    allLabel: t("common.all"),
+    onAppliedChange: resetPage,
+  });
+  const deleted = useOptionFilter({
+    param: "deleted",
+    label: t("admin.complaint_audit.deleted", "Deleted"),
+    options: deletedOptions,
+    allLabel: t("admin.complaint_audit.deleted_include", "Include deleted"),
+    onAppliedChange: resetPage,
+  });
+  const raised = useDateRangeFilter({
+    section: t("admin.complaint_audit.raised", "Raised"),
+    fromLabel: t("admin.complaint_audit.raised_from", "Raised from"),
+    toLabel: t("admin.complaint_audit.raised_to", "Raised to"),
+    onAppliedChange: resetPage,
+  });
+  const geoKey = JSON.stringify(geo.applied);
 
   const queryParams = useMemo(
     () => ({
       ...(searchTerm ? { search: searchTerm } : {}),
-      ...(stateFilter ? { state: stateFilter } : {}),
-      ...(districtFilter ? { district: districtFilter } : {}),
-      ...(localBodyFilter ? { city: localBodyFilter } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-      ...(categoryFilter ? { category: categoryFilter } : {}),
-      ...(historyFilter ? { [historyFilter]: "1" } : {}),
-      ...(deletedFilter ? { deleted: deletedFilter } : {}),
-      ...(dateFrom ? { date_from: dateFrom } : {}),
-      ...(dateTo ? { date_to: dateTo } : {}),
+      ...(JSON.parse(geoKey) as Record<string, string>),
+      ...(status.value ? { status: status.value } : {}),
+      ...(category.value ? { category: category.value } : {}),
+      // "reopened" / "escalated" are flags of their own on the API
+      ...(history.value ? { [history.value]: "1" } : {}),
+      ...(deleted.value ? { deleted: deleted.value } : {}),
+      ...(raised.from ? { date_from: raised.from } : {}),
+      ...(raised.to ? { date_to: raised.to } : {}),
     }),
-    [
-      searchTerm,
-      stateFilter,
-      districtFilter,
-      localBodyFilter,
-      statusFilter,
-      categoryFilter,
-      historyFilter,
-      deletedFilter,
-      dateFrom,
-      dateTo,
-    ],
+    [searchTerm, geoKey, status.value, category.value, history.value, deleted.value, raised.from, raised.to],
   );
 
   const loadRows = useCallback(
@@ -161,12 +231,9 @@ export default function ComplaintAuditList() {
     let mounted = true;
     const loadFilterOptions = async () => {
       try {
-        const data = (await complaintAuditApi.read("filter-options", {
-          params: {
-            ...(stateFilter ? { state: stateFilter } : {}),
-            ...(districtFilter ? { district: districtFilter } : {}),
-          },
-        })) as unknown as ComplaintAuditFilterOptions;
+        // Status / category choices; location comes from the shared
+        // hierarchy filter.
+        const data = (await complaintAuditApi.read("filter-options")) as unknown as ComplaintAuditFilterOptions;
         if (mounted && data) setFilterOptions(data);
       } catch {
         // Non-fatal: the list still works without dropdown options.
@@ -176,7 +243,7 @@ export default function ComplaintAuditList() {
     return () => {
       mounted = false;
     };
-  }, [stateFilter, districtFilter]);
+  }, []);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -220,11 +287,6 @@ export default function ComplaintAuditList() {
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
     setRowsPerPage(event.rows);
-  };
-
-  const resetPage = <T,>(setter: (value: T) => void) => (value: T) => {
-    setFirst(0);
-    setter(value);
   };
 
   const openDetail = useCallback(
@@ -274,111 +336,22 @@ export default function ComplaintAuditList() {
         />
       </div>
 
-      <div className="mb-4 space-y-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={setGlobalFilterValue}
-          searchPlaceholder={t(
-            "admin.complaint_audit.search_placeholder",
-            "Search ticket no, title, reporter, phone…",
-          )}
-        />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <LabeledFilter label={t("admin.complaint_audit.state", "State")}>
-            <FilterBarSelect
-              value={stateFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setStateFilter(value);
-                setDistrictFilter("");
-                setLocalBodyFilter("");
-              }}
-              options={stateOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.district", "District")}>
-            <FilterBarSelect
-              value={districtFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setDistrictFilter(value);
-                setLocalBodyFilter("");
-              }}
-              options={districtOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.local_body", "Local Body")}>
-            <FilterBarSelect
-              value={localBodyFilter}
-              onChange={resetPage(setLocalBodyFilter)}
-              options={localBodyOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.status", "Status")}>
-            <FilterBarSelect
-              value={statusFilter}
-              onChange={resetPage(setStatusFilter)}
-              options={statusOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.category", "Category")}>
-            <FilterBarSelect
-              value={categoryFilter}
-              onChange={resetPage(setCategoryFilter)}
-              options={categoryOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.history", "History")}>
-            <FilterBarSelect
-              value={historyFilter}
-              onChange={resetPage(setHistoryFilter)}
-              options={historyOptions}
-              placeholder={t("common.all")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.deleted", "Deleted")}>
-            <FilterBarSelect
-              value={deletedFilter}
-              onChange={resetPage(setDeletedFilter)}
-              options={deletedOptions}
-              placeholder={t("admin.complaint_audit.deleted_include", "Include deleted")}
-              className="w-full"
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.raised_from", "Raised from")}>
-            <Input
-              type="date"
-              value={dateFrom}
-              max={dateTo || undefined}
-              onChange={(e) => resetPage(setDateFrom)(e.target.value)}
-            />
-          </LabeledFilter>
-          <LabeledFilter label={t("admin.complaint_audit.raised_to", "Raised to")}>
-            <Input
-              type="date"
-              value={dateTo}
-              min={dateFrom || undefined}
-              onChange={(e) => resetPage(setDateTo)(e.target.value)}
-            />
-          </LabeledFilter>
-        </div>
-      </div>
-
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
         <DataTable
           onExportRequest={loadAllExportRows}
           exportFilename="complaint-audit"
+          filterPanel={combineFilters(geo, status, category, history, deleted, raised)}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t(
+                "admin.complaint_audit.search_placeholder",
+                "Search ticket no, title, reporter, phone…",
+              )}
+              className="mb-4"
+            />
+          }
           value={records}
           dataKey="unique_id"
           lazy

@@ -2,6 +2,7 @@ import type { VehicleCreationRecord } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import notify from "@/lib/notify";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -27,6 +28,8 @@ import {
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +122,7 @@ const SORTABLE_FIELDS = new Set(["vehicle_no"]);
 export default function VehicleCreationListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { canAdd } = useScreenAccess();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "transport-master",
     "vehicle-creation",
@@ -139,6 +143,10 @@ export default function VehicleCreationListPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleCreation } = getEncryptedRoute();
@@ -158,6 +166,7 @@ export default function VehicleCreationListPage() {
     try {
       const response = await vehicleCreationApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -186,7 +195,7 @@ export default function VehicleCreationListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger, filterKey]);
 
   useEffect(() => {
     setFirst(0);
@@ -226,7 +235,7 @@ export default function VehicleCreationListPage() {
   }, [globalFilterValue]);
 
   const onExportRequest = async () =>
-    toRecordList(await vehicleCreationApi.readAllForExport());
+    toRecordList(await vehicleCreationApi.readAllForExport({ params: filterParams }));
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const downloadVehicleTemplate = async () => {
@@ -427,23 +436,6 @@ export default function VehicleCreationListPage() {
         subtitle={t("admin.vehicle_creation.subtitle")}
         actions={
           <>
-            <Button
-              label={t("admin.vehicle_creation.download_template", {
-                defaultValue: "Download Template",
-              })}
-              icon="pi pi-download"
-              severity="secondary"
-              className="p-button-sm"
-              onClick={downloadVehicleTemplate}
-            />
-            <Button
-              label={t("admin.vehicle_creation.upload_csv", {
-                defaultValue: "Upload Excel",
-              })}
-              icon="pi pi-upload"
-              className="p-button-sm"
-              onClick={() => fileInputRef.current?.click()}
-            />
             <input
               ref={fileInputRef}
               type="file"
@@ -468,6 +460,11 @@ export default function VehicleCreationListPage() {
       <DataTable
         value={rows}
         bulkImportable={false}
+        filterPanel={combineFilters(geo, status)}
+        documentActions={{
+          uploadExcel: { onClick: () => fileInputRef.current?.click(), hidden: !canAdd },
+          downloadTemplate: { onClick: () => void downloadVehicleTemplate() },
+        }}
         dataKey="unique_id"
         lazy
         paginator

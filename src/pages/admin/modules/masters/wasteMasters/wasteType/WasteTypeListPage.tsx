@@ -19,6 +19,7 @@ import type { WasteTypeListRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
@@ -49,6 +50,7 @@ export default function WasteTypeListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const { encWasteMasters, encWasteTypes } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -67,6 +69,7 @@ export default function WasteTypeListPage() {
     try {
       const response = await wasteTypeApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -95,7 +98,7 @@ export default function WasteTypeListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -116,7 +119,7 @@ export default function WasteTypeListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await wasteTypeApi.readAllForExport());
+  const onExportRequest = async () => toRecordList(await wasteTypeApi.readAllForExport({ params: status.applied }));
 
   const indexTemplate = (
     _: WasteTypeListRecord,
@@ -215,6 +218,7 @@ export default function WasteTypeListPage() {
       />
 
       <DataTable
+        filterPanel={combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy

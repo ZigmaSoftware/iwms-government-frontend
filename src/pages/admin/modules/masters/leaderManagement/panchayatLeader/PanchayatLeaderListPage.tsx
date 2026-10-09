@@ -27,6 +27,8 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 // ─── Template columns ──────────────────────────────────────────────────────────
 const PLB_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
@@ -61,6 +63,10 @@ export default function PanchayatLeaderListPage() {
   const [searchTerm, setSearchTerm]         = useState("");
   const [sortField, setSortField]           = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
+  const geo    = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const toRecordList = (value: unknown): PanchayatLeader[] => {
     if (Array.isArray(value)) return value as PanchayatLeader[];
@@ -82,6 +88,7 @@ export default function PanchayatLeaderListPage() {
     try {
       const response = await panchayatLeaderApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -100,7 +107,7 @@ export default function PanchayatLeaderListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -131,7 +138,7 @@ export default function PanchayatLeaderListPage() {
   };
 
   const handleDownloadAll = async () => {
-    const all = await panchayatLeaderApi.readAllForExport();
+    const all = await panchayatLeaderApi.readAllForExport({ params: filterParams });
     await exportRecordsToExcel(
       all as unknown as Record<string, unknown>[],
       getAdminScreenExcelFilename("all"),
@@ -240,36 +247,6 @@ export default function PanchayatLeaderListPage() {
       onSearchChange={setGlobalFilterValue}
       searchPlaceholder="Search"
       className="mb-4"
-      trailing={
-        <>
-          <Button
-            label="Download Template"
-            icon="pi pi-download"
-            severity="secondary"
-            className="p-button-sm !text-gray-700 !border-gray-300 !bg-white hover:!bg-gray-50"
-            onClick={handleDownloadTemplate}
-          />
-          <Button
-            label="Upload Excel"
-            icon="pi pi-upload"
-            className="p-button-sm !bg-blue-600 !border-blue-600 hover:!bg-blue-700"
-            onClick={() => fileInputRef.current?.click()}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleUploadExcel}
-          />
-          <Button
-            label="Download All Excel"
-            icon="pi pi-download"
-            className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
-            onClick={() => void handleDownloadAll()}
-          />
-        </>
-      }
     />
   );
 
@@ -294,6 +271,14 @@ export default function PanchayatLeaderListPage() {
         className="mb-6"
       />
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        hidden
+        onChange={handleUploadExcel}
+      />
+
       {/* ── DataTable ── */}
       <DataTable
         value={rows}
@@ -310,6 +295,12 @@ export default function PanchayatLeaderListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={renderHeader()}
+        filterPanel={combineFilters(geo, status)}
+        documentActions={{
+          uploadExcel: { onClick: () => fileInputRef.current?.click() },
+          downloadTemplate: { onClick: () => void handleDownloadTemplate() },
+          downloadExcel: { onClick: () => void handleDownloadAll() },
+        }}
         stripedRows
         showGridlines
         emptyMessage="No PLB Leader found."

@@ -17,6 +17,7 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -72,6 +73,7 @@ export default function HierarchyListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "hierarchies",
@@ -90,6 +92,7 @@ export default function HierarchyListPage() {
     try {
       const response = await adminApi.hierarchies.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -116,7 +119,7 @@ export default function HierarchyListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -137,7 +140,7 @@ export default function HierarchyListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await adminApi.hierarchies.readAllForExport());
+  const onExportRequest = async () => toRecordList(await adminApi.hierarchies.readAllForExport({ params: status.applied }));
 
   const statusTemplate = (row: HierarchyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -273,6 +276,7 @@ export default function HierarchyListPage() {
           item: t("admin.nav.hierarchy"),
         })}
         onExportRequest={onExportRequest}
+        filterPanel={combineFilters(status)}
         className="p-datatable-sm"
       >
         <Column

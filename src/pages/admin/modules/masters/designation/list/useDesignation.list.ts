@@ -4,6 +4,7 @@ import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { extractErrorMessage } from "../../shared/recordHelpers";
+import { useStatusFilter } from "@/components/filters/useOptionFilter";
 
 import {
   deleteDesignation,
@@ -34,6 +35,7 @@ export function useDesignationList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const ordering = resolveOrdering(sortField, sortOrder);
 
@@ -45,6 +47,7 @@ export function useDesignationList() {
         rowsPerPage,
         searchTerm,
         ordering,
+        status.applied,
       );
       setRows(nextRows);
       setTotalRecords(nextTotal);
@@ -58,7 +61,7 @@ export function useDesignationList() {
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -79,7 +82,7 @@ export function useDesignationList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => loadDesignationsForExport();
+  const onExportRequest = async () => loadDesignationsForExport(status.applied);
 
   const onToggleStatus = async (row: DesignationListRecord, value: boolean) => {
     await updateDesignationStatus(row, value);
@@ -125,6 +128,7 @@ export function useDesignationList() {
     onPage,
     onSort,
     onExportRequest,
+    status,
     onToggleStatus,
     onDelete,
     navigateToNew: () => navigate(NEW_PATH),

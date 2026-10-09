@@ -13,21 +13,17 @@ import { useTranslation } from "react-i18next";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar, type StatusFilterValue } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { staffHierarchyApi } from "@/helpers/admin";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 // Role names are resolved server-side, so only the table's own columns can
 // be ordered by the backend.
 const SORTABLE_FIELDS = new Set(["hierarchy_level"]);
-
-const STATUS_PARAM: Record<StatusFilterValue, string | undefined> = {
-  all: undefined,
-  active: "true",
-  inactive: "false",
-};
 
 const toRecordList = (value: unknown): StaffHierarchyRow[] => {
   if (Array.isArray(value)) return value as StaffHierarchyRow[];
@@ -65,9 +61,12 @@ export default function StaffHierarchyList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusValue, setStatusValue] = useState<StatusFilterValue>("all");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const navigate = useNavigate();
   const { encRoleManagement, encStaffHierarchy } = getEncryptedRoute();
@@ -79,7 +78,6 @@ export default function StaffHierarchyList() {
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
     : undefined;
-  const isActiveParam = STATUS_PARAM[statusValue];
 
   const loadRecords = async () => {
     setIsLoading(true);
@@ -91,7 +89,7 @@ export default function StaffHierarchyList() {
           params: {
             ...(searchTerm ? { search: searchTerm } : {}),
             ...(ordering ? { ordering } : {}),
-            ...(isActiveParam ? { is_active: isActiveParam } : {}),
+            ...filterParams,
           },
         },
       );
@@ -107,7 +105,7 @@ export default function StaffHierarchyList() {
 
   useEffect(() => {
     void loadRecords();
-  }, [first, rowsPerPage, searchTerm, ordering, isActiveParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -128,12 +126,7 @@ export default function StaffHierarchyList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onStatusChange = (value: StatusFilterValue) => {
-    setFirst(0);
-    setStatusValue(value);
-  };
-
-  const onExportRequest = async () => toRecordList(await staffHierarchyApi.readAllForExport());
+  const onExportRequest = async () => toRecordList(await staffHierarchyApi.readAllForExport({ params: filterParams }));
 
   const updateStatus = async (row: StaffHierarchyRow, checked: boolean) => {
     setPendingStatusId(row.unique_id);
@@ -257,6 +250,7 @@ export default function StaffHierarchyList() {
       />
 
       <DataTable
+        filterPanel={combineFilters(geo, status)}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -275,8 +269,6 @@ export default function StaffHierarchyList() {
             searchValue={globalFilterValue}
             onSearchChange={setGlobalFilterValue}
             searchPlaceholder={t("common.search_placeholder")}
-            statusValue={statusValue}
-            onStatusChange={onStatusChange}
             className="mb-4"
           />
         }

@@ -18,6 +18,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 
 import type { UserScreen } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 export default function UserScreenList() {
   const { t } = useTranslation();
@@ -26,6 +27,7 @@ export default function UserScreenList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const status = useStatusFilter();
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     userscreen_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -158,7 +160,8 @@ export default function UserScreenList() {
         />
 
         <DataTable
-          value={screens}
+          filterPanel={combineFilters(status)}
+          value={screens.filter(status.matches)}
           paginator
           rows={10}
           loading={isLoading}

@@ -1,5 +1,4 @@
 import type {
-  AuditDashboardFilterOptions,
   AuditDashboardPage,
   AuditDashboardRow,
   AuditDashboardSummary,
@@ -8,6 +7,7 @@ import type {
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -31,6 +31,13 @@ import { ListPaginator } from "@/components/common/ListPaginator";
 import { DEFAULT_ROWS_PER_PAGE_OPTIONS } from "@/components/common/paginatorDefaults";
 
 import notify from "@/lib/notify";
+import { ChevronDown, MapPin } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Combobox } from "@/components/ui/combobox";
+import ReportMultiSelect from "@/pages/admin/modules/reports/wasteReports/ReportMultiSelect";
+import { geoApi } from "@/features/complaintTicketing/api";
+import { api } from "@/api";
+import type { GeoOption, LocalBodyOption, LocalBodyType } from "@/features/complaintTicketing/types";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -49,6 +56,40 @@ const auditDashboardApi = adminApi.auditDashboard;
 const PAGE_SIZES = DEFAULT_ROWS_PER_PAGE_OPTIONS;
 const RANGES = [7, 30, 90] as const;
 const ALL = "";
+/** "All" item value for the searchable pickers (an empty item value can't be selected) */
+const ANY = "__all__";
+
+type GeoScope = {
+  state: string;
+  district: string;
+  areaType: string;
+  lbType: LocalBodyType | "";
+  localBodyIds: string[];
+};
+const EMPTY_GEO: GeoScope = { state: "", district: "", areaType: "", lbType: "", localBodyIds: [] };
+const LB_TYPES: LocalBodyType[] = ["corporation", "municipality", "town_panchayat", "panchayat_union", "panchayat"];
+const LB_TYPE_LABEL: Record<LocalBodyType, string> = {
+  corporation: "Corporation",
+  municipality: "Municipality",
+  town_panchayat: "Town Panchayat",
+  panchayat_union: "Panchayat Union",
+  panchayat: "Panchayat",
+};
+const AREA_LB_TYPES: Record<"urban" | "rural", LocalBodyType[]> = {
+  urban: ["corporation", "municipality", "town_panchayat"],
+  rural: ["panchayat_union", "panchayat"],
+};
+const LB_SOURCES: Array<{ type: LocalBodyType; path: string; nameKey: string }> = [
+  { type: "corporation", path: "/masters/corporations/", nameKey: "corporation_name" },
+  { type: "municipality", path: "/masters/municipalities/", nameKey: "municipality_name" },
+  { type: "town_panchayat", path: "/masters/town-panchayats/", nameKey: "town_panchayat_name" },
+  { type: "panchayat_union", path: "/masters/panchayat-unions/", nameKey: "union_name" },
+  { type: "panchayat", path: "/masters/panchayat/", nameKey: "panchayat_name" },
+];
+const areaCategoryOf = (name: string): "urban" | "rural" | "" => {
+  const n = name.toLowerCase();
+  return n.includes("urban") ? "urban" : n.includes("rural") ? "rural" : "";
+};
 
 /* ---------- Formatting ---------- */
 
@@ -398,6 +439,8 @@ const buildModules = (t: TFunction): Record<AuditModuleKey, ModuleDef> => {
 
 const selectClass =
   "rounded-lg border border-[#dfe8e2] bg-white px-[10px] py-[7px] text-sm text-[#1d2b22] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f9d47] dark:border-[#26352b] dark:bg-[#17221b] dark:text-[#e6efe8]";
+const comboTrigger =
+  "h-9 rounded-lg border-[#dfe8e2] bg-white px-[10px] text-sm text-[#1d2b22] dark:border-[#26352b] dark:bg-[#17221b] dark:text-[#e6efe8]";
 const panelClass =
   "rounded-[10px] border border-[#dfe8e2] bg-white p-4 dark:border-[#26352b] dark:bg-[#17221b]";
 
@@ -408,16 +451,21 @@ export default function AuditDashboard() {
 
   const [current, setCurrent] = useState<AuditModuleKey>("common");
   const [days, setDays] = useState<number>(30);
-  const [districtId, setDistrictId] = useState(ALL);
-  const [localBodyId, setLocalBodyId] = useState(ALL);
+  /* location scope: State → District → Area type → Local body type →
+     Local bodies, the same cascade as the waste comparison reports. The
+     audit API narrows by district_id / local_body_id (repeatable), so the
+     upper levels are turned into those ids (see `scopeIds`). */
+  const [geo, setGeo] = useState<GeoScope>(EMPTY_GEO);
+  const [states, setStates] = useState<GeoOption[]>([]);
+  const [districts, setDistricts] = useState<GeoOption[]>([]);
+  const [areaTypes, setAreaTypes] = useState<GeoOption[]>([]);
+  const [localBodies, setLocalBodies] = useState<LocalBodyOption[]>([]);
+  const [localBodiesLoading, setLocalBodiesLoading] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(PAGE_SIZES[0]);
 
-  const [options, setOptions] = useState<AuditDashboardFilterOptions | null>(
-    null,
-  );
   const [summary, setSummary] = useState<AuditDashboardSummary | null>(null);
   const [records, setRecords] = useState<AuditDashboardPage | null>(null);
   const [loadingRecords, setLoadingRecords] = useState(false);
@@ -425,50 +473,89 @@ export default function AuditDashboard() {
 
   const summaryRequest = useRef(0);
   const recordsRequest = useRef(0);
-  const optionsRequest = useRef(0);
 
   const modules = useMemo(() => buildModules(t), [t]);
   const module = modules[current];
 
-  const scopeParams = useMemo(
-    () => ({
-      module: current,
-      days,
-      ...(districtId ? { district_id: districtId } : {}),
-      ...(localBodyId ? { local_body_id: localBodyId } : {}),
-    }),
-    [current, days, districtId, localBodyId],
+  const selectedArea = areaTypes.find((a) => a.unique_id === geo.areaType);
+  const areaCategory = areaCategoryOf(selectedArea?.name ?? "");
+  const lbTypes = areaCategory ? AREA_LB_TYPES[areaCategory] : LB_TYPES;
+  const scopedLocalBodies = useMemo(
+    () =>
+      localBodies.filter(
+        (lb) =>
+          (!geo.areaType || !lb.area_type_id || lb.area_type_id === geo.areaType) &&
+          (!areaCategory || AREA_LB_TYPES[areaCategory].includes(lb.type)) &&
+          (!geo.lbType || lb.type === geo.lbType),
+      ),
+    [localBodies, geo.areaType, geo.lbType, areaCategory],
   );
 
-  // Districts / local bodies come from the selected trail's rows the
-  // requester may see, so they are reloaded per trail; a selection the new
-  // list no longer offers is dropped.
+  /** what the API is narrowed to for the current cascade selection */
+  const scopeIds = useMemo((): { district_id?: string; local_body_id?: string } => {
+    if (geo.localBodyIds.length) return { local_body_id: geo.localBodyIds.join(",") };
+    if (geo.district && (geo.areaType || geo.lbType) && !localBodiesLoading)
+      // every local body of the picked area / type in that district (none
+      // matching → an id no row has, i.e. an honest empty result)
+      return { local_body_id: scopedLocalBodies.map((lb) => lb.unique_id).join(",") || "__none__" };
+    if (geo.district) return { district_id: geo.district };
+    if (geo.state)
+      return {
+        district_id:
+          districts.filter((d) => d.state_id === geo.state).map((d) => d.unique_id).join(",") || "__none__",
+      };
+    return {};
+  }, [geo, scopedLocalBodies, districts, localBodiesLoading]);
+
+  // keyed by value: the fetch effects depend on this object, so it must only
+  // change when the ids actually change
+  const scopeKey = JSON.stringify(scopeIds);
+  const scopeParams = useMemo(
+    () => ({ module: current, days, ...(JSON.parse(scopeKey) as typeof scopeIds) }),
+    [current, days, scopeKey],
+  );
+
+  // States / districts once; area types and local bodies per district.
   useEffect(() => {
-    const id = ++optionsRequest.current;
-    auditDashboardApi
-      .read("filter-options", {
-        params: {
-          module: current,
-          ...(districtId ? { district_id: districtId } : {}),
-        },
-      })
-      .then((data) => {
-        if (id !== optionsRequest.current) return;
-        const next = data as AuditDashboardFilterOptions;
-        setOptions(next);
-        setDistrictId((prev) =>
-          prev && !next.districts.some((o) => o.unique_id === prev) ? ALL : prev,
-        );
-        setLocalBodyId((prev) =>
-          prev && !next.local_bodies.some((o) => o.unique_id === prev)
-            ? ALL
-            : prev,
-        );
-      })
-      .catch(() => {
-        // Non-fatal: the scope dropdowns just offer "All".
-      });
-  }, [current, districtId]);
+    geoApi.states().then(setStates).catch(() => setStates([]));
+    geoApi.districts().then(setDistricts).catch(() => setDistricts([]));
+  }, []);
+  useEffect(() => {
+    if (!geo.district) {
+      setAreaTypes([]);
+      setLocalBodies([]);
+      return;
+    }
+    let cancelled = false;
+    geoApi.areaTypes(geo.district).then((r) => { if (!cancelled) setAreaTypes(r); }).catch(() => {});
+    // the district's own local bodies only, light payload (the full masters
+    // run to MBs state-wide)
+    setLocalBodiesLoading(true);
+    Promise.all(
+      LB_SOURCES.map(({ type, path, nameKey }) =>
+        api
+          .get(path, { params: { lite: 1, district_id: geo.district } })
+          .then(({ data }) =>
+            (Array.isArray(data) ? data : data?.results ?? data?.data ?? []).map((row: Record<string, unknown>) => ({
+              unique_id: String(row.unique_id),
+              name: String(row[nameKey] ?? row.name ?? row.unique_id),
+              type,
+              district_id: geo.district,
+              area_type_id: row.area_type_id ? String(row.area_type_id) : null,
+            })),
+          )
+          .catch(() => [] as LocalBodyOption[]),
+      ),
+    )
+      .then((lists) => { if (!cancelled) setLocalBodies(lists.flat()); })
+      .finally(() => { if (!cancelled) setLocalBodiesLoading(false); });
+    return () => { cancelled = true; };
+  }, [geo.district]);
+
+  const updateGeo = (patch: Partial<GeoScope>) => {
+    setGeo((g) => ({ ...g, ...patch }));
+    setPage(1);
+  };
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -562,8 +649,8 @@ export default function AuditDashboard() {
         format: "csv",
         audit: current,
         days,
-        district_id: districtId || null,
-        local_body_id: localBodyId || null,
+        district_id: scopeIds.district_id ?? null,
+        local_body_id: scopeIds.local_body_id ?? null,
         search: search || null,
         rows: rows.length,
       });
@@ -572,7 +659,40 @@ export default function AuditDashboard() {
     } finally {
       setExporting(false);
     }
-  }, [current, days, districtId, localBodyId, module, scopeParams, search, t]);
+  }, [current, days, scopeIds, module, scopeParams, search, t]);
+
+  /* ---------- Fit to the screen ----------
+     The page fills the space left in the admin shell (no page scroll);
+     the records table scrolls inside its panel. Measured, since the
+     shell's header / breadcrumb / paddings vary with the sidebar. */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fitHeight, setFitHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = rootRef.current;
+      if (!el || window.innerWidth < 1024) return setFitHeight(null);
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      // the shell's bottom padding / borders + anything laid out after us
+      let below = 0;
+      for (let child: Element = el, n = el.parentElement; n && n.tagName !== "BODY"; child = n, n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        below += parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth) + parseFloat(getComputedStyle(child).marginBottom);
+        for (let sib = child.nextElementSibling; sib; sib = sib.nextElementSibling) {
+          const pos = getComputedStyle(sib).position;
+          if (pos !== "absolute" && pos !== "fixed") below += sib.getBoundingClientRect().height;
+        }
+      }
+      setFitHeight(Math.max(480, Math.floor(window.innerHeight - top - below)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure); // same value → React skips the update
+    ro.observe(document.body);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
 
   /* ---------- Charts ---------- */
 
@@ -634,7 +754,7 @@ export default function AuditDashboard() {
       cutout: "62%",
       plugins: {
         legend: {
-          position: "bottom" as const,
+          position: "right" as const,
           labels: {
             color: tickColor,
             boxWidth: 12,
@@ -645,6 +765,19 @@ export default function AuditDashboard() {
     }),
     [tickColor],
   );
+
+  /* ---------- Local body scope (popover) ---------- */
+
+  const nameOf = (list: GeoOption[], id: string) => list.find((o) => o.unique_id === id)?.name;
+  const pickedBodies = localBodies.filter((lb) => geo.localBodyIds.includes(lb.unique_id));
+  const scopeActive = !!(geo.state || geo.district || geo.areaType || geo.lbType || geo.localBodyIds.length);
+  const scopeLabel = pickedBodies.length
+    ? pickedBodies.length === 1 ? pickedBodies[0].name : `${pickedBodies.length} local bodies`
+    : geo.district
+      ? [nameOf(districts, geo.district), geo.lbType ? LB_TYPE_LABEL[geo.lbType] : selectedArea?.name].filter(Boolean).join(" · ")
+      : geo.state
+        ? nameOf(states, geo.state) ?? t("admin.audit_dashboard.all_local_bodies", "All local bodies")
+        : t("admin.audit_dashboard.all_local_bodies", "All local bodies");
 
   /* ---------- KPIs ---------- */
 
@@ -658,19 +791,48 @@ export default function AuditDashboard() {
       : null;
 
   return (
-    <div className="p-3 text-sm text-[#1d2b22] dark:text-[#e6efe8]">
-      <header className="mb-[18px] flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-[22px] font-semibold">
-            {t("admin.audit_dashboard.title", "Audit dashboard")}
-          </h1>
-          <p className="mt-0.5 text-[#66756b] dark:text-[#9aaba0]">
-            {t(
-              "admin.audit_dashboard.subtitle",
-              "Activity and changes across IWMS audit modules",
-            )}
-          </p>
-        </div>
+    <div
+      ref={rootRef}
+      className="flex flex-col gap-3 text-sm text-[#1d2b22] dark:text-[#e6efe8]"
+      style={fitHeight ? { minHeight: fitHeight } : undefined}
+    >
+      <div className="flex shrink-0 flex-wrap items-baseline gap-x-3">
+        <h1 className="m-0 text-xl font-semibold">
+          {t("admin.audit_dashboard.title", "Audit dashboard")}
+        </h1>
+        <p className="m-0 text-[13px] text-[#66756b] dark:text-[#9aaba0]">
+          {t(
+            "admin.audit_dashboard.subtitle",
+            "Activity and changes across IWMS audit modules",
+          )}
+        </p>
+      </div>
+      {/* module tabs (left) + scope filters / export (right) on one row */}
+      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3">
+      <nav
+        role="tablist"
+        className="flex gap-1.5 overflow-x-auto"
+      >
+        {MODULE_KEYS.map((key) => {
+          const selected = key === current;
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => switchModule(key)}
+              className={`whitespace-nowrap rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${
+                selected
+                  ? "border-[#9fd7ae] bg-[#fdeee6] text-[#ef5a1c] dark:bg-[#3a2216]"
+                  : "border-[#dfe8e2] bg-white text-[#66756b] hover:text-[#1d2b22] dark:border-[#26352b] dark:bg-[#17221b] dark:text-[#9aaba0] dark:hover:text-[#e6efe8]"
+              }`}
+            >
+              {modules[key].name}
+            </button>
+          );
+        })}
+      </nav>
         <div className="flex flex-wrap gap-2">
           <select
             aria-label={t("admin.audit_dashboard.date_range", "Date range")}
@@ -689,44 +851,109 @@ export default function AuditDashboard() {
               </option>
             ))}
           </select>
-          <select
-            aria-label={t("admin.audit_dashboard.district", "District")}
-            className={selectClass}
-            value={districtId}
-            onChange={(e) => {
-              setDistrictId(e.target.value);
-              // The local body list narrows to the district picked.
-              setLocalBodyId(ALL);
-              setPage(1);
-            }}
-          >
-            <option value={ALL}>
-              {t("admin.audit_dashboard.all_districts", "All districts")}
-            </option>
-            {(options?.districts ?? []).map((o) => (
-              <option key={o.unique_id} value={o.unique_id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label={t("admin.audit_dashboard.local_body", "Local body")}
-            className={`${selectClass} max-w-[240px]`}
-            value={localBodyId}
-            onChange={(e) => {
-              setLocalBodyId(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value={ALL}>
-              {t("admin.audit_dashboard.all_local_bodies", "All local bodies")}
-            </option>
-            {(options?.local_bodies ?? []).map((o) => (
-              <option key={`${o.level}-${o.unique_id}`} value={o.unique_id}>
-                {o.level ? `${o.name} (${o.level})` : o.name}
-              </option>
-            ))}
-          </select>
+          {/* District / local body scope in one popover (same as the waste
+              comparison reports) */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("admin.audit_dashboard.local_body", "Local body")}
+                className={`${selectClass} flex max-w-[240px] items-center gap-1.5 ${scopeActive ? "!border-[#1f9d47]" : ""}`}
+              >
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-[#66756b]" />
+                <span className="truncate">{scopeLabel}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#66756b]" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[460px] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="m-0 text-xs font-bold text-[#66756b]">
+                  {t("admin.audit_dashboard.filter_by_local_body", "Filter by local body")}
+                </p>
+                {scopeActive && (
+                  <button
+                    type="button"
+                    onClick={() => updateGeo(EMPTY_GEO)}
+                    className="text-xs font-semibold text-[#1f9d47] hover:underline"
+                  >
+                    {t("common.clear", "Clear")}
+                  </button>
+                )}
+              </div>
+              {/* searchable pickers, like the other filters in the app */}
+              <div className="grid grid-cols-2 gap-2">
+                <Combobox
+                  aria-label={t("admin.audit_dashboard.state", "State")}
+                  triggerClassName={comboTrigger}
+                  value={geo.state || ANY}
+                  searchPlaceholder={t("admin.audit_dashboard.search_state", "Search state…")}
+                  options={[
+                    { value: ANY, label: t("admin.audit_dashboard.all_states", "All states") },
+                    ...states.map((o) => ({ value: o.unique_id, label: o.name })),
+                  ]}
+                  onChange={(v) => updateGeo({ ...EMPTY_GEO, state: v === ANY ? ALL : v })}
+                />
+                <Combobox
+                  aria-label={t("admin.audit_dashboard.district", "District")}
+                  triggerClassName={comboTrigger}
+                  value={geo.district || ANY}
+                  searchPlaceholder={t("admin.audit_dashboard.search_district", "Search district…")}
+                  options={[
+                    { value: ANY, label: t("admin.audit_dashboard.all_districts", "All districts") },
+                    ...districts
+                      .filter((d) => !geo.state || d.state_id === geo.state)
+                      .map((o) => ({ value: o.unique_id, label: o.name })),
+                  ]}
+                  onChange={(v) => updateGeo({ ...EMPTY_GEO, state: geo.state, district: v === ANY ? ALL : v })}
+                />
+                <Combobox
+                  aria-label={t("admin.audit_dashboard.area_type", "Area type")}
+                  triggerClassName={comboTrigger}
+                  value={geo.areaType || ANY}
+                  disabled={!geo.district}
+                  placeholder={t("admin.audit_dashboard.pick_district_first", "Select a district first")}
+                  searchPlaceholder={t("admin.audit_dashboard.search_area_type", "Search area type…")}
+                  options={[
+                    { value: ANY, label: t("admin.audit_dashboard.all_area_types", "All area types") },
+                    ...areaTypes.map((o) => ({ value: o.unique_id, label: o.name })),
+                  ]}
+                  onChange={(v) => updateGeo({ areaType: v === ANY ? ALL : v, lbType: "", localBodyIds: [] })}
+                />
+                <Combobox
+                  aria-label={t("admin.audit_dashboard.local_body_type", "Local body type")}
+                  triggerClassName={comboTrigger}
+                  value={geo.lbType || ANY}
+                  disabled={!geo.district}
+                  placeholder={t("admin.audit_dashboard.pick_district_first", "Select a district first")}
+                  searchPlaceholder={t("admin.audit_dashboard.search_type", "Search type…")}
+                  options={[
+                    { value: ANY, label: t("admin.audit_dashboard.all_local_body_types", "All local body types") },
+                    ...lbTypes.map((type) => ({ value: type, label: LB_TYPE_LABEL[type] })),
+                  ]}
+                  onChange={(v) => updateGeo({ lbType: v === ANY ? "" : (v as LocalBodyType), localBodyIds: [] })}
+                />
+                <div className="col-span-2">
+                  <ReportMultiSelect
+                    value={geo.localBodyIds}
+                    onChange={(ids) => updateGeo({ localBodyIds: ids })}
+                    options={scopedLocalBodies.map((lb) => ({
+                      value: lb.unique_id,
+                      label: geo.lbType ? lb.name : `${lb.name} (${LB_TYPE_LABEL[lb.type]})`,
+                    }))}
+                    placeholder={
+                      localBodiesLoading
+                        ? t("admin.audit_dashboard.loading", "Loading…")
+                        : geo.district
+                        ? t("admin.audit_dashboard.pick_local_bodies", "Select local bod(ies)")
+                        : t("admin.audit_dashboard.pick_district_first", "Select a district first")
+                    }
+                    disabled={!geo.district || localBodiesLoading || !scopedLocalBodies.length}
+                    ariaLabel={t("admin.audit_dashboard.local_bodies", "Local bodies")}
+                  />
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <button
             type="button"
             onClick={exportCsv}
@@ -740,45 +967,21 @@ export default function AuditDashboard() {
         </div>
       </header>
 
-      <nav
-        role="tablist"
-        className="mb-[18px] flex gap-1.5 overflow-x-auto pb-1"
-      >
-        {MODULE_KEYS.map((key) => {
-          const selected = key === current;
-          return (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => switchModule(key)}
-              className={`whitespace-nowrap rounded-[10px] border px-[14px] py-2 text-sm font-medium ${
-                selected
-                  ? "border-[#9fd7ae] bg-[#fdeee6] text-[#ef5a1c] dark:bg-[#3a2216]"
-                  : "border-[#dfe8e2] bg-white text-[#66756b] hover:text-[#1d2b22] dark:border-[#26352b] dark:bg-[#17221b] dark:text-[#9aaba0] dark:hover:text-[#e6efe8]"
-              }`}
-            >
-              {modules[key].name}
-            </button>
-          );
-        })}
-      </nav>
 
-      <section className="mb-4 grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3">
+      <section className="grid shrink-0 grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3">
         {module.kpis.map((kpi, i) => {
           const value = summary ? (summary.kpis[kpi.key] ?? null) : null;
           return (
             <div
               key={kpi.key}
-              className={`rounded-[10px] border border-l-4 border-[#dfe8e2] bg-white px-4 py-[14px] dark:border-[#26352b] dark:bg-[#17221b] ${
+              className={`rounded-[10px] border border-l-4 border-[#dfe8e2] bg-white px-4 py-2.5 dark:border-[#26352b] dark:bg-[#17221b] ${
                 KPI_BORDER[kpi.tone ?? "ok"]
               }`}
             >
               <div className="text-[#66756b] dark:text-[#9aaba0]">
                 {kpi.label}
               </div>
-              <div className="text-[26px] font-semibold">
+              <div className="text-[24px] font-semibold leading-tight">
                 {summary ? (kpi.format ? kpi.format(value) : dash(value)) : "…"}
               </div>
               {i === 0 && delta !== null ? (
@@ -797,20 +1000,20 @@ export default function AuditDashboard() {
         })}
       </section>
 
-      <section className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <section className="grid shrink-0 grid-cols-1 gap-3 lg:grid-cols-3">
         <div className={`${panelClass} lg:col-span-2`}>
-          <h2 className="mb-3 mt-0 text-[15px] font-semibold">
+          <h2 className="mb-2 mt-0 text-sm font-semibold">
             {module.trendLabel}
           </h2>
-          <div className="relative h-[260px]">
+          <div className="relative h-[150px]">
             <Bar data={trendData} options={trendOptions} />
           </div>
         </div>
         <div className={panelClass}>
-          <h2 className="mb-3 mt-0 text-[15px] font-semibold">
+          <h2 className="mb-2 mt-0 text-sm font-semibold">
             {module.splitTitle}
           </h2>
-          <div className="relative h-[260px]">
+          <div className="relative h-[150px]">
             {summary && summary.breakdown.length === 0 ? (
               <div className="flex h-full items-center justify-center text-[#66756b] dark:text-[#9aaba0]">
                 {t(
@@ -825,9 +1028,9 @@ export default function AuditDashboard() {
         </div>
       </section>
 
-      <section className={panelClass}>
-        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="m-0 text-[15px] font-semibold">
+      <section className={`${panelClass} flex h-[560px] min-h-0 flex-col lg:h-auto lg:min-h-[230px] lg:shrink lg:grow lg:basis-[0px]`}>
+        <div className="mb-2.5 flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <h2 className="m-0 text-sm font-semibold">
             {t("admin.audit_dashboard.records_title", "{{module}} records", {
               module: module.name,
             })}
@@ -844,11 +1047,11 @@ export default function AuditDashboard() {
             className={`${selectClass} w-full sm:w-[290px]`}
           />
         </div>
-        <div className="overflow-x-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           <table
             className={`w-full min-w-[680px] border-collapse ${loadingRecords ? "opacity-60" : ""}`}
           >
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white dark:bg-[#17221b]">
               <tr>
                 {module.columns.map((c) => (
                   <th
@@ -870,7 +1073,7 @@ export default function AuditDashboard() {
                     {module.columns.map((c) => (
                       <td
                         key={c.key}
-                        className="whitespace-nowrap border-b border-[#dfe8e2] px-2.5 py-[9px] text-left dark:border-[#26352b]"
+                        className="whitespace-nowrap border-b border-[#dfe8e2] px-2.5 py-2 text-left dark:border-[#26352b]"
                       >
                         {c.render(row)}
                       </td>
@@ -896,7 +1099,7 @@ export default function AuditDashboard() {
           </table>
         </div>
         <ListPaginator
-          className="mt-2.5 bg-transparent p-0"
+          className="mt-1 shrink-0 bg-transparent p-0 text-xs [&_.p-dropdown]:!h-8 [&_.p-dropdown-label]:!py-1 [&_.p-dropdown-label]:!text-xs [&_.p-paginator-current]:!h-8 [&_.p-paginator-element]:!h-8 [&_.p-paginator-element]:!min-w-8 [&_.p-paginator-element]:!text-xs"
           first={(page - 1) * rowsPerPage}
           rows={rowsPerPage}
           totalRecords={records?.count ?? 0}

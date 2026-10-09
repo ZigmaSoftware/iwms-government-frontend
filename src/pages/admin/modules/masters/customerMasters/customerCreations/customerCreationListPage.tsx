@@ -25,9 +25,10 @@ import {
   getAdminScreenExcelFilename,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
-import HierarchyFilterBar, {
-  type HierarchyFilterParams,
-} from "@/components/filters/HierarchyFilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { FilterSection, type ActiveFilterChip, type DocumentActions } from "@/components/common/ListToolbar";
+import type { TableFilters } from "@/components/common/SafeDataTable";
+import { downloadQrSheetPdf } from "@/utils/qrSheetPdf";
 import { createCustomerQrPdfBlob, downloadCustomerQrPdf } from "./customerQrPdf";
 import { downloadAllCustomersPdf } from "./customerAllDetailsPdf";
 import { capitalize } from "@/utils/capitalize";
@@ -116,10 +117,13 @@ export default function CustomerCreationListPage() {
   const [isPrintingQr, setIsPrintingQr] = useState(false);
   const [isPreviewingQr, setIsPreviewingQr] = useState(false);
 
-  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hierarchyParams = geo.applied;
   const [wasteTypeIds, setWasteTypeIds] = useState<string[]>([]);
   const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
-  const [filterResetKey, setFilterResetKey] = useState(0);
+  // waste type: edited in the filter panel, applied with "Apply filters"
+  const [draftWasteTypeIds, setDraftWasteTypeIds] = useState<string[]>([]);
+  const [isExportingQr, setIsExportingQr] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
@@ -213,15 +217,32 @@ export default function CustomerCreationListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const hasActiveFilters =
-    Object.keys(hierarchyParams).length > 0 || wasteTypeIds.length > 0;
-
   const handleClearFilters = () => {
-    setFirst(0);
-    setHierarchyParams({});
+    geo.reset();
     setWasteTypeIds([]);
-    setFilterResetKey((key) => key + 1);
+    setDraftWasteTypeIds([]);
   };
+
+  const applyFilters = () => {
+    geo.apply();
+    setWasteTypeIds(draftWasteTypeIds);
+  };
+
+  const filterChips: ActiveFilterChip[] = [
+    ...geo.chips,
+    ...(wasteTypeIds.length
+      ? [{
+          key: "waste_type",
+          label: "Waste type",
+          value: wasteTypeIds.map((id) => wasteTypeOptions.find((o) => o.value === id)?.label ?? id).join(", "),
+          onRemove: () => {
+            setFirst(0);
+            setWasteTypeIds([]);
+            setDraftWasteTypeIds([]);
+          },
+        }]
+      : []),
+  ];
 
   // ── Download template ─────────────────────────────────────────────────────
   const downloadTemplate = async () => {
@@ -335,94 +356,69 @@ export default function CustomerCreationListPage() {
   };
 
   const header = (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3 px-3 py-2">
-          <Button
-            label="Download Template"
-            icon="pi pi-download"
-            className="p-button-secondary"
-            onClick={downloadTemplate}
-          />
-          <Button
-            label="Upload Excel"
-            icon="pi pi-upload"
-            className="p-button-info"
-            disabled={isUploading}
-            onClick={() => document.getElementById("excelUpload")?.click()}
-          />
-          <Button
-            label={isExportingExcel ? "Downloading…" : "Download Excel"}
-            icon="pi pi-file-excel"
-            className="p-button-outlined"
-            disabled={isExportingExcel}
-            onClick={handleDownloadExcel}
-          />
-          <Button
-            label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-            icon="pi pi-file-pdf"
-            className="p-button-outlined"
-            disabled={isExportingPdf}
-            onClick={handleDownloadPdf}
-          />
-          <input
-            id="excelUpload"
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleFileUpload}
-          />
-        </div>
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={setGlobalFilterValue}
-          searchPlaceholder={t("admin.customer_creation.search_placeholder")}
-        />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
-        <HierarchyFilterBar
-          key={filterResetKey}
-          className="contents"
-          showClear={false}
-          onChange={(params) => {
-            setFirst(0);
-            setHierarchyParams(params);
-          }}
-        />
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">Waste Type</label>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={setGlobalFilterValue}
+      searchPlaceholder={t("admin.customer_creation.search_placeholder")}
+    />
+  );
+
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + (wasteTypeIds.length ? 1 : 0),
+    onApply: applyFilters,
+    onReset: handleClearFilters,
+    chips: filterChips,
+    content: (
+      <>
+        {geo.field}
+        <FilterSection label="Waste">
           <MultiSelect
-            value={wasteTypeIds}
+            value={draftWasteTypeIds}
             onChange={(e) => {
               const raw = Array.isArray(e.value) ? e.value : [];
-              const values = raw.map((v: any) =>
-                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              setDraftWasteTypeIds(
+                raw.map((v: any) => (v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v))),
               );
-              setFirst(0);
-              setWasteTypeIds(values);
             }}
             options={wasteTypeOptions}
             optionLabel="label"
             optionValue="value"
             maxSelectedLabels={2}
             placeholder="All waste types"
-            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
+            aria-label="Waste type"
+            filter
           />
-        </div>
-        <div>
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            disabled={!hasActiveFilters}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <i className="pi pi-filter-slash text-xs" />
-            Clear All Filters
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+        </FilterSection>
+      </>
+    ),
+  };
+
+  // every customer matching the filters, as one QR label sheet
+  const handleDownloadQr = async () => {
+    setIsExportingQr(true);
+    try {
+      const rows = await fetchExportRows();
+      const { placed, skipped } = await downloadQrSheetPdf(
+        rows.map((c) => ({ qr: c.qr_code, title: String(c.customer_name ?? "-"), subtitle: String(c.unique_id ?? "") })),
+        "customer_qr_codes",
+        "Customer QR codes",
+      );
+      if (!placed) notify.fire("No QR codes", "None of the filtered customers has a QR code.", "info");
+      else if (skipped) notify.fire("QR sheet downloaded", `${placed} QR codes · ${skipped} customers without a QR code skipped.`, "success");
+    } catch {
+      notify.fire("Error", "Failed to generate the QR sheet.", "error");
+    } finally {
+      setIsExportingQr(false);
+    }
+  };
+
+  const documentActions: DocumentActions = {
+    uploadExcel: { onClick: () => document.getElementById("excelUpload")?.click(), busy: isUploading },
+    downloadTemplate: { onClick: () => void downloadTemplate() },
+    downloadExcel: { onClick: () => void handleDownloadExcel(), busy: isExportingExcel },
+    downloadPdf: { onClick: () => void handleDownloadPdf(), busy: isExportingPdf },
+    downloadQr: { onClick: () => void handleDownloadQr(), busy: isExportingQr },
+  };
 
   const qrTemplate = (customer: Customer) => {
     if (!customer.qr_code) {
@@ -566,6 +562,7 @@ export default function CustomerCreationListPage() {
 
   return (
     <>
+      <input id="excelUpload" type="file" accept=".xlsx,.xls" hidden onChange={handleFileUpload} />
       <div className="p-3 ">
         <ListPageHeader
           title={t("admin.customer_creation.title")}
@@ -600,6 +597,8 @@ export default function CustomerCreationListPage() {
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={isLoading}
           header={header}
+          filterPanel={filterPanel}
+          documentActions={documentActions}
           emptyMessage={t("admin.customer_creation.empty_message")}
           stripedRows
           showGridlines

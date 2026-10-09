@@ -1,5 +1,4 @@
 import type {
-  AuditFilterOptions,
   CommonAuditJsonValue,
   CommonAuditRecord,
   DiffLine,
@@ -21,8 +20,6 @@ import {
 import { Column } from "primereact/column";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   ShieldCheck,
   Lock,
@@ -38,7 +35,10 @@ import type {
 
 import { commonAuditApi, mainScreenApi, userScreenApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter, type FilterPart } from "@/components/filters/useOptionFilter";
 
 type RawMainScreen = {
   unique_id?: string;
@@ -72,6 +72,72 @@ const formatJson = (value?: CommonAuditJsonValue) => {
   if (value === undefined || value === null) return "-";
   return JSON.stringify(value, null, 2);
 };
+
+const DATE_INPUT_CLASS = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+
+/** "From / To date" for the Filters panel: a draft committed on Apply. */
+function useDateRangeFilter({
+  section,
+  fromLabel,
+  toLabel,
+  onAppliedChange,
+}: {
+  section: string;
+  fromLabel: string;
+  toLabel: string;
+  onAppliedChange?: () => void;
+}) {
+  const [applied, setApplied] = useState({ from: "", to: "" });
+  const [draft, setDraft] = useState({ from: "", to: "" });
+
+  const commit = (next: { from: string; to: string }) => {
+    setDraft(next);
+    if (next.from !== applied.from || next.to !== applied.to) {
+      setApplied(next);
+      onAppliedChange?.();
+    }
+  };
+
+  const chips: ActiveFilterChip[] = [
+    ...(applied.from
+      ? [{ key: "date_from", label: fromLabel, value: applied.from, onRemove: () => commit({ ...applied, from: "" }) }]
+      : []),
+    ...(applied.to
+      ? [{ key: "date_to", label: toLabel, value: applied.to, onRemove: () => commit({ ...applied, to: "" }) }]
+      : []),
+  ];
+
+  return {
+    from: applied.from,
+    to: applied.to,
+    field: (
+      <FilterSection label={section}>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            value={draft.from}
+            max={draft.to || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={fromLabel}
+          />
+          <input
+            type="date"
+            value={draft.to}
+            min={draft.from || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={toLabel}
+          />
+        </div>
+      </FilterSection>
+    ),
+    chips,
+    count: chips.length,
+    apply: () => commit(draft),
+    reset: () => commit({ from: "", to: "" }),
+  } satisfies FilterPart & Record<string, unknown>;
+}
 
 const JsonViewer = ({
   title,
@@ -250,20 +316,14 @@ export default function CommonAuditList() {
   const { moduleLabel, screenLabel } = usePermissionLabels();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  // Main / Sub Screen multi-selects: applied values drive the API; the
+  // draft is what the Filters panel edits until "Apply filters".
   const [mainScreenFilter, setMainScreenFilter] = useState<string[]>([]);
   const [subScreenFilter, setSubScreenFilter] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [approvalOnly, setApprovalOnly] = useState(false);
-  // "" = all; districts/local bodies stand in for the private build's
-  // company/project filters, since rows here are scoped by geography.
-  const [districtFilter, setDistrictFilter] = useState("");
-  const [localBodyFilter, setLocalBodyFilter] = useState("");
-  // "" = all, "true"/"false" = only successful / only rejected writes.
-  const [statusFilter, setStatusFilter] = useState("");
-  const [filterOptions, setFilterOptions] = useState<AuditFilterOptions | null>(
-    null,
-  );
+  const [screenDraft, setScreenDraft] = useState<{ main: string[]; sub: string[] }>({
+    main: [],
+    sub: [],
+  });
   const requestIdRef = useRef(0);
   const [selectedRecord, setSelectedRecord] =
     useState<CommonAuditRecord | null>(null);
@@ -289,23 +349,95 @@ export default function CommonAuditList() {
     [subScreens, screenLabel],
   );
 
-  const districtOptions = useMemo(
-    () =>
-      (filterOptions?.districts ?? []).map((d) => ({
-        label: d.name,
-        value: d.unique_id,
-      })),
-    [filterOptions],
-  );
+  const resetPage = () => setFirst(0);
+  // Location replaces the old District / Local Body dropdowns (rows here are
+  // scoped by geography; the API takes the flat ?state_id=… params).
+  const geo = useHierarchyFilter(resetPage);
+  // "" = all, "true"/"false" = only successful / only rejected writes.
+  const status = useOptionFilter({
+    param: "success",
+    label: t("common.status"),
+    options: [
+      { label: t("admin.common_audit.status_success", "Successful"), value: "true" },
+      { label: t("admin.common_audit.status_failed", "Failed"), value: "false" },
+    ],
+    onAppliedChange: resetPage,
+  });
+  const approval = useOptionFilter({
+    param: "approval_only",
+    label: t("admin.common_audit.approval_only_filter", "Approvals only"),
+    section: t("admin.common_audit.events", "Events"),
+    options: [{ label: t("admin.common_audit.approval_only_filter", "Approvals only"), value: "true" }],
+    allLabel: t("common.all", "All"),
+    onAppliedChange: resetPage,
+  });
+  const dates = useDateRangeFilter({
+    section: t("admin.common_audit.date_range", "Date"),
+    fromLabel: t("admin.common_audit.date_from", "From Date"),
+    toLabel: t("admin.common_audit.date_to", "To Date"),
+    onAppliedChange: resetPage,
+  });
 
-  const localBodyOptions = useMemo(
-    () =>
-      (filterOptions?.local_bodies ?? []).map((b) => ({
-        label: b.level ? `${b.name} (${b.level})` : b.name,
-        value: b.unique_id,
-      })),
-    [filterOptions],
-  );
+  const commitScreens = (next: { main: string[]; sub: string[] }) => {
+    setScreenDraft(next);
+    if (next.main.join(",") !== mainScreenFilter.join(",") || next.sub.join(",") !== subScreenFilter.join(",")) {
+      setMainScreenFilter(next.main);
+      setSubScreenFilter(next.sub);
+      resetPage();
+    }
+  };
+  const labelsFor = (values: string[], options: { value: string; label: string }[]) =>
+    values.map((v) => options.find((o) => o.value === v)?.label ?? v).join(", ");
+  const screenChips: ActiveFilterChip[] = [
+    ...(mainScreenFilter.length
+      ? [
+          {
+            key: "main_screen",
+            label: t("admin.common_audit.module_filter"),
+            value: labelsFor(mainScreenFilter, mainScreenOptions),
+            // sub screens cascade from the main screens, so they go too
+            onRemove: () => commitScreens({ main: [], sub: [] }),
+          },
+        ]
+      : []),
+    ...(subScreenFilter.length
+      ? [
+          {
+            key: "sub_screen",
+            label: t("admin.common_audit.sub_screen_filter", "Sub Screen"),
+            value: subScreenFilter.join(", "),
+            onRemove: () => commitScreens({ main: mainScreenFilter, sub: [] }),
+          },
+        ]
+      : []),
+  ];
+  const screenPart: FilterPart = {
+    field: (
+      <FilterSection label={t("admin.common_audit.screens", "Screens")}>
+        <div className="flex flex-col gap-2">
+          <MultiSelect
+            value={screenDraft.main}
+            onChange={(next) => setScreenDraft((d) => ({ ...d, main: next }))}
+            options={mainScreenOptions}
+            placeholder={t("admin.common_audit.module_filter")}
+            aria-label={t("admin.common_audit.module_filter")}
+          />
+          <MultiSelect
+            value={screenDraft.sub}
+            onChange={(next) => setScreenDraft((d) => ({ ...d, sub: next }))}
+            options={subScreenOptions}
+            disabled={screenDraft.main.length === 0 || subScreensLoading}
+            placeholder={t("admin.common_audit.sub_screen_filter", "Sub Screen")}
+            aria-label={t("admin.common_audit.sub_screen_filter", "Sub Screen")}
+          />
+        </div>
+      </FilterSection>
+    ),
+    chips: screenChips,
+    count: screenChips.length,
+    apply: () => commitScreens(screenDraft),
+    reset: () => commitScreens({ main: [], sub: [] }),
+  };
 
   const loading = isLoading && rows.length === 0;
 
@@ -341,29 +473,28 @@ export default function CommonAuditList() {
   // the "all data" Excel export so both always cover the same rows.
   const mainScreenFilterKey = mainScreenFilter.join(",");
   const subScreenFilterKey = subScreenFilter.join(",");
+  const geoKey = JSON.stringify(geo.applied);
 
   const filterParams = useMemo(
     () => ({
       ...(searchTerm ? { search: searchTerm } : {}),
       ...(mainScreenFilterKey ? { main_screen: mainScreenFilterKey } : {}),
       ...(subScreenFilterKey ? { sub_screen: subScreenFilterKey } : {}),
-      ...(dateFrom ? { date_from: dateFrom } : {}),
-      ...(dateTo ? { date_to: dateTo } : {}),
-      ...(approvalOnly ? { approval_only: true } : {}),
-      ...(districtFilter ? { district_id: districtFilter } : {}),
-      ...(localBodyFilter ? { local_body_id: localBodyFilter } : {}),
-      ...(statusFilter ? { success: statusFilter } : {}),
+      ...(dates.from ? { date_from: dates.from } : {}),
+      ...(dates.to ? { date_to: dates.to } : {}),
+      ...(approval.value ? { approval_only: true } : {}),
+      ...(JSON.parse(geoKey) as Record<string, string>),
+      ...(status.value ? { success: status.value } : {}),
     }),
     [
       searchTerm,
       mainScreenFilterKey,
       subScreenFilterKey,
-      dateFrom,
-      dateTo,
-      approvalOnly,
-      districtFilter,
-      localBodyFilter,
-      statusFilter,
+      dates.from,
+      dates.to,
+      approval.value,
+      geoKey,
+      status.value,
     ],
   );
 
@@ -415,35 +546,6 @@ export default function CommonAuditList() {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, filterParams, ordering);
   }, [first, rowsPerPage, filterParams, ordering, loadRows]);
 
-  // Distinct district/local body values for the dropdowns, served by the
-  // backend's `filter-options` action rather than derived from the current
-  // page, so the lists stay complete — and stay scoped: a staff user is
-  // never offered a local body outside their own hierarchy.
-  //
-  // Refetched when the district changes so the local body list only ever
-  // offers bodies within the selected district.
-  useEffect(() => {
-    let mounted = true;
-
-    const loadFilterOptions = async () => {
-      try {
-        const data = (await commonAuditApi.read("filter-options", {
-          params: districtFilter ? { district_id: districtFilter } : {},
-        })) as unknown as AuditFilterOptions;
-        if (!mounted || !data) return;
-        setFilterOptions(data);
-      } catch {
-        // Non-fatal: dropdowns simply won't have options if this fails.
-      }
-    };
-
-    void loadFilterOptions();
-
-    return () => {
-      mounted = false;
-    };
-  }, [districtFilter]);
-
   // Feeds the table's "Download Excel" button: re-fetches every audit row
   // matching the current filters, since the table is lazily paginated and
   // only holds one page.
@@ -488,7 +590,7 @@ export default function CommonAuditList() {
     };
   }, []);
 
-  // Sub Screen options cascade from the selected Main Screen(s) — fetched
+  // Sub Screen options cascade from the Main Screen(s) picked in the panel — fetched
   // from the real UserScreen master data, scoped server-side via
   // ?mainscreen_id= (the same param UserScreen's own list page/form use),
   // so this stays searchable and accurate instead of a static list. With
@@ -498,7 +600,7 @@ export default function CommonAuditList() {
     let mounted = true;
 
     const selectedMainScreens = mainScreens.filter((m) =>
-      mainScreenFilter.includes(m.value),
+      screenDraft.main.includes(m.value),
     );
     if (selectedMainScreens.length === 0) {
       setSubScreens([]);
@@ -545,15 +647,16 @@ export default function CommonAuditList() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainScreenFilterKey, mainScreens]);
+  }, [screenDraft.main.join(","), mainScreens]);
 
-  // Drop any Sub Screen selections that fell out of the option list once the
-  // Main Screen selection (and therefore the cascaded options) changed.
+  // Drop any draft Sub Screen selections that fell out of the option list
+  // once the Main Screen selection (and therefore the cascaded options)
+  // changed.
   useEffect(() => {
-    setSubScreenFilter((prev) => {
+    setScreenDraft((prev) => {
       const validValues = new Set(subScreens.map((s) => s.value));
-      const next = prev.filter((v) => validValues.has(v));
-      return next.length === prev.length ? prev : next;
+      const sub = prev.sub.filter((v) => validValues.has(v));
+      return sub.length === prev.sub.length ? prev : { ...prev, sub };
     });
   }, [subScreens]);
 
@@ -672,136 +775,16 @@ export default function CommonAuditList() {
 
       <Card>
         <CardContent className="p-4">
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={setGlobalFilterValue}
-            searchPlaceholder={t("admin.common_audit.search_placeholder")}
-            className="mb-4"
-          >
-            <div className="w-full sm:w-64">
-              <MultiSelect
-                value={mainScreenFilter}
-                onChange={(next) => {
-                  setMainScreenFilter(next);
-                  setFirst(0);
-                }}
-                options={mainScreenOptions}
-                placeholder={t("admin.common_audit.module_filter")}
-                aria-label={t("admin.common_audit.module_filter")}
-              />
-            </div>
-            <div className="w-full sm:w-64">
-              <MultiSelect
-                value={subScreenFilter}
-                onChange={(next) => {
-                  setSubScreenFilter(next);
-                  setFirst(0);
-                }}
-                options={subScreenOptions}
-                disabled={mainScreenFilter.length === 0 || subScreensLoading}
-                placeholder={t(
-                  "admin.common_audit.sub_screen_filter",
-                  "Sub Screen",
-                )}
-                aria-label={t(
-                  "admin.common_audit.sub_screen_filter",
-                  "Sub Screen",
-                )}
-              />
-            </div>
-            <FilterBarSelect
-              value={districtFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setDistrictFilter(value);
-                // A local body belongs to one district, so a stale local body
-                // filter would silently return nothing after switching.
-                setLocalBodyFilter("");
-              }}
-              options={districtOptions}
-              placeholder={t("admin.common_audit.district_filter", "All Districts")}
-              aria-label={t("admin.common_audit.district_filter", "All Districts")}
-            />
-            <FilterBarSelect
-              value={localBodyFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setLocalBodyFilter(value);
-              }}
-              options={localBodyOptions}
-              placeholder={t(
-                "admin.common_audit.local_body_filter",
-                "All Local Bodies",
-              )}
-              aria-label={t(
-                "admin.common_audit.local_body_filter",
-                "All Local Bodies",
-              )}
-            />
-            <FilterBarSelect
-              value={statusFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setStatusFilter(value);
-              }}
-              options={[
-                { label: t("admin.common_audit.status_success", "Successful"), value: "true" },
-                { label: t("admin.common_audit.status_failed", "Failed"), value: "false" },
-              ]}
-              placeholder={t("admin.common_audit.status_filter", "All Statuses")}
-              aria-label={t("admin.common_audit.status_filter", "All Statuses")}
-            />
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">
-                {t("admin.common_audit.date_from", "From Date")}
-              </span>
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(event) => {
-                  setDateFrom(event.target.value);
-                  setFirst(0);
-                }}
-                className="h-10 rounded-md border px-3"
-                aria-label={t("admin.common_audit.date_from", "From Date")}
-              />
-            </label>
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">
-                {t("admin.common_audit.date_to", "To Date")}
-              </span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(event) => {
-                  setDateTo(event.target.value);
-                  setFirst(0);
-                }}
-                className="h-10 rounded-md border px-3"
-                aria-label={t("admin.common_audit.date_to", "To Date")}
-              />
-            </label>
-            <label className="flex h-10 items-center gap-2 text-sm text-gray-700">
-              <Switch
-                checked={approvalOnly}
-                onCheckedChange={(checked) => {
-                  setApprovalOnly(checked);
-                  setFirst(0);
-                }}
-                aria-label={t(
-                  "admin.common_audit.approval_only_filter",
-                  "Approvals only",
-                )}
-              />
-              <Label className="cursor-pointer font-normal">
-                {t("admin.common_audit.approval_only_filter", "Approvals only")}
-              </Label>
-            </label>
-          </FilterBar>
-
           <DataTable
+            filterPanel={combineFilters(geo, screenPart, status, dates, approval)}
+            header={
+              <FilterBar
+                searchValue={globalFilterValue}
+                onSearchChange={setGlobalFilterValue}
+                searchPlaceholder={t("admin.common_audit.search_placeholder")}
+                className="mb-4"
+              />
+            }
             onExportRequest={loadAllExportRows}
             value={rows}
             dataKey="uuid"

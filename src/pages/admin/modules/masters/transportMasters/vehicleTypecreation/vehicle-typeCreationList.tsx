@@ -19,6 +19,7 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ export default function VehicleTypeCreationList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encVehicleType } = getEncryptedRoute();
@@ -79,6 +81,7 @@ export default function VehicleTypeCreationList() {
     try {
       const response = await vehicleTypeApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -101,7 +104,7 @@ export default function VehicleTypeCreationList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -122,7 +125,7 @@ export default function VehicleTypeCreationList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await vehicleTypeApi.readAllForExport());
+  const onExportRequest = async () => toRecordList(await vehicleTypeApi.readAllForExport({ params: status.applied }));
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: VehicleTypeRecord) => {
@@ -223,6 +226,7 @@ export default function VehicleTypeCreationList() {
 
       {/* Table */}
       <DataTable
+        filterPanel={combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy
