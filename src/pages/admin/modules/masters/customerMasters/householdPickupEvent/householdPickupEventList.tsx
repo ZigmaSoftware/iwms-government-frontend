@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Column } from "primereact/column";
+import { FilterMatchMode } from "primereact/api";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Button } from "@/components/ui/button";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { createCrudHelpers } from "@/helpers/admin";
@@ -20,10 +22,19 @@ export default function HouseholdPickupEventList() {
   const { newPath, editPath } = createCrudRoutePaths(encCustomerMaster, encHouseholdPickupEvent);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState({
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+  });
 
   useEffect(() => {
     householdPickupEventApi.readAll().then((res) => setRows(normalizeList(res))).finally(() => setLoading(false));
   }, []);
+
+  const onGlobalFilterChange = (value: string) => {
+    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+    setGlobalFilterValue(value);
+  };
 
   const handleDelete = async (id: string) => {
     const confirmDelete = await notify.fire({
@@ -49,7 +60,28 @@ export default function HouseholdPickupEventList() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end"><Button onClick={() => navigate(newPath)}>New</Button></div>
-      <DataTable value={rows} loading={loading} paginator rows={10}>
+      <DataTable
+        value={rows}
+        loading={loading}
+        paginator
+        rows={10}
+        filters={filters}
+        globalFilterFields={[
+          "customer_id",
+          "property_id",
+          "sub_property_id",
+          "collector_staff_id",
+          "vehicle_id",
+        ]}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder="Search household pickup events..."
+            className="mb-4"
+          />
+        }
+      >
         <Column field="customer_id" header="Customer" />
         <Column field="property_id" header="Property" />
         <Column field="sub_property_id" header="Sub Property" />

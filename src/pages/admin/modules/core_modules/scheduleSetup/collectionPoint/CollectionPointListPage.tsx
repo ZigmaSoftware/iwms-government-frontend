@@ -362,19 +362,6 @@ export default function CollectionPointListPage() {
         {showCol("longitude") && (
           <Column field="longitude" header="Longitude" body={(row: CollectionPointRecord) => toDisplay(row.longitude)} />
         )}
-        {showCol("coordinates") && (
-          <Column
-            field="coordinates"
-            header="Coordinates"
-            body={(row: CollectionPointRecord) =>
-              formatCoordinates(row.coordinates, {
-                latitude: row.latitude,
-                longitude: row.longitude,
-              })
-            }
-            style={{ minWidth: "240px" }}
-          />
-        )}
         {showCol("is_active") && (
           <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
         )}

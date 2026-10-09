@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { FilterMatchMode } from "primereact/api";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
@@ -71,6 +73,15 @@ export default function CustomerAccessConfigList() {
   const geo = useHierarchyFilter();
   const geoKey = JSON.stringify(geo.applied);
   const appAccess = useOptionFilter({ param: "app_access", label: "App access", options: APP_ACCESS_OPTIONS });
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState({
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+  });
+
+  const onGlobalFilterChange = (value: string) => {
+    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+    setGlobalFilterValue(value);
+  };
   const visibleCustomers = appAccess.value
     ? customers.filter((row) => row.has_access_configuration === (appAccess.value === "configured"))
     : customers;
@@ -178,6 +189,16 @@ export default function CustomerAccessConfigList() {
           stripedRows
           paginator
           rows={10}
+          filters={filters}
+          globalFilterFields={["customer_name", "contact_no", "username"]}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={onGlobalFilterChange}
+              searchPlaceholder={t("common.search_placeholder", { item: "customers" })}
+              className="mb-4"
+            />
+          }
         >
           <Column field="customer_name" header="Customer" />
           <Column
