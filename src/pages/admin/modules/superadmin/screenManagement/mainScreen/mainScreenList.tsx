@@ -18,6 +18,7 @@ import type { MainScreen } from "@/pages/admin/modules/superadmin/screenManageme
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const toRecordList = (value: unknown): MainScreen[] => {
   if (Array.isArray(value)) return value as MainScreen[];
@@ -36,6 +37,7 @@ export default function MainScreenList() {
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const status = useStatusFilter();
   const [filters, setFilters] = useState<{
     global: { value: string | null; matchMode: FilterMatchMode };
   }>({
@@ -173,7 +175,8 @@ export default function MainScreenList() {
         />
 
         <DataTable
-          value={records}
+          filterPanel={combineFilters(status)}
+          value={records.filter(status.matches)}
           paginator
           rows={10}
           loading={isLoading}

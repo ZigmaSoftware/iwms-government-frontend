@@ -14,6 +14,8 @@ import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 
 type StaffAccessRecord = {
   unique_id?: string;
@@ -72,6 +74,19 @@ export default function StaffAccessConfigList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  // the Status column is the staff flag (`active_status`), as on Staff Creation
+  const status = useOptionFilter({
+    param: "active_status",
+    label: "Status",
+    options: [
+      { label: "Active", value: "1" },
+      { label: "Inactive", value: "0" },
+    ],
+    onAppliedChange: () => setFirst(0),
+  });
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -82,6 +97,7 @@ export default function StaffAccessConfigList() {
     try {
       const response = await adminApi.staffAccessConfiguration.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -103,7 +119,7 @@ export default function StaffAccessConfigList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -229,6 +245,7 @@ export default function StaffAccessConfigList() {
             className="mb-4"
           />
         }
+        filterPanel={combineFilters(geo, status)}
         emptyMessage="No staff access configurations found."
         responsiveLayout="scroll"
       >

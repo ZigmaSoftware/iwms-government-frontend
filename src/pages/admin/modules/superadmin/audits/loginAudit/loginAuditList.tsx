@@ -12,7 +12,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
-import { FilterBar, FilterBarSelect } from "@/components/common/FilterBar";
+import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter, type FilterPart } from "@/components/filters/useOptionFilter";
 
 const toRecordList = (value: unknown): LoginAuditRecord[] => {
   if (Array.isArray(value)) return value as LoginAuditRecord[];
@@ -58,6 +61,72 @@ const formatAuditValue = (value?: string | boolean | null) => {
   return String(value);
 };
 
+const DATE_INPUT_CLASS = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+
+/** "From / To date" for the Filters panel: a draft committed on Apply. */
+function useDateRangeFilter({
+  section,
+  fromLabel,
+  toLabel,
+  onAppliedChange,
+}: {
+  section: string;
+  fromLabel: string;
+  toLabel: string;
+  onAppliedChange?: () => void;
+}) {
+  const [applied, setApplied] = useState({ from: "", to: "" });
+  const [draft, setDraft] = useState({ from: "", to: "" });
+
+  const commit = (next: { from: string; to: string }) => {
+    setDraft(next);
+    if (next.from !== applied.from || next.to !== applied.to) {
+      setApplied(next);
+      onAppliedChange?.();
+    }
+  };
+
+  const chips: ActiveFilterChip[] = [
+    ...(applied.from
+      ? [{ key: "date_from", label: fromLabel, value: applied.from, onRemove: () => commit({ ...applied, from: "" }) }]
+      : []),
+    ...(applied.to
+      ? [{ key: "date_to", label: toLabel, value: applied.to, onRemove: () => commit({ ...applied, to: "" }) }]
+      : []),
+  ];
+
+  return {
+    from: applied.from,
+    to: applied.to,
+    field: (
+      <FilterSection label={section}>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            value={draft.from}
+            max={draft.to || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={fromLabel}
+          />
+          <input
+            type="date"
+            value={draft.to}
+            min={draft.from || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={toLabel}
+          />
+        </div>
+      </FilterSection>
+    ),
+    chips,
+    count: chips.length,
+    apply: () => commit(draft),
+    reset: () => commit({ from: "", to: "" }),
+  } satisfies FilterPart & Record<string, unknown>;
+}
+
 const JsonViewer = ({ title, value }: { title: string; value?: Record<string, unknown> }) => (
   <div className="min-w-0">
     <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
@@ -77,29 +146,87 @@ export default function LoginAuditList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  // Module multi-select: draft in the Filters panel, applied on Apply.
   const [moduleFilter, setModuleFilter] = useState<string[]>([]);
+  const [moduleDraft, setModuleDraft] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  // "" = all, "true"/"false" = only successful logins / only failed attempts.
-  const [statusFilter, setStatusFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const requestIdRef = useRef(0);
 
+  const resetPage = () => setFirst(0);
+  const geo = useHierarchyFilter(resetPage);
+  // "" = all, "true"/"false" = only successful logins / only failed attempts.
+  const status = useOptionFilter({
+    param: "success",
+    label: t("common.status"),
+    options: [
+      { label: t("admin.login_audit.status_success", "Successful"), value: "true" },
+      { label: t("admin.login_audit.status_failed", "Failed"), value: "false" },
+    ],
+    onAppliedChange: resetPage,
+  });
+  const dates = useDateRangeFilter({
+    section: t("admin.login_audit.date_range", "Date"),
+    fromLabel: t("admin.login_audit.date_from", "From Date"),
+    toLabel: t("admin.login_audit.date_to", "To Date"),
+    onAppliedChange: resetPage,
+  });
+
+  const moduleOptions = LOGIN_MODULES.map((moduleName) => ({
+    label: formatModuleName(moduleName),
+    value: moduleName,
+  }));
+  const commitModules = (next: string[]) => {
+    setModuleDraft(next);
+    if (next.join(",") !== moduleFilter.join(",")) {
+      setModuleFilter(next);
+      resetPage();
+    }
+  };
+  const moduleChips: ActiveFilterChip[] = moduleFilter.length
+    ? [
+        {
+          key: "module_name",
+          label: t("admin.login_audit.module", "Module"),
+          value: moduleFilter.map(formatModuleName).join(", "),
+          onRemove: () => commitModules([]),
+        },
+      ]
+    : [];
+  const modulePart: FilterPart = {
+    field: (
+      <FilterSection label={t("admin.login_audit.module", "Module")}>
+        <MultiSelect
+          value={moduleDraft}
+          onChange={setModuleDraft}
+          options={moduleOptions}
+          placeholder={t("admin.login_audit.module_filter", "Filter by module")}
+          aria-label={t("admin.login_audit.module_filter", "Filter by module")}
+        />
+      </FilterSection>
+    ),
+    chips: moduleChips,
+    count: moduleChips.length,
+    apply: () => commitModules(moduleDraft),
+    reset: () => commitModules([]),
+  };
+
   const moduleFilterKey = moduleFilter.join(",");
+  const geoKey = JSON.stringify(geo.applied);
 
   // Every active filter as API params — shared by the paginated table and
   // the "all data" Excel export so both always cover the same rows.
   const filterParams = useMemo(
     () => ({
       ...(searchTerm ? { search: searchTerm } : {}),
+      ...(JSON.parse(geoKey) as Record<string, string>),
       ...(moduleFilterKey ? { module_name: moduleFilterKey } : {}),
-      ...(statusFilter ? { success: statusFilter } : {}),
-      ...(dateFrom ? { date_from: dateFrom } : {}),
-      ...(dateTo ? { date_to: dateTo } : {}),
+      ...(status.value ? { success: status.value } : {}),
+      ...(dates.from ? { date_from: dates.from } : {}),
+      ...(dates.to ? { date_to: dates.to } : {}),
     }),
-    [searchTerm, moduleFilterKey, statusFilter, dateFrom, dateTo],
+    [searchTerm, geoKey, moduleFilterKey, status.value, dates.from, dates.to],
   );
 
   const loadRows = useCallback(
@@ -202,6 +329,7 @@ export default function LoginAuditList() {
       />
 
       <DataTable
+        filterPanel={combineFilters(geo, modulePart, status, dates)}
         onExportRequest={loadAllExportRows}
         value={rows}
         dataKey="unique_id"
@@ -222,68 +350,7 @@ export default function LoginAuditList() {
             onSearchChange={setGlobalFilterValue}
             searchPlaceholder={t("admin.login_audit.search_placeholder", "Search login audits...")}
             className="mb-4"
-          >
-            <div className="w-full sm:w-64">
-              <MultiSelect
-                value={moduleFilter}
-                onChange={(next) => {
-                  setFirst(0);
-                  setModuleFilter(next);
-                }}
-                options={LOGIN_MODULES.map((moduleName) => ({
-                  label: formatModuleName(moduleName),
-                  value: moduleName,
-                }))}
-                placeholder={t("admin.login_audit.module_filter", "Filter by module")}
-                aria-label={t("admin.login_audit.module_filter", "Filter by module")}
-              />
-            </div>
-            <FilterBarSelect
-              value={statusFilter}
-              onChange={(value) => {
-                setFirst(0);
-                setStatusFilter(value);
-              }}
-              options={[
-                { label: t("admin.login_audit.status_success", "Successful"), value: "true" },
-                { label: t("admin.login_audit.status_failed", "Failed"), value: "false" },
-              ]}
-              placeholder={t("admin.login_audit.status_filter", "All Statuses")}
-              aria-label={t("admin.login_audit.status_filter", "All Statuses")}
-            />
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">
-                {t("admin.login_audit.date_from", "From Date")}
-              </span>
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(event) => {
-                  setFirst(0);
-                  setDateFrom(event.target.value);
-                }}
-                className="h-10 rounded-md border px-3"
-                aria-label={t("admin.login_audit.date_from", "From Date")}
-              />
-            </label>
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">
-                {t("admin.login_audit.date_to", "To Date")}
-              </span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(event) => {
-                  setFirst(0);
-                  setDateTo(event.target.value);
-                }}
-                className="h-10 rounded-md border px-3"
-                aria-label={t("admin.login_audit.date_to", "To Date")}
-              />
-            </label>
-          </FilterBar>
+          />
         }
         stripedRows
         showGridlines

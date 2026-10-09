@@ -4,13 +4,12 @@ import { Column } from "primereact/column";
 import type { DataTableFilterMeta, DataTablePageEvent } from "primereact/datatable";
 
 import { api } from "@/api";
-import { DataTable } from "@/components/common/SafeDataTable";
-import { Button } from "@/components/ui/button";
-import Select from "@/components/form/Select";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import notify from "@/lib/notify";
 import { staffCreationApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 
 // One already-grouped (emp_id, recognition_date) row, as returned directly by
 // GET /attendance/records/ — the backend now performs the punch grouping via
@@ -105,6 +104,8 @@ export default function DailyAttendanceRegList() {
   const [userTypeById, setUserTypeById] = useState<Map<string, string>>(new Map());
   const [staffUserTypeById, setStaffUserTypeById] = useState<Map<string, string>>(new Map());
   const [staffUserTypeFilter, setStaffUserTypeFilter] = useState(ALL_STAFF_TYPES);
+  // what the Filters panel is editing; committed on "Apply filters"
+  const [draft, setDraft] = useState(() => ({ fromDate: today(), toDate: today(), staffUserType: ALL_STAFF_TYPES }));
 
   const normalizeRole = (value: unknown) =>
     String(value ?? "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
@@ -206,46 +207,83 @@ export default function DailyAttendanceRegList() {
       }}
       searchPlaceholder="Search attendance..."
       className="mb-4"
-    >
-      <label className="text-sm text-gray-700">
-        <span className="mb-1 block">From date</span>
-        <input
-          type="date"
-          value={fromDate}
-          onChange={(event) => {
-            setFromDate(event.target.value);
-            setFirst(0);
-          }}
-          className="h-10 rounded-md border px-3"
-        />
-      </label>
-      <label className="text-sm text-gray-700">
-        <span className="mb-1 block">To date</span>
-        <input
-          type="date"
-          value={toDate}
-          onChange={(event) => {
-            setToDate(event.target.value);
-            setFirst(0);
-          }}
-          className="h-10 rounded-md border px-3"
-        />
-      </label>
-      <label className="text-sm text-gray-700">
-        <span className="mb-1 block">Staff type</span>
-        <Select
-          value={staffUserTypeFilter}
-          onChange={setStaffUserTypeFilter}
-          options={staffUserTypeOptions}
-          placeholder="All staff types"
-          className="h-10 w-44"
-        />
-      </label>
-      <Button onClick={fetchAttendance} disabled={loading}>
-        {loading ? "Loading..." : "Load attendance"}
-      </Button>
-    </FilterBar>
+    />
   );
+
+  /* ── Filters panel: date range (server, defaults to today) + staff type
+     (client-side, from the staff lookup) ── */
+  const commitFilters = (next: typeof draft) => {
+    setDraft(next);
+    if (next.fromDate !== fromDate || next.toDate !== toDate) {
+      setFromDate(next.fromDate);
+      setToDate(next.toDate);
+      setFirst(0);
+    }
+    setStaffUserTypeFilter(next.staffUserType);
+  };
+  const applied = { fromDate, toDate, staffUserType: staffUserTypeFilter };
+  const todayValue = today();
+  const isTodayOnly = fromDate === todayValue && toDate === todayValue;
+  const filterChips: ActiveFilterChip[] = [
+    ...(!isTodayOnly
+      ? [{
+          key: "date",
+          label: "Date",
+          value: fromDate === toDate ? fromDate : `${fromDate} – ${toDate}`,
+          onRemove: () => commitFilters({ ...applied, fromDate: todayValue, toDate: todayValue }),
+        }]
+      : []),
+    ...(staffUserTypeFilter !== ALL_STAFF_TYPES
+      ? [{
+          key: "staff_type",
+          label: "Staff type",
+          value: staffUserTypeFilter,
+          onRemove: () => commitFilters({ ...applied, staffUserType: ALL_STAFF_TYPES }),
+        }]
+      : []),
+  ];
+  const filterPanel: TableFilters = {
+    activeCount: filterChips.length,
+    chips: filterChips,
+    onApply: () => commitFilters(draft),
+    onReset: () => commitFilters({ fromDate: todayValue, toDate: todayValue, staffUserType: ALL_STAFF_TYPES }),
+    content: (
+      <>
+        <FilterSection label="Date">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="date"
+              value={draft.fromDate}
+              max={draft.toDate || undefined}
+              onChange={(e) => setDraft((d) => ({ ...d, fromDate: e.target.value }))}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="From date"
+            />
+            <input
+              type="date"
+              value={draft.toDate}
+              min={draft.fromDate || undefined}
+              onChange={(e) => setDraft((d) => ({ ...d, toDate: e.target.value }))}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="To date"
+            />
+          </div>
+        </FilterSection>
+        <FilterSection label="Staff type">
+          <select
+            value={draft.staffUserType}
+            onChange={(e) => setDraft((d) => ({ ...d, staffUserType: e.target.value }))}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            aria-label="Staff type"
+          >
+            {staffUserTypeOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </FilterSection>
+      </>
+    ),
+  };
 
   return (
     <div className="p-3">
@@ -269,6 +307,7 @@ export default function DailyAttendanceRegList() {
         onFilter={(event) => setFilters(event.filters as DataTableFilterMeta)}
         globalFilterFields={["emp_id", "name", "recognition_date", "user_type", "staff_user_type"]}
         header={header}
+        filterPanel={filterPanel}
         stripedRows
         showGridlines
         emptyMessage="No attendance records found."

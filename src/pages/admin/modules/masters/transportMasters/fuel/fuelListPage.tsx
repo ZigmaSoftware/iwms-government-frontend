@@ -18,6 +18,7 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ export default function FuelList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encFuel } = getEncryptedRoute();
@@ -80,6 +82,7 @@ export default function FuelList() {
     try {
       const response = await fuelApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -98,7 +101,7 @@ export default function FuelList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -120,7 +123,7 @@ export default function FuelList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => toRecordList(await fuelApi.readAllForExport());
+  const onExportRequest = async () => toRecordList(await fuelApi.readAllForExport({ params: status.applied }));
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: Fuel) => {
@@ -218,6 +221,7 @@ export default function FuelList() {
       />
 
       <DataTable
+        filterPanel={combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy

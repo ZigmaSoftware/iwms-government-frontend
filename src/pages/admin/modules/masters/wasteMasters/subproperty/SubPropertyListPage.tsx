@@ -19,6 +19,7 @@ import type { SubPropertyRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -68,6 +69,7 @@ export default function SubPropertyList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
@@ -90,6 +92,7 @@ export default function SubPropertyList() {
     try {
       const response = await adminApi.subProperties.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -116,7 +119,7 @@ export default function SubPropertyList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -137,7 +140,7 @@ export default function SubPropertyList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await adminApi.subProperties.readAllForExport());
+  const onExportRequest = async () => toRecordList(await adminApi.subProperties.readAllForExport({ params: status.applied }));
 
   const statusTemplate = (row: SubPropertyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -238,6 +241,7 @@ export default function SubPropertyList() {
         />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={subProperties}
           dataKey="unique_id"
           lazy

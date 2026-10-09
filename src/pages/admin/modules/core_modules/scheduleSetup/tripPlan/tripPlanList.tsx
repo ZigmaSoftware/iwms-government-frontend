@@ -14,7 +14,7 @@ import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
-import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -83,7 +83,8 @@ export default function TripPlanList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hierarchyParams = geo.applied;
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -92,10 +93,6 @@ export default function TripPlanList() {
     }, 400);
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
-
-  useEffect(() => {
-    setFirst(0);
-  }, [hierarchyParams]);
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -212,11 +209,9 @@ export default function TripPlanList() {
         className="mb-6"
       />
 
-      {/* Hierarchy filter — capped to the caller's own corporation subtree */}
-      <HierarchyFilterBar onChange={setHierarchyParams} />
-
       <DataTable
         exportable={false}
+        filterPanel={geo.panel}
         value={rows}
         dataKey="unique_id"
         lazy

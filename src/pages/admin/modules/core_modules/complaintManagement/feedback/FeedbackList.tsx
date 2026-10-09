@@ -8,8 +8,16 @@ import type { ComplaintFeedback } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime, yesNo } from "../utils";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
 
 const SORTABLE_FIELDS = new Set(["rating", "submitted_at"]);
+
+const ISSUE_SOLVED_OPTIONS = [
+  { label: "Yes", value: "true" },
+  { label: "No", value: "false" },
+];
+
+const RATING_OPTIONS = [5, 4, 3, 2, 1].map((n) => ({ label: `★ ${n}`, value: String(n) }));
 
 export default function FeedbackList() {
   const [rows, setRows] = useState<ComplaintFeedback[]>([]);
@@ -21,6 +29,18 @@ export default function FeedbackList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const issueSolved = useOptionFilter({
+    param: "is_issue_solved",
+    label: "Issue solved",
+    options: ISSUE_SOLVED_OPTIONS,
+    onAppliedChange: () => setFirst(0),
+  });
+  const rating = useOptionFilter({
+    param: "rating",
+    label: "Rating",
+    options: RATING_OPTIONS,
+    onAppliedChange: () => setFirst(0),
+  });
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -31,6 +51,8 @@ export default function FeedbackList() {
     try {
       const response = await complaintFeedbackApi.readAllwithPaginated(page, limit, {
         params: {
+          ...issueSolved.applied,
+          ...rating.applied,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -49,7 +71,7 @@ export default function FeedbackList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, issueSolved.value, rating.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -78,6 +100,7 @@ export default function FeedbackList() {
         className="mb-6"
       />
       <DataTable
+        filterPanel={combineFilters(issueSolved, rating)}
         value={rows}
         dataKey="unique_id"
         lazy

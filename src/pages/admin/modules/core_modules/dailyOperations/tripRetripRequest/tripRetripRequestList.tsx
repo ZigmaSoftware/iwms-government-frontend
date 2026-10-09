@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "@/components/common/SafeDataTable";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
@@ -15,6 +15,8 @@ import { api } from "@/api";
 import { retripRequestApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -52,6 +54,8 @@ const toRecordList = (value: unknown): TripRetripRequestRecord[] => {
 };
 
 const SORTABLE_FIELDS = new Set(["status", "created_at", "trip_date"]);
+
+const STATUS_CHOICES = ["Pending", "Approved", "Rejected", ""] as const;
 
 /* ── Approve Dialog (Re-Trip) ──────────────────────────────────── */
 function ApproveDialog({
@@ -256,7 +260,11 @@ export default function TripRetripRequestList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  // the review queue opens on Pending; the Filters panel edits a draft
   const [statusFilter, setStatusFilter] = useState<RetripStatus | "">("Pending");
+  const [statusDraft, setStatusDraft] = useState<RetripStatus | "">("Pending");
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const geoKey = JSON.stringify(geo.applied);
 
   const [approveTarget, setApproveTarget] = useState<TripRetripRequestRecord | null>(null);
   const [isApproving, setIsApproving] = useState(false);
@@ -269,6 +277,7 @@ export default function TripRetripRequestList() {
     try {
       const response = await retripRequestApi.readAllwithPaginated(page, limit, {
         params: {
+          ...geo.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
           ...(statusFilter ? { status: statusFilter } : {}),
@@ -292,7 +301,7 @@ export default function TripRetripRequestList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, statusFilter]);
+  }, [first, rowsPerPage, searchTerm, ordering, statusFilter, geoKey]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -317,6 +326,55 @@ export default function TripRetripRequestList() {
   // (an index signature) is satisfied — TripRetripRequestRecord is a closed
   // interface and can't be passed to DataTable's `value` directly.
   const rows = rawRows.map((r) => ({ ...r }));
+
+  /* ── Filters panel ─────────────────────────────────────────────── */
+  const commitStatus = (next: RetripStatus | "") => {
+    setStatusDraft(next);
+    if (next !== statusFilter) {
+      setStatusFilter(next);
+      setFirst(0);
+    }
+  };
+  const statusChips: ActiveFilterChip[] = statusFilter
+    ? [{ key: "status", label: "Status", value: RETRIP_STATUS_LABELS[statusFilter] ?? statusFilter, onRemove: () => commitStatus("") }]
+    : [];
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + statusChips.length,
+    chips: [...geo.chips, ...statusChips],
+    onApply: () => {
+      geo.apply();
+      commitStatus(statusDraft);
+    },
+    onReset: () => {
+      geo.reset();
+      commitStatus("");
+    },
+    content: (
+      <>
+        {geo.field}
+        <FilterSection label="Status">
+          <div role="radiogroup" aria-label="Status" className="flex flex-wrap gap-1.5">
+            {STATUS_CHOICES.map((s) => (
+              <button
+                key={s || "all"}
+                type="button"
+                role="radio"
+                aria-checked={statusDraft === s}
+                onClick={() => setStatusDraft(s)}
+                className={`h-9 rounded-lg border px-3.5 text-sm font-medium transition-colors ${
+                  statusDraft === s
+                    ? "border-green-600 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-100"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                }`}
+              >
+                {s ? RETRIP_STATUS_LABELS[s] ?? s : "All"}
+              </button>
+            ))}
+          </div>
+        </FilterSection>
+      </>
+    ),
+  };
 
   /* ── Approve ────────────────────────────────────────────────────── */
   const handleApproveConfirm = async (collectionPointIds: string[] | undefined, remarks: string) => {
@@ -401,26 +459,6 @@ export default function TripRetripRequestList() {
       <ListPageHeader
         title="Re-Trip Requests"
         subtitle="Drivers asking to end a trip early with stops still remaining"
-        actions={
-          <div className="flex items-center gap-2">
-            {(["Pending", "Approved", "Rejected", ""] as const).map((s) => (
-              <button
-                key={s || "all"}
-                onClick={() => {
-                  setFirst(0);
-                  setStatusFilter(s);
-                }}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  statusFilter === s
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {s || "All"}
-              </button>
-            ))}
-          </div>
-        }
         className="mb-6"
       />
 
@@ -439,6 +477,7 @@ export default function TripRetripRequestList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
+        filterPanel={filterPanel}
         header={
           <FilterBar
             searchValue={globalFilterValue}

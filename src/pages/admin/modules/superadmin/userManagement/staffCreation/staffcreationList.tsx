@@ -1,11 +1,12 @@
 import type { Staff, StaffAddress } from "./types";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/helpers/admin/registry";
 import notify from "@/lib/notify";
+import { useQrSheetDownload } from "@/hooks/useQrSheetDownload";
 
-import { DataTable } from "@/components/common/SafeDataTable";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -28,6 +29,9 @@ import {
 } from "./staffQrPdf";
 import { downloadAllStaffPdf } from "./staffAllDetailsPdf";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { useOptionFilter } from "@/components/filters/useOptionFilter";
 
 const STAFF_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "staff_unique_id", "zigma_id"],
@@ -164,10 +168,21 @@ export default function StaffCreationList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const [filterParams, setFilterParams] = useState({
-    active_status: "",
-    employee_name: "",
+  // Filters panel: location + Status (backend `?active_status=1|0`) +
+  // employee name (draft until "Apply filters").
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useOptionFilter({
+    param: "active_status",
+    label: t("common.status"),
+    options: [
+      { label: t("common.active"), value: "1" },
+      { label: t("common.inactive"), value: "0" },
+    ],
+    allLabel: t("common.all"),
+    onAppliedChange: () => setFirst(0),
   });
+  const [employeeName, setEmployeeName] = useState("");
+  const [employeeNameDraft, setEmployeeNameDraft] = useState("");
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [globalSearchTerm, setGlobalSearchTerm] = useState("");
@@ -183,11 +198,62 @@ export default function StaffCreationList() {
     encStaffCreation,
   );
 
-  const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const requestParams: Record<string, string> = {
+    ...geo.applied,
+    ...(showCol("active_status") ? status.applied : {}),
+    ...(employeeName ? { employee_name: employeeName } : {}),
+  };
+  const filterKey = JSON.stringify(requestParams);
 
-  const requestParams = {
-    active_status: filterParams.active_status,
-    employee_name: filterParams.employee_name,
+  const commitEmployeeName = (value: string) => {
+    const next = value.trim();
+    setEmployeeNameDraft(next);
+    if (next !== employeeName) {
+      setEmployeeName(next);
+      setFirst(0);
+    }
+  };
+
+  const employeeNameChips: ActiveFilterChip[] = employeeName
+    ? [{
+        key: "employee_name",
+        label: t("admin.staff_creation.employee_name"),
+        value: employeeName,
+        onRemove: () => commitEmployeeName(""),
+      }]
+    : [];
+  const statusPart = showCol("active_status") ? status : null;
+
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + (statusPart?.count ?? 0) + employeeNameChips.length,
+    chips: [...geo.chips, ...(statusPart?.chips ?? []), ...employeeNameChips],
+    onApply: () => {
+      geo.apply();
+      statusPart?.apply();
+      commitEmployeeName(employeeNameDraft);
+    },
+    onReset: () => {
+      geo.reset();
+      statusPart?.reset();
+      commitEmployeeName("");
+    },
+    content: (
+      <>
+        {geo.field}
+        {statusPart?.field}
+        {showCol("employee_name") && (
+          <FilterSection label={t("admin.staff_creation.employee_name")}>
+            <input
+              value={employeeNameDraft}
+              onChange={(e) => setEmployeeNameDraft(e.target.value)}
+              placeholder={t("admin.staff_creation.employee_placeholder")}
+              aria-label={t("admin.staff_creation.employee_name")}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+          </FilterSection>
+        )}
+      </>
+    ),
   };
 
   const loadRows = async (
@@ -225,19 +291,7 @@ export default function StaffCreationList() {
     if (globalSearchTerm) params.search = globalSearchTerm;
     void loadRows(first / rowsPerPage + 1, rowsPerPage, params, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, globalSearchTerm, sortField, sortOrder, refetchTrigger]);
-
-  const applyFilter = () => {
-    setFirst(0);
-    setRefetchTrigger((n) => n + 1);
-  };
-
-  const handleFilterChange = (
-    ev: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = ev.target;
-    setFilterParams((prev) => ({ ...prev, [name]: value }));
-  };
+  }, [first, rowsPerPage, globalSearchTerm, sortField, sortOrder, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -321,9 +375,16 @@ export default function StaffCreationList() {
   };
 
   const fetchExportStaff = async (): Promise<Staff[]> => {
-    const staffRows = toRecordList(await adminApi.staffCreation.readAllForExport());
+    const staffRows = toRecordList(await adminApi.staffCreation.readAllForExport({ params: requestParams }));
     return hydrateStaff(staffRows);
   };
+
+  const qrSheetAction = useQrSheetDownload(
+    () => fetchExportStaff(),
+    (s) => ({ qr: s.qr_code, title: String(s.employee_name ?? "-"), subtitle: String(s.staff_unique_id ?? s.emp_id ?? "") }),
+    "staff_qr_codes",
+    "Staff QR codes",
+  );
 
   const handleDownloadPdf = async () => {
     const exportRows = await fetchExportStaff();
@@ -444,49 +505,6 @@ export default function StaffCreationList() {
               </Can>
             </div>
           }
-          filters={
-            <div className="grid gap-3 md:grid-cols-5">
-              {showCol("active_status") && (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold">{t("common.status")}</span>
-                <select
-                  name="active_status"
-                  value={filterParams.active_status}
-                  onChange={handleFilterChange}
-                  className="h-10 rounded-lg border px-3 text-sm"
-                >
-                  <option value="">{t("common.all")}</option>
-                  <option value="1">{t("common.active")}</option>
-                  <option value="0">{t("common.inactive")}</option>
-                </select>
-              </div>
-              )}
-
-              {showCol("employee_name") && (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold">
-                  {t("admin.staff_creation.employee_name")}
-                </span>
-                <input
-                  name="employee_name"
-                  value={filterParams.employee_name}
-                  onChange={handleFilterChange}
-                  placeholder={t("admin.staff_creation.employee_placeholder")}
-                  className="h-10 rounded-lg border px-3 text-sm"
-                />
-              </div>
-              )}
-
-              <div className="flex items-end">
-                <button
-                  onClick={applyFilter}
-                  className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
-                >
-                  {t("common.go")}
-                </button>
-              </div>
-            </div>
-          }
           className="mb-6"
         />
         <DataTable
@@ -501,6 +519,8 @@ export default function StaffCreationList() {
           exportFilename={getAdminScreenExcelFilename("all")}
           exportSheetName="Staff"
           onPdfRequest={handleDownloadPdf}
+          documentActions={{ downloadQr: qrSheetAction }}
+          filterPanel={filterPanel}
           lazy
           paginator
           first={first}

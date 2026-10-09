@@ -19,6 +19,7 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 
 const TRIP_ATTENDANCE_COLUMN_FIELDS: Record<string, string[]> = {
   daily_trip_assignment_id: ["daily_trip_assignment_id", "daily_trip_assignment"],
@@ -66,6 +67,8 @@ export default function TripAttendanceList() {
   const [vehicleLookup, setVehicleLookup] = useState<Record<string, string>>({});
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const geo = useHierarchyFilter();
+  const geoKey = JSON.stringify(geo.applied);
 
   const [filters, setFilters] = useState<TableFilters>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -90,14 +93,23 @@ export default function TripAttendanceList() {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const [attendanceRes, tripRes, userRes, vehicleRes] = await Promise.all([
-        tripAttendanceApi.readAll(),
+      const attendanceRes = await tripAttendanceApi.readAll({ params: geo.applied });
+      setRecords(normalizeList(attendanceRes) as TripAttendanceRecord[]);
+    } catch {
+      notify.fire(t("common.error"), t("common.fetch_failed"), "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLookups = async () => {
+    try {
+      const [tripRes, userRes, vehicleRes] = await Promise.all([
         dailyTripAssignmentApi.readAll(),
         userApi.readAll(),
         vehicleApi.readAll(),
       ]);
 
-      setRecords(normalizeList(attendanceRes) as TripAttendanceRecord[]);
       setTripLookup(
         buildLookup(
           normalizeList(tripRes),
@@ -110,14 +122,17 @@ export default function TripAttendanceList() {
       setVehicleLookup(buildLookup(normalizeList(vehicleRes), "unique_id", "vehicle_no"));
     } catch {
       notify.fire(t("common.error"), t("common.fetch_failed"), "error");
-    } finally {
-      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRecords();
+    fetchLookups();
   }, []);
+
+  useEffect(() => {
+    fetchRecords();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoKey]);
 
   const onGlobalFilterChange = (value: string) => {
     setGlobalFilterValue(value);
@@ -166,6 +181,7 @@ export default function TripAttendanceList() {
       />
 
       <DataTable
+        filterPanel={geo.panel}
         value={records}
         dataKey="id"
         paginator

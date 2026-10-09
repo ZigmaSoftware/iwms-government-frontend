@@ -5,6 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 
 import { useDesignationList } from "./useDesignation.list";
 import { SORTABLE_FIELDS } from "./designation.list.functionality";
@@ -25,6 +26,7 @@ export default function DesignationListPage() {
     onPage,
     onSort,
     onExportRequest,
+    status,
     onToggleStatus,
     onDelete,
     navigateToNew,
@@ -57,6 +59,7 @@ export default function DesignationListPage() {
         onSort={onSort}
         loading={isLoading}
         onExportRequest={onExportRequest}
+        filterPanel={combineFilters(status)}
         header={
           <FilterBar
             searchValue={globalFilterValue}

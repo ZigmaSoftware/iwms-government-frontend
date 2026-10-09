@@ -19,6 +19,7 @@ import { userTypeApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const toRecordList = (value: unknown): UserType[] => {
   if (Array.isArray(value)) return value as UserType[];
@@ -44,6 +45,7 @@ export default function UserTypePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
   const { encRoleManagement, encUserType } = getEncryptedRoute();
@@ -58,6 +60,7 @@ export default function UserTypePage() {
     try {
       const response = await userTypeApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -80,7 +83,7 @@ export default function UserTypePage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -101,7 +104,7 @@ export default function UserTypePage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await userTypeApi.readAllForExport());
+  const onExportRequest = async () => toRecordList(await userTypeApi.readAllForExport({ params: status.applied }));
 
   const indexTemplate = (_: UserType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -193,6 +196,7 @@ export default function UserTypePage() {
         />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={rows}
           dataKey="unique_id"
           lazy

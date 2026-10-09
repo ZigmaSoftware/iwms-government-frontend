@@ -14,9 +14,11 @@ export async function loadDepartmentRows(
   limit: number,
   search: string,
   ordering?: string,
+  filters: Record<string, string> = {},
 ) {
   const response = await departmentApi.readAllwithPaginated(page, limit, {
     params: {
+      ...filters,
       ...(search ? { search } : {}),
       ...(ordering ? { ordering } : {}),
     },
@@ -29,8 +31,8 @@ export async function loadDepartmentRows(
   return { rows, totalRecords };
 }
 
-export async function loadDepartmentsForExport() {
-  return toRecordList<DepartmentListRecord>(await departmentApi.readAllForExport());
+export async function loadDepartmentsForExport(filters: Record<string, string> = {}) {
+  return toRecordList<DepartmentListRecord>(await departmentApi.readAllForExport({ params: filters }));
 }
 
 export async function updateDepartmentStatus(row: DepartmentListRecord, value: boolean) {

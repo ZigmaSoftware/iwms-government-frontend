@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
-import { DataTable } from "@/components/common/SafeDataTable";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputTextarea } from "primereact/inputtextarea";
@@ -19,13 +19,21 @@ import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { api } from "@/api";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "./collectionTime";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
+
+type CollectionType = "all" | "bin" | "household";
+const COLLECTION_TYPE_LABELS: Record<CollectionType, string> = {
+  all: "All Collections",
+  bin: "Bin Collection",
+  household: "Household Collection",
+};
 
 const STATUS_STYLES: Record<string, string> = {
   Draft: "bg-gray-100 text-gray-700",
@@ -562,7 +570,7 @@ export default function DailyTripLogList() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [collectionType, setCollectionType] = useState<"all" | "bin" | "household">("all");
+  const [collectionType, setCollectionType] = useState<CollectionType>("all");
   const [isLoading, setIsLoading] = useState(false);
   const [modalState, setModalState] = useState<{
     row: DailyTripLogRecord;
@@ -571,14 +579,18 @@ export default function DailyTripLogList() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hierarchyParams = geo.applied;
   const [dateFilter, setDateFilter] = useState("");
   const [wasteTypeIds, setWasteTypeIds] = useState<string[]>([]);
+  // what the Filters panel is editing; committed on "Apply filters"
+  const [draft, setDraft] = useState<{ date: string; wasteTypeIds: string[]; collectionType: CollectionType }>({
+    date: "",
+    wasteTypeIds: [],
+    collectionType: "all",
+  });
   const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
-  const [isExporting, setIsExporting] = useState(false);
-  // Bumped to force-remount HierarchyFilterBar (it owns its own internal
-  // state/pre-seeding) whenever "Clear All Filters" is used.
-  const [filterResetKey, setFilterResetKey] = useState(0);
+  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
 
   /* ── waste type dropdown options ── */
   useEffect(() => {
@@ -632,12 +644,6 @@ export default function DailyTripLogList() {
       setIsLoading(false);
     }
   };
-
-  /* ── reset to first page whenever a non-pagination filter changes ── */
-  useEffect(() => {
-    setFirst(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hierarchyParams, dateFilter, wasteTypeIds]);
 
   /* ── load logs (re-runs whenever pagination/sort/search/hierarchy/date/waste-type filters change) ── */
   useEffect(() => {
@@ -781,7 +787,7 @@ export default function DailyTripLogList() {
      screen), then apply the same enrichment + collectionType filter + the
      existing per-point/customer row-expansion to build a detailed report. ── */
   const handleDownload = async (format: "excel" | "pdf") => {
-    setIsExporting(true);
+    setExporting(format);
     try {
       const exportRaw = toRecordList(
         await dailyTripLogApi.readAllForExport({
@@ -875,22 +881,91 @@ export default function DailyTripLogList() {
     } catch (err: any) {
       notify.fire(t("common.error"), extractError(err) ?? err?.message ?? "Failed to download trip log data.", "error");
     } finally {
-      setIsExporting(false);
+      setExporting(null);
     }
   };
 
-  const hasActiveFilters =
-    Object.keys(hierarchyParams).length > 0 ||
-    Boolean(dateFilter) ||
-    wasteTypeIds.length > 0 ||
-    collectionType !== "all";
+  const commitFilters = (next: typeof draft) => {
+    setDraft(next);
+    setDateFilter(next.date);
+    setWasteTypeIds(next.wasteTypeIds);
+    setCollectionType(next.collectionType);
+    setFirst(0);
+  };
+  const applied = { date: dateFilter, wasteTypeIds, collectionType };
+  const EMPTY_FILTERS = { date: "", wasteTypeIds: [], collectionType: "all" as CollectionType };
 
-  const handleClearFilters = () => {
-    setHierarchyParams({});
-    setDateFilter("");
-    setWasteTypeIds([]);
-    setCollectionType("all");
-    setFilterResetKey((key) => key + 1);
+  const wasteTypeLabel = wasteTypeIds
+    .map((id) => wasteTypeOptions.find((o) => o.value === id)?.label ?? id)
+    .join(", ");
+  const extraChips: ActiveFilterChip[] = [
+    ...(collectionType !== "all"
+      ? [{ key: "collection_type", label: "Collection", value: COLLECTION_TYPE_LABELS[collectionType], onRemove: () => commitFilters({ ...applied, collectionType: "all" }) }]
+      : []),
+    ...(dateFilter ? [{ key: "date", label: "Trip date", value: dateFilter, onRemove: () => commitFilters({ ...applied, date: "" }) }] : []),
+    ...(wasteTypeIds.length
+      ? [{ key: "waste_type", label: "Waste type", value: wasteTypeLabel, onRemove: () => commitFilters({ ...applied, wasteTypeIds: [] }) }]
+      : []),
+  ];
+
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + extraChips.length,
+    chips: [...geo.chips, ...extraChips],
+    onApply: () => {
+      geo.apply();
+      commitFilters(draft);
+    },
+    onReset: () => {
+      geo.reset();
+      commitFilters(EMPTY_FILTERS);
+    },
+    content: (
+      <>
+        {geo.field}
+        <FilterSection label="Trip">
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={draft.collectionType}
+              onChange={(e) => setDraft((d) => ({ ...d, collectionType: e.target.value as CollectionType }))}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Collection type"
+            >
+              {(Object.keys(COLLECTION_TYPE_LABELS) as CollectionType[]).map((k) => (
+                <option key={k} value={k}>{COLLECTION_TYPE_LABELS[k]}</option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={draft.date}
+              onChange={(e) => setDraft((d) => ({ ...d, date: e.target.value }))}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              aria-label="Trip date"
+            />
+          </div>
+        </FilterSection>
+        <FilterSection label="Waste">
+          <MultiSelect
+            value={draft.wasteTypeIds}
+            onChange={(e) => {
+              const raw = Array.isArray(e.value) ? e.value : [];
+              // PrimeReact MultiSelect can emit full option objects instead of
+              // the scalar optionValue — normalize so filter params stay clean strings.
+              const values = raw.map((v: any) =>
+                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
+              );
+              setDraft((d) => ({ ...d, wasteTypeIds: values }));
+            }}
+            options={wasteTypeOptions}
+            optionLabel="label"
+            optionValue="value"
+            maxSelectedLabels={2}
+            placeholder="All waste types"
+            filter
+            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none!"
+          />
+        </FilterSection>
+      </>
+    ),
   };
 
   /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
@@ -913,77 +988,8 @@ export default function DailyTripLogList() {
       <ListPageHeader
         title="Daily Trip Logs"
         subtitle="Capture and verify actual collection trip results"
-        actions={
-          <div className="flex items-center gap-3">
-            <select
-              value={collectionType}
-              onChange={(e) => setCollectionType(e.target.value as "all" | "bin" | "household")}
-              className="border rounded px-3 py-2 text-sm"
-            >
-              <option value="all">All Collections</option>
-              <option value="bin">Bin Collection</option>
-              <option value="household">Household Collection</option>
-            </select>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <Button
-              label={isExporting ? "Downloading…" : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined"
-              disabled={isExporting || totalRecords === 0}
-              onClick={() => handleDownload("excel")}
-            />
-            <Button
-              label={isExporting ? "Generating…" : "Download PDF"}
-              icon="pi pi-file-pdf"
-              className="p-button-outlined"
-              disabled={isExporting || totalRecords === 0}
-              onClick={() => handleDownload("pdf")}
-            />
-          </div>
-        }
         className="mb-4"
       />
-
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7 items-end">
-        <HierarchyFilterBar key={filterResetKey} className="contents" showClear={false} onChange={setHierarchyParams} />
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-gray-700">Waste Type</label>
-          <MultiSelect
-            value={wasteTypeIds}
-            onChange={(e) => {
-              const raw = Array.isArray(e.value) ? e.value : [];
-              // PrimeReact MultiSelect can emit full option objects instead of
-              // the scalar optionValue — normalize so filter params stay clean strings.
-              const values = raw.map((v: any) =>
-                v && typeof v === "object" ? String(v.value ?? v.unique_id ?? v.id ?? "") : String(v),
-              );
-              setWasteTypeIds(values);
-            }}
-            options={wasteTypeOptions}
-            optionLabel="label"
-            optionValue="value"
-            maxSelectedLabels={2}
-            placeholder="All waste types"
-            className="flex! h-10! w-full! items-center! justify-between! rounded-md! border! border-input! bg-background! px-3! py-2! text-sm! shadow-none! ring-offset-background! focus:outline-none! focus:ring-2! focus:ring-ring! focus:ring-offset-2! disabled:cursor-not-allowed! disabled:opacity-50!"
-          />
-        </div>
-        <div>
-          <button
-            type="button"
-            onClick={handleClearFilters}
-            disabled={!hasActiveFilters}
-            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <i className="pi pi-filter-slash text-xs" />
-            Clear All Filters
-          </button>
-        </div>
-      </div>
 
       <div className="mb-4 flex flex-wrap gap-3 text-sm">
         <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {dailyWeight.toFixed(2)}</span>
@@ -993,6 +999,11 @@ export default function DailyTripLogList() {
 
       <DataTable
         exportable={false}
+        filterPanel={filterPanel}
+        documentActions={{
+          downloadExcel: { onClick: () => void handleDownload("excel"), busy: exporting === "excel", disabled: exporting !== null || totalRecords === 0 },
+          downloadPdf: { onClick: () => void handleDownload("pdf"), busy: exporting === "pdf", disabled: exporting !== null || totalRecords === 0 },
+        }}
         value={data}
         dataKey="unique_id"
         lazy

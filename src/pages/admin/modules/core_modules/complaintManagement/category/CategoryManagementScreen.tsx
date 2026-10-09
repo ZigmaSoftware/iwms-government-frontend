@@ -5,7 +5,6 @@ import notify from "@/lib/notify";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
-import { InputText } from "primereact/inputtext";
 import { FilterMatchMode } from "primereact/api";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -14,6 +13,8 @@ import { complaintCategoryApi, complaintSubcategoryApi } from "@/features/compla
 import { asArray, errorText, idOf, yesNo } from "../utils";
 import { MASTER_CONFIG } from "../masters/masterConfig";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { FilterBar } from "@/components/common/FilterBar";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 /**
  * "Categories & Subcategories" — merges what used to be two separate
@@ -46,6 +47,7 @@ export default function CategoryManagementScreen() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     searchParams.get("selected"),
   );
+  const status = useStatusFilter();
 
   useEffect(() => {
     Promise.all([
@@ -58,6 +60,16 @@ export default function CategoryManagementScreen() {
       })
       .catch((err) => notify.fire("Error", errorText(err, "Unable to load categories"), "error"));
   }, []);
+
+  // Client-side list: the Status filter narrows the loaded rows. A missing
+  // is_active reads as active, matching the "Active" column.
+  const visibleCategories = useMemo(
+    () =>
+      status.value
+        ? categories.filter((item) => (item.is_active !== false) === (status.value === "true"))
+        : categories,
+    [categories, status.value],
+  );
 
   const selectedCategory = useMemo(
     () => categories.find((item) => item.unique_id === selectedCategoryId) ?? null,
@@ -145,7 +157,8 @@ export default function CategoryManagementScreen() {
       </div>
 
       <DataTable
-        value={categories}
+        filterPanel={combineFilters(status)}
+        value={visibleCategories}
         dataKey="unique_id"
         paginator
         rows={10}
@@ -157,17 +170,15 @@ export default function CategoryManagementScreen() {
         selection={selectedCategory}
         onSelectionChange={(event: any) => setSelectedCategoryId(event.value?.unique_id ?? null)}
         header={
-          <div className="flex justify-end">
-            <InputText
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value: event.target.value } }));
-              }}
-              placeholder="Search"
-              className="p-inputtext-sm"
-            />
-          </div>
+          <FilterBar
+            searchValue={query}
+            onSearchChange={(value) => {
+              setQuery(value);
+              setFilters((prev: any) => ({ ...prev, global: { ...prev.global, value } }));
+            }}
+            searchPlaceholder="Search"
+            className="mb-4"
+          />
         }
         emptyMessage="No categories found"
         stripedRows

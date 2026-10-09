@@ -20,6 +20,8 @@ import { FilterBar } from "@/components/common/FilterBar";
 
 import { encodeLocalBodyRouteId } from "./userScreenPermissionForm";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
   corporation: "Corporation",
@@ -84,6 +86,15 @@ export default function UserScreenPermissionList() {
   const [isLoading, setIsLoading] = useState(false);
   const [localBodyLabels, setLocalBodyLabels] = useState<Record<string, string>>({});
 
+  const geo = useHierarchyFilter();
+  const status = useStatusFilter();
+  const permissionType = useOptionFilter({
+    param: "permission_type",
+    label: "Permission Type",
+    options: Object.entries(PERMISSION_TYPE_LABELS).map(([value, label]) => ({ label, value })),
+  });
+  const filterKey = JSON.stringify({ ...geo.applied, ...status.applied });
+
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     local_body_type_label: {
@@ -117,7 +128,7 @@ export default function UserScreenPermissionList() {
       setIsLoading(true);
       try {
         const data = await userScreenPermissionApi.readAll({
-          params: { limit: 6000, offset: 0 },
+          params: { limit: 6000, offset: 0, ...JSON.parse(filterKey) },
         });
         if (mounted) setPermissionRows(data as any[]);
       } catch {
@@ -132,7 +143,7 @@ export default function UserScreenPermissionList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, filterKey]);
 
   useEffect(() => {
     let mounted = true;
@@ -340,7 +351,12 @@ export default function UserScreenPermissionList() {
       />
 
       <DataTable
-        value={records}
+        filterPanel={combineFilters(geo, status, permissionType)}
+        value={
+          permissionType.value
+            ? records.filter((row) => row.permission_type === permissionType.value)
+            : records
+        }
         dataKey="composite_key"
         paginator
         rows={10}

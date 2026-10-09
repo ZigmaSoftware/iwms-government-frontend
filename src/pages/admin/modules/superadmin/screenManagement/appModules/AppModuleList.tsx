@@ -8,6 +8,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
 import { appModuleApi } from "@/helpers/admin";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 /** One row of the mobile app module master. */
 type AppModuleRow = {
@@ -49,6 +50,7 @@ export default function AppModuleList() {
   const [drafts, setDrafts] = useState<
     Record<string, { label: string; order_no: number }>
   >({});
+  const status = useStatusFilter();
 
   const load = () => {
     setLoading(true);
@@ -118,7 +120,13 @@ export default function AppModuleList() {
         stop new people being granted it.
       </p>
 
-      <DataTable value={rows} loading={loading} dataKey="unique_id" stripedRows>
+      <DataTable
+        value={rows.filter(status.matches)}
+        filterPanel={combineFilters(status)}
+        loading={loading}
+        dataKey="unique_id"
+        stripedRows
+      >
         <Column field="module_key" header="Key" style={{ width: "14rem" }} />
         <Column
           header="Label"

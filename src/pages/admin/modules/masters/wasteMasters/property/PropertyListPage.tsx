@@ -19,6 +19,7 @@ import type { PropertyRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -70,6 +71,7 @@ export default function PropertyList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
 
@@ -95,6 +97,7 @@ export default function PropertyList() {
     try {
       const response = await adminApi.properties.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(order ? { ordering: order } : {}),
         },
@@ -118,7 +121,7 @@ export default function PropertyList() {
   useEffect(() => {
     void loadProperties(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -140,7 +143,7 @@ export default function PropertyList() {
   };
 
   const onExportRequest = async () => {
-    const all = await adminApi.properties.readAllForExport();
+    const all = await adminApi.properties.readAllForExport({ params: status.applied });
     return toRecordList(all);
   };
 
@@ -242,6 +245,7 @@ export default function PropertyList() {
       />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={properties}
           dataKey="unique_id"
           lazy

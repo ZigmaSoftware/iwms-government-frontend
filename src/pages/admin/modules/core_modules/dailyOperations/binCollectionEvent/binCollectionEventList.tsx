@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
-import { DataTable } from "@/components/common/SafeDataTable";
+import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -12,7 +12,8 @@ import { InputText } from "primereact/inputtext";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
-import HierarchyFilterBar, { type HierarchyFilterParams } from "@/components/filters/HierarchyFilterBar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { FilterSection } from "@/components/common/ListToolbar";
 import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/exportExcel";
 import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { capitalize } from "@/utils/capitalize";
@@ -110,13 +111,15 @@ export default function BinCollectionEventList() {
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
+  const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
-  const [hierarchyParams, setHierarchyParams] = useState<HierarchyFilterParams>({});
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hierarchyParams = geo.applied;
   const [collectionDateFilter, setCollectionDateFilter] = useState("");
+  const [draftCollectionDate, setDraftCollectionDate] = useState("");
   const [summary, setSummary] = useState<SummaryState>(EMPTY_SUMMARY);
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
@@ -168,12 +171,6 @@ export default function BinCollectionEventList() {
     }
   };
 
-  // Reset to page 1 whenever a non-pagination filter changes.
-  useEffect(() => {
-    setFirst(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hierarchyParams, collectionDateFilter]);
-
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -187,7 +184,7 @@ export default function BinCollectionEventList() {
   const rows = useMemo(() => rawRows.map(enrichRow), [rawRows]);
 
   const handleExcelDownload = async () => {
-    setIsExporting(true);
+    setExporting("excel");
     try {
       const all = await binCollectionEventApi.readAllForExport({ params: filterParams });
       const exportRows = toRecordList(all).map(enrichRow).map((row) => ({
@@ -211,12 +208,12 @@ export default function BinCollectionEventList() {
     } catch (error) {
       notify.fire(t("common.error"), extractError(error) ?? "Export failed.", "error");
     } finally {
-      setIsExporting(false);
+      setExporting(null);
     }
   };
 
   const handlePdfDownload = async () => {
-    setIsExporting(true);
+    setExporting("pdf");
     try {
       const all = await binCollectionEventApi.readAllForExport({ params: filterParams });
       const exportRows = toRecordList(all).map(enrichRow).map((row) => ({
@@ -241,7 +238,7 @@ export default function BinCollectionEventList() {
     } catch (error) {
       notify.fire(t("common.error"), error instanceof Error ? error.message : "PDF export failed.", "error");
     } finally {
-      setIsExporting(false);
+      setExporting(null);
     }
   };
 
@@ -291,33 +288,49 @@ export default function BinCollectionEventList() {
   };
 
   const header = (
-    <div className="space-y-4">
-      {/* Hierarchy filter — capped to the caller's own corporation subtree */}
-      <HierarchyFilterBar onChange={setHierarchyParams} />
-
-      {/* Daily / Overall / Records — server-computed via the summary action so
-          totals stay correct once the list itself is paginated. */}
-      <div className="flex gap-3 text-sm">
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Daily: {Number(summary.dailyWeight).toFixed(2)}</span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Overall: {Number(summary.overallWeight).toFixed(2)}</span>
-        <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {summary.count}</span>
-      </div>
-
-      <div className="flex items-center justify-end gap-3">
-        <InputText
-          type="date"
-          value={collectionDateFilter}
-          onChange={(e) => setCollectionDateFilter(e.target.value)}
-          className="p-inputtext-sm"
-        />
-        <FilterBar
-          searchValue={globalFilterValue}
-          onSearchChange={setGlobalFilterValue}
-          searchPlaceholder={t("common.search_placeholder")}
-        />
-      </div>
-    </div>
+    <FilterBar
+      searchValue={globalFilterValue}
+      onSearchChange={setGlobalFilterValue}
+      searchPlaceholder={t("common.search_placeholder")}
+    />
   );
+
+  const setCollectionDate = (value: string) => {
+    setDraftCollectionDate(value);
+    setCollectionDateFilter(value);
+    setFirst(0);
+  };
+
+  const filterPanel: TableFilters = {
+    activeCount: geo.count + (collectionDateFilter ? 1 : 0),
+    onApply: () => {
+      geo.apply();
+      setCollectionDate(draftCollectionDate);
+    },
+    onReset: () => {
+      geo.reset();
+      setCollectionDate("");
+    },
+    chips: [
+      ...geo.chips,
+      ...(collectionDateFilter
+        ? [{ key: "collection_date", label: "Collection date", value: collectionDateFilter, onRemove: () => setCollectionDate("") }]
+        : []),
+    ],
+    content: (
+      <>
+        {geo.field}
+        <FilterSection label="Collection date">
+          <InputText
+            type="date"
+            value={draftCollectionDate}
+            onChange={(e) => setDraftCollectionDate(e.target.value)}
+            className="p-inputtext-sm w-full"
+          />
+        </FilterSection>
+      </>
+    ),
+  };
 
   return (
     <div className="p-3">
@@ -325,35 +338,31 @@ export default function BinCollectionEventList() {
         title="Bin Collection Events"
         subtitle="Scan audit log — one record per operator bin scan"
         actions={
-          <div className="flex items-center gap-3">
+          <Can action="add">
             <Button
-              label="Download Excel"
-              icon="pi pi-file-excel"
-              className="p-button-outlined p-button-sm"
-              disabled={isExporting}
-              onClick={() => void handleExcelDownload()}
+              label="Add Bin Collection Event"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(NEW_PATH)}
             />
-            <Button
-              label="Download PDF"
-              icon="pi pi-file-pdf"
-              className="p-button-outlined p-button-sm"
-              disabled={isExporting}
-              onClick={() => void handlePdfDownload()}
-            />
-            <Can action="add">
-              <Button
-                label="Add Bin Collection Event"
-                icon="pi pi-plus"
-                className="p-button-success p-button-sm"
-                onClick={() => navigate(NEW_PATH)}
-              />
-            </Can>
-          </div>
+          </Can>
         }
         className="mb-6"
       />
+      {/* Daily / Overall / Records — server-computed via the summary action so
+          totals stay correct once the list itself is paginated. */}
+      <div className="mb-3 flex gap-3 text-sm">
+        <span className="bg-slate-100 px-4 py-2 rounded-full">Daily: {Number(summary.dailyWeight).toFixed(2)}</span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">Overall: {Number(summary.overallWeight).toFixed(2)}</span>
+        <span className="bg-slate-100 px-4 py-2 rounded-full">Records: {summary.count}</span>
+      </div>
       <DataTable
         exportable={false}
+        filterPanel={filterPanel}
+        documentActions={{
+          downloadExcel: { onClick: () => void handleExcelDownload(), busy: exporting === "excel", disabled: exporting !== null },
+          downloadPdf: { onClick: () => void handlePdfDownload(), busy: exporting === "pdf", disabled: exporting !== null },
+        }}
         value={rows}
         dataKey="unique_id"
         lazy

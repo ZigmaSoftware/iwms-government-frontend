@@ -20,6 +20,7 @@ import type { StaffUserType } from "@/pages/admin/modules/superadmin/screenManag
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const toRecordList = (value: unknown): StaffUserType[] => {
   if (Array.isArray(value)) return value as StaffUserType[];
@@ -58,6 +59,7 @@ export default function StaffUserTypeList() {
   const [isUpdatingGovernment, setIsUpdatingGovernment] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const status = useStatusFilter();
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -256,7 +258,8 @@ export default function StaffUserTypeList() {
         />
 
         <DataTable
-          value={records}
+          filterPanel={combineFilters(status)}
+          value={records.filter(status.matches)}
           paginator
           rows={10}
           loading={isLoading && records.length === 0}

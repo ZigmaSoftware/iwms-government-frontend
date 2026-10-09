@@ -8,6 +8,13 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
 import { customerAccessConfigurationApi } from "@/helpers/admin";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+
+const APP_ACCESS_OPTIONS = [
+  { label: "Configured", value: "configured" },
+  { label: "No app access", value: "none" },
+];
 
 type CustomerOption = {
   unique_id: string;
@@ -61,6 +68,12 @@ export default function CustomerAccessConfigList() {
   const [draftModules, setDraftModules] = useState<string[]>([]);
   const [draftScreens, setDraftScreens] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const geo = useHierarchyFilter();
+  const geoKey = JSON.stringify(geo.applied);
+  const appAccess = useOptionFilter({ param: "app_access", label: "App access", options: APP_ACCESS_OPTIONS });
+  const visibleCustomers = appAccess.value
+    ? customers.filter((row) => row.has_access_configuration === (appAccess.value === "configured"))
+    : customers;
 
   useEffect(() => {
     customerAccessConfigurationApi
@@ -75,7 +88,7 @@ export default function CustomerAccessConfigList() {
       Promise.all([
         // No company filter: this codebase scopes customers through the
         // government hierarchy, not a company/project pair.
-        customerAccessConfigurationApi.action("customer-options"),
+        customerAccessConfigurationApi.action("customer-options", undefined, { params: geo.applied }),
         customerAccessConfigurationApi.readAll(),
       ])
         .then(([options, existing]) => {
@@ -92,7 +105,8 @@ export default function CustomerAccessConfigList() {
         .catch(() => setCustomers([]))
         .finally(() => setLoading(false));
     },
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [geoKey],
   );
 
   useEffect(load, [load]);
@@ -157,7 +171,8 @@ export default function CustomerAccessConfigList() {
 
       {(
         <DataTable
-          value={customers}
+          value={visibleCustomers}
+          filterPanel={combineFilters(geo, appAccess)}
           loading={loading}
           dataKey="unique_id"
           stripedRows

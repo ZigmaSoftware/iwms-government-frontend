@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { customerCreationApi } from "@/helpers/admin";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 
 /* ---------------- HELPERS ---------------- */
 
@@ -31,15 +32,18 @@ export default function ApartmentListPage() {
 
   const [allCustomers, setAllCustomers] = useState<CustomerCreationRecord[]>([])
   const [customersLoading, setCustomersLoading] = useState(false)
+  const geo = useHierarchyFilter()
+  const geoKey = JSON.stringify(geo.applied)
   useEffect(() => {
     let mounted = true
     setCustomersLoading(true)
-    customerCreationApi.readAll()
+    customerCreationApi.readAll({ params: geo.applied })
       .then((data: unknown) => { if (mounted) setAllCustomers(Array.isArray(data) ? data as CustomerCreationRecord[] : []) })
       .catch((error: unknown) => { if (mounted) notify.fire({ icon: 'error', title: 'Error', text: String(error) }) })
       .finally(() => { if (mounted) setCustomersLoading(false) })
     return () => { mounted = false }
-  }, [t])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, geoKey])
 
   const [viewLevel, setViewLevel] = useState<ViewLevel>("apartment");
 
@@ -358,6 +362,7 @@ export default function ApartmentListPage() {
       {viewLevel === "apartment" && (
         <DataTable
           value={apartments}
+          filterPanel={geo.panel}
           dataKey="apartment_name"
           paginator
           rows={10}

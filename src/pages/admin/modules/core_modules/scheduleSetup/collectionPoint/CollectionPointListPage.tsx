@@ -20,6 +20,8 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 
 const toDisplay = (value: unknown): string =>
@@ -90,6 +92,10 @@ export default function CollectionPointListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -108,6 +114,7 @@ export default function CollectionPointListPage() {
     try {
       const response = await collectionPointApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -134,7 +141,7 @@ export default function CollectionPointListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   const displayRows = rows.map((row) => {
     const ulb = resolveLocalBody(row, ULB_LEVELS);
@@ -273,6 +280,7 @@ export default function CollectionPointListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
+        filterPanel={combineFilters(geo, status)}
         header={
           <FilterBar
             searchValue={globalFilterValue}

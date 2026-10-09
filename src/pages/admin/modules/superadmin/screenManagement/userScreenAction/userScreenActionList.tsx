@@ -19,6 +19,7 @@ import { userScreenActionApi } from "@/helpers/admin";
 
 import type { UserScreenAction } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 const toRecordList = (value: unknown): UserScreenAction[] => {
   if (Array.isArray(value)) return value as UserScreenAction[];
@@ -43,6 +44,7 @@ export default function UserScreenActionList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
   const { encSuperAdmin, encUserScreenAction } = getEncryptedRoute();
@@ -57,6 +59,7 @@ export default function UserScreenActionList() {
     try {
       const response = await userScreenActionApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -91,7 +94,7 @@ export default function UserScreenActionList() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, t]);
+  }, [first, rowsPerPage, searchTerm, ordering, t, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -112,7 +115,7 @@ export default function UserScreenActionList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await userScreenActionApi.readAllForExport());
+  const onExportRequest = async () => toRecordList(await userScreenActionApi.readAllForExport({ params: status.applied }));
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -207,6 +210,7 @@ export default function UserScreenActionList() {
 
         {/* Table */}
         <DataTable
+          filterPanel={combineFilters(status)}
           value={records}
           dataKey="unique_id"
           lazy
