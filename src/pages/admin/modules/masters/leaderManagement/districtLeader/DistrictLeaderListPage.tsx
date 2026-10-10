@@ -19,8 +19,11 @@ import {
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   excelFileToCsvFile,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import { normalizeBulkErrors, type BulkUploadResult } from "@/utils/bulkUpload";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
@@ -72,6 +75,11 @@ export default function DistrictLeaderListPage() {
   const [searchTerm, setSearchTerm]         = useState("");
   const [sortField, setSortField]           = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
+  const BULK_KEY = "district-leaders";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
   const geo    = useHierarchyFilter(() => setFirst(0));
   const status = useStatusFilter(() => setFirst(0));
   const filterParams = { ...geo.applied, ...status.applied };
@@ -149,6 +157,7 @@ export default function DistrictLeaderListPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "district_leader_bulk.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
@@ -157,18 +166,24 @@ export default function DistrictLeaderListPage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number((res as { success_count?: unknown })?.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
       });
+      const uploadSummary: BulkUploadResult = { fileName: file.name, successCount, errors, originalRows };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
 
       notify.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
       });
       setRefetchTrigger((p) => p + 1);
     } catch {
@@ -278,6 +293,19 @@ export default function DistrictLeaderListPage() {
         onChange={handleUploadExcel}
       />
 
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={() => fileInputRef.current?.click()}
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="district_leader_rejected.xlsx"
+        />
+      )}
+
       {/* ── DataTable ── */}
       <DataTable
         value={rows}
@@ -344,6 +372,14 @@ export default function DistrictLeaderListPage() {
           style={{ width: "100px", textAlign: "center" }}
         />
       </DataTable>
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="District leader bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="district_leader_rejected.xlsx"
+      />
     </div>
   );
 }

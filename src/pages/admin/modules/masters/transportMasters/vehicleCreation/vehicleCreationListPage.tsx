@@ -25,8 +25,18 @@ import {
   excelFileToCsvFile,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -307,6 +317,11 @@ export default function VehicleCreationListPage() {
   const [historyRows, setHistoryRows] = useState<VehicleDocumentHistoryRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const BULK_KEY = "vehicle-creation";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
   const geo = useHierarchyFilter(() => setFirst(0));
   const status = useStatusFilter(() => setFirst(0));
   const filterParams = { ...geo.applied, ...status.applied };
@@ -417,6 +432,7 @@ export default function VehicleCreationListPage() {
     if (!file) return;
 
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "vehicle_bulk_upload.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
@@ -429,31 +445,30 @@ export default function VehicleCreationListPage() {
         },
       );
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number(res.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
       });
-      const errorPreview =
-        errors.length > 0
-          ? `<hr/><div class="text-left text-xs mt-2">${errors
-              .slice(0, 3)
-              .map((entry: { row: number; error: unknown }) => {
-                const detail =
-                  typeof entry.error === "string"
-                    ? entry.error
-                    : JSON.stringify(entry.error);
-                return `Row ${entry.row}: ${detail}`;
-              })
-              .join("<br/>")}</div>`
-          : "";
+      const result: BulkUploadResult = {
+        fileName: file.name,
+        successCount,
+        errors,
+        originalRows,
+      };
+      // Persist rejected rows so they stay visible across table refetch / reload.
+      if (errors.length > 0) saveBulkResult(BULK_KEY, result);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(result);
+      setResultOpen(true);
 
       notify.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count}<br/><b>Errors:</b> ${errors.length}${errorPreview}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
       });
 
       setRefetchTrigger((prev) => prev + 1);
@@ -648,6 +663,19 @@ export default function VehicleCreationListPage() {
         }
         className="mb-6"
       />
+
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={() => fileInputRef.current?.click()}
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="vehicle_rejected.xlsx"
+        />
+      )}
 
       {/* Table */}
       <DataTable
@@ -851,6 +879,14 @@ export default function VehicleCreationListPage() {
           onOpenFile={openFile}
         />
       )}
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Vehicle bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="vehicle_rejected.xlsx"
+      />
     </div>
   );
 }

@@ -174,19 +174,27 @@ export const excelFileToCsvFile = async (
   csvFilename: string,
 ): Promise<File> => {
   const rows = await readExcelRows(file);
-  if (rows.length === 0) {
-    throw new Error("The uploaded Excel file does not contain any data rows.");
+  return recordsToCsvFile(rows, csvFilename);
+};
+
+/** Build a CSV file from already field-mapped payloads (single bulk-upload mechanism). */
+export const recordsToCsvFile = (
+  records: ExportRow[],
+  csvFilename: string,
+): File => {
+  if (records.length === 0) {
+    throw new Error("There are no data rows to upload.");
   }
 
   const headers = Array.from(
-    rows.reduce<Set<string>>((fields, row) => {
+    records.reduce<Set<string>>((fields, row) => {
       Object.keys(row).forEach((field) => fields.add(field));
       return fields;
     }, new Set<string>()),
   );
   const csv = [
     headers.map(escapeCsvValue).join(","),
-    ...rows.map((row) =>
+    ...records.map((row) =>
       headers.map((header) => escapeCsvValue(row[header])).join(","),
     ),
   ].join("\r\n");

@@ -23,8 +23,18 @@ import {
   exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { FilterSection, type ActiveFilterChip, type DocumentActions } from "@/components/common/ListToolbar";
 import type { TableFilters } from "@/components/common/SafeDataTable";
@@ -255,6 +265,11 @@ export default function CustomerCreationListPage() {
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const [isUploading, setIsUploading] = useState(false);
+  const BULK_KEY = "customer-creation";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -262,6 +277,7 @@ export default function CustomerCreationListPage() {
 
     setIsUploading(true);
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "customer_bulk_upload.csv");
       const formDataObj = new FormData();
       formDataObj.append("file", csvFile);
@@ -272,18 +288,23 @@ export default function CustomerCreationListPage() {
         { headers: { "Content-Type": "multipart/form-data" } },
       );
       const success = Number(result?.success_count ?? 0);
-      const errors = Array.isArray(result?.errors) ? result.errors.length : 0;
+      const errors = normalizeBulkErrors(result?.errors, originalRows);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
         success_count: success,
-        error_count: errors,
+        error_count: errors.length,
       });
+      const uploadSummary: BulkUploadResult = { fileName: file.name, successCount: success, errors, originalRows };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
 
       notify.fire({
         title: String(result?.message ?? "Upload Completed"),
-        html: `<b>Success:</b> ${success} <br/> <b>Errors:</b> ${errors}`,
-        icon: "success",
+        text: `Success: ${success} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
+        icon: errors.length > 0 ? "warning" : "success",
       });
 
       setFirst(0);
@@ -580,6 +601,19 @@ export default function CustomerCreationListPage() {
           className="mb-6"
         />
 
+        {uploadResult && uploadResult.errors.length > 0 && (
+          <BulkRejectedPanel
+            result={uploadResult}
+            onClear={() => {
+              clearBulkResult(BULK_KEY);
+              setUploadResult(null);
+            }}
+            onReupload={() => document.getElementById("excelUpload")?.click()}
+            onViewAll={() => setResultOpen(true)}
+            downloadFilename="customer_rejected.xlsx"
+          />
+        )}
+
         <DataTable
           value={rawRows}
           bulkImportable={false}
@@ -703,6 +737,14 @@ export default function CustomerCreationListPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Customer bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="customer_rejected.xlsx"
+      />
     </>
   );
 }
