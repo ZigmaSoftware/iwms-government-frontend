@@ -20,6 +20,7 @@ import { userScreenActionApi } from "@/helpers/admin";
 import type { UserScreenAction } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const toRecordList = (value: unknown): UserScreenAction[] => {
   if (Array.isArray(value)) return value as UserScreenAction[];
@@ -123,19 +124,11 @@ export default function UserScreenActionList() {
   ) => rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await userScreenActionApi.delete(id);
+      await userScreenActionApi.delete(id, withDeleteReason(reason));
       setRecords((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",

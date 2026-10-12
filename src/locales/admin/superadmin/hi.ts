@@ -253,6 +253,7 @@ export default {
     "user_agent": "User Agent",
     "success": "Success",
     "reason": "Reason",
+    "delete_reason": "हटाने का कारण",
     "created_at": "Created At",
     "detail_title": "Audit Details",
     "previous_data": "Previous Data",

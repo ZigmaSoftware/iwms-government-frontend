@@ -266,6 +266,7 @@ export default {
     "user_agent": "User Agent",
     "success": "Success",
     "reason": "Reason",
+    "delete_reason": "Delete Reason",
     "created_at": "Created At",
     "detail_title": "Audit Details",
     "previous_data": "Previous Data",

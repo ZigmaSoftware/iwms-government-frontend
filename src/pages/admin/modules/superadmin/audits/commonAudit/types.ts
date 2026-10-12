@@ -59,6 +59,7 @@ export type CommonAuditRecord = {
   user_agent?: string | null;
   success?: boolean;
   reason?: string | null;
+  delete_reason?: string | null;
   previous_data?: CommonAuditJsonValue;
   new_data?: CommonAuditJsonValue;
   [key: string]: unknown;

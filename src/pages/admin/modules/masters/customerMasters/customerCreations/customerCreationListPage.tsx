@@ -46,6 +46,7 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useScreenAccess } from "@/contexts/screenPermission";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -543,19 +544,11 @@ export default function CustomerCreationListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title") || "Are you sure?",
-      text: t("common.confirm_delete_text") || "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await customerCreationApi.delete(id);
+      await customerCreationApi.delete(id, withDeleteReason(reason));
       setRawRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",

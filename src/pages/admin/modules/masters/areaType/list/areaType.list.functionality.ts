@@ -3,6 +3,7 @@ import { formatCoordinates } from "../../shared/formatCoordinates";
 import { displayValue, toRecordList } from "../../shared/recordHelpers";
 
 import type { AreaTypeListRecord, SortOrder } from "./areaType.list.types";
+import { withDeleteReason } from "@/utils/deleteReason";
 
 // Backend `ordering_fields = ["name", "is_active"]`. The `area_type_name`
 // column is serialized from the model's `name` field (source="name" in
@@ -54,8 +55,8 @@ export async function updateAreaTypeStatus(id: string, value: boolean) {
   await areaTypeApi.update(id, { is_active: value });
 }
 
-export async function deleteAreaType(id: string) {
-  await areaTypeApi.delete(id);
+export async function deleteAreaType(id: string, reason: string) {
+  await areaTypeApi.delete(id, withDeleteReason(reason));
 }
 
 export function resolveOrdering(sortField: string | undefined, sortOrder: SortOrder) {

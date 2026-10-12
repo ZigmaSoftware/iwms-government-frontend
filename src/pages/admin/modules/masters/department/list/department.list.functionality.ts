@@ -1,6 +1,7 @@
 import { departmentApi } from "@/helpers/admin";
 import { resolveSimpleOrdering, toRecordList } from "../../shared/recordHelpers";
 import type { DepartmentListRecord, SortOrder } from "./department.list.types";
+import { withDeleteReason } from "@/utils/deleteReason";
 
 export const SORTABLE_FIELDS = new Set(["department_name", "department_code"]);
 
@@ -44,6 +45,6 @@ export async function updateDepartmentStatus(row: DepartmentListRecord, value: b
   });
 }
 
-export async function deleteDepartment(id: string) {
-  await departmentApi.delete(id);
+export async function deleteDepartment(id: string, reason: string) {
+  await departmentApi.delete(id, withDeleteReason(reason));
 }

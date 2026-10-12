@@ -4,6 +4,7 @@ import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { extractErrorMessage } from "../../shared/recordHelpers";
+import { confirmDeleteWithReason } from "@/utils/deleteReason";
 
 import {
   deleteAreaType,
@@ -99,19 +100,11 @@ export function useAreaTypeList() {
   };
 
   const onDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await deleteAreaType(id);
+      await deleteAreaType(id, reason);
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",

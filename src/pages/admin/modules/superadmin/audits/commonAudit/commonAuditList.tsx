@@ -1015,14 +1015,23 @@ export default function CommonAuditList() {
             <Column
               field="reason"
               header={t("admin.common_audit.reason", "Reason")}
-              body={(r: CommonAuditRecord) => (
-                <span
-                  className="block max-w-[260px] truncate"
-                  title={r.reason ?? undefined}
-                >
-                  {r.reason ?? "-"}
-                </span>
-              )}
+              body={(r: CommonAuditRecord) => {
+                // One column for both: DELETE rows carry the user's
+                // justification in delete_reason; failed writes carry the
+                // error in reason. The two are never set on the same row.
+                const value =
+                  r.method === "DELETE"
+                    ? (r.delete_reason ?? r.reason)
+                    : (r.reason ?? r.delete_reason);
+                return (
+                  <span
+                    className="block max-w-[260px] truncate"
+                    title={value ?? undefined}
+                  >
+                    {value ?? "-"}
+                  </span>
+                );
+              }}
             />
             <Column
               header={t("admin.common_audit.files", "Files")}
@@ -1103,12 +1112,26 @@ export default function CommonAuditList() {
                   .join(", ") || "-"}
               </div>
             </div>
-            {selectedRecord?.reason ? (
+            {(selectedRecord?.method === "DELETE"
+              ? (selectedRecord?.delete_reason ?? selectedRecord?.reason)
+              : (selectedRecord?.reason ?? selectedRecord?.delete_reason)) ? (
               <div className="sm:col-span-2">
                 <div className="text-xs text-gray-500">
-                  {t("admin.common_audit.reason", "Reason")}
+                  {selectedRecord?.method === "DELETE"
+                    ? t("admin.common_audit.delete_reason", "Delete Reason")
+                    : t("admin.common_audit.reason", "Reason")}
                 </div>
-                <div className="text-red-700">{selectedRecord.reason}</div>
+                <div
+                  className={
+                    selectedRecord?.method === "DELETE"
+                      ? "whitespace-pre-line"
+                      : "text-red-700"
+                  }
+                >
+                  {selectedRecord?.method === "DELETE"
+                    ? (selectedRecord?.delete_reason ?? selectedRecord?.reason)
+                    : (selectedRecord?.reason ?? selectedRecord?.delete_reason)}
+                </div>
               </div>
             ) : null}
             <div className="min-w-0 sm:col-span-2">

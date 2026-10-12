@@ -20,6 +20,7 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const COUNTRY_COLUMN_FIELDS: Record<string, string[]> = {
   continent_name: ["continent_id"],
@@ -179,19 +180,11 @@ export default function CountryList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await countryApi.delete(id);
+      await countryApi.delete(id, withDeleteReason(reason));
       setCountries((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",

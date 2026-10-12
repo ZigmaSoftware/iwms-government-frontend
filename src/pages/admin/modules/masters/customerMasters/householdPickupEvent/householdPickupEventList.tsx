@@ -12,6 +12,7 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { normalizeList } from "@/utils/forms";
 import notify from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type Row = Record<string, any>;
 const householdPickupEventApi = createCrudHelpers<Row>("customer-masters/household-pickup-events");
@@ -37,19 +38,11 @@ export default function HouseholdPickupEventList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await householdPickupEventApi.delete(id);
+      await householdPickupEventApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({ icon: "success", title: "Deleted successfully", timer: 1500, showConfirmButton: false });
     } catch (error: any) {
