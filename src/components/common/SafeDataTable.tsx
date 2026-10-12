@@ -339,6 +339,12 @@ const DataTableHeaderActions = ({
             status: "completed",
             success_count: success,
             error_count: errors.length,
+            ...((res as { file_url?: unknown }).file_url
+              ? {
+                  file_url: (res as { file_url?: unknown }).file_url,
+                  file_name: (res as { file_name?: unknown }).file_name ?? file.name,
+                }
+              : {}),
           });
 
           if (errors.length > 0) {
@@ -487,9 +493,22 @@ const DataTableHeaderActions = ({
     }
   };
 
+  // Uploads need "add" AND "import"; downloads need "view" AND "export".
+  // Either grant alone is not enough. Outside a permissioned page
+  // everything is allowed and the backend decides.
+  const {
+    canAdd: allowAdd,
+    canView: allowView,
+    canImport: allowImportGrant,
+    canExport: allowExportGrant,
+  } = useScreenAccess();
+  const allowImport = allowAdd && allowImportGrant;
+  const allowExport = allowView && allowExportGrant;
+
   const canImport =
     builtIns &&
     bulkImportable &&
+    allowImport &&
     resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
 
@@ -514,6 +533,21 @@ const DataTableHeaderActions = ({
     ...(documentActions ?? {}),
   };
 
+  // Enforce the grants on the merged menu: without "import" no upload entry,
+  // without "export" no download entries. The template serves both flows, so
+  // it stays when either grant is present.
+  if (actions.uploadExcel && !allowImport) {
+    actions.uploadExcel = { ...actions.uploadExcel, hidden: true };
+  }
+  if (!allowExport) {
+    for (const key of ["downloadExcel", "downloadPdf", "downloadQr"] as const) {
+      if (actions[key]) actions[key] = { ...actions[key], hidden: true };
+    }
+    if (actions.downloadTemplate && !allowImport) {
+      actions.downloadTemplate = { ...actions.downloadTemplate, hidden: true };
+    }
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
       {importResult && importResult.errors.length > 0 && (
@@ -523,7 +557,7 @@ const DataTableHeaderActions = ({
             clearBulkResult(moduleKey);
             setImportResult(null);
           }}
-          onReupload={() => fileInputRef.current?.click()}
+          onReupload={allowImport ? () => fileInputRef.current?.click() : undefined}
           onViewAll={() => setResultOpen(true)}
         />
       )}
@@ -583,8 +617,8 @@ export const DataTable = <TValue extends SafeTableRows>(
     documentActions,
     ...tableProps
   } = props;
-  // Excel import creates records, so it needs "add" on the current page.
-  const { canAdd } = useScreenAccess();
+  // Uploading a file needs "add" AND "import" together.
+  const { canAdd: canAddRecord, canImport: canImportFile } = useScreenAccess();
   const safeRows = toSafeRows(tableProps.value);
   const rowsForExport = exportRows ?? safeRows;
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
@@ -598,7 +632,7 @@ export const DataTable = <TValue extends SafeTableRows>(
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
         importColumns={resolvedImportColumns}
-        bulkImportable={bulkImportable && canAdd}
+        bulkImportable={bulkImportable && canAddRecord && canImportFile}
         importApi={resolvedImportApi}
         importDefaults={importDefaults}
         importTemplateFilename={importTemplateFilename}

@@ -45,6 +45,7 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 
 const CUSTOMER_CREATION_COLUMN_FIELDS: Record<string, string[]> = {
   customer_name: ["customer_name", "name"],
@@ -270,6 +271,7 @@ export default function CustomerCreationListPage() {
     loadBulkResult(BULK_KEY),
   );
   const [resultOpen, setResultOpen] = useState(false);
+  const { canAdd, canImport } = useScreenAccess();
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -294,6 +296,7 @@ export default function CustomerCreationListPage() {
         status: "completed",
         success_count: success,
         error_count: errors.length,
+        ...(result?.file_url ? { file_url: result.file_url, file_name: result.file_name ?? file.name } : {}),
       });
       const uploadSummary: BulkUploadResult = { fileName: file.name, successCount: success, errors, originalRows };
       if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
@@ -434,7 +437,7 @@ export default function CustomerCreationListPage() {
   };
 
   const documentActions: DocumentActions = {
-    uploadExcel: { onClick: () => document.getElementById("excelUpload")?.click(), busy: isUploading },
+    uploadExcel: { onClick: () => document.getElementById("excelUpload")?.click(), busy: isUploading, hidden: !(canAdd && canImport) },
     downloadTemplate: { onClick: () => void downloadTemplate() },
     downloadExcel: { onClick: () => void handleDownloadExcel(), busy: isExportingExcel },
     downloadPdf: { onClick: () => void handleDownloadPdf(), busy: isExportingPdf },
@@ -608,7 +611,7 @@ export default function CustomerCreationListPage() {
               clearBulkResult(BULK_KEY);
               setUploadResult(null);
             }}
-            onReupload={() => document.getElementById("excelUpload")?.click()}
+            onReupload={canAdd && canImport ? () => document.getElementById("excelUpload")?.click() : undefined}
             onViewAll={() => setResultOpen(true)}
             downloadFilename="customer_rejected.xlsx"
           />

@@ -292,7 +292,7 @@ function DocumentHistoryDialog({
 export default function VehicleCreationListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { canAdd } = useScreenAccess();
+  const { canAdd, canImport } = useScreenAccess();
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "transport-master",
     "vehicle-creation",
@@ -452,6 +452,7 @@ export default function VehicleCreationListPage() {
         status: "completed",
         success_count: successCount,
         error_count: errors.length,
+        ...(res.file_url ? { file_url: res.file_url, file_name: res.file_name ?? file.name } : {}),
       });
       const result: BulkUploadResult = {
         fileName: file.name,
@@ -671,7 +672,7 @@ export default function VehicleCreationListPage() {
             clearBulkResult(BULK_KEY);
             setUploadResult(null);
           }}
-          onReupload={() => fileInputRef.current?.click()}
+          onReupload={canAdd && canImport ? () => fileInputRef.current?.click() : undefined}
           onViewAll={() => setResultOpen(true)}
           downloadFilename="vehicle_rejected.xlsx"
         />
@@ -685,7 +686,7 @@ export default function VehicleCreationListPage() {
         documentActions={{
           uploadExcel: {
             onClick: () => fileInputRef.current?.click(),
-            hidden: !canAdd,
+            hidden: !(canAdd && canImport),
           },
           downloadTemplate: { onClick: () => void downloadVehicleTemplate() },
         }}

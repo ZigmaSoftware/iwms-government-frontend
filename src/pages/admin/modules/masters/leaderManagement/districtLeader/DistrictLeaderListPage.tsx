@@ -30,6 +30,7 @@ import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
@@ -80,6 +81,7 @@ export default function DistrictLeaderListPage() {
     loadBulkResult(BULK_KEY),
   );
   const [resultOpen, setResultOpen] = useState(false);
+  const { canAdd, canImport } = useScreenAccess();
   const geo    = useHierarchyFilter(() => setFirst(0));
   const status = useStatusFilter(() => setFirst(0));
   const filterParams = { ...geo.applied, ...status.applied };
@@ -173,6 +175,7 @@ export default function DistrictLeaderListPage() {
         status: "completed",
         success_count: successCount,
         error_count: errors.length,
+        ...(res.file_url ? { file_url: res.file_url, file_name: res.file_name ?? file.name } : {}),
       });
       const uploadSummary: BulkUploadResult = { fileName: file.name, successCount, errors, originalRows };
       if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
@@ -300,7 +303,7 @@ export default function DistrictLeaderListPage() {
             clearBulkResult(BULK_KEY);
             setUploadResult(null);
           }}
-          onReupload={() => fileInputRef.current?.click()}
+          onReupload={canAdd && canImport ? () => fileInputRef.current?.click() : undefined}
           onViewAll={() => setResultOpen(true)}
           downloadFilename="district_leader_rejected.xlsx"
         />
@@ -324,7 +327,7 @@ export default function DistrictLeaderListPage() {
         header={renderHeader()}
         filterPanel={combineFilters(geo, status)}
         documentActions={{
-          uploadExcel: { onClick: () => fileInputRef.current?.click() },
+          uploadExcel: { onClick: () => fileInputRef.current?.click(), hidden: !(canAdd && canImport) },
           downloadTemplate: { onClick: () => void handleDownloadTemplate() },
           downloadExcel: { onClick: () => void handleDownloadAll() },
         }}

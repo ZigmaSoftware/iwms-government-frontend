@@ -1,5 +1,5 @@
 import { saveAs } from "file-saver";
-import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import { archiveAuditAttachment, recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { decryptSegment } from "@/utils/routeCrypto";
 
 // xlsx is ~427KB minified — loaded on demand only when a user actually
@@ -91,10 +91,7 @@ export const exportRecordsToExcel = async (
   filename: string,
   sheetName = "Export",
 ) => {
-  recordExcelAudit("download_all_excel", {
-    file_name: filename,
-    row_count: records.length,
-  });
+  const resolvedName = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
   const XLSX = await loadXlsx();
   const rows = records.map((record) =>
     flattenRecord(record as Record<string, unknown>),
@@ -103,10 +100,19 @@ export const exportRecordsToExcel = async (
   const workbook = XLSX.utils.book_new();
 
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31));
-  saveAs(
-    new Blob([XLSX.write(workbook, { bookType: "xlsx", type: "array" })]),
-    filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`,
-  );
+  const blob = new Blob([XLSX.write(workbook, { bookType: "xlsx", type: "array" })], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  // Keep a server-side copy so the audit entry can show/download the file.
+  const attachment = await archiveAuditAttachment(blob, resolvedName);
+  recordExcelAudit("download_all_excel", {
+    file_name: resolvedName,
+    row_count: records.length,
+    ...(attachment
+      ? { attachment_url: attachment.file_url, attachment_name: attachment.file_name }
+      : {}),
+  });
+  saveAs(blob, resolvedName);
 };
 
 export const exportTemplateToExcel = async (
@@ -114,10 +120,7 @@ export const exportTemplateToExcel = async (
   filename: string,
   sheetName = "Template",
 ) => {
-  recordExcelAudit("download_template", {
-    file_name: filename,
-    column_count: columns.length,
-  });
+  const resolvedName = filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`;
   const XLSX = await loadXlsx();
   const templateRow = columns.reduce<Record<string, ExportValue>>(
     (acc, column) => {
@@ -145,10 +148,18 @@ export const exportTemplateToExcel = async (
     "Column Help",
   );
 
-  saveAs(
-    new Blob([XLSX.write(workbook, { bookType: "xlsx", type: "array" })]),
-    filename.endsWith(".xlsx") ? filename : `${filename}.xlsx`,
-  );
+  const blob = new Blob([XLSX.write(workbook, { bookType: "xlsx", type: "array" })], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const attachment = await archiveAuditAttachment(blob, resolvedName);
+  recordExcelAudit("download_template", {
+    file_name: resolvedName,
+    column_count: columns.length,
+    ...(attachment
+      ? { attachment_url: attachment.file_url, attachment_name: attachment.file_name }
+      : {}),
+  });
+  saveAs(blob, resolvedName);
 };
 
 export const readExcelRows = async (file: File): Promise<ExportRow[]> => {
