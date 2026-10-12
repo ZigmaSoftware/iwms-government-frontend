@@ -16,6 +16,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type StaffAccessRecord = {
   unique_id?: string;
@@ -169,19 +170,11 @@ export default function StaffAccessConfigList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await adminApi.staffAccessConfiguration.delete(id);
+      await adminApi.staffAccessConfiguration.delete(id, withDeleteReason(reason));
       setRecords((current) =>
         current.filter((row) => textOf(row.unique_id, row.id) !== id)
       );

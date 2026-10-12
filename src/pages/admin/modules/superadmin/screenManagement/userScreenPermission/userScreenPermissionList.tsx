@@ -22,6 +22,7 @@ import { encodeLocalBodyRouteId } from "./userScreenPermissionForm";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useOptionFilter, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
   corporation: "Corporation",
@@ -235,25 +236,13 @@ export default function UserScreenPermissionList() {
       return;
     }
 
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("admin.user_screen_permission.confirm_delete_count", {
-        count: row.mainscreen_ids.length,
-        defaultValue: t("admin.user_screen_permission.confirm_delete"),
-      }),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
       await Promise.all(
         row.mainscreen_ids.map((mainscreenId) =>
-          userScreenPermissionApi.delete(
-            `delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${mainscreenId}`
-          )
+          userScreenPermissionApi.delete(`delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${mainscreenId}`, withDeleteReason(reason))
         )
       );
 

@@ -1,6 +1,7 @@
 import { designationApi } from "@/helpers/admin";
 import { resolveSimpleOrdering, toRecordList } from "../../shared/recordHelpers";
 import type { DesignationListRecord, SortOrder } from "./designation.list.types";
+import { withDeleteReason } from "@/utils/deleteReason";
 
 export const SORTABLE_FIELDS = new Set(["designation_name"]);
 
@@ -44,6 +45,6 @@ export async function updateDesignationStatus(row: DesignationListRecord, value:
   });
 }
 
-export async function deleteDesignation(id: string) {
-  await designationApi.delete(id);
+export async function deleteDesignation(id: string, reason: string) {
+  await designationApi.delete(id, withDeleteReason(reason));
 }

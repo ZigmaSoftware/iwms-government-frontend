@@ -82,7 +82,7 @@ export const ticketActions = {
     complaintTicketApi.action<ComplaintTicket>(`${id}/escalate`, payload),
   comment: (id: string, payload: { comment_text: string; is_internal?: boolean; is_sensitive?: boolean }) =>
     complaintTicketApi.action(`${id}/comments`, payload),
-  reopen: (id: string, payload: { reopen_reason?: string }) =>
+  reopen: (id: string, payload: { reopen_reason: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/reopen`, payload),
   feedback: (id: string, payload: { rating?: number; feedback_text?: string; is_issue_solved?: boolean }) =>
     complaintTicketApi.action(`${id}/feedback`, payload),

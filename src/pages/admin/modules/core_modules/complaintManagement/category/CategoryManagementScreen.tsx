@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import notify from "@/lib/notify";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
@@ -92,19 +93,11 @@ export default function CategoryManagementScreen() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await complaintCategoryApi.delete(id);
+      await complaintCategoryApi.delete(id, withDeleteReason(reason));
       setCategories((current) => current.filter((row) => row.unique_id !== id));
       if (selectedCategoryId === id) setSelectedCategoryId(null);
       notify.fire({
@@ -119,19 +112,11 @@ export default function CategoryManagementScreen() {
   };
 
   const handleDeleteSubcategory = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await complaintSubcategoryApi.delete(id);
+      await complaintSubcategoryApi.delete(id, withDeleteReason(reason));
       setSubcategories((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",

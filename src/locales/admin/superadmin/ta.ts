@@ -254,6 +254,7 @@ export default {
     "user_agent": "User Agent",
     "success": "Success",
     "reason": "Reason",
+    "delete_reason": "நீக்குவதற்கான காரணம்",
     "created_at": "Created At",
     "detail_title": "Audit Details",
     "previous_data": "Previous Data",

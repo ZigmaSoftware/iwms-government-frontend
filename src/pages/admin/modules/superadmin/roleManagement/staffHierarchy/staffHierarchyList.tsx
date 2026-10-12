@@ -20,6 +20,7 @@ import { staffHierarchyApi } from "@/helpers/admin";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 // Role names are resolved server-side, so only the table's own columns can
 // be ordered by the backend.
@@ -146,18 +147,11 @@ export default function StaffHierarchyList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await staffHierarchyApi.delete(id);
+      await staffHierarchyApi.delete(id, withDeleteReason(reason));
       // Step back a page when the last row on it was deleted.
       if (rows.length === 1 && first > 0) {
         setFirst(Math.max(first - rowsPerPage, 0));

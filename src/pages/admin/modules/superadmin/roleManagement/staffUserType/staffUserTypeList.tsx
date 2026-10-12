@@ -21,6 +21,7 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const toRecordList = (value: unknown): StaffUserType[] => {
   if (Array.isArray(value)) return value as StaffUserType[];
@@ -168,24 +169,16 @@ export default function StaffUserTypeList() {
      DELETE
   ----------------------------------------------------------- */
   const handleDelete = async (row: StaffUserTypeRow & { category?: string }) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
       if (row.category === "Contractor") {
-        await contractorUserTypeApi.delete(row.unique_id);
+        await contractorUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
       } else if (row.category === "Government") {
-        await governmentUserTypeApi.delete(row.unique_id);
+        await governmentUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
       } else {
-        await staffUserTypeApi.delete(row.unique_id);
+        await staffUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
       }
       await loadRecords();
       notify.fire({

@@ -11,6 +11,13 @@ export type NotifyOptions = {
   showCancelButton?: boolean;
   confirmButtonText?: unknown;
   cancelButtonText?: unknown;
+  /** Adds a text box to a confirmation; its value comes back in `result.value`. */
+  input?: "textarea";
+  inputLabel?: unknown;
+  inputPlaceholder?: unknown;
+  inputMaxLength?: number;
+  /** Returns an error message to keep the dialog open, or null when valid. */
+  inputValidator?: (value: string) => string | null | undefined;
   [key: string]: unknown;
 };
 
@@ -18,6 +25,14 @@ export type NotifyResult = {
   isConfirmed: boolean;
   isDenied: boolean;
   isDismissed: boolean;
+  value?: string;
+};
+
+export type ConfirmationInput = {
+  label: string;
+  placeholder: string;
+  maxLength?: number;
+  validate?: (value: string) => string | null | undefined;
 };
 
 export type ConfirmationRequest = {
@@ -27,6 +42,7 @@ export type ConfirmationRequest = {
   confirmLabel: string;
   cancelLabel: string;
   destructive: boolean;
+  input?: ConfirmationInput;
 };
 
 type PendingConfirmation = ConfirmationRequest & {
@@ -59,11 +75,12 @@ function getDescription(options: NotifyOptions): string {
   return options.text == null ? htmlToText(options.html) : toText(options.text);
 }
 
-function result(isConfirmed: boolean): NotifyResult {
+function result(isConfirmed: boolean, value?: string): NotifyResult {
   return {
     isConfirmed,
     isDenied: false,
     isDismissed: !isConfirmed,
+    ...(value === undefined ? {} : { value }),
   };
 }
 
@@ -110,6 +127,14 @@ function requestConfirmation(options: NotifyOptions): Promise<NotifyResult> {
       confirmLabel: toText(options.confirmButtonText) || "Confirm",
       cancelLabel: toText(options.cancelButtonText) || "Cancel",
       destructive: options.icon === "warning" || options.icon === "error",
+      input: options.input
+        ? {
+            label: toText(options.inputLabel),
+            placeholder: toText(options.inputPlaceholder),
+            maxLength: options.inputMaxLength,
+            validate: options.inputValidator,
+          }
+        : undefined,
       resolve,
     });
     activateNextConfirmation();
@@ -125,12 +150,12 @@ export function getActiveConfirmation(): ConfirmationRequest | null {
   return activeConfirmation;
 }
 
-export function settleConfirmation(isConfirmed: boolean) {
+export function settleConfirmation(isConfirmed: boolean, value?: string) {
   if (!activeConfirmation) return;
 
   const settled = activeConfirmation;
   activeConfirmation = null;
-  settled.resolve(result(isConfirmed));
+  settled.resolve(result(isConfirmed, isConfirmed ? value : undefined));
   notifyListeners();
   activateNextConfirmation();
 }
@@ -167,5 +192,7 @@ async function fire(
 }
 
 const Notify = { fire };
+
+export const notify = Notify;
 
 export default Notify;

@@ -22,6 +22,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -388,18 +389,10 @@ export default function VehicleBreakdownList() {
 
   /* ── Delete ─────────────────────────────────────────────────────── */
   const handleDelete = async (row: VehicleBreakdownRecord) => {
-    const result = await notify.fire({
-      title: t("common.confirm_title"),
-      text: `Delete breakdown record ${row.unique_id}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: "Cancel",
-    });
-    if (!result.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
     try {
-      await vehicleBreakdownApi.delete(row.unique_id);
+      await vehicleBreakdownApi.delete(row.unique_id, withDeleteReason(reason));
       setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
       notify.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {

@@ -42,6 +42,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -487,18 +488,11 @@ export default function VehicleCreationListPage() {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await vehicleCreationApi.delete(id);
+      await vehicleCreationApi.delete(id, withDeleteReason(reason));
       setRawRows((current) =>
         current.filter((item) => item.unique_id !== id),
       );
