@@ -50,5 +50,7 @@ export function useScreenAccess() {
     canAdd: can("add"),
     canEdit: can("edit"),
     canDelete: can("delete"),
+    canImport: can("import"),
+    canExport: can("export"),
   };
 }

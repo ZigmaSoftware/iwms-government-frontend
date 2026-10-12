@@ -18,6 +18,7 @@ import "primeicons/primeicons.css";
 import {
   Children,
   isValidElement,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -28,6 +29,15 @@ import notify from "@/lib/notify";
 import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
 import { useScreenAccess } from "@/contexts/screenPermission";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
 import type { CrudHelpers } from "@/helpers/admin/crudHelpers";
 import {
   ActiveFilterChips,
@@ -56,6 +66,7 @@ import {
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   readExcelRows,
+  recordsToCsvFile,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 
@@ -229,6 +240,19 @@ const DataTableHeaderActions = ({
   const [exporting, setExporting] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const resolvedColumns = importColumns;
+  // Persisted per-page so rejected rows survive table refetch / full reload.
+  const moduleKey = useMemo(
+    () =>
+      importSheetName ??
+      (typeof window !== "undefined" ? window.location.pathname : "bulk-upload"),
+    [importSheetName],
+  );
+  const [importResult, setImportResult] = useState<BulkUploadResult | null>(null);
+  const [resultOpen, setResultOpen] = useState(false);
+
+  useEffect(() => {
+    setImportResult(loadBulkResult(moduleKey));
+  }, [moduleKey]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -291,10 +315,95 @@ const DataTableHeaderActions = ({
         return;
       }
 
+      // ── SINGLE MECHANISM: server-side bulk upload ──────────────────────
+      // Excel -> CSV -> POST <resource>/bulk-upload/ -> standard result.
+      // Same protocol as the dedicated bulk pages (vehicle, customer,
+      // leaders): one request, per-row errors with row data, rejected
+      // list shown on the page. Falls back to the legacy per-row loop
+      // only when the backend has no bulk-upload endpoint yet (404/405).
+      if (importApi && !onImportRows) {
+        try {
+          const csvFile = recordsToCsvFile(payloads, "bulk_upload.csv");
+          const formData = new FormData();
+          formData.append("file", csvFile);
+          const res = await importApi.action("bulk-upload", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          const errors = normalizeBulkErrors(
+            res.errors,
+            (excelRows ?? []) as Record<string, unknown>[],
+          );
+          const success = Number(res.success_count ?? 0);
+          recordExcelAudit("upload_excel", {
+            file_name: file.name,
+            status: "completed",
+            success_count: success,
+            error_count: errors.length,
+            ...((res as { file_url?: unknown }).file_url
+              ? {
+                  file_url: (res as { file_url?: unknown }).file_url,
+                  file_name: (res as { file_name?: unknown }).file_name ?? file.name,
+                }
+              : {}),
+          });
+
+          if (errors.length > 0) {
+            const result: BulkUploadResult = {
+              fileName: file.name,
+              successCount: success,
+              errors,
+              originalRows: (excelRows ?? []) as Record<string, unknown>[],
+            };
+            saveBulkResult(moduleKey, result);
+            setImportResult(result);
+            setResultOpen(true);
+            notify.fire({
+              icon: "warning",
+              title: "Upload Completed",
+              text: `Success: ${success} · Rejected: ${errors.length}. See rejected list on the page.`,
+            });
+            if (onImportComplete) await onImportComplete();
+            return;
+          }
+
+          clearBulkResult(moduleKey);
+          setImportResult(null);
+          await notify.fire(
+            "Upload Completed",
+            `${success} rows uploaded successfully.`,
+            "success",
+          );
+          if (onImportComplete) await onImportComplete();
+          else {
+            window.location.reload();
+            return;
+          }
+          return;
+        } catch (bulkError) {
+          const statusCode = (bulkError as { response?: { status?: number } })
+            ?.response?.status;
+          if (statusCode !== 404 && statusCode !== 405) {
+            const message =
+              (bulkError as Error) instanceof Error
+                ? (bulkError as Error).message
+                : "Upload failed.";
+            recordExcelAudit("upload_excel", {
+              file_name: file.name,
+              status: "failed",
+              error: message,
+            });
+            notify.fire("Upload failed", message, "error");
+            return;
+          }
+          // No bulk-upload endpoint yet — legacy per-row fallback below.
+        }
+      }
+
       if (onImportRows) {
         await onImportRows(payloads);
       } else if (importApi) {
         const failures: string[] = [];
+        const detailedErrors: BulkUploadResult["errors"] = [];
         for (const [index, payload] of payloads.entries()) {
           try {
             await importApi.create(payload);
@@ -302,16 +411,29 @@ const DataTableHeaderActions = ({
             const message =
               error instanceof Error ? error.message : JSON.stringify(error);
             failures.push(`Row ${index + 2}: ${message}`);
+            detailedErrors.push({
+              row: index + 1,
+              error: message,
+              data: (excelRows[index] ?? {}) as Record<string, unknown>,
+            });
           }
         }
+
+        const result: BulkUploadResult = {
+          fileName: file.name,
+          successCount: payloads.length - failures.length,
+          errors: detailedErrors,
+          originalRows: (excelRows ?? []) as Record<string, unknown>[],
+        };
+        saveBulkResult(moduleKey, failures.length > 0 ? result : null);
+        setImportResult(failures.length > 0 ? result : null);
+        setResultOpen(failures.length > 0);
 
         if (failures.length > 0) {
           notify.fire({
             icon: "warning",
             title: "Upload completed with errors",
-            html: `<b>Success:</b> ${payloads.length - failures.length}<br/><b>Failed:</b> ${failures.length}<hr/><div style="text-align:left;font-size:12px">${failures
-              .slice(0, 5)
-              .join("<br/>")}</div>`,
+            text: `Success: ${payloads.length - failures.length} · Rejected: ${failures.length}. See rejected list on the page.`,
           });
         } else {
           await notify.fire(
@@ -319,6 +441,24 @@ const DataTableHeaderActions = ({
             `${payloads.length} rows uploaded successfully.`,
             "success",
           );
+        }
+
+        // Soft-refresh the table when the page provides a hook. Never hard-reload
+        // while there are rejected rows — a full reload would wipe the dialog/panel
+        // before the user can see what failed.
+        if (onImportComplete) {
+          await onImportComplete();
+          return;
+        }
+        if (failures.length > 0) {
+          await recordExcelAudit("upload_excel", {
+            file_name: file.name,
+            row_count: payloads.length,
+            status: "completed",
+            success_count: payloads.length - failures.length,
+            error_count: failures.length,
+          });
+          return;
         }
       }
 
@@ -353,9 +493,22 @@ const DataTableHeaderActions = ({
     }
   };
 
+  // Uploads need "add" AND "import"; downloads need "view" AND "export".
+  // Either grant alone is not enough. Outside a permissioned page
+  // everything is allowed and the backend decides.
+  const {
+    canAdd: allowAdd,
+    canView: allowView,
+    canImport: allowImportGrant,
+    canExport: allowExportGrant,
+  } = useScreenAccess();
+  const allowImport = allowAdd && allowImportGrant;
+  const allowExport = allowView && allowExportGrant;
+
   const canImport =
     builtIns &&
     bulkImportable &&
+    allowImport &&
     resolvedColumns.length > 0 &&
     (Boolean(onImportRows) || Boolean(importApi));
 
@@ -380,8 +533,34 @@ const DataTableHeaderActions = ({
     ...(documentActions ?? {}),
   };
 
+  // Enforce the grants on the merged menu: without "import" no upload entry,
+  // without "export" no download entries. The template serves both flows, so
+  // it stays when either grant is present.
+  if (actions.uploadExcel && !allowImport) {
+    actions.uploadExcel = { ...actions.uploadExcel, hidden: true };
+  }
+  if (!allowExport) {
+    for (const key of ["downloadExcel", "downloadPdf", "downloadQr"] as const) {
+      if (actions[key]) actions[key] = { ...actions[key], hidden: true };
+    }
+    if (actions.downloadTemplate && !allowImport) {
+      actions.downloadTemplate = { ...actions.downloadTemplate, hidden: true };
+    }
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-2.5">
+      {importResult && importResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={importResult}
+          onClear={() => {
+            clearBulkResult(moduleKey);
+            setImportResult(null);
+          }}
+          onReupload={allowImport ? () => fileInputRef.current?.click() : undefined}
+          onViewAll={() => setResultOpen(true)}
+        />
+      )}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <div className={filters ? "min-w-0" : "min-w-0 flex-1"}>{header}</div>
         {filters && (
@@ -404,6 +583,12 @@ const DataTableHeaderActions = ({
       {filters?.chips && filters.chips.length > 0 && (
         <ActiveFilterChips chips={filters.chips} onClearAll={filters.onReset} />
       )}
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Bulk upload — rejected records"
+        result={importResult}
+      />
     </div>
   );
 };
@@ -432,8 +617,8 @@ export const DataTable = <TValue extends SafeTableRows>(
     documentActions,
     ...tableProps
   } = props;
-  // Excel import creates records, so it needs "add" on the current page.
-  const { canAdd } = useScreenAccess();
+  // Uploading a file needs "add" AND "import" together.
+  const { canAdd: canAddRecord, canImport: canImportFile } = useScreenAccess();
   const safeRows = toSafeRows(tableProps.value);
   const rowsForExport = exportRows ?? safeRows;
   const resolvedImportApi = importApi ?? getCurrentAdminBulkImportApi();
@@ -447,7 +632,7 @@ export const DataTable = <TValue extends SafeTableRows>(
         header={tableProps.header as ReactNode}
         rows={rowsForExport}
         importColumns={resolvedImportColumns}
-        bulkImportable={bulkImportable && canAdd}
+        bulkImportable={bulkImportable && canAddRecord && canImportFile}
         importApi={resolvedImportApi}
         importDefaults={importDefaults}
         importTemplateFilename={importTemplateFilename}

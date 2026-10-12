@@ -142,7 +142,7 @@ type BackendPreviewResponse = {
   errors?: Record<string, string>;
 };
 
-const DEFAULT_ACTION_NAMES = ["view", "add", "edit", "delete"];
+const DEFAULT_ACTION_NAMES = ["view", "add", "edit", "delete", "import", "export"];
 
 const emptyActions = () =>
   DEFAULT_ACTION_NAMES.reduce(

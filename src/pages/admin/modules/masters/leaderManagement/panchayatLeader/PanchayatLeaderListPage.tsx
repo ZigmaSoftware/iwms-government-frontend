@@ -19,14 +19,18 @@ import {
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   excelFileToCsvFile,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import { normalizeBulkErrors, type BulkUploadResult } from "@/utils/bulkUpload";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
@@ -63,6 +67,12 @@ export default function PanchayatLeaderListPage() {
   const [searchTerm, setSearchTerm]         = useState("");
   const [sortField, setSortField]           = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
+  const BULK_KEY = "panchayat-leaders";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
+  const { canAdd, canImport } = useScreenAccess();
   const geo    = useHierarchyFilter(() => setFirst(0));
   const status = useStatusFilter(() => setFirst(0));
   const filterParams = { ...geo.applied, ...status.applied };
@@ -150,6 +160,7 @@ export default function PanchayatLeaderListPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "plb_leader_bulk.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
@@ -158,18 +169,25 @@ export default function PanchayatLeaderListPage() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number((res as { success_count?: unknown })?.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
+        ...(res.file_url ? { file_url: res.file_url, file_name: res.file_name ?? file.name } : {}),
       });
+      const uploadSummary: BulkUploadResult = { fileName: file.name, successCount, errors, originalRows };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
 
       notify.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
       });
       setRefetchTrigger((p) => p + 1);
     } catch {
@@ -279,6 +297,19 @@ export default function PanchayatLeaderListPage() {
         onChange={handleUploadExcel}
       />
 
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={canAdd && canImport ? () => fileInputRef.current?.click() : undefined}
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="panchayat_leader_rejected.xlsx"
+        />
+      )}
+
       {/* ── DataTable ── */}
       <DataTable
         value={rows}
@@ -297,7 +328,7 @@ export default function PanchayatLeaderListPage() {
         header={renderHeader()}
         filterPanel={combineFilters(geo, status)}
         documentActions={{
-          uploadExcel: { onClick: () => fileInputRef.current?.click() },
+          uploadExcel: { onClick: () => fileInputRef.current?.click(), hidden: !(canAdd && canImport) },
           downloadTemplate: { onClick: () => void handleDownloadTemplate() },
           downloadExcel: { onClick: () => void handleDownloadAll() },
         }}
@@ -345,6 +376,14 @@ export default function PanchayatLeaderListPage() {
           style={{ width: "100px", textAlign: "center" }}
         />
       </DataTable>
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Panchayat leader bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="panchayat_leader_rejected.xlsx"
+      />
     </div>
   );
 }

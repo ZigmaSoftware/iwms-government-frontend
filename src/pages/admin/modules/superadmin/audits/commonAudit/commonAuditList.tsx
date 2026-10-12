@@ -26,7 +26,16 @@ import {
   ListChecks,
   CalendarClock,
   XCircle,
+  Paperclip,
+  FileText,
+  Download,
+  Eye,
 } from "lucide-react";
+import {
+  collectAuditFiles,
+  countAuditFiles,
+  type AuditFileRef,
+} from "@/utils/auditFiles";
 import type {
   DataTablePageEvent,
   DataTableSortEvent,
@@ -306,6 +315,108 @@ const DiffJsonViewer = ({
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+};
+
+/** Documents & images referenced by an audit record — viewable and downloadable. */
+const AuditFilesSection = ({ record }: { record: CommonAuditRecord }) => {
+  const files = useMemo(() => collectAuditFiles(record), [record]);
+  const [previewImage, setPreviewImage] = useState<AuditFileRef | null>(null);
+  if (files.length === 0) return null;
+  const images = files.filter((f) => f.kind === "image");
+  const documents = files.filter((f) => f.kind !== "image");
+
+  return (
+    <div className="rounded-md border bg-white p-3">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+        <Paperclip className="h-4 w-4 text-gray-500" />
+        Documents &amp; images ({files.length})
+      </h3>
+
+      {images.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {images.map((file) => (
+            <button
+              key={file.url}
+              type="button"
+              onClick={() => setPreviewImage(file)}
+              title={`${file.name} (${file.field}) — click to preview`}
+              className="overflow-hidden rounded-md border border-gray-200 hover:ring-2 hover:ring-blue-300"
+            >
+              <img
+                src={file.url}
+                alt={file.name}
+                className="h-16 w-16 object-cover"
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="divide-y divide-gray-100">
+        {files.map((file) => (
+          <div key={file.url} className="flex items-center gap-2 py-1.5 text-sm">
+            {file.kind === "image" ? (
+              <img src={file.url} alt="" className="h-8 w-8 rounded object-cover" loading="lazy" />
+            ) : (
+              <FileText className="h-5 w-5 shrink-0 text-gray-400" />
+            )}
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate font-medium text-gray-800" title={file.name}>
+                {file.name}
+              </div>
+              <div className="truncate text-xs text-gray-500" title={file.field}>
+                {file.field} · {file.source === "previous" ? "before" : "after"}
+              </div>
+            </div>
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View"
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-blue-100 text-blue-700 hover:bg-blue-50"
+            >
+              <Eye className="h-4 w-4" />
+            </a>
+            <a
+              href={file.url}
+              download={file.name}
+              title="Download"
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-green-100 text-green-700 hover:bg-green-50"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+          </div>
+        ))}
+      </div>
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="max-h-[90vh] max-w-[90vw] overflow-auto rounded-lg bg-white p-3">
+            <img src={previewImage.url} alt={previewImage.name} className="max-h-[75vh] w-auto" />
+            <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+              <span className="truncate text-gray-600">{previewImage.name}</span>
+              <a
+                href={previewImage.url}
+                download={previewImage.name}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-green-700 px-3 py-1.5 font-medium text-white hover:bg-green-800"
+              >
+                <Download className="h-4 w-4" /> Download
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {documents.length === 0 && images.length > 0 && (
+        <p className="mt-1 text-xs text-gray-500">Click a thumbnail to preview, or use the row buttons to view / download.</p>
       )}
     </div>
   );
@@ -914,6 +1025,24 @@ export default function CommonAuditList() {
               )}
             />
             <Column
+              header={t("admin.common_audit.files", "Files")}
+              body={(r: CommonAuditRecord) => {
+                const count = countAuditFiles(r);
+                if (!count) return <span className="text-gray-300">-</span>;
+                return (
+                  <span
+                    title={t("admin.common_audit.files_attached", `${count} file(s) attached — open details to view`)}
+                    className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                  >
+                    <Paperclip className="h-3 w-3" />
+                    {count}
+                  </span>
+                );
+              }}
+              style={{ width: 90 }}
+              bodyStyle={{ textAlign: "center" }}
+            />
+            <Column
               field="createdAt"
               header={t("admin.common_audit.created_at")}
               body={(r: CommonAuditRecord) => formatDateTime(r.createdAt)}
@@ -1003,6 +1132,12 @@ export default function CommonAuditList() {
               previousData={selectedRecord?.previous_data}
             />
           </div>
+
+          {selectedRecord && (
+            <div className="mt-4">
+              <AuditFilesSection record={selectedRecord} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
