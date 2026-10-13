@@ -10,17 +10,15 @@ import {
   ChevronRight,
   Home,
   Maximize2,
+  Minimize2,
   Route,
   Scale,
   ShieldAlert,
-  Square,
   Trash2,
   Truck,
   UserCheck,
   UserRoundX,
   Users,
-  Eye,
-  EyeOff,
 } from "lucide-react";
 import { BinMapPanel } from "./map/BinMapPanel";
 import { HouseholdMapPanel } from "./map/HouseholdMapPanel";
@@ -30,8 +28,6 @@ import { useWardGeofences } from "./map/WardGeofenceLayer";
 import { MapTabs } from "./map/MapTabs";
 import { MAP_TABS, type MapTabKey } from "./map/mapUtils";
 import { dashboardSummaryApi, wasteTypeApi } from "@/helpers/admin";
-import { complaintTicketApi } from "@/features/complaintTicketing/api";
-import type { ComplaintTicket } from "@/features/complaintTicketing/types";
 import { useTranslation } from "react-i18next";
 import { useGeoHierarchy } from "@/hooks/useGeoHierarchy";
 import Select from "@/components/form/Select";
@@ -308,13 +304,6 @@ const meaningfulName = (...values: Array<string | null | undefined>) =>
     return normalized && !["anonymous", "system", "-", "—"].includes(normalized);
   })?.trim() || "";
 
-const complaintRows = (value: unknown): ComplaintTicket[] =>
-  Array.isArray(value)
-    ? value as ComplaintTicket[]
-    : Array.isArray((value as { results?: unknown })?.results)
-      ? (value as { results: ComplaintTicket[] }).results
-      : [];
-
 const wasteTypeRows = (value: unknown): WasteTypeMasterRecord[] =>
   (Array.isArray(value)
     ? value
@@ -393,51 +382,29 @@ const mergeWasteTypeMasters = (
   return breakdown;
 };
 
-const enrichCriticalAlerts = (
-  alerts: CriticalAlert[] | undefined,
-  tickets: ComplaintTicket[],
-): CriticalAlert[] => {
-  const ticketById = new Map<string, ComplaintTicket>();
-  tickets.forEach((ticket) => {
-    ticketById.set(ticket.unique_id, ticket);
-    if (ticket.ticket_no) ticketById.set(ticket.ticket_no, ticket);
-  });
-
-  return (alerts || []).map((alert) => {
+// The summary API already returns customer/reporter/contact/module/waste-type
+// details on each grievance alert, so names are normalised from the alert
+// itself — no need to download every complaint ticket on each 10s poll.
+const enrichCriticalAlerts = (alerts: CriticalAlert[] | undefined): CriticalAlert[] =>
+  (alerts || []).map((alert) => {
     if (alert.kind !== "grievance") return alert;
-    const ticket = ticketById.get(alert.id);
-    if (!ticket) return alert;
 
-    const customerName = meaningfulName(ticket.customer_name);
-    const submittedName = meaningfulName(ticket.profile_name, ticket.reporter_name);
+    const customerName = meaningfulName(alert.customer_name);
+    const reporterName = meaningfulName(customerName, alert.reporter_name) || "Anonymous";
     const raisedPersonName = meaningfulName(
       customerName,
-      submittedName,
-      ticket.raised_by_name,
-      alert.customer_name,
       alert.reporter_name,
       alert.raised_by_name,
-    ) || "Anonymous";
-    const reporterName = meaningfulName(
-      customerName,
-      submittedName,
-      alert.reporter_name,
     ) || "Anonymous";
 
     return {
       ...alert,
-      reporter_type: customerName || ticket.customer ? "Customer" : "Public Grievance",
+      reporter_type: customerName ? "Customer" : "Public Grievance",
       reporter_name: reporterName,
       raised_by_name: raisedPersonName,
       customer_name: customerName,
-      contact_no: ticket.wa_phone || alert.contact_no,
-      email: ticket.email || alert.email,
-      gender: ticket.gender || alert.gender,
-      module: ticket.module_name || alert.module,
-      waste_types: ticket.waste_type_names || alert.waste_types,
     };
   });
-};
 
 const alertDateTime = (value?: string | null) =>
   value
@@ -1344,7 +1311,7 @@ export function HomeDashboard() {
   const [mapSize, setMapSize] = useState<"mid" | "max">("mid");
   const [asOf, setAsOf] = useState("");
   const [selectedAlert, setSelectedAlert] = useState<CriticalAlert | null>(null);
-  const [showWardGeofences, setShowWardGeofences] = useState(false);
+  const showWardGeofences = false;
   const mapSectionRef = useRef<HTMLDivElement | null>(null);
 
   const params = useMemo(() => {
@@ -1358,7 +1325,10 @@ export function HomeDashboard() {
     return next;
   }, [geo.stateId, geo.districtId, geo.areaTypeId, geo.hierarchyLevel, geo.hierarchyId, wardId, filterDate]);
 
-  const { wards: wardGeofences, loading: wardsLoading } = useWardGeofences(params);
+  const { wards: wardGeofences, loading: wardsLoading } = useWardGeofences(
+    params,
+    showWardGeofences || activeMapTab === "wards",
+  );
 
   useEffect(() => {
     if (wardScope.mode === "locked") {
@@ -1372,6 +1342,10 @@ export function HomeDashboard() {
     }
   }, [geo.hierarchyId, wardId, wardScope.mode, wardScope.options]);
 
+  // Waste-type masters rarely change: fetch once per visit and reuse the
+  // same promise on every poll instead of re-downloading them every 10s.
+  const wasteTypesRef = useRef<Promise<unknown> | null>(null);
+
   useEffect(() => {
     let isMounted = true;
     let requestInFlight = false;
@@ -1380,17 +1354,17 @@ export function HomeDashboard() {
       if (requestInFlight || document.visibilityState === "hidden") return;
       requestInFlight = true;
       if (showLoading) setLoading(true);
+      wasteTypesRef.current ??= wasteTypeApi.readAll().catch(() => {
+        wasteTypesRef.current = null;
+        return [];
+      });
       Promise.all([
         dashboardSummaryApi.readAllwithPaginated(1, 1, { params }),
-        complaintTicketApi.readAllForExport().catch(() => []),
-        wasteTypeApi.readAllForExport().catch(() => []),
+        wasteTypesRef.current,
       ])
-        .then(([response, ticketResult, wasteTypeResult]: [any, unknown, unknown]) => {
+        .then(([response, wasteTypeResult]: [any, unknown]) => {
           if (!isMounted) return;
-          const criticalAlerts = enrichCriticalAlerts(
-            response.critical_alerts,
-            complaintRows(ticketResult),
-          );
+          const criticalAlerts = enrichCriticalAlerts(response.critical_alerts);
           const responseSummary = response.summary || {};
           const responseOperations = responseSummary.operations || {};
           const responseWaste = {
@@ -1489,44 +1463,13 @@ export function HomeDashboard() {
           <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
             <button
               type="button"
-              onClick={() => setMapSize("mid")}
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
-                mapSize === "mid" ? "bg-gray-100 dark:bg-gray-800" : ""
-              }`}
-              aria-label={t("dashboard.home.map_size_default_aria")}
+              onClick={() => setMapSize(isMapMaximized ? "mid" : "max")}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              aria-label={t(isMapMaximized ? "dashboard.home.map_size_default_aria" : "dashboard.home.map_size_max_aria")}
+              title={t(isMapMaximized ? "dashboard.home.map_size_default_aria" : "dashboard.home.map_size_max_aria")}
             >
-              <Square className="h-3.5 w-3.5" />
+              {isMapMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </button>
-            <button
-              type="button"
-              onClick={() => setMapSize("max")}
-              className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
-                mapSize === "max" ? "bg-gray-100 dark:bg-gray-800" : ""
-              }`}
-              aria-label={t("dashboard.home.map_size_max_aria")}
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
-            </button>
-            {/* Meaningless on the dedicated Wards tab — that tab always shows
-                every loaded ward, so the toggle is hidden there instead of
-                doing nothing. */}
-            {activeMapTab !== "wards" && (
-              <button
-                type="button"
-                onClick={() => setShowWardGeofences(!showWardGeofences)}
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 ${
-                  showWardGeofences ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : ""
-                }`}
-                aria-label={showWardGeofences ? "Hide ward geofences" : "Show ward geofences"}
-                title={showWardGeofences ? "Hide ward geofences" : "Show ward geofences"}
-              >
-                {showWardGeofences ? (
-                  <EyeOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Eye className="h-3.5 w-3.5" />
-                )}
-              </button>
-            )}
           </div>
         </div>
       </div>
