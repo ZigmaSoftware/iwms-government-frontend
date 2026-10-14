@@ -272,11 +272,9 @@ export default function LoginAuditList() {
 
   // Feeds the table's "Download Excel" button: re-fetches every login row
   // matching the current filters, since the table only holds one page.
-  const loadAllExportRows = useCallback(
-    async () =>
-      normalizeList(
-        toRecordList(await adminApi.loginAudits.readAllForExport({ params: filterParams })),
-      ) as Record<string, unknown>[],
+  const onServerExport = useCallback(
+    (filename: string, sheetName: string) =>
+      adminApi.loginAudits.exportToExcel({ params: filterParams }, filename, sheetName),
     [filterParams],
   );
 
@@ -330,7 +328,7 @@ export default function LoginAuditList() {
 
       <DataTable
         filterPanel={combineFilters(geo, modulePart, status, dates)}
-        onExportRequest={loadAllExportRows}
+        onServerExport={onServerExport}
         value={rows}
         dataKey="unique_id"
         lazy

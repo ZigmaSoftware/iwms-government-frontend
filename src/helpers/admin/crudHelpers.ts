@@ -123,6 +123,14 @@ export type CrudHelpers<T = any> = {
     payload: FormData,
     config?: AxiosRequestConfig,
   ) => Promise<R>;
+
+  /** Export every row (same params as the list) to Excel on the server, then download it. */
+  exportToExcel: (
+    config: AxiosRequestConfig | undefined,
+    filename: string,
+    sheetName?: string,
+    columns?: { header: string; field: string }[],
+  ) => Promise<void>;
 };
 
 /* -----------------------------------------
@@ -297,6 +305,20 @@ export const createCrudHelpers = <T = any>(
         : await api.get(url, cleanConfig(config));
 
       return capitalizeApiFormData(data);
+    },
+
+    /* ---------- SERVER-SIDE EXCEL EXPORT ---------- */
+
+    exportToExcel: async (config, filename, sheetName, columns) => {
+      // Imported lazily: backgroundJobs -> commonAudit -> helpers -> here.
+      const { runServerExport } = await import("@/utils/backgroundJobs");
+      await runServerExport({
+        resourcePath: resource,
+        params: cleanConfig(config)?.params,
+        columns,
+        filename,
+        sheetName,
+      });
     },
 
     /* ---------- FILE UPLOADS ---------- */

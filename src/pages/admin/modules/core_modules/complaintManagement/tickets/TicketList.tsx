@@ -385,7 +385,9 @@ export default function TicketList() {
           onSort={onSort}
           rowsPerPageOptions={[5, 10, 25, 50]}
           loading={tableLoading}
-          onExportRequest={async () => toRecordList(await complaintTicketApi.readAllForExport({ params: buildTicketParams() }))}
+          onServerExport={(filename, sheetName) =>
+            complaintTicketApi.exportToExcel({ params: buildTicketParams() }, filename, sheetName)
+          }
           header={
             <FilterBar
               searchValue={query}

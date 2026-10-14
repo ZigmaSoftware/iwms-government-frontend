@@ -120,7 +120,8 @@ export default function WasteTypeListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await wasteTypeApi.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    wasteTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (
     _: WasteTypeListRecord,
@@ -238,7 +239,7 @@ export default function WasteTypeListPage() {
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         emptyMessage={t("common.no_items_found", {
           item: t("common.waste_type"),
         })}

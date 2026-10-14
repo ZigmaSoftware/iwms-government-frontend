@@ -109,7 +109,8 @@ export default function TownPanchayatListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await townPanchayatApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    townPanchayatApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: TownPanchayatListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -208,7 +209,7 @@ export default function TownPanchayatListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Town Panchayat records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />

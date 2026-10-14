@@ -124,7 +124,8 @@ export default function FuelList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => toRecordList(await fuelApi.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    fuelApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: Fuel) => {
@@ -239,7 +240,7 @@ export default function FuelList() {
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
         showGridlines
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column

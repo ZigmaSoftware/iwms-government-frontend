@@ -109,7 +109,8 @@ export default function MunicipalityListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await municipalityApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    municipalityApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: MunicipalityListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -208,7 +209,7 @@ export default function MunicipalityListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Municipality records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />

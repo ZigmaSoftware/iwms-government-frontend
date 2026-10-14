@@ -117,7 +117,8 @@ export default function WardListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await wardApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    wardApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: WardListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -212,7 +213,7 @@ export default function WardListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Ward records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />

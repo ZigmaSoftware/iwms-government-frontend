@@ -15,7 +15,6 @@ import { stateLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import {
-  exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   excelFileToCsvFile,
@@ -23,7 +22,15 @@ import {
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
 import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
-import { normalizeBulkErrors, type BulkUploadResult } from "@/utils/bulkUpload";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
@@ -148,12 +155,11 @@ export default function StateLeaderListPage() {
   };
 
   const handleDownloadAll = async () => {
-    const all = await stateLeaderApi.readAllForExport({ params: filterParams });
-    await exportRecordsToExcel(
-      all as unknown as Record<string, unknown>[],
-      getAdminScreenExcelFilename("all"),
-      "State Leaders",
-    );
+    try {
+      await stateLeaderApi.exportToExcel({ params: filterParams }, getAdminScreenExcelFilename("all"), "State Leaders");
+    } catch (error) {
+      notify.fire("Export failed", error instanceof Error ? error.message : "Export failed.", "error");
+    }
   };
 
   const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,9 +171,7 @@ export default function StateLeaderListPage() {
       const formData = new FormData();
       formData.append("file", csvFile);
 
-      const res = await adminApi.stateLeaders.action("bulk-upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await runBulkUpload(adminApi.stateLeaders, formData);
 
       const errors = normalizeBulkErrors(res.errors, originalRows);
       const successCount = Number((res as { success_count?: unknown })?.success_count ?? 0);

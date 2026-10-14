@@ -141,7 +141,8 @@ export default function CountryList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await countryApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    countryApi.exportToExcel(undefined, filename, sheetName);
 
   const updateStatus = async (row: CountryRecord, checked: boolean) => {
     const countryId = String(row.unique_id);
@@ -259,7 +260,7 @@ export default function CountryList() {
         }
         stripedRows
         showGridlines
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
 

@@ -104,7 +104,8 @@ export default function MainScreenTypeList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await mainScreenTypeApi.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    mainScreenTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (_: MainScreenType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -216,7 +217,7 @@ export default function MainScreenTypeList() {
           })}
           stripedRows
           showGridlines
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
