@@ -157,9 +157,6 @@ export type LoginPayload = {
   username?: string;
   name?: string;
   email?: string;
-  permissions?: unknown;
-  permission_details?: unknown;
-  column_permissions?: unknown;
   profile?: AuthProfile;
   projects?: ProjectConfig[];
   data_scope?: DataScope | null;
@@ -227,6 +224,20 @@ export const isAccessTokenValid = (token = getStoredAccessToken()): boolean => {
   }
 };
 
+// GET /login/my-permissions/ response — the login response carries no
+// permissions, so this is fetched right after signing in.
+export type PermissionsPayload = {
+  permissions?: unknown;
+  permission_details?: unknown;
+  column_permissions?: unknown;
+};
+
+export const persistPermissions = (payload: PermissionsPayload): void => {
+  setStoredPermissions(payload.permissions ?? {});
+  setStoredPermissionDetails(payload.permission_details ?? {});
+  setStoredColumnPermissions(payload.column_permissions ?? {});
+};
+
 export const persistLoginSession = (payload: LoginPayload): void => {
   localStorage.removeItem(PERMISSIONS_STORAGE_KEY);
   localStorage.removeItem(PERMISSION_DETAILS_STORAGE_KEY);
@@ -248,10 +259,6 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   safeSetStorageItem(USER_STORAGE_KEY, JSON.stringify(user));
   if (role) safeSetStorageItem(USER_ROLE_STORAGE_KEY, role);
   if (user.unique_id) safeSetStorageItem("unique_id", String(user.unique_id));
-
-  setStoredPermissions(payload.permissions ?? {});
-  setStoredPermissionDetails(payload.permission_details ?? {});
-  setStoredColumnPermissions(payload.column_permissions ?? {});
 
   if (profile) {
     safeSetStorageItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));

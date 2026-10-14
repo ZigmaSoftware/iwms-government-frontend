@@ -163,7 +163,10 @@ export default function UserScreenPermissionForm() {
       const entityConfig = LOCAL_BODY_TYPES.find((t) => t.value === decodedRoute.localBodyType);
       if (!entityConfig) return;
       try {
-        const records = (await adminApi[entityConfig.entity].readAll()) as Array<Record<string, unknown>>;
+        // lite still carries state_id / district_id / area_type_id.
+        const records = (await adminApi[entityConfig.entity].readAll({
+          params: { lite: 1 },
+        })) as Array<Record<string, unknown>>;
         if (cancelled || !Array.isArray(records)) return;
         const record = records.find((r) => String(r.unique_id) === decodedRoute.localBodyId);
         if (!record) return;
