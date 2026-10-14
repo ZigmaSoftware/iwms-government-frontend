@@ -148,7 +148,8 @@ export default function ContinentList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await adminApi.continents.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    adminApi.continents.exportToExcel(undefined, filename, sheetName);
 
   const updateStatus = async (
     continent: ContinentRecord,
@@ -279,7 +280,7 @@ export default function ContinentList() {
         }
         stripedRows
         showGridlines
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column

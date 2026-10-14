@@ -69,6 +69,7 @@ import {
   recordsToCsvFile,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 
 type SafeTableRow = Record<string, unknown>;
 type SafeTableRows = SafeTableRow[];
@@ -86,6 +87,8 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
     importSheetName?: string;
     importTemplateFilename?: string;
     onExportRequest?: () => Promise<SafeTableRows>;
+    /** Server-side export (Celery job): preferred over onExportRequest. */
+    onServerExport?: (filename: string, sheetName: string) => Promise<void>;
     onImportComplete?: () => void | Promise<void>;
     onImportRows?: (rows: SafeTableRows) => Promise<void>;
     onPdfRequest?: () => void | Promise<void>;
@@ -203,6 +206,7 @@ type DataTableHeaderActionsProps = {
   importTemplateFilename?: string;
   importSheetName?: string;
   onExportRequest?: () => Promise<SafeTableRows>;
+  onServerExport?: (filename: string, sheetName: string) => Promise<void>;
   onImportRows?: (rows: SafeTableRows) => Promise<void>;
   onImportComplete?: () => void | Promise<void>;
   filename?: string;
@@ -225,6 +229,7 @@ const DataTableHeaderActions = ({
   importTemplateFilename,
   importSheetName,
   onExportRequest,
+  onServerExport,
   onImportRows,
   onImportComplete,
   filename,
@@ -257,6 +262,10 @@ const DataTableHeaderActions = ({
   const handleExport = async () => {
     setExporting(true);
     try {
+      if (onServerExport) {
+        await onServerExport(toExportFilename(filename), sheetName || "Data");
+        return;
+      }
       const allRows = onExportRequest ? await onExportRequest() : rows;
       await exportRecordsToExcel(allRows, toExportFilename(filename), sheetName || "Data");
     } catch (error) {
@@ -326,9 +335,8 @@ const DataTableHeaderActions = ({
           const csvFile = recordsToCsvFile(payloads, "bulk_upload.csv");
           const formData = new FormData();
           formData.append("file", csvFile);
-          const res = await importApi.action("bulk-upload", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
+          // Imported on the server by a background job; resolves when done.
+          const res = await runBulkUpload(importApi, formData);
           const errors = normalizeBulkErrors(
             res.errors,
             (excelRows ?? []) as Record<string, unknown>[],
@@ -525,7 +533,7 @@ const DataTableHeaderActions = ({
           downloadExcel: {
             onClick: () => void handleExport(),
             busy: exporting,
-            disabled: !onExportRequest && rows.length === 0,
+            disabled: !onExportRequest && !onServerExport && rows.length === 0,
           },
         }
       : {}),
@@ -610,6 +618,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     importSheetName,
     importTemplateFilename,
     onExportRequest,
+    onServerExport,
     onImportComplete,
     onImportRows,
     onPdfRequest,
@@ -638,6 +647,7 @@ export const DataTable = <TValue extends SafeTableRows>(
         importTemplateFilename={importTemplateFilename}
         importSheetName={importSheetName}
         onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         onImportRows={onImportRows}
         onImportComplete={onImportComplete}
         filename={exportFilename}

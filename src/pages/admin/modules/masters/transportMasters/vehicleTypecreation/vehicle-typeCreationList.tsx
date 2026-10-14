@@ -126,7 +126,8 @@ export default function VehicleTypeCreationList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await vehicleTypeApi.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    vehicleTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: VehicleTypeRecord) => {
@@ -245,7 +246,7 @@ export default function VehicleTypeCreationList() {
         showGridlines
         className="p-datatable-sm"
         emptyMessage={t("admin.vehicle_type.empty_message")}
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
       >
         <Column
           header={t("common.s_no")}

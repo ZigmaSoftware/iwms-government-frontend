@@ -37,7 +37,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/api";
 import {
-  exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 import {
@@ -776,22 +775,21 @@ export default function DailyWasteComparisonList({
       if (localBodyLevel && localBodyIds.length) params[localBodyLevel] = localBodyIds.join(",");
       if (wardIds.length) params.ward_id = wardIds.join(",");
 
-      const exportRows = await dailyWasteComparisonApi.readAllForExport({
-        params,
-      });
-      await exportRecordsToExcel(
-        exportRows.map((r) => ({
-          Date: r.collection_date,
-          "Local Body Type": r.local_body_type,
-          "Local Body": r.local_body_name,
-          "Waste Type": r.waste_type,
-          "Weight Collected (kg)": r.actual_weight_kg,
-          Trips: r.total_trips,
-          Points: r.collection_points_covered,
-          "Avg Weight / Trip (kg)": r.average_weight_per_trip,
-        })),
+      // Built on the server by a background job, then downloaded.
+      await dailyWasteComparisonApi.exportToExcel(
+        { params },
         getAdminScreenExcelFilename("all"),
         "Daily Waste Collection",
+        [
+          { header: "Date", field: "collection_date" },
+          { header: "Local Body Type", field: "local_body_type" },
+          { header: "Local Body", field: "local_body_name" },
+          { header: "Waste Type", field: "waste_type" },
+          { header: "Weight Collected (kg)", field: "actual_weight_kg" },
+          { header: "Trips", field: "total_trips" },
+          { header: "Points", field: "collection_points_covered" },
+          { header: "Avg Weight / Trip (kg)", field: "average_weight_per_trip" },
+        ],
       );
     } catch {
       notify.fire(

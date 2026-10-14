@@ -660,11 +660,9 @@ export default function CommonAuditList() {
   // Feeds the table's "Download Excel" button: re-fetches every audit row
   // matching the current filters, since the table is lazily paginated and
   // only holds one page.
-  const loadAllExportRows = useCallback(
-    async () =>
-      toRecordList(
-        await commonAuditApi.readAllForExport({ params: filterParams }),
-      ) as unknown as Record<string, unknown>[],
+  const onServerExport = useCallback(
+    (filename: string, sheetName: string) =>
+      commonAuditApi.exportToExcel({ params: filterParams }, filename, sheetName),
     [filterParams],
   );
 
@@ -896,7 +894,7 @@ export default function CommonAuditList() {
                 className="mb-4"
               />
             }
-            onExportRequest={loadAllExportRows}
+            onServerExport={onServerExport}
             value={rows}
             dataKey="uuid"
             lazy

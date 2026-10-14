@@ -109,7 +109,8 @@ export default function CorporationListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await corporationApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    corporationApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: CorporationListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -208,7 +209,7 @@ export default function CorporationListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Corporation records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />

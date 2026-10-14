@@ -107,7 +107,8 @@ export default function PanchayatListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await panchayatApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    panchayatApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: PanchayatListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -202,7 +203,7 @@ export default function PanchayatListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Panchayat records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />

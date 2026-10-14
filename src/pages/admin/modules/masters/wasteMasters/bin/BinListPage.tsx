@@ -148,7 +148,8 @@ export default function BinList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await binApi.readAllForExport({ params: filterParams }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    binApi.exportToExcel({ params: filterParams }, filename, sheetName);
   const qrSheetAction = useQrSheetDownload(
     () => fetchExportBins(),
     (bin) => ({ qr: bin.bin_qr, title: bin.bin_name || "-", subtitle: bin.ward_name ?? bin.unique_id }),
@@ -430,7 +431,7 @@ export default function BinList() {
         stripedRows
         showGridlines
         loading={isLoading}
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         documentActions={{
           downloadExcel: { onClick: () => void handleDownloadExcel(), busy: isExportingExcel },
           downloadPdf: { onClick: () => void handleDownloadPdf(), busy: isExportingPdf },

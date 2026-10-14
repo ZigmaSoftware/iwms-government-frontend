@@ -105,7 +105,8 @@ export default function UserTypePage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await userTypeApi.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    userTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (_: UserType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
@@ -218,7 +219,7 @@ export default function UserTypePage() {
           })}
           stripedRows
           showGridlines
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column

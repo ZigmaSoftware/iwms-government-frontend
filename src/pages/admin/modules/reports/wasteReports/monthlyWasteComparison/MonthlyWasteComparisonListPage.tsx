@@ -40,7 +40,6 @@ import {
 } from "recharts";
 import { useTranslation } from "react-i18next";
 import {
-  exportRecordsToExcel,
   getAdminScreenExcelFilename,
 } from "@/utils/exportExcel";
 import {
@@ -768,22 +767,21 @@ export default function MonthlyWasteComparisonListPage({
       if (localBodyLevel && localBodyIds.length) params[localBodyLevel] = localBodyIds.join(",");
       if (wardIds.length) params.ward_id = wardIds.join(",");
 
-      const exportRows = await adminApi.monthlyWasteComparison.readAllForExport(
+      // Built on the server by a background job, then downloaded.
+      await adminApi.monthlyWasteComparison.exportToExcel(
         { params },
-      );
-      await exportRecordsToExcel(
-        exportRows.map((r) => ({
-          Month: r.month,
-          "Local Body Type": r.local_body_type,
-          "Local Body": r.local_body_name,
-          "Waste Type": r.waste_type,
-          "Weight Collected (kg)": r.total_actual_weight,
-          Trips: r.total_trips,
-          Points: r.collection_points_covered,
-          "Avg/Trip (kg)": r.average_weight_per_trip,
-        })),
         getAdminScreenExcelFilename("all"),
         "Monthly Waste Comparison",
+        [
+          { header: "Month", field: "month" },
+          { header: "Local Body Type", field: "local_body_type" },
+          { header: "Local Body", field: "local_body_name" },
+          { header: "Waste Type", field: "waste_type" },
+          { header: "Weight Collected (kg)", field: "total_actual_weight" },
+          { header: "Trips", field: "total_trips" },
+          { header: "Points", field: "collection_points_covered" },
+          { header: "Avg/Trip (kg)", field: "average_weight_per_trip" },
+        ],
       );
     } catch {
       notify.fire(

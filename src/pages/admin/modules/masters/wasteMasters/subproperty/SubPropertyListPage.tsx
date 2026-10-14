@@ -141,7 +141,8 @@ export default function SubPropertyList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await adminApi.subProperties.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    adminApi.subProperties.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const statusTemplate = (row: SubPropertyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -263,7 +264,7 @@ export default function SubPropertyList() {
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.sub_property"),
           })}
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

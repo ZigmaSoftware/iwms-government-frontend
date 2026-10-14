@@ -143,10 +143,8 @@ export default function PropertyList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => {
-    const all = await adminApi.properties.readAllForExport({ params: status.applied });
-    return toRecordList(all);
-  };
+  const onServerExport = (filename: string, sheetName: string) =>
+    adminApi.properties.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const statusTemplate = (row: PropertyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -267,7 +265,7 @@ export default function PropertyList() {
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.property"),
           })}
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

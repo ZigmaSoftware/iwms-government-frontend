@@ -20,7 +20,6 @@ import { customerCreationApi, wasteTypeApi } from "@/helpers/admin";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import {
   excelFileToCsvFile,
-  exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   readExcelRows,
@@ -35,6 +34,7 @@ import {
   saveBulkResult,
   type BulkUploadResult,
 } from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { FilterSection, type ActiveFilterChip, type DocumentActions } from "@/components/common/ListToolbar";
 import type { TableFilters } from "@/components/common/SafeDataTable";
@@ -285,11 +285,7 @@ export default function CustomerCreationListPage() {
       const formDataObj = new FormData();
       formDataObj.append("file", csvFile);
 
-      const result = await customerCreationApi.action<Record<string, unknown>>(
-        "bulk-upload",
-        formDataObj,
-        { headers: { "Content-Type": "multipart/form-data" } },
-      );
+      const result = await runBulkUpload<Record<string, unknown>>(customerCreationApi, formDataObj);
       const success = Number(result?.success_count ?? 0);
       const errors = normalizeBulkErrors(result?.errors, originalRows);
       recordExcelAudit("upload_excel", {
@@ -342,12 +338,12 @@ export default function CustomerCreationListPage() {
   const handleDownloadExcel = async () => {
     setIsExportingExcel(true);
     try {
-      const rows = await fetchExportRows();
-      if (rows.length === 0) {
-        notify.fire(t("common.warning") || "Warning", "No customers to export", "warning");
-        return;
-      }
-      await exportRecordsToExcel(rows, getAdminScreenExcelFilename("all"), "Customers");
+      // Built on the server by a background job, then downloaded.
+      await customerCreationApi.exportToExcel(
+        { params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) } },
+        getAdminScreenExcelFilename("all"),
+        "Customers",
+      );
     } catch (error) {
       notify.fire({
         icon: "error",

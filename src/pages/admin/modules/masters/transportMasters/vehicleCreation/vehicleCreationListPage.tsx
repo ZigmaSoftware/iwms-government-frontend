@@ -37,6 +37,7 @@ import {
   saveBulkResult,
   type BulkUploadResult,
 } from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -414,8 +415,8 @@ export default function VehicleCreationListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () =>
-    toRecordList(await vehicleCreationApi.readAllForExport({ params: filterParams }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    vehicleCreationApi.exportToExcel({ params: filterParams }, filename, sheetName);
 
   // ── Bulk upload ───────────────────────────────────────────────────────────
   const downloadVehicleTemplate = async () => {
@@ -438,13 +439,7 @@ export default function VehicleCreationListPage() {
       const formData = new FormData();
       formData.append("file", csvFile);
 
-      const res = await adminApi.vehicleCreations.action(
-        "bulk-upload",
-        formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
+      const res = await runBulkUpload(adminApi.vehicleCreations, formData);
 
       const errors = normalizeBulkErrors(res.errors, originalRows);
       const successCount = Number(res.success_count ?? 0);
@@ -708,7 +703,7 @@ export default function VehicleCreationListPage() {
         showGridlines
         className="p-datatable-sm"
         tableStyle={{ minWidth: "1120px" }}
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         emptyMessage={t("admin.vehicle_creation.empty_message")}
       >
         <Column

@@ -111,7 +111,8 @@ export default function DistrictListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await districtApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    districtApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: DistrictListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -206,7 +207,7 @@ export default function DistrictListPage() {
         stripedRows
         showGridlines
         emptyMessage="No District records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />

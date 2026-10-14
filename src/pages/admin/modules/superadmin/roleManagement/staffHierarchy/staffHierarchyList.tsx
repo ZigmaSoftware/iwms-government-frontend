@@ -127,7 +127,8 @@ export default function StaffHierarchyList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => toRecordList(await staffHierarchyApi.readAllForExport({ params: filterParams }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    staffHierarchyApi.exportToExcel({ params: filterParams }, filename, sheetName);
 
   const updateStatus = async (row: StaffHierarchyRow, checked: boolean) => {
     setPendingStatusId(row.unique_id);
@@ -266,7 +267,7 @@ export default function StaffHierarchyList() {
             className="mb-4"
           />
         }
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         stripedRows
         showGridlines
         emptyMessage={t("common.no_items_found", {

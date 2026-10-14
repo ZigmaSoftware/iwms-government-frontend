@@ -116,7 +116,8 @@ export default function UserScreenActionList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await userScreenActionApi.readAllForExport({ params: status.applied }));
+  const onServerExport = (filename: string, sheetName: string) =>
+    userScreenActionApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -232,7 +233,7 @@ export default function UserScreenActionList() {
           })}
           stripedRows
           showGridlines
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
