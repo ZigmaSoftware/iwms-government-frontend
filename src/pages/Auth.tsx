@@ -18,10 +18,14 @@ import {
   getStoredPermissions,
 } from "@/utils/permissions";
 import {
+  clearAuthSession,
   persistLoginSession,
+  persistPermissions,
   unwrapLoginPayload,
   type LoginEnvelope,
+  type PermissionsPayload,
 } from "@/utils/authStorage";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { toNotifyMessage } from "@/lib/zodErrors";
 import { loginSchema } from "@/schemas/auth.schema";
 import {
@@ -153,6 +157,18 @@ export default function Auth() {
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
 
+      // The login response carries no permissions — fetch them with the new
+      // token. Without them the session is unusable, so undo it on failure.
+      try {
+        const { data: permissionPayload } = await api.get<PermissionsPayload>(
+          `/${adminEndpoints.userpermission}/`,
+        );
+        persistPermissions(permissionPayload);
+      } catch (error) {
+        clearAuthSession();
+        throw error;
+      }
+
       const normalizedRole =
         normalizeRole(payload.user?.role ?? payload.role ?? null) ?? DEFAULT_ROLE;
       const freshPermissions = getStoredPermissions();
@@ -171,9 +187,7 @@ export default function Auth() {
 
       // Check admin access by role name OR by any permission granted by superadmin
       const hasAdminAccess =
-        isAdmin(normalizedRole) ||
-        hasAnyPermission(freshPermissions) ||
-        hasAnyPermission((payload.permissions ?? {}) as Record<string, unknown>);
+        isAdmin(normalizedRole) || hasAnyPermission(freshPermissions);
 
       if (hasAdminAccess) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);

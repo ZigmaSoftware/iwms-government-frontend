@@ -145,15 +145,27 @@ export const createCrudHelpers = <T = any>(
     return capitalizeApiFormData(data);
   };
 
-  const readAllPages = async (config?: AxiosRequestConfig) => {
+  /**
+   * Fetches every row. `singleRequest` omits page/limit so the backend's
+   * LimitOffsetWithPage (no default limit) returns the full list in ONE
+   * response instead of N sequential 1000-row pages (20k+ panchayats = 20+
+   * calls per dropdown). If an endpoint still paginates on its own, the
+   * `next`-link loop below picks up the remaining pages.
+   */
+  const readAllPages = async (
+    config?: AxiosRequestConfig,
+    singleRequest = false,
+  ) => {
     const firstPage = await readPaginatedResource(resource, {
       ...config,
-      params: {
-        ...config?.params,
-        page: config?.params?.page ?? 1,
-        limit: config?.params?.limit ?? exportPageSize,
-        page_size: config?.params?.page_size ?? exportPageSize,
-      },
+      params: singleRequest
+        ? config?.params
+        : {
+            ...config?.params,
+            page: config?.params?.page ?? 1,
+            limit: config?.params?.limit ?? exportPageSize,
+            page_size: config?.params?.page_size ?? exportPageSize,
+          },
     });
 
     if (Array.isArray(firstPage)) return firstPage;
@@ -200,9 +212,17 @@ export const createCrudHelpers = <T = any>(
   return {
     /* ---------- READ ---------- */
 
-    readAll: readAllPages,
+    // Dropdowns/lookups: one request, unless the caller explicitly asks for
+    // a page/limit.
+    readAll: (config) => {
+      const params = config?.params ?? {};
+      const wantsPaging =
+        params.page != null || params.limit != null || params.page_size != null;
+      return readAllPages(config, !wantsPaging);
+    },
 
-    readAllForExport: readAllPages,
+    // Exports use the full serializer, so keep fetching in 1000-row pages.
+    readAllForExport: (config) => readAllPages(config),
 
     readAllwithPaginated: async (page = 1, limit = 5, config) => {
       const { data } = await api.get<PaginatedResponse<T>>(
