@@ -12,6 +12,7 @@ import type {
   ComplaintAuditDetail as DetailRecord,
   ComplaintAuditEvent,
   ComplaintAuditEventType,
+  ComplaintAuditPhoto,
 } from "./types";
 import { formatDateTime, formatDuration, STATUS_COLORS } from "./format";
 
@@ -56,6 +57,65 @@ const Field = ({ label, children }: { label: string; children: ReactNode }) => (
     <div className="break-words text-sm text-gray-800 dark:text-gray-100">{children || "-"}</div>
   </div>
 );
+
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp)$/i;
+const isImage = (p: ComplaintAuditPhoto) => (p.mime_type ?? "").startsWith("image/") || IMAGE_EXT.test(p.url.split("?")[0]);
+
+const CLEANUP_STATUS_STYLE: Record<string, string> = {
+  PENDING: "bg-amber-100 text-amber-800",
+  APPROVED: "bg-green-100 text-green-800",
+  REJECTED: "bg-red-100 text-red-700",
+};
+
+/** Complaint photos and citizens' cleanup photos, side by side under coloured headings. */
+function PhotoGroup({ title, tone, photos, t }: {
+  title: string;
+  tone: "complaint" | "cleanup";
+  photos: ComplaintAuditPhoto[];
+  t: TFunction;
+}) {
+  const tag = tone === "complaint" ? "bg-red-50 text-red-700 ring-red-200" : "bg-green-50 text-green-700 ring-green-200";
+  return (
+    <div>
+      <span className={`mb-2 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${tag}`}>{title}</span>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {photos.map((p) => (
+          <div key={p.unique_id} className="min-w-0 space-y-1">
+            <a href={p.url} target="_blank" rel="noreferrer" title={p.file_name ?? undefined}>
+              {isImage(p) ? (
+                <img src={p.url} alt={p.file_name ?? title} className="h-28 w-full rounded-lg object-cover ring-1 ring-gray-200" />
+              ) : (
+                <span className="flex h-28 w-full items-center justify-center rounded-lg bg-gray-50 text-xs text-gray-500 ring-1 ring-gray-200">
+                  <i className="pi pi-file mr-1.5" /> {p.file_name || t("admin.complaint_audit.file", "File")}
+                </span>
+              )}
+            </a>
+            <p className="text-[11px] text-gray-500">{formatDateTime(p.created)}</p>
+            {p.cleanup_status && (
+              <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${CLEANUP_STATUS_STYLE[p.cleanup_status] ?? ""}`}>
+                {p.cleanup_status === "PENDING"
+                  ? t("admin.complaint_audit.cleanup_pending", "Waiting for verification")
+                  : p.cleanup_status === "APPROVED"
+                    ? t("admin.complaint_audit.cleanup_approved", "Approved")
+                    : t("admin.complaint_audit.cleanup_rejected", "Rejected")}
+              </span>
+            )}
+            {p.cleanup_note && (
+              <p className="break-words text-[11px] text-gray-600">
+                {t("admin.complaint_audit.citizen_note", "Citizen")}: “{p.cleanup_note}”
+              </p>
+            )}
+            {p.review_remarks && (
+              <p className="break-words text-[11px] text-gray-600">
+                {t("admin.complaint_audit.officer_remarks", "Officer")}: {p.review_remarks}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function eventDetails(event: ComplaintAuditEvent, t: TFunction): string[] {
   const d = event.details;
@@ -216,7 +276,36 @@ export default function ComplaintAuditDetail({
               {record.is_deleted && (
                 <Field label={t("admin.complaint_audit.delete_reason", "Delete reason")}>{record.delete_reason}</Field>
               )}
+              <div className="col-span-2 md:col-span-4">
+                <Field label={t("admin.complaint_audit.resolution_remarks", "Resolution remarks")}>
+                  {record.resolution_remarks}
+                </Field>
+              </div>
             </section>
+
+            {(record.photos?.length ?? 0) > 0 && (
+              <section className="space-y-4">
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  {t("admin.complaint_audit.photos", "Photos")}
+                </h3>
+                {record.photos!.some((p) => p.kind === "complaint") && (
+                  <PhotoGroup
+                    title={t("admin.complaint_audit.complaint_photos", "Complaint photos")}
+                    tone="complaint"
+                    photos={record.photos!.filter((p) => p.kind === "complaint")}
+                    t={t}
+                  />
+                )}
+                {record.photos!.some((p) => p.kind === "cleanup") && (
+                  <PhotoGroup
+                    title={t("admin.complaint_audit.cleanup_photos", "Cleanup photos")}
+                    tone="cleanup"
+                    photos={record.photos!.filter((p) => p.kind === "cleanup")}
+                    t={t}
+                  />
+                )}
+              </section>
+            )}
 
             {record.status_durations.length > 0 && (
               <section>

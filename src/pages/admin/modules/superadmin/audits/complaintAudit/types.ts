@@ -72,9 +72,24 @@ export type ComplaintStatusDuration = {
   times_entered: number;
 };
 
+/** An attachment on the ticket: the complaint's own photo or a citizen's cleanup photo. */
+export type ComplaintAuditPhoto = {
+  unique_id: string;
+  kind: "complaint" | "cleanup";
+  url: string;
+  file_name?: string | null;
+  mime_type?: string | null;
+  created?: string | null;
+  cleanup_status?: "PENDING" | "APPROVED" | "REJECTED" | null;
+  cleanup_note?: string | null;
+  review_remarks?: string | null;
+  reviewed_at?: string | null;
+};
+
 export type ComplaintAuditDetail = ComplaintAuditRecord & {
   timeline: ComplaintAuditEvent[];
   status_durations: ComplaintStatusDuration[];
+  photos?: ComplaintAuditPhoto[];
 };
 
 type Option = { unique_id: string; name: string };

@@ -202,7 +202,6 @@ export default function MasterList({ kind }: Props) {
             header="Escalation Levels"
             body={(row) =>
               (row.escalation_levels || [])
-                .filter((level: ComplaintSlaEscalationLevel) => level.is_enabled)
                 .map((level: ComplaintSlaEscalationLevel) => `L${level.level}: ${level.resolve_within_minutes}m`)
                 .join(", ") || "-"
             }

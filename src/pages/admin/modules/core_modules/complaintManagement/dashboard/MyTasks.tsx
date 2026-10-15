@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Clock, Eye, Inbox, MapPin, RefreshCcw, Timer } from "lucide-react";
+import { AlertTriangle, Camera, CheckCircle2, Clock, Eye, Inbox, MapPin, RefreshCcw, Timer, XCircle } from "lucide-react";
 import notify from "@/lib/notify";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,15 +75,72 @@ function EscalationTimer({ ticket }: { ticket: ComplaintTicket }) {
   );
 }
 
+/** A citizen's "Verify Cleanup" photo from the public map, waiting for the
+ *  officer the ticket sits with: approving closes the ticket. */
+function CleanupReview({
+  ticket,
+  busy,
+  onReview,
+}: {
+  ticket: ComplaintTicket;
+  busy: boolean;
+  onReview: (decision: "approve" | "reject") => void;
+}) {
+  const report = ticket.cleanup_report;
+  if (!report) return null;
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-2.5">
+      <div className="flex gap-2.5">
+        {report.photo ? (
+          <a href={report.photo} target="_blank" rel="noreferrer" className="shrink-0" title="Open full photo">
+            <img src={report.photo} alt="Cleanup photo sent by a citizen" className="h-16 w-20 rounded-md object-cover ring-1 ring-amber-200" />
+          </a>
+        ) : (
+          <span className="flex h-16 w-20 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-500">
+            <Camera className="h-5 w-5" />
+          </span>
+        )}
+        <div className="min-w-0 text-xs">
+          <p className="font-semibold text-amber-900">Citizen reported this as cleaned</p>
+          <p className="text-amber-800/80">{formatDateTime(report.created)}</p>
+          {report.note && <p className="mt-0.5 line-clamp-2 text-amber-900/90">“{report.note}”</p>}
+        </div>
+      </div>
+      {ticket.can_review_cleanup ? (
+        <div className="mt-2 flex gap-2">
+          <Button size="sm" className="h-8 flex-1 bg-green-600 text-xs hover:bg-green-700" disabled={busy} onClick={() => onReview("approve")}>
+            <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Approve &amp; close
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 flex-1 border-red-200 text-xs text-red-700 hover:bg-red-50"
+            disabled={busy}
+            onClick={() => onReview("reject")}
+          >
+            <XCircle className="mr-1 h-3.5 w-3.5" /> Reject
+          </Button>
+        </div>
+      ) : (
+        <p className="mt-2 text-[11px] text-amber-800/80">
+          Waiting for {ticket.escalated_to_staff_name || ticket.assigned_staff_name || "the handling officer"} to verify.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TicketCard({
   ticket,
   busy,
   onResolve,
+  onReviewCleanup,
   onOpen,
 }: {
   ticket: ComplaintTicket;
   busy: boolean;
   onResolve: (id: string, remarks: string) => void;
+  onReviewCleanup: (id: string, decision: "approve" | "reject", remarks: string) => void;
   onOpen: (id: string) => void;
 }) {
   const [remarks, setRemarks] = useState("");
@@ -94,7 +151,11 @@ function TicketCard({
   const viewOnly = ticket.can_act === false;
 
   return (
-    <Card className="group relative overflow-hidden border-slate-200 transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <Card
+      className={`group relative overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-md ${
+        ticket.has_pending_cleanup ? "border-amber-300" : "border-slate-200"
+      }`}
+    >
       {ticket.is_escalated && (
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-red-400 to-orange-400" />
       )}
@@ -134,6 +195,11 @@ function TicketCard({
           </span>
         </div>
         <EscalationTimer ticket={ticket} />
+        <CleanupReview
+          ticket={ticket}
+          busy={busy}
+          onReview={(decision) => onReviewCleanup(ticket.unique_id, decision, remarks)}
+        />
         {viewOnly ? (
           <div className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs text-slate-600">
             <Eye className="h-3.5 w-3.5 shrink-0" />
@@ -200,12 +266,13 @@ function ResolvedTicketCard({
         </p>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" /> Resolved {formatDateTime(ticket.resolved_at)}
+            <Clock className="h-3.5 w-3.5" /> {ticket.status_code === "CLOSED" ? "Closed" : "Resolved"}{" "}
+            {formatDateTime(ticket.status_code === "CLOSED" ? ticket.closed_at ?? ticket.resolved_at : ticket.resolved_at)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-2 pt-1">
           <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-            Resolved
+            {ticket.status_name || (ticket.status_code === "CLOSED" ? "Closed" : "Resolved")}
           </Badge>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={() => onOpen(ticket.unique_id)}>
@@ -244,7 +311,7 @@ export default function MyTasks() {
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [justResolvedFlash, setJustResolvedFlash] = useState(false);
-  const [view, setView] = useState<"open" | "escalated" | "resolved">("open");
+  const [view, setView] = useState<"open" | "escalated" | "cleanup" | "resolved">("open");
   const [location, setLocation] = useState<TicketLocationFilterValue>(emptyTicketLocationFilter);
 
   // `mine=1`: tickets the requester owns or owned — assigned to them,
@@ -284,7 +351,12 @@ export default function MyTasks() {
 
   const openTickets = useMemo(() => tickets.filter((t) => !CLOSED_CODES.has(String(t.status_code))), [tickets]);
   const escalatedTickets = useMemo(() => openTickets.filter((t) => t.is_escalated), [openTickets]);
-  const resolvedTickets = useMemo(() => tickets.filter((t) => String(t.status_code) === "RESOLVED"), [tickets]);
+  const cleanupTickets = useMemo(() => openTickets.filter((t) => t.has_pending_cleanup), [openTickets]);
+  // closed covers tickets closed by an approved citizen cleanup
+  const resolvedTickets = useMemo(
+    () => tickets.filter((t) => ["RESOLVED", "CLOSED"].includes(String(t.status_code))),
+    [tickets],
+  );
 
   const handleResolve = async (id: string, remarks: string) => {
     setBusyId(id);
@@ -295,6 +367,38 @@ export default function MyTasks() {
       await loadOwnTasks();
     } catch (err) {
       notify.fire("Error", errorText(err, "Unable to resolve ticket"), "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReviewCleanup = async (id: string, decision: "approve" | "reject", remarks: string) => {
+    const confirm = await notify.fire({
+      title: decision === "approve" ? "Approve cleanup and close the ticket?" : "Reject the cleanup photo?",
+      text:
+        decision === "approve"
+          ? "The ticket will be closed and the citizen told it was verified."
+          : "The ticket stays open and keeps escalating on its SLA.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonText: decision === "approve" ? "Approve & close" : "Reject",
+      // remarks are mandatory for a cleanup decision (the backend rejects a blank one)
+      input: "textarea",
+      inputLabel: "Remarks (required)",
+      inputValue: remarks,
+      inputPlaceholder: decision === "approve" ? "e.g. Checked on site, spot is clean" : "e.g. Garbage still there",
+      inputMaxLength: 1000,
+      inputValidator: (value: string) => (value.trim() ? null : "Please enter remarks."),
+    });
+    if (!confirm.isConfirmed) return;
+
+    setBusyId(id);
+    try {
+      await ticketActions.reviewCleanup(id, decision, { remarks: String(confirm.value ?? "").trim() });
+      notify.fire("Done", decision === "approve" ? "Cleanup verified — ticket closed." : "Cleanup photo rejected.", "success");
+      await loadOwnTasks();
+    } catch (err) {
+      notify.fire("Error", errorText(err, "Unable to review the cleanup"), "error");
     } finally {
       setBusyId(null);
     }
@@ -331,7 +435,8 @@ export default function MyTasks() {
   const summaryCards = [
     { key: "open" as const, label: "Open", value: openTickets.length, className: "text-foreground" },
     { key: "escalated" as const, label: "Escalated", value: escalatedTickets.length, className: "text-red-600" },
-    { key: "resolved" as const, label: "Resolved", value: resolvedTickets.length, className: "text-emerald-600" },
+    { key: "cleanup" as const, label: "Cleanup to verify", value: cleanupTickets.length, className: "text-amber-600" },
+    { key: "resolved" as const, label: "Resolved / Closed", value: resolvedTickets.length, className: "text-emerald-600" },
   ];
 
   const openCard = (ticket: ComplaintTicket) => (
@@ -340,6 +445,7 @@ export default function MyTasks() {
       ticket={ticket}
       busy={busyId === ticket.unique_id}
       onResolve={handleResolve}
+      onReviewCleanup={handleReviewCleanup}
       onOpen={(id) => navigate(editPath(id))}
     />
   );
@@ -362,7 +468,7 @@ export default function MyTasks() {
 
       <TicketLocationFilters value={location} onChange={setLocation} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {summaryCards.map((card) => (
           <Card
             key={card.key}
@@ -393,7 +499,7 @@ export default function MyTasks() {
         <div className="py-16 text-center text-sm text-muted-foreground">Loading your tasks…</div>
       ) : view === "resolved" ? (
         resolvedTickets.length === 0 ? (
-          <EmptyState title="No resolved tickets yet" hint="Tickets you resolve will show up here." />
+          <EmptyState title="No resolved tickets yet" hint="Tickets you resolve or close will show up here." />
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {resolvedTickets.map((ticket) => (
@@ -406,6 +512,15 @@ export default function MyTasks() {
               />
             ))}
           </div>
+        )
+      ) : view === "cleanup" ? (
+        cleanupTickets.length === 0 ? (
+          <EmptyState
+            title="No cleanups to verify"
+            hint="When a citizen sends a cleanup photo from the public map, the ticket shows up here for you to approve or reject."
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">{cleanupTickets.map(openCard)}</div>
         )
       ) : view === "escalated" ? (
         escalatedTickets.length === 0 ? (

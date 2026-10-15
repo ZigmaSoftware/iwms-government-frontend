@@ -14,6 +14,14 @@ export type ComplaintTicketStatusCode =
   | "CANCELLED"
   | string;
 
+/** A citizen's "Verify Cleanup" photo from the public map, waiting for review. */
+export type ComplaintCleanupReport = {
+  unique_id: string;
+  photo: string | null;
+  note?: string | null;
+  created: string;
+};
+
 export type ComplaintTicket = {
   unique_id: string;
   ticket_no?: string;
@@ -91,6 +99,11 @@ export type ComplaintTicket = {
   assignment_history?: ComplaintAssignmentHistory[];
   comments?: ComplaintComment[];
   attachments?: ComplaintAttachment[];
+  /** a citizen's "Verify Cleanup" photo is waiting for the handler's check (list + detail) */
+  has_pending_cleanup?: boolean;
+  /** detail only: the waiting cleanup report, and whether this user may approve/reject it */
+  cleanup_report?: ComplaintCleanupReport | null;
+  can_review_cleanup?: boolean;
   public_timeline?: ComplaintTimelineItem[];
   image_url?: string | null;
   close_image_url?: string | null;
@@ -188,11 +201,10 @@ export type ComplaintLanguage = {
   is_active?: boolean;
 };
 
-/** Resolve window for one Staff Hierarchy level of an SLA rule. */
+/** Resolve window for one Staff Hierarchy escalation level of an SLA rule. */
 export type ComplaintSlaEscalationLevel = {
   unique_id?: string;
   level: number;
-  is_enabled: boolean;
   resolve_within_minutes: number;
 };
 
@@ -287,6 +299,13 @@ export type ComplaintAttachment = {
   file_type?: string | null;
   mime_type?: string | null;
   created?: string;
+  /** set on a citizen's "Verify Cleanup" photo (file_type "cleanup_proof") */
+  cleanup_review?: {
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    note?: string | null;
+    review_remarks?: string | null;
+    reviewed_at?: string | null;
+  } | null;
 };
 
 export type PublicGrievanceWasteType = {
@@ -363,6 +382,97 @@ export type PublicGrievanceStatusResult = {
     at?: string;
     remarks?: string | null;
   }[];
+};
+
+/* ---- public complaint map (/publicgrievance/map/, /map-area/) ---- */
+
+export type GrievanceCounts = { total: number; open: number; resolved: number; escalated: number };
+
+export type GrievanceStatusCount = { code: string | null; name: string; is_final: boolean; count: number };
+
+export type GrievanceLocalBodyType = "corporation" | "municipality" | "town_panchayat" | "panchayat_union" | "panchayat";
+
+export type GrievanceMapDistrict = GrievanceCounts & { district_id: string; name: string };
+
+export type GrievanceMapLocalBody = GrievanceCounts & {
+  id: string;
+  type: GrievanceLocalBodyType;
+  category: "ulb" | "rlb";
+  name: string;
+  /** [[lat, lng], ...] — 3+ points is a geofence, fewer a location */
+  coordinates: [number, number][];
+};
+
+export type GrievanceStateMap = {
+  scope: "state";
+  state_id: string;
+  state_name: string;
+  districts: GrievanceMapDistrict[];
+  totals: GrievanceCounts;
+  by_status: GrievanceStatusCount[];
+  /** open complaints per escalation level ("0" = not yet on the chain) */
+  by_level: Record<string, number>;
+};
+
+export type GrievanceDistrictMap = {
+  scope: "district";
+  state_id: string;
+  state_name: string;
+  district_id: string;
+  district_name: string;
+  district_coordinates: [number, number][];
+  local_bodies: GrievanceMapLocalBody[];
+  totals: GrievanceCounts;
+  by_status: GrievanceStatusCount[];
+  by_level: Record<string, number>;
+};
+
+export type GrievanceHierarchyLevel = {
+  level: number;
+  roles: string[];
+  officer: { name: string; designation: string } | null;
+  open: number;
+};
+
+export type GrievancePin = {
+  ticket_no: string;
+  category: string;
+  subcategory: string;
+  status: string;
+  status_code: string;
+  is_open: boolean;
+  is_escalated: boolean;
+  escalation_level: number;
+  is_overdue: boolean;
+  created: string;
+  days_open: number;
+  latitude: number;
+  longitude: number;
+  location_text: string;
+  /** URLs of the complaint's photos, oldest first. */
+  photos: string[];
+  /** URL of a citizen's "Verify Cleanup" photo still waiting for the officer's check. */
+  cleanup_pending: string | null;
+  priority: string;
+  priority_code: string;
+  waste_types: string[];
+  /** "I saw this too" taps */
+  seen_count: number;
+};
+
+export type GrievanceAreaDetail = {
+  scope: "local_body";
+  state_id: string;
+  state_name: string;
+  district_id: string;
+  district_name: string;
+  local_body: Omit<GrievanceMapLocalBody, keyof GrievanceCounts>;
+  totals: GrievanceCounts & { overdue: number };
+  by_status: GrievanceStatusCount[];
+  hierarchy: GrievanceHierarchyLevel[];
+  unassigned_open: number;
+  tickets: GrievancePin[];
+  tickets_truncated: boolean;
 };
 
 export type ComplaintTimelineItem = {

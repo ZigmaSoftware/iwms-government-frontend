@@ -26,6 +26,9 @@ import type {
   PublicGrievanceMeta,
   PublicGrievanceResponse,
   PublicGrievanceStatusResult,
+  GrievanceAreaDetail,
+  GrievanceDistrictMap,
+  GrievanceStateMap,
 } from "./types";
 
 export const complaintTicketApi = adminApi.complaintTickets as typeof adminApi.complaintTickets;
@@ -82,6 +85,9 @@ export const ticketActions = {
     complaintTicketApi.action<ComplaintTicket>(`${id}/escalate`, payload),
   comment: (id: string, payload: { comment_text: string; is_internal?: boolean; is_sensitive?: boolean }) =>
     complaintTicketApi.action(`${id}/comments`, payload),
+  /** approve (closes the ticket) or reject a citizen's cleanup photo */
+  reviewCleanup: (id: string, decision: "approve" | "reject", payload: { remarks?: string }) =>
+    complaintTicketApi.action<ComplaintTicket>(`${id}/cleanup/${decision}`, payload),
   reopen: (id: string, payload: { reopen_reason: string }) =>
     complaintTicketApi.action<ComplaintTicket>(`${id}/reopen`, payload),
   feedback: (id: string, payload: { rating?: number; feedback_text?: string; is_issue_solved?: boolean }) =>
@@ -332,6 +338,41 @@ export const publicGrievanceApi = {
       params,
       signal,
     });
+    return data;
+  },
+  /** complaint map: the state's districts (defaults to Tamil Nadu) */
+  stateMap: async (signal?: AbortSignal) => {
+    const { data } = await api.get<GrievanceStateMap>("/publicgrievance/map/", { signal });
+    return data;
+  },
+  /** complaint map: one district's ULBs / RLBs with their geofences */
+  districtMap: async (districtId: string, signal?: AbortSignal) => {
+    const { data } = await api.get<GrievanceDistrictMap>("/publicgrievance/map/", {
+      params: { district: districtId },
+      signal,
+    });
+    return data;
+  },
+  /** complaint map: one ULB / RLB — geofence, hierarchy, complaint pins */
+  areaMap: async (type: string, id: string, signal?: AbortSignal) => {
+    const { data } = await api.get<GrievanceAreaDetail>("/publicgrievance/map-area/", {
+      params: { type, id },
+      signal,
+    });
+    return data;
+  },
+  /** complaint map: "I saw this too" on a pin */
+  markSeen: async (ticketNo: string) => {
+    const { data } = await api.post<{ seen_count: number }>(`/publicgrievance/map-ticket/${encodeURIComponent(ticketNo)}/seen/`);
+    return data;
+  },
+  /** complaint map: a citizen's photo of the cleaned spot, for the handling officer to check */
+  verifyCleanup: async (ticketNo: string, payload: FormData) => {
+    const { data } = await api.post<{ message: string; photo: string }>(
+      `/publicgrievance/map-ticket/${encodeURIComponent(ticketNo)}/verify-cleanup/`,
+      payload,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
     return data;
   },
 };

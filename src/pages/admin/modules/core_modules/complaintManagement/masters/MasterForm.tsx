@@ -55,11 +55,10 @@ const geoOf = (record: any): GeoLocationValue => {
   };
 };
 
-// One editable row per Staff Hierarchy level on the SLA rule form.
+// One time-limit row per Staff Hierarchy escalation level on the SLA rule form.
 type EscalationLevelRow = {
   level: number;
   roles: string;
-  enabled: boolean;
   resolve_within_minutes: string;
 };
 
@@ -143,9 +142,9 @@ export default function MasterForm({ kind }: Props) {
     fetchHierarchyLevels(params).then((res) => setHierarchyLevels(asArray(res))).catch(() => setHierarchyLevels([]));
   }, [kind, scopeKey]);
 
-  // One escalation row per Staff Hierarchy level, carrying over the rule's
-  // saved window for that level (a level the rule never configured starts
-  // enabled and empty).
+  // One row per escalation level of the Staff Hierarchy (the ULB / RLB chain
+  // decides which levels take part), carrying over the rule's saved window
+  // for that level (a level the rule never timed starts empty).
   useEffect(() => {
     if (kind !== "slaRule") return;
     const saved = Object.fromEntries(savedEscalationLevels.map((row) => [row.level, row]));
@@ -153,7 +152,6 @@ export default function MasterForm({ kind }: Props) {
       hierarchyLevels.map((option) => ({
         level: option.level,
         roles: option.roles.map((role) => roleLabel(role.name)).join(", ") || "-",
-        enabled: saved[option.level]?.is_enabled ?? true,
         resolve_within_minutes: String(saved[option.level]?.resolve_within_minutes ?? ""),
       })),
     );
@@ -199,11 +197,9 @@ export default function MasterForm({ kind }: Props) {
       notify.fire("Invalid fields", toNotifyMessage(result.error), "warning");
       return;
     }
-    const missingWindow = escalationLevels.find(
-      (row) => row.enabled && !(Number(row.resolve_within_minutes) > 0),
-    );
+    const missingWindow = escalationLevels.find((row) => !(Number(row.resolve_within_minutes) > 0));
     if (kind === "slaRule" && missingWindow) {
-      notify.fire("Invalid fields", `Enter resolve-within minutes for enabled level L${missingWindow.level}.`, "warning");
+      notify.fire("Invalid fields", `Enter resolve-within minutes for level L${missingWindow.level}.`, "warning");
       return;
     }
 
@@ -251,14 +247,10 @@ export default function MasterForm({ kind }: Props) {
                     source_id: form.source || null,
                     ...scopeOf(geo),
                     working_hours_only: form.working_hours_only,
-                    // Disabled levels without a window are simply not stored.
-                    escalation_levels: escalationLevels
-                      .filter((row) => Number(row.resolve_within_minutes) > 0)
-                      .map((row) => ({
-                        level: row.level,
-                        is_enabled: row.enabled,
-                        resolve_within_minutes: Number(row.resolve_within_minutes),
-                      })),
+                    escalation_levels: escalationLevels.map((row) => ({
+                      level: row.level,
+                      resolve_within_minutes: Number(row.resolve_within_minutes),
+                    })),
                   };
 
     setSaving(true);
@@ -353,10 +345,9 @@ export default function MasterForm({ kind }: Props) {
             <div className="md:col-span-2">
               <Label>Escalation Levels</Label>
               <p className="mt-1 text-xs text-muted-foreground">
-                One row per Staff Hierarchy level of the chain that applies in the chosen location. Enable only the levels that should take part: a
-                ticket is first assigned to the lowest enabled level&apos;s staff for its area and,
-                if not resolved in time, auto-escalates to the next enabled level above it. Disabled
-                levels (e.g. Driver, Operator) are skipped entirely.
+                The escalation levels come from the Staff Hierarchy (ULB / RLB chain) that applies in the chosen location — levels
+                turned off there (e.g. Driver, Operator) are not listed. A ticket is first assigned to the lowest level&apos;s staff
+                for its area and, if not resolved within that level&apos;s time limit, auto-escalates to the next level above it.
               </p>
               {escalationLevels.length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -366,12 +357,6 @@ export default function MasterForm({ kind }: Props) {
                 <div className="mt-2 space-y-2">
                   {escalationLevels.map((row, index) => (
                     <div key={row.level} className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        aria-label={`Enable level ${row.level}`}
-                        checked={row.enabled}
-                        onChange={(e) => setEscalationLevel(index, { enabled: e.target.checked })}
-                      />
                       <div className="w-10 text-sm font-medium text-muted-foreground">L{row.level}</div>
                       <div className="w-56 text-sm">{row.roles}</div>
                       <Input
@@ -379,7 +364,6 @@ export default function MasterForm({ kind }: Props) {
                         min={1}
                         className="flex-1"
                         placeholder="Resolve within minutes"
-                        disabled={!row.enabled}
                         value={row.resolve_within_minutes}
                         onChange={(e) => setEscalationLevel(index, { resolve_within_minutes: e.target.value })}
                       />

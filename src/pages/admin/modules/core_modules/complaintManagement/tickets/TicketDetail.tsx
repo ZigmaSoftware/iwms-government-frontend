@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { RefreshCcw } from "lucide-react";
+import { CheckCircle2, RefreshCcw, XCircle } from "lucide-react";
 import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
@@ -13,7 +13,7 @@ import {
   ticketActions,
 } from "@/features/complaintTicketing/api";
 import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
-import type { ComplaintTicket } from "@/features/complaintTicketing/types";
+import type { ComplaintAttachment, ComplaintTicket } from "@/features/complaintTicketing/types";
 import { asArray, errorText, formatDateTime, formatDuration, roleLabel } from "../utils";
 
 const Field = ({ label, value }: { label: string; value: unknown }) => (
@@ -80,6 +80,59 @@ const EscalationCountdown = ({ ticket }: { ticket: ComplaintTicket }) => {
   );
 };
 
+const CLEANUP_PROOF = "cleanup_proof";
+
+const CLEANUP_REVIEW_STYLE: Record<string, { label: string; className: string }> = {
+  PENDING: { label: "Waiting for verification", className: "bg-amber-100 text-amber-800" },
+  APPROVED: { label: "Approved", className: "bg-green-100 text-green-800" },
+  REJECTED: { label: "Rejected", className: "bg-red-100 text-red-700" },
+};
+
+/** One group of attachments under a coloured heading (complaint vs cleanup photos). */
+function AttachmentGroup({
+  title,
+  hint,
+  tone,
+  items,
+}: {
+  title: string;
+  hint: string;
+  tone: "complaint" | "cleanup";
+  items: ComplaintAttachment[];
+}) {
+  const badge = tone === "complaint" ? "bg-red-50 text-red-700 ring-red-200" : "bg-green-50 text-green-700 ring-green-200";
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${badge}`}>{title}</span>
+        <span className="text-xs text-gray-500">{hint}</span>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {items.map((item) => {
+          const review = item.cleanup_review ? CLEANUP_REVIEW_STYLE[item.cleanup_review.status] : null;
+          return (
+            <div key={item.unique_id} className="space-y-1.5">
+              <AttachmentPreview label={item.file_name || formatDateTime(item.created)} fileUrl={item.file_url} />
+              <p className="text-xs text-gray-500">Uploaded {formatDateTime(item.created)}</p>
+              {review && (
+                <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${review.className}`}>
+                  {review.label}
+                </span>
+              )}
+              {item.cleanup_review?.note && (
+                <p className="text-xs text-gray-600">Citizen: “{item.cleanup_review.note}”</p>
+              )}
+              {item.cleanup_review?.review_remarks && (
+                <p className="text-xs text-gray-600">Officer: {item.cleanup_review.review_remarks}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const levelText = (level?: number | null, name?: string | null) =>
   level ? `L${level}${name ? ` - ${roleLabel(name)}` : ""}` : "-";
 
@@ -93,6 +146,7 @@ export default function TicketDetail() {
   const [activeHistory, setActiveHistory] = useState(0);
   const [statusCode, setStatusCode] = useState("");
   const [statusRemarks, setStatusRemarks] = useState("");
+  const [cleanupRemarks, setCleanupRemarks] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -116,6 +170,7 @@ export default function TicketDetail() {
       await fn();
       notify.fire("Done", message, "success");
       setStatusRemarks("");
+      setCleanupRemarks("");
       await load();
     } catch (err) {
       notify.fire("Error", errorText(err, "Action failed"), "error");
@@ -129,6 +184,9 @@ export default function TicketDetail() {
   // Escalated past the viewer: status changes belong to the level it now
   // sits with (the backend refuses them for this viewer too).
   const viewOnly = ticket.can_act === false;
+  const attachments = ticket.attachments ?? [];
+  const complaintFiles = attachments.filter((a) => a.file_type !== CLEANUP_PROOF);
+  const cleanupFiles = attachments.filter((a) => a.file_type === CLEANUP_PROOF);
 
   return (
     <div className="space-y-5 p-3">
@@ -181,19 +239,97 @@ export default function TicketDetail() {
       </ComponentCard>
 
       <ComponentCard title="Attachments">
-        {(ticket.attachments ?? []).length === 0 && (
+        {complaintFiles.length === 0 && cleanupFiles.length === 0 ? (
           <p className="text-sm text-gray-500">No attachments uploaded yet.</p>
+        ) : (
+          <div className="space-y-6">
+            {complaintFiles.length > 0 && (
+              <AttachmentGroup
+                title="Complaint photos"
+                hint="Sent with the complaint"
+                tone="complaint"
+                items={complaintFiles}
+              />
+            )}
+            {cleanupFiles.length > 0 && (
+              <AttachmentGroup
+                title="Cleanup photos"
+                hint="Sent by citizens from the public map after the spot was cleaned"
+                tone="cleanup"
+                items={cleanupFiles}
+              />
+            )}
+          </div>
         )}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {(ticket.attachments ?? []).map((item) => (
-            <AttachmentPreview
-              key={item.unique_id}
-              label={item.file_name || formatDateTime(item.created)}
-              fileUrl={item.file_url}
-            />
-          ))}
-        </div>
       </ComponentCard>
+
+      {ticket.cleanup_report && (
+        <ComponentCard title="Citizen Cleanup Verification">
+          <div className="flex flex-col gap-4 md:flex-row">
+            {ticket.cleanup_report.photo ? (
+              <a href={ticket.cleanup_report.photo} target="_blank" rel="noreferrer" className="shrink-0">
+                <img
+                  src={ticket.cleanup_report.photo}
+                  alt="Cleanup photo sent by a citizen"
+                  className="h-48 w-full rounded-lg object-cover ring-1 ring-gray-200 md:w-72"
+                />
+              </a>
+            ) : null}
+            <div className="flex-1 space-y-3">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                A citizen reported this spot as cleaned on {formatDateTime(ticket.cleanup_report.created)} and sent the photo
+                shown. Approving it <strong>closes the ticket</strong>; rejecting it keeps the ticket open on its escalation clock.
+              </div>
+              {ticket.cleanup_report.note && <Field label="Citizen's note" value={ticket.cleanup_report.note} />}
+              {ticket.can_review_cleanup ? (
+                <>
+                  <div>
+                    <Label>
+                      Remarks <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      className="mt-1"
+                      value={cleanupRemarks}
+                      onChange={(e) => setCleanupRemarks(e.target.value)}
+                      placeholder="Required — e.g. checked on site, spot is clean"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Enter remarks to approve or reject the cleanup.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      disabled={busy || !cleanupRemarks.trim()}
+                      className="flex items-center gap-1.5 rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60"
+                      onClick={() =>
+                        run("Cleanup verified — ticket closed.", () =>
+                          ticketActions.reviewCleanup(id, "approve", { remarks: cleanupRemarks.trim() }),
+                        )
+                      }
+                    >
+                      <CheckCircle2 className="h-4 w-4" /> Approve &amp; close ticket
+                    </button>
+                    <button
+                      disabled={busy || !cleanupRemarks.trim()}
+                      className="flex items-center gap-1.5 rounded border border-red-300 px-4 py-2 text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      onClick={() =>
+                        run("Cleanup photo rejected.", () =>
+                          ticketActions.reviewCleanup(id, "reject", { remarks: cleanupRemarks.trim() }),
+                        )
+                      }
+                    >
+                      <XCircle className="h-4 w-4" /> Reject
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Waiting for <strong>{ticket.escalated_to_staff_name || ticket.assigned_staff_name || "the handling officer"}</strong>
+                  {ticket.escalation_level ? ` (Level ${ticket.escalation_level})` : ""} to verify it.
+                </p>
+              )}
+            </div>
+          </div>
+        </ComponentCard>
+      )}
 
       <ComponentCard title="Actions">
         {viewOnly ? (

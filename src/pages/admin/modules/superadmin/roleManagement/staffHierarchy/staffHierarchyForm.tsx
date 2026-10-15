@@ -89,6 +89,7 @@ export default function StaffHierarchyForm() {
   const [reportsToId, setReportsToId] = useState("");
   const [hierarchyLevel, setHierarchyLevel] = useState("1");
   const [isActive, setIsActive] = useState(true);
+  const [escalationEnabled, setEscalationEnabled] = useState(true);
   const [geo, setGeo] = useState<GeoLocationValue>(emptyGeo);
 
   const [pageReady, setPageReady] = useState(false);
@@ -111,6 +112,7 @@ export default function StaffHierarchyForm() {
           setReportsToId(String(record.reports_to_governmentusertype_id ?? ""));
           setHierarchyLevel(String(record.hierarchy_level ?? "1"));
           setIsActive(Boolean(record.is_active));
+          setEscalationEnabled(record.escalation_enabled !== false);
 
           const localBodyLevel =
             LOCAL_BODY_LEVELS.find((item) => toStr(record[item.value]))?.value ?? "";
@@ -208,6 +210,7 @@ export default function StaffHierarchyForm() {
       reports_to_governmentusertype_id: reportsToId || null,
       hierarchy_level: Math.max(Number(hierarchyLevel) || 1, 1),
       is_active: isActive,
+      escalation_enabled: escalationEnabled,
       // Blank location = applies everywhere; the narrowest location chosen
       // overrides broader rows for staff in that area.
       country_id: geo.countryId || null,
@@ -326,6 +329,23 @@ export default function StaffHierarchyForm() {
               min={1}
               value={hierarchyLevel}
               onChange={(e) => setHierarchyLevel(e.target.value)}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {t("admin.staff_hierarchy.escalation")}
+            </label>
+            {/* Off for field roles (Driver, Operator): complaints start at
+                the next level up and escalate past this one. */}
+            <Select
+              value={escalationEnabled ? "true" : "false"}
+              onChange={(value) => setEscalationEnabled(value === "true")}
+              options={[
+                { value: "true", label: t("admin.staff_hierarchy.escalation_yes") },
+                { value: "false", label: t("admin.staff_hierarchy.escalation_no") },
+              ]}
               disabled={isSubmitting}
             />
           </div>
