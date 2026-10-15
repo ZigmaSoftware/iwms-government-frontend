@@ -16,6 +16,7 @@ export type StaffHierarchyRow = {
   reports_to_governmentusertype_name?: string | null;
   reports_to_governmentusertype_level?: string | null;
   hierarchy_level: number;
+  escalation_enabled?: boolean;
   scope_label?: string | null;
   scope_level?: string | null;
   is_active: boolean;

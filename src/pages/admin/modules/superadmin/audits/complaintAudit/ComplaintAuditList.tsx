@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { Eye } from "lucide-react";
 import type { DataTablePageEvent } from "primereact/datatable";
 
 import { adminApi } from "@/helpers/admin/registry";
@@ -492,8 +493,14 @@ export default function ComplaintAuditList() {
             header={t("common.actions")}
             body={(row: ComplaintAuditRecord) => (
               <div className="flex justify-center">
-                <button onClick={() => void openDetail(row)} className="text-blue-600 hover:text-blue-800">
-                  {t("admin.complaint_audit.timeline_action", "Timeline")}
+                <button
+                  type="button"
+                  onClick={() => void openDetail(row)}
+                  title={t("admin.complaint_audit.view_timeline", "View timeline")}
+                  aria-label={t("admin.complaint_audit.view_timeline", "View timeline")}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-blue-100 text-blue-700 hover:bg-blue-50"
+                >
+                  <Eye className="h-4 w-4" />
                 </button>
               </div>
             )}

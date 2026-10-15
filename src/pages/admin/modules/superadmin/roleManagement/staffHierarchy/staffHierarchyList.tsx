@@ -300,6 +300,13 @@ export default function StaffHierarchyList() {
           sortable
           style={{ width: 120 }}
         />
+        <Column
+          header={t("admin.staff_hierarchy.escalation")}
+          body={(row: StaffHierarchyRow) =>
+            t(row.escalation_enabled === false ? "admin.staff_hierarchy.escalation_no" : "admin.staff_hierarchy.escalation_yes")
+          }
+          style={{ width: 160 }}
+        />
         <Column header={t("common.status")} body={statusTemplate} style={{ width: 120 }} />
         <Column header={t("common.actions")} body={actionTemplate} style={{ width: 150 }} />
       </DataTable>

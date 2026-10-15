@@ -231,7 +231,10 @@ export default {
     "help_text": "Choose who each government role reports to, optionally for a specific area. The Staff Head dropdown in Staff Creation lists only staff of the reports-to role in the same area, using the most specific location that matches. Roles not configured here keep the default rule (driver/operator → supervisor → admin).",
     "location": "Location",
     "location_help": "Leave blank to apply everywhere. Pick a state, district or local body (down to panchayat) to override the chain for that area only — the most specific match wins.",
-    "all_locations": "All locations"
+    "all_locations": "All locations",
+    "escalation": "Complaint Escalation",
+    "escalation_yes": "Takes part",
+    "escalation_no": "Skipped"
   },
   "staff_template_audit": {
     "title": "Staff Template Audit",

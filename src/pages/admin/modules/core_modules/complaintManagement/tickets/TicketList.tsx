@@ -215,9 +215,16 @@ export default function TicketList() {
   };
 
   const statusTemplate = (row: ComplaintTicket) => (
-    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-      {row.status_name || row.status_code || "-"}
-    </span>
+    <div className="flex flex-col items-start gap-1">
+      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+        {row.status_name || row.status_code || "-"}
+      </span>
+      {row.has_pending_cleanup && (
+        <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800" title="A citizen sent a cleanup photo — open the ticket to verify it">
+          Cleanup to verify
+        </span>
+      )}
+    </div>
   );
 
   const sourceTemplate = (row: ComplaintTicket) =>
