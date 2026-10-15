@@ -369,6 +369,9 @@ export type PublicGrievanceResponse = {
 
 export type PublicGrievanceStatusResult = {
   ticket_no: string;
+  /** where the complaint sits on the public complaint map; `ticket` is null
+   *  when it has no pin there (the link then opens its local body) */
+  map?: { district: string | null; type: string; id: string; ticket: string | null } | null;
   status: string | null;
   status_code?: string | null;
   category?: string | null;

@@ -165,6 +165,20 @@ const STEPS: { label: string; icon: typeof User }[] = [
 // Each wizard step lives at /publicgrivence/regcomplaint/<slug> so steps are
 // deep-linkable and the browser back button walks the wizard.
 const BASE_PATH = "/publicgrivence";
+
+/** The complaint map opened on one tracked complaint (its local body, with the
+ *  complaint picked when it has a pin), or the map's start when it has no place. */
+const complaintMapPath = (row?: PublicGrievanceStatusResult | null) => {
+  const link = row?.map;
+  if (!link) return `${BASE_PATH}/map`;
+  const params = new URLSearchParams({
+    ...(link.district ? { district: link.district } : {}),
+    type: link.type,
+    id: link.id,
+    ...(link.ticket ? { ticket: link.ticket } : {}),
+  });
+  return `${BASE_PATH}/map?${params.toString()}`;
+};
 const STEP_SLUGS = ["yourDetails", "location", "complaint", "review"] as const;
 
 function Stepper({ step, onJump }: { step: Step; onJump: (target: Step) => void }) {
@@ -269,7 +283,7 @@ function ReviewRow({ label, value, mono }: { label: string; value: ReactNode; mo
   );
 }
 
-function TrackResultCard({ row }: { row: PublicGrievanceStatusResult }) {
+function TrackResultCard({ row, onViewMap }: { row: PublicGrievanceStatusResult; onViewMap: () => void }) {
   const terminated = TERMINATED_CODES.has(row.status_code || "");
   const stage = trackStageIndex(row.status_code);
   const timeline = row.timeline ?? [];
@@ -282,7 +296,19 @@ function TrackResultCard({ row }: { row: PublicGrievanceStatusResult }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-base font-extrabold text-[#0A0A0A]">{row.ticket_no}</span>
-        <StatusBadge status={row.status} code={row.status_code} />
+        <div className="flex items-center gap-2">
+          {row.map && (
+            <button
+              type="button"
+              onClick={onViewMap}
+              className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-[#0A5C36]/25 px-3 py-1 text-xs font-bold text-[#0A5C36] transition hover:bg-[#0A5C36]/5"
+              title={row.map.ticket ? "Show this complaint on the complaint map" : "Show this area on the complaint map"}
+            >
+              <MapPin className="h-3.5 w-3.5" /> View on map
+            </button>
+          )}
+          <StatusBadge status={row.status} code={row.status_code} />
+        </div>
       </div>
 
       <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -953,7 +979,11 @@ export default function PublicGrievance() {
                 {statusResults && statusResults.length > 0 && (
                   <div className="mx-auto mt-4 flex w-full max-w-2xl flex-col gap-3">
                     {statusResults.map((row) => (
-                      <TrackResultCard key={row.ticket_no} row={row} />
+                      <TrackResultCard
+                        key={row.ticket_no}
+                        row={row}
+                        onViewMap={() => navigate(complaintMapPath(row))}
+                      />
                     ))}
                   </div>
                 )}
@@ -990,7 +1020,8 @@ export default function PublicGrievance() {
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.97 }}
-                    onClick={() => navigate(`${BASE_PATH}/map`)}
+                    // with a complaint tracked above, open the map on it
+                    onClick={() => navigate(complaintMapPath(statusResults?.find((r) => r.map)))}
                     className={`${primaryBtnClass} h-10 shrink-0 px-5`}
                   >
                     <MapPin className="h-4 w-4" /> View Complaint Map
@@ -1330,30 +1361,29 @@ export default function PublicGrievance() {
                             placeholder="Nearby landmark or address"
                           />
                         </label>
+                        {/* Read-only: filled only from the device's current location
+                            ("Detect My Location") or the map pin - never typed or
+                            browser-autofilled with old coordinates. */}
                         <label className={labelClass}>
                           Latitude
                           <input
                             value={latitude}
-                            onChange={(event) => {
-                              setLatitude(event.target.value);
-                              setGpsAccuracy(null);
-                            }}
-                            className={`${fieldClass} font-mono`}
-                            inputMode="decimal"
-                            placeholder="0.0000000"
+                            readOnly
+                            autoComplete="off"
+                            tabIndex={-1}
+                            className={`${fieldClass} cursor-default bg-black/[0.03] font-mono`}
+                            placeholder="Tap Detect My Location"
                           />
                         </label>
                         <label className={labelClass}>
                           Longitude
                           <input
                             value={longitude}
-                            onChange={(event) => {
-                              setLongitude(event.target.value);
-                              setGpsAccuracy(null);
-                            }}
-                            className={`${fieldClass} font-mono`}
-                            inputMode="decimal"
-                            placeholder="0.0000000"
+                            readOnly
+                            autoComplete="off"
+                            tabIndex={-1}
+                            className={`${fieldClass} cursor-default bg-black/[0.03] font-mono`}
+                            placeholder="Tap Detect My Location"
                           />
                         </label>
                       </div>
