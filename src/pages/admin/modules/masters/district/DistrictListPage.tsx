@@ -10,7 +10,6 @@ import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { districtApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -44,7 +43,6 @@ const columns = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District Name" },
   { field: "district_code", header: "District Code" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function DistrictListPage() {
@@ -217,11 +215,7 @@ export default function DistrictListPage() {
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: DistrictListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : displayValue(row[column.field])
-            }
+            body={(row: DistrictListRecord) => displayValue(row[column.field])}
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

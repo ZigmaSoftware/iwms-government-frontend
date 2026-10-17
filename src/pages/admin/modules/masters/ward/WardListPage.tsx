@@ -10,7 +10,6 @@ import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -50,7 +49,6 @@ const columns = [
   { field: "local_body_type", header: "Local Body Type" },
   { field: "local_body_name", header: "Local Body" },
   { field: "ward_name", header: "Ward Name" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function WardListPage() {
@@ -224,11 +222,9 @@ export default function WardListPage() {
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
             body={(row: WardListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : column.field === "local_body_type"
-                  ? displayValue(LOCAL_BODY_TYPE_LABELS[String(row.local_body_type ?? "")])
-                  : displayValue(row[column.field])
+              column.field === "local_body_type"
+                ? displayValue(LOCAL_BODY_TYPE_LABELS[String(row.local_body_type ?? "")])
+                : displayValue(row[column.field])
             }
           />
         ))}

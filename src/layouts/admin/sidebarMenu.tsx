@@ -10,16 +10,23 @@
  * TypeScript error.
  */
 import {
-  LayoutGrid,
-  Settings,
-  Layers3,
-  Users,
-  UserCircle,
-  Truck,
-  AlertTriangle,
-  BarChart3,
   CalendarCheck,
+  CalendarCog,
+  ClipboardList,
+  FileSearch,
+  Globe,
+  KeyRound,
+  Landmark,
+  LayoutDashboard,
+  MapPin,
   MessageSquareWarning,
+  MonitorCog,
+  PieChart,
+  Recycle,
+  Route,
+  Truck,
+  UserCircle,
+  Users,
 } from "lucide-react";
 
 import { permissionFor } from "@/generated/permissionCatalog";
@@ -114,15 +121,22 @@ export type SidebarPermission = {
   screens?: string[];
 };
 
-export type NavSubItem = SidebarPermission & {
+export type NavMatchable = {
+  path?: string;
+  /** Other routes that should highlight this entry (pages it fronts). */
+  matchPaths?: string[];
+  /** Match `path` only, not routes nested under it. */
+  exact?: boolean;
+};
+
+export type NavSubItem = SidebarPermission & NavMatchable & {
   nameKey: string;
   path: string;
 };
 
-export type NavItem = SidebarPermission & {
+export type NavItem = SidebarPermission & NavMatchable & {
   nameKey: string;
   icon: React.ReactNode;
-  path?: string;
   // A heading with sub-items has no permission of its own: it shows when
   // any of its sub-items does.
   subItems?: NavSubItem[];
@@ -216,8 +230,10 @@ export const MODULE_GROUPS: {
 export const navItems: NavItem[] = [
   {
     nameKey: "admin.nav.dashboard",
-    icon: <LayoutGrid size={18} />,
+    icon: <LayoutDashboard size={18} />,
     path: "/admin",
+    // Only the dashboard page itself, not routes nested under /admin.
+    exact: true,
     ...permissionFor("dashboard", "dashboard"),
   },
 ];
@@ -236,7 +252,7 @@ export const attendanceItems: NavItem[] = [
 export const masterItems: NavItem[] = [
   {
     nameKey: "admin.nav.location_masters",
-    icon: <Layers3 size={18} />,
+    icon: <MapPin size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.district",
@@ -285,7 +301,7 @@ export const masterItems: NavItem[] = [
 export const commonMasterItems: NavItem[] = [
   {
     nameKey: "admin.nav.common_masters",
-    icon: <Layers3 size={18} />,
+    icon: <Globe size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.continent",
@@ -309,7 +325,7 @@ export const commonMasterItems: NavItem[] = [
 export const wasteTypeItems: NavItem[] = [
   {
     nameKey: "admin.nav.waste_masters",
-    icon: <Layers3 size={18} />,
+    icon: <Recycle size={18} />,
     subItems: [
       {
         nameKey: "common.waste_type",
@@ -339,7 +355,7 @@ export const wasteTypeItems: NavItem[] = [
 export const screenManagementItems: NavItem[] = [
   {
     nameKey: "admin.nav.screen_management",
-    icon: <Settings size={18} />,
+    icon: <MonitorCog size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.main_screen_type",
@@ -378,7 +394,7 @@ export const screenManagementItems: NavItem[] = [
 export const roleAssignsItems: NavItem[] = [
   {
     nameKey: "admin.nav.role_management",
-    icon: <Settings size={18} />,
+    icon: <KeyRound size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.user_type",
@@ -450,7 +466,7 @@ export const customerMasters: NavItem[] = [
 export const complaintTicketItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_management",
-    icon: <AlertTriangle size={18} />,
+    icon: <MessageSquareWarning size={18} />,
     // 10 sub-items collapsed to 5: Modules/Priorities/Sources/Statuses are now
     // tabs on one "Reference Data" screen, Categories/Subcategories are one
     // master-detail screen, and Feedback (read-only, ticket-scoped) moved
@@ -516,7 +532,7 @@ export const transportMastersItems: NavItem[] = [
 export const scheduleSetupItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_setup",
-    icon: <LayoutGrid size={18} />,
+    icon: <CalendarCog size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.staff_template",
@@ -546,7 +562,7 @@ export const scheduleSetupItems: NavItem[] = [
 export const scheduleOperationsItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_operations",
-    icon: <CalendarCheck size={18} />,
+    icon: <Route size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.daily_trip_assignment",
@@ -592,7 +608,7 @@ export const scheduleOperationsItems: NavItem[] = [
 export const scheduleReportsItems: NavItem[] = [
   {
     nameKey: "admin.nav.schedule_reports",
-    icon: <BarChart3 size={18} />,
+    icon: <PieChart size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.daily_waste_comparison",
@@ -612,7 +628,7 @@ export const scheduleReportsItems: NavItem[] = [
 export const complaintReportsItems: NavItem[] = [
   {
     nameKey: "admin.nav.complaint_reports",
-    icon: <MessageSquareWarning size={18} />,
+    icon: <ClipboardList size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.complaints_report",
@@ -626,7 +642,7 @@ export const complaintReportsItems: NavItem[] = [
 export const auditItems: NavItem[] = [
   {
     nameKey: "admin.nav.audits",
-    icon: <Truck size={18} />,
+    icon: <FileSearch size={18} />,
     // Same screens, in the same order, as iwms-private's audits menu.
     subItems: [
       {
@@ -666,7 +682,7 @@ export const auditItems: NavItem[] = [
 export const leaderLoginItems: NavItem[] = [
   {
     nameKey: "admin.nav.leader_management",
-    icon: <Users size={18} />,
+    icon: <Landmark size={18} />,
     subItems: [
       {
         nameKey: "admin.nav.plb_leader_creation",

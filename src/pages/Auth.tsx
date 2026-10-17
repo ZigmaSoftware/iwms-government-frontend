@@ -2,12 +2,11 @@ import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from "r
 import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "@/api";
 import { useToast } from "@/hooks/use-toast";
+import { useSessionEndedToast } from "@/hooks/useSessionEndedToast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
 import { usePermission } from "@/contexts/PermissionContext";
 import {
-  DEFAULT_ROLE,
-  normalizeRole,
   setAdminViewPreference,
   clearAdminViewPreference,
   ADMIN_VIEW_MODE_ADMIN,
@@ -107,6 +106,8 @@ export default function Auth() {
   const { t } = useTranslation();
   const { setUser } = useUser();
 
+  useSessionEndedToast();
+
   // Show success toast once when redirected from reset-password
   useEffect(() => {
     const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
@@ -169,8 +170,6 @@ export default function Auth() {
         throw error;
       }
 
-      const normalizedRole =
-        normalizeRole(payload.user?.role ?? payload.role ?? null) ?? DEFAULT_ROLE;
       const freshPermissions = getStoredPermissions();
       updatePermissions(freshPermissions, getStoredColumnPermissions());
 
@@ -185,9 +184,8 @@ export default function Auth() {
         email: payload.user?.email ?? payload.email ?? "",
       });
 
-      // Check admin access by role name OR by any permission granted by superadmin
-      const hasAdminAccess =
-        isAdmin(normalizedRole) || hasAnyPermission(freshPermissions);
+      // Admin per the backend's is_admin flag, OR any permission granted by superadmin
+      const hasAdminAccess = isAdmin() || hasAnyPermission(freshPermissions);
 
       if (hasAdminAccess) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);

@@ -13,6 +13,7 @@ import {
   MODULE_GROUPS,
   SIDEBAR_SECTIONS,
   type NavItem,
+  type NavMatchable,
   type SidebarPermission,
   type SidebarSectionKey,
 } from "../sidebarMenu";
@@ -203,6 +204,14 @@ const AppSidebar: React.FC = () => {
     [currentDecodedPath, location.pathname]
   );
 
+  /** True when `entry`'s own route, or any route it fronts, is current. */
+  const isEntryActive = useCallback(
+    (entry: NavMatchable) =>
+      (!!entry.path && isActive(entry.path, !entry.exact)) ||
+      (entry.matchPaths?.some((candidate) => isActive(candidate, true)) ?? false),
+    [isActive]
+  );
+
   useEffect(() => {
     let matched = false;
     const skipAutoOpenSubmenuKeys = new Set([
@@ -212,7 +221,7 @@ const AppSidebar: React.FC = () => {
     sidebarSections.forEach((section) => {
       section.items.forEach((nav, index) => {
         nav.subItems?.forEach((sub) => {
-          if (isActive(sub.path, true)) {
+          if (isEntryActive(sub)) {
             matched = true;
             if (!skipAutoOpenSubmenuKeys.has(sub.nameKey)) {
               setOpenSubmenu({ type: section.key, index });
@@ -226,7 +235,7 @@ const AppSidebar: React.FC = () => {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpenSubmenu(null);
     }
-  }, [location, isActive, sidebarSections]);
+  }, [location, isEntryActive, sidebarSections]);
 
   useEffect(() => {
     if (openSubmenu) {
@@ -304,16 +313,14 @@ const AppSidebar: React.FC = () => {
                 <Link
                   to={nav.path}
                   className={`${menuButtonBase} ${
-                    isActive(nav.path, true)
-                      ? menuActiveClasses
-                      : menuInactiveClasses
+                    isEntryActive(nav) ? menuActiveClasses : menuInactiveClasses
                   }`}
                 >
                   <span
                     className={cn(
                       "menu-item-icon-size shrink-0",
                       !showFullSidebar && "mx-auto",
-                      isActive(nav.path, true) ? "text-white" : "text-green-600"
+                      isEntryActive(nav) ? "text-white" : "text-green-600"
                     )}
                   >
                     {nav.icon}
@@ -322,7 +329,7 @@ const AppSidebar: React.FC = () => {
                     <span
                       className={cn(
                         "truncate text-sm font-semibold",
-                        isActive(nav.path, true) ? "text-white" : "text-gray-800"
+                        isEntryActive(nav) ? "text-white" : "text-gray-800"
                       )}
                     >
                       {t(nav.nameKey)}
@@ -350,7 +357,7 @@ const AppSidebar: React.FC = () => {
                       <Link
                         to={subItem.path}
                         className={`block px-3 py-1.5 text-sm font-medium transition-colors ${
-                          isActive(subItem.path, true)
+                          isEntryActive(subItem)
                             ? subMenuActiveClasses
                             : subMenuInactiveClasses
                         }`}

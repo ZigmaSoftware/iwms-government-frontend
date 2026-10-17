@@ -26,6 +26,8 @@ import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { formatCollectionTime } from "./collectionTime";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { KpiCard, WasteTypeChips } from "./tripLogDisplay";
+import { EMPTY_SUMMARY, formatKg, type TripLogSummary } from "./tripLogSummary";
 
 
 type CollectionType = "all" | "bin" | "household";
@@ -40,6 +42,14 @@ const STATUS_STYLES: Record<string, string> = {
   Submitted: "bg-blue-100 text-blue-800",
   Verified: "bg-green-100 text-green-800",
 };
+
+/* Status tabs above the table — "" = every status. */
+const STATUS_TABS: Array<{ key: string; label: string; dot: string }> = [
+  { key: "", label: "All", dot: "bg-slate-400" },
+  { key: "Draft", label: "Draft", dot: "bg-gray-400" },
+  { key: "Submitted", label: "Submitted", dot: "bg-blue-500" },
+  { key: "Verified", label: "Verified", dot: "bg-green-500" },
+];
 
 const COLLECTION_STATUS_STYLES: Record<string, string> = {
   "Not Started": "bg-red-50 text-red-600",
@@ -591,6 +601,9 @@ export default function DailyTripLogList() {
   });
   const [wasteTypeOptions, setWasteTypeOptions] = useState<{ label: string; value: string }[]>([]);
   const [exporting, setExporting] = useState<"excel" | "pdf" | null>(null);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [summary, setSummary] = useState<TripLogSummary>(EMPTY_SUMMARY);
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   /* ── waste type dropdown options ── */
   useEffect(() => {
@@ -631,6 +644,7 @@ export default function DailyTripLogList() {
         params: {
           ...buildParams(),
           ...(search ? { search } : {}),
+          ...(statusFilter ? { status: statusFilter } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
       });
@@ -649,7 +663,32 @@ export default function DailyTripLogList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, dateFilter, wasteTypeIds]);
+  }, [first, rowsPerPage, searchTerm, ordering, hierarchyParams, dateFilter, wasteTypeIds, statusFilter]);
+
+  /* ── KPIs + waste composition over EVERY matching log (server-side), not
+     just this page. The status tab is left out so its counts stay visible. ── */
+  const summaryKey = JSON.stringify({ ...buildParams(), search: searchTerm });
+  const [summaryVersion, setSummaryVersion] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setSummaryLoading(true);
+    api
+      .get<TripLogSummary>("/schedule-operations/daily-trip-logs/summary/", {
+        params: JSON.parse(summaryKey),
+      })
+      .then((res) => {
+        if (active) setSummary({ ...EMPTY_SUMMARY, ...res.data });
+      })
+      .catch(() => {
+        if (active) setSummary(EMPTY_SUMMARY);
+      })
+      .finally(() => {
+        if (active) setSummaryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [summaryKey, summaryVersion]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -696,6 +735,7 @@ export default function DailyTripLogList() {
         )
       );
       setModalState(null);
+      setSummaryVersion((v) => v + 1);
       notify.fire({
         icon: "success",
         title: "Verified",
@@ -738,6 +778,7 @@ export default function DailyTripLogList() {
             : item
         )
       );
+      setSummaryVersion((v) => v + 1);
       notify.fire({
         icon: "success",
         title: "Done",
@@ -791,7 +832,11 @@ export default function DailyTripLogList() {
     try {
       const exportRaw = toRecordList(
         await dailyTripLogApi.readAllForExport({
-          params: { ...buildParams(), ...(searchTerm ? { search: searchTerm } : {}) },
+          params: {
+            ...buildParams(),
+            ...(searchTerm ? { search: searchTerm } : {}),
+            ...(statusFilter ? { status: statusFilter } : {}),
+          },
         }),
       );
       const exportSourceRows = filterByCollectionType(exportRaw.map(enrichTripLogRow), collectionType);
@@ -968,211 +1013,288 @@ export default function DailyTripLogList() {
     ),
   };
 
-  /* ── KPI pills: computed from the CURRENT PAGE only (post-collectionType
-     filter) — the backend has no aggregate endpoint for this deep a
-     computation, so these are deliberately labeled "(page)" rather than
-     implying dataset-wide totals. ── */
-  const summaryRows = data;
-  const today = new Date().toISOString().slice(0, 10);
-  const totalWeightFor = (row: (typeof summaryRows)[number]) =>
-    Number(row._has_point_weights ? row._computed_weight : row.collected_weight_kg ?? 0)
-    + Number(row.household_collected_weight_kg ?? 0);
-  const overallWeight = summaryRows.reduce((sum, row) => sum + totalWeightFor(row), 0);
-  const dailyWeight = summaryRows.reduce(
-    (sum, row) => sum + (row.trip_date === today ? totalWeightFor(row) : 0),
-    0,
-  );
+  const statusCounts = summary.status_counts ?? {};
+  const verifiedCount = statusCounts.Verified ?? 0;
+  const submittedCount = statusCounts.Submitted ?? 0;
+  const draftCount = statusCounts.Draft ?? 0;
+  const verifiedShare = summary.total_logs ? Math.round((verifiedCount / summary.total_logs) * 100) : 0;
+  const kpiValue = (value: string | number) => (summaryLoading && summary.total_logs === 0 ? "…" : value);
+
+  const changeStatusTab = (key: string) => {
+    setStatusFilter(key);
+    setFirst(0);
+  };
 
   return (
-    <div className="p-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
       <ListPageHeader
         title="Daily Trip Logs"
         subtitle="Capture and verify actual collection trip results"
-        className="mb-4"
+        className="mb-3 shrink-0"
       />
 
-      <div className="mb-4 flex flex-wrap gap-3 text-sm">
-        <span className="rounded-full bg-slate-100 px-4 py-2">Daily (page): {dailyWeight.toFixed(2)}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Overall (page): {overallWeight.toFixed(2)}</span>
-        <span className="rounded-full bg-slate-100 px-4 py-2">Records (page): {summaryRows.length}</span>
+      {/* ── KPIs: every log matching the filters ── */}
+      <div className="mb-3 grid shrink-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <KpiCard
+          icon="pi pi-truck"
+          tone="bg-slate-100 text-slate-600"
+          label="Trip logs"
+          value={kpiValue(summary.total_logs.toLocaleString())}
+          hint={`${summary.trips.toLocaleString()} trips`}
+        />
+        <KpiCard
+          icon="pi pi-box"
+          tone="bg-emerald-50 text-emerald-600"
+          label="Total weight"
+          value={kpiValue(formatKg(summary.total_weight_kg))}
+          hint={`Bin ${formatKg(summary.bin_weight_kg)} · HH ${formatKg(summary.household_weight_kg)}`}
+        />
+        <KpiCard
+          icon="pi pi-calendar"
+          tone="bg-cyan-50 text-cyan-600"
+          label="Today"
+          value={kpiValue(formatKg(summary.today_weight_kg))}
+          hint="collected today"
+        />
+        <KpiCard
+          icon="pi pi-verified"
+          tone="bg-green-50 text-green-600"
+          label="Verified"
+          value={kpiValue(verifiedCount.toLocaleString())}
+          hint={`${verifiedShare}% of logs`}
+        />
+        <KpiCard
+          icon="pi pi-send"
+          tone="bg-blue-50 text-blue-600"
+          label="Submitted"
+          value={kpiValue(submittedCount.toLocaleString())}
+          hint="awaiting verification"
+        />
+        <KpiCard
+          icon="pi pi-pencil"
+          tone="bg-gray-100 text-gray-600"
+          label="Draft"
+          value={kpiValue(draftCount.toLocaleString())}
+          hint="not yet submitted"
+        />
       </div>
 
-      <DataTable
-        exportable={false}
-        filterPanel={filterPanel}
-        documentActions={{
-          downloadExcel: { onClick: () => void handleDownload("excel"), busy: exporting === "excel", disabled: exporting !== null || totalRecords === 0 },
-          downloadPdf: { onClick: () => void handleDownload("pdf"), busy: exporting === "pdf", disabled: exporting !== null || totalRecords === 0 },
-        }}
-        value={data}
-        dataKey="unique_id"
-        lazy
-        paginator
-        first={first}
-        rows={rowsPerPage}
-        totalRecords={totalRecords}
-        onPage={onPage}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={onSort}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading}
-        header={
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={setGlobalFilterValue}
-            searchPlaceholder="Search trip logs..."
-            className="mb-4"
-          />
-        }
-        stripedRows
-        showGridlines
-        emptyMessage="No trip logs found."
-        className="p-datatable-sm"
-      >
-        <Column
-          header={t("common.s_no")}
-          body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
-        />
-        <Column
-          field="unique_id"
-          header="ID"
-          sortable
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_assignment"
-          header="Trip Assignment"
-          style={{ minWidth: 170 }}
-        />
-        <Column
-          field="_location"
-          header="Location"
-          style={{ minWidth: 170 }}
-          body={(row: DailyTripLogRecord) => {
-            const name = row.location?.local_body_name ?? row.location_name ?? row.panchayat?.panchayat_name;
-            const level = row.location?.local_body_level ?? row.location_level ?? (row.panchayat?.panchayat_name ? "Panchayat" : null);
-            const cls = row.location?.classification ?? "";
-            if (!name) return <span className="text-sm text-gray-400">—</span>;
+      {/* Fixed table layout at 100% width: columns wrap their content
+          instead of widening the table, so there is no horizontal scroll. */}
+      <div className="overflow-x-hidden rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Log status">
+          {STATUS_TABS.map((tab) => {
+            const count = tab.key ? statusCounts[tab.key] ?? 0 : summary.total_logs;
+            const active = statusFilter === tab.key;
             return (
-              <div className="text-sm text-gray-800">
-                {name}
-                {level && <span className="ml-1 text-xs text-indigo-500 font-medium">({level})</span>}
-                {cls && (
-                  <div className="text-[10px] font-semibold text-gray-500">
-                    {cls.toLowerCase().includes("urban") ? "ULB" : "RLB"} · {row.location?.district ?? ""}
-                  </div>
-                )}
+              <button
+                key={tab.key || "all"}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => changeStatusTab(tab.key)}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-slate-800 bg-slate-800 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-white" : tab.dot}`} />
+                {tab.label}
+                <span className={`tabular-nums ${active ? "text-white/80" : "text-gray-400"}`}>
+                  {count.toLocaleString()}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <DataTable
+          exportable={false}
+          filterPanel={filterPanel}
+          documentActions={{
+            downloadExcel: { onClick: () => void handleDownload("excel"), busy: exporting === "excel", disabled: exporting !== null || totalRecords === 0 },
+            downloadPdf: { onClick: () => void handleDownload("pdf"), busy: exporting === "pdf", disabled: exporting !== null || totalRecords === 0 },
+          }}
+          value={data}
+          dataKey="unique_id"
+          lazy
+          paginator
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
+          rowsPerPageOptions={[10, 25, 50]}
+          loading={isLoading}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder="Search trip logs..."
+              className="mb-4"
+            />
+          }
+          stripedRows
+          showGridlines
+          emptyMessage="No trip logs found."
+          tableStyle={{ tableLayout: "fixed", width: "100%", maxWidth: "100%" }}
+          // The columns already fit the width (fixed layout, wrapping cells);
+          // only the gridline borders poke a few px past it, which was enough
+          // to show a horizontal scrollbar.
+          className="p-datatable-sm [&_.p-datatable-wrapper]:overflow-x-hidden!"
+        >
+          <Column
+            header={t("common.s_no")}
+            // In lazy mode rowIndex already counts from the page's first record.
+            body={(_: any, { rowIndex }: any) => rowIndex + 1}
+            style={{ width: "4%" }}
+          />
+          <Column
+            field="trip_date"
+            header="Trip"
+            sortable
+            style={{ width: "14%" }}
+            body={(row: EnrichedTripLog) => (
+              <div className="min-w-0">
+                <p className="break-all text-sm font-semibold text-gray-900">{row.unique_id}</p>
+                <p className="break-all text-xs text-gray-500">{row._assignment || "-"}</p>
+                <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-gray-600">
+                  <i className="pi pi-calendar text-[10px] text-gray-400" />
+                  {row.trip_date ?? "-"}
+                </p>
               </div>
-            );
-          }}
-        />
-        <Column
-          field="_ward"
-          header="Ward"
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_base_template"
-          header="Staff Template"
-          style={{ minWidth: 160 }}
-          body={(row: DailyTripLogRecord) => (
-            <span className="text-sm text-gray-800">
-              {row.staff_template?.base?.display_code ?? "-"}
-            </span>
-          )}
-        />
-        <Column
-          field="_alt_template"
-          header="Alt Staff Template"
-          style={{ minWidth: 170 }}
-          body={(row: DailyTripLogRecord) =>
-            row.staff_template?.alt ? (
-              <span className="text-sm font-medium text-orange-700">
-                {row.staff_template.alt.display_code}
-              </span>
-            ) : (
-              <span className="text-sm text-gray-400">-</span>
-            )
-          }
-        />
-        <Column
-          field="_waste"
-          header="Waste Type"
-        />
-        <Column
-          field="collected_weight_kg"
-          header="Bin Weight (kg)"
-          sortable
-          style={{ minWidth: 130 }}
-          body={(row: DailyTripLogRecord & { _computed_weight?: number; _has_point_weights?: boolean }) => {
-            const weight = row._has_point_weights
-              ? row._computed_weight
-              : row.collected_weight_kg;
-            return weight != null ? (
-              <span className="font-semibold text-gray-800">
-                {Number(weight).toFixed(2)}
-              </span>
-            ) : (
-              "-"
-            );
-          }}
-        />
-        <Column
-          field="household_collected_weight_kg"
-          header="HH Weight (kg)"
-          style={{ minWidth: 130 }}
-          body={(row: DailyTripLogRecord) =>
-            row.household_collected_weight_kg != null ? (
-              <span className="font-semibold text-gray-800">
-                {Number(row.household_collected_weight_kg).toFixed(2)}
-              </span>
-            ) : (
-              "-"
-            )
-          }
-        />
-        <Column
-          field="log_status"
-          header="Log Status"
-          body={(row: DailyTripLogRecord) => <Badge value={row.log_status} />}
-          sortable
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="collection_status"
-          header="Collection Status"
-          body={(row: DailyTripLogRecord) => <CollectionStatusBadge value={row.collection_status} />}
-          style={{ minWidth: 145 }}
-        />
-        <Column field="_driver" header="Driver" style={{ minWidth: 130 }} />
-        <Column field="_operator" header="Operator" style={{ minWidth: 130 }} />
-        <Column field="_vehicle" header="Vehicle" style={{ minWidth: 110 }} />
-        <Column
-          field="trip_date"
-          header="Trip Date"
-          sortable
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="actual_start_time"
-          header="Actual Start"
-          body={(row: DailyTripLogRecord) => formatTime12Hour(row.actual_start_time)}
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="actual_end_time"
-          header="Actual End"
-          body={(row: DailyTripLogRecord) => formatTime12Hour(row.actual_end_time)}
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          header={t("common.actions")}
-          body={actionTemplate}
-          style={{ minWidth: 160 }}
-        />
-      </DataTable>
+            )}
+          />
+          <Column
+            field="_location"
+            header="Location"
+            style={{ width: "16%" }}
+            body={(row: EnrichedTripLog) => {
+              const name = row.location?.local_body_name ?? row.location_name ?? row.panchayat?.panchayat_name;
+              const level = row.location?.local_body_level ?? row.location_level ?? (row.panchayat?.panchayat_name ? "Panchayat" : null);
+              const cls = row.location?.classification ?? "";
+              if (!name) return <span className="text-sm text-gray-400">—</span>;
+              return (
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-medium text-gray-800">{name}</p>
+                  <p className="text-[11px] text-gray-500">
+                    {[level, cls ? (cls.toLowerCase().includes("urban") ? "ULB" : "RLB") : null, row.location?.district]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                  {row._ward ? (
+                    <p className="truncate text-[11px] text-indigo-500" title={row._ward}>
+                      Ward: {row._ward}
+                    </p>
+                  ) : null}
+                </div>
+              );
+            }}
+          />
+          <Column
+            field="_driver"
+            header="Crew & Vehicle"
+            style={{ width: "14%" }}
+            body={(row: EnrichedTripLog) => (
+              <div className="min-w-0 space-y-0.5 text-xs">
+                <p className="truncate font-semibold text-gray-800">
+                  {row._base_template || "-"}
+                  {row._alt_template ? (
+                    <span className="ml-1 font-medium text-orange-600" title="Alternative (substitute) template">
+                      → {row._alt_template}
+                    </span>
+                  ) : null}
+                </p>
+                <p
+                  className="truncate text-gray-600"
+                  title={`Driver: ${row._driver || "-"} · Operator: ${row._operator || "-"}`}
+                >
+                  <i className="pi pi-user mr-1 text-[10px] text-gray-400" />
+                  {row._driver || "-"}
+                  <span className="text-gray-300"> · </span>
+                  {row._operator || "-"}
+                </p>
+                {row._vehicle ? (
+                  <p className="truncate font-mono text-[10px] font-semibold text-gray-500">{row._vehicle}</p>
+                ) : null}
+              </div>
+            )}
+          />
+          <Column
+            field="_waste"
+            header="Waste Type"
+            style={{ width: "17%" }}
+            body={(row: EnrichedTripLog) => (
+              <WasteTypeChips
+                breakdown={Array.isArray(row.waste_type_breakdown) ? row.waste_type_breakdown : undefined}
+                names={row._waste ? row._waste.split(", ") : []}
+              />
+            )}
+          />
+          <Column
+            field="collected_weight_kg"
+            header="Weight"
+            sortable
+            style={{ width: "8%" }}
+            body={(row: EnrichedTripLog) => {
+              const bin = row._has_point_weights ? row._computed_weight : row.collected_weight_kg != null ? Number(row.collected_weight_kg) : null;
+              const hh = row.household_collected_weight_kg != null ? Number(row.household_collected_weight_kg) : null;
+              if (bin == null && hh == null) return <span className="text-sm text-gray-400">—</span>;
+              return (
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold tabular-nums text-gray-900">{formatKg((bin ?? 0) + (hh ?? 0))}</p>
+                  <p className="text-[11px] tabular-nums text-gray-500">
+                    {bin != null ? `Bin ${Number(bin).toFixed(1)}` : null}
+                    {bin != null && hh != null ? " · " : null}
+                    {hh != null ? `HH ${hh.toFixed(1)}` : null}
+                  </p>
+                </div>
+              );
+            }}
+          />
+          <Column
+            field="actual_start_time"
+            header="Time"
+            style={{ width: "9%" }}
+            body={(row: EnrichedTripLog) =>
+              row.actual_start_time || row.actual_end_time ? (
+                <div className="text-xs tabular-nums text-gray-700">
+                  <p>
+                    <i className="pi pi-play mr-1 text-[9px] text-green-500" />
+                    {formatTime12Hour(row.actual_start_time)}
+                  </p>
+                  <p>
+                    <i className="pi pi-stop mr-1 text-[9px] text-red-400" />
+                    {formatTime12Hour(row.actual_end_time)}
+                  </p>
+                </div>
+              ) : (
+                <span className="text-xs text-gray-400">—</span>
+              )
+            }
+          />
+          <Column
+            field="log_status"
+            header="Status"
+            sortable
+            style={{ width: "10%" }}
+            body={(row: EnrichedTripLog) => (
+              <div className="flex flex-col items-start gap-1">
+                <Badge value={row.log_status} />
+                {row.collection_status ? <CollectionStatusBadge value={row.collection_status} /> : null}
+              </div>
+            )}
+          />
+          <Column
+            header={t("common.actions")}
+            body={actionTemplate}
+            style={{ width: "8%" }}
+          />
+        </DataTable>
+      </div>
 
       {modalState && (
         <TripLogModal

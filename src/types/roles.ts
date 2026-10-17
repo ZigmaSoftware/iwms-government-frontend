@@ -11,21 +11,11 @@ export type UserRole = string; // Dynamic - can be any role value from API
 
 export const USER_ROLE_STORAGE_KEY = "user_role";
 
-/* ========================
-   Fallback Roles (for compatibility)
-   Use these only when RolesContext is not available
-======================== */
+// "true" / "false", saved from the login response's `is_admin` — the backend
+// decides which roles are admin, so the frontend keeps no list of them.
+export const USER_IS_ADMIN_STORAGE_KEY = "user_is_admin";
 
-export const FALLBACK_ADMIN_ROLES = ["admin", "superadmin", "companyadmin", "company_admin", "company_project_admin"] as const;
-export type FallbackAdminRole = typeof FALLBACK_ADMIN_ROLES[number];
-
-export const FALLBACK_DEFAULT_ROLE: UserRole = "company_user";
-
-// For backward compatibility - use fallback values
-export const ADMIN_ROLES = FALLBACK_ADMIN_ROLES;
-export type AdminRole = FallbackAdminRole;
-
-export const DEFAULT_ROLE: UserRole = FALLBACK_DEFAULT_ROLE;
+export const DEFAULT_ROLE: UserRole = "company_user";
 
 /* ========================
    Layout Props
@@ -60,15 +50,15 @@ export function normalizeRole(
   return normalized as UserRole;
 }
 
-export function isAdmin(role: UserRole | null | undefined): boolean {
-  if (!role) return false;
-  
-  const normalized = String(role).toLowerCase();
-  return (
-    FALLBACK_ADMIN_ROLES.some(r => normalized === r.toLowerCase()) ||
-    normalized.includes("admin") ||
-    normalized.includes("superadmin")
-  );
+/** Whether the logged-in user is an admin, as reported by the backend at login. */
+export function isAdmin(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(USER_IS_ADMIN_STORAGE_KEY) === "true";
+}
+
+/** Admins and default company users may open the admin portal. */
+export function canOpenAdmin(role: UserRole | null | undefined): boolean {
+  return isAdmin() || role === DEFAULT_ROLE;
 }
 
 /**

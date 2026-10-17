@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useSessionEndedToast } from "@/hooks/useSessionEndedToast";
+import { startLoginSession } from "@/utils/loginSession";
 import { ArrowRight, Building2, Eye, EyeOff, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import {
@@ -35,6 +37,7 @@ export default function StateAuth() {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  useSessionEndedToast();
 
   useEffect(() => {
     if (localStorage.getItem("st_access_token")) {
@@ -69,6 +72,7 @@ export default function StateAuth() {
       const stToken = payload.access_token ?? payload.access ?? "";
       if (stToken) {
         localStorage.setItem("st_access_token", stToken);
+        startLoginSession("st_access_token");
       }
 
       // Store state context for the dashboard

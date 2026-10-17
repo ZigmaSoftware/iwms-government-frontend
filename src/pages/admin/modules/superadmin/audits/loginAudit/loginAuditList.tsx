@@ -4,11 +4,9 @@ import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
-import { Column } from "primereact/column";
 import { MultiSelect } from "@/components/ui/multi-select";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { adminApi } from "@/helpers/admin/registry";
 import { normalizeList } from "@/utils/forms";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -16,6 +14,10 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 import { combineFilters, useOptionFilter, type FilterPart } from "@/components/filters/useOptionFilter";
+import { formatModuleName } from "./format";
+import { SESSION_STATE_OPTIONS } from "./sessionState";
+import { renderLoginAuditColumns } from "./loginAuditColumns";
+import LoginAuditDetail from "./LoginAuditDetail";
 
 const toRecordList = (value: unknown): LoginAuditRecord[] => {
   if (Array.isArray(value)) return value as LoginAuditRecord[];
@@ -37,29 +39,15 @@ const LOGIN_MODULES = [
   "auto",
 ] as const;
 
+// Backend ordering_fields (LoginAuditViewSet).
 const SORTABLE_FIELDS = new Set([
   "module_name",
   "username",
   "ip_address",
   "success",
   "timestamp",
+  "session_duration_seconds",
 ]);
-
-const formatModuleName = (value?: string | null) => {
-  if (!value) return "-";
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-};
-
-const formatDateTime = (value?: string | null) => (value ? new Date(value).toLocaleString() : "-");
-
-const formatAuditValue = (value?: string | boolean | null) => {
-  if (value === null || value === undefined) return "-";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
-};
 
 const DATE_INPUT_CLASS = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
 
@@ -127,15 +115,6 @@ function useDateRangeFilter({
   } satisfies FilterPart & Record<string, unknown>;
 }
 
-const JsonViewer = ({ title, value }: { title: string; value?: Record<string, unknown> }) => (
-  <div className="min-w-0">
-    <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
-    <pre className="max-h-[420px] overflow-auto rounded-md border bg-gray-50 p-3 text-xs leading-relaxed text-gray-800">
-      {value ? JSON.stringify(value, null, 2) : "-"}
-    </pre>
-  </div>
-);
-
 export default function LoginAuditList() {
   const { t } = useTranslation();
 
@@ -156,14 +135,11 @@ export default function LoginAuditList() {
 
   const resetPage = () => setFirst(0);
   const geo = useHierarchyFilter(resetPage);
-  // "" = all, "true"/"false" = only successful logins / only failed attempts.
-  const status = useOptionFilter({
-    param: "success",
-    label: t("common.status"),
-    options: [
-      { label: t("admin.login_audit.status_success", "Successful"), value: "true" },
-      { label: t("admin.login_audit.status_failed", "Failed"), value: "false" },
-    ],
+  // Active / Manual Logout / Idle Timeout / Session Expired / Login Failed.
+  const sessionState = useOptionFilter({
+    param: "session_state",
+    label: t("admin.login_audit.logout_type", "Logout Type"),
+    options: SESSION_STATE_OPTIONS,
     onAppliedChange: resetPage,
   });
   const dates = useDateRangeFilter({
@@ -222,11 +198,11 @@ export default function LoginAuditList() {
       ...(searchTerm ? { search: searchTerm } : {}),
       ...(JSON.parse(geoKey) as Record<string, string>),
       ...(moduleFilterKey ? { module_name: moduleFilterKey } : {}),
-      ...(status.value ? { success: status.value } : {}),
+      ...(sessionState.value ? { session_state: sessionState.value } : {}),
       ...(dates.from ? { date_from: dates.from } : {}),
       ...(dates.to ? { date_to: dates.to } : {}),
     }),
-    [searchTerm, geoKey, moduleFilterKey, status.value, dates.from, dates.to],
+    [searchTerm, geoKey, moduleFilterKey, sessionState.value, dates.from, dates.to],
   );
 
   const loadRows = useCallback(
@@ -297,190 +273,55 @@ export default function LoginAuditList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const openDetails = useCallback((record: LoginAuditRecord) => {
-    setSelectedAudit(record);
-  }, []);
-
-  const closeDetails = useCallback(() => setSelectedAudit(null), []);
-
-  const actionTemplate = useCallback(
-    (row: LoginAuditRecord) => (
-      <div className="flex justify-center">
-        <button
-          title={t("common.view")}
-          onClick={() => openDetails(row)}
-          className="text-blue-600 hover:text-blue-800"
-        >
-          {t("common.view")}
-        </button>
-      </div>
-    ),
-    [openDetails, t]
+  const columns = useMemo(
+    () => renderLoginAuditColumns({ t, onView: setSelectedAudit, first }),
+    [t, first],
   );
 
   return (
-    <div className="p-3">
+    <div className="min-h-full bg-gray-50/60 p-3 sm:p-5">
       <ListPageHeader
         title={t("admin.nav.login_audit")}
-        subtitle={t("admin.login_audit.subtitle", "Login audit records by module")}
-        className="mb-6"
+        subtitle={t("admin.login_audit.subtitle", "Login audit records")}
+        className="mb-4"
       />
 
-      <DataTable
-        filterPanel={combineFilters(geo, modulePart, status, dates)}
-        onServerExport={onServerExport}
-        value={rows}
-        dataKey="unique_id"
-        lazy
-        paginator
-        first={first}
-        rows={rowsPerPage}
-        totalRecords={totalRecords}
-        onPage={onPage}
-        sortField={sortField}
-        sortOrder={sortOrder}
-        onSort={onSort}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-        loading={isLoading && rows.length === 0}
-        header={
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={setGlobalFilterValue}
-            searchPlaceholder={t("admin.login_audit.search_placeholder", "Search login audits...")}
-            className="mb-4"
-          />
-        }
-        stripedRows
-        showGridlines
-        emptyMessage={t("common.no_records")}
-        className="p-datatable-sm"
-      >
-        <Column
-          header={t("common.s_no")}
-          body={(_: LoginAuditRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1}
-          style={{ width: 70 }}
-        />
-        <Column field="unique_id" header="ID" />
-        <Column
-          field="module_name"
-          header={t("admin.login_audit.module", "Module")}
-          body={(row: LoginAuditRecord) => formatModuleName(row.module_name)}
-          sortable
-        />
-        <Column field="username" header="Username" sortable />
-        <Column
-          field="user_name"
-          header={t("admin.login_audit.user", "User")}
-          body={(row: LoginAuditRecord) =>
-            row.user_name ? (
-              <div className="leading-tight">
-                <div className="font-medium text-gray-800">{row.user_name}</div>
-                {row.user_unique_id ? (
-                  <div className="text-xs text-gray-500">{row.user_unique_id}</div>
-                ) : null}
-              </div>
-            ) : (
-              row.user_unique_id ?? "-"
-            )
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+        <DataTable
+          filterPanel={combineFilters(geo, modulePart, sessionState, dates)}
+          onServerExport={onServerExport}
+          value={rows}
+          dataKey="unique_id"
+          lazy
+          paginator
+          first={first}
+          rows={rowsPerPage}
+          totalRecords={totalRecords}
+          onPage={onPage}
+          sortField={sortField}
+          sortOrder={sortOrder}
+          onSort={onSort}
+          rowsPerPageOptions={[5, 10, 25, 50]}
+          loading={isLoading && rows.length === 0}
+          header={
+            <FilterBar
+              searchValue={globalFilterValue}
+              onSearchChange={setGlobalFilterValue}
+              searchPlaceholder={t("admin.login_audit.search_placeholder", "Search login audits...")}
+              className="mb-4"
+            />
           }
-        />
-        <Column field="ip_address" header="IP Address" sortable />
-        <Column field="user_agent" header="User Agent" />
-        <Column
-          field="success"
-          header="Success"
-          body={(row: LoginAuditRecord) => formatAuditValue(row.success)}
-          sortable
-        />
-        <Column field="reason" header="Reason" />
-        <Column
-          field="timestamp"
-          header="Timestamp"
-          body={(row: LoginAuditRecord) => formatDateTime(row.timestamp)}
-          sortable
-        />
-        <Column
-          field="district_name"
-          header={t("common.district")}
-          body={(row: LoginAuditRecord) => row.district_name ?? "-"}
-        />
-        <Column
-          field="local_body_name"
-          header={t("admin.login_audit.local_body", "Local Body")}
-          body={(row: LoginAuditRecord) =>
-            row.local_body_name ? (
-              <div className="leading-tight">
-                <div>{row.local_body_name}</div>
-                {row.local_body_level ? (
-                  <div className="text-xs text-gray-500">{row.local_body_level}</div>
-                ) : null}
-              </div>
-            ) : (
-              "-"
-            )
-          }
-        />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 120 }} />
-      </DataTable>
+          stripedRows
+          showGridlines
+          emptyMessage={t("common.no_records")}
+          tableStyle={{ tableLayout: "fixed", width: "100%", minWidth: "1100px" }}
+          className="p-datatable-sm"
+        >
+          {columns}
+        </DataTable>
+      </div>
 
-      <Dialog open={Boolean(selectedAudit)} onOpenChange={(open) => !open && closeDetails()}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t("admin.login_audit.detail_title", "Login Audit Details")}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <JsonViewer title="Audit Record" value={selectedAudit ?? undefined} />
-            <div className="space-y-2">
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  {t("admin.login_audit.module", "Module")}
-                </p>
-                <p className="font-semibold text-gray-900">
-                  {formatModuleName(selectedAudit?.module_name)}
-                </p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Username</p>
-                <p className="font-semibold text-gray-900">{selectedAudit?.username ?? "-"}</p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  {t("admin.login_audit.user", "User")}
-                </p>
-                <p className="font-semibold text-gray-900">
-                  {selectedAudit?.user_name ?? selectedAudit?.user_unique_id ?? "-"}
-                </p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">
-                  {t("common.location")}
-                </p>
-                <p className="font-semibold text-gray-900">
-                  {[selectedAudit?.local_body_name, selectedAudit?.district_name]
-                    .filter(Boolean)
-                    .join(", ") || "-"}
-                </p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">IP Address</p>
-                <p className="font-semibold text-gray-900">{selectedAudit?.ip_address ?? "-"}</p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">User Agent</p>
-                <p className="font-semibold text-gray-900">{selectedAudit?.user_agent ?? "-"}</p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Success</p>
-                <p className="font-semibold text-gray-900">{formatAuditValue(selectedAudit?.success)}</p>
-              </div>
-              <div className="rounded-md border bg-gray-50 p-4 text-sm text-gray-700">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Timestamp</p>
-                <p className="font-semibold text-gray-900">{formatDateTime(selectedAudit?.timestamp)}</p>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <LoginAuditDetail audit={selectedAudit} onClose={() => setSelectedAudit(null)} />
     </div>
   );
 }

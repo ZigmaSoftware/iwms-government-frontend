@@ -2,6 +2,7 @@ import type {
   DailyReportResponse,
   DailyReportRow,
   LocationComparisonRow,
+  VerificationFilter,
   WasteTypeBreakdownRow,
 } from "./types";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -78,6 +79,37 @@ const C = {
 
 const WASTE_PALETTE: string[] = [C.leaf, C.teal, C.ochre, C.violet, C.brick, C.primary, "#3E8E7E"];
 const OTHER_SLICE_COLOR = "#9CA3AF";
+
+/* ── verification: a row's trips are Verified once their Daily Trip Log is
+   verified; Submitted logs stay unverified ── */
+const VERIFICATION_FILTERS: Array<{ key: VerificationFilter; label: string }> = [
+  { key: "", label: "All" },
+  { key: "verified", label: "Verified" },
+  { key: "unverified", label: "Unverified" },
+];
+
+const VERIFICATION_BADGE = {
+  verified: { label: "Verified", fg: "#047857", bg: "#ECFDF5", border: "#A7F3D0" },
+  unverified: { label: "Unverified", fg: "#B45309", bg: "#FFFBEB", border: "#FDE68A" },
+  partial: { label: "Partly verified", fg: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" },
+} as const;
+
+function VerificationBadge({ row }: { row: DailyReportRow }) {
+  const status = row.verification_status ?? "unverified";
+  const badge = VERIFICATION_BADGE[status];
+  const verified = row.verified_trips ?? 0;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+      style={{ color: badge.fg, background: badge.bg, borderColor: badge.border }}
+      title={`${verified} of ${row.total_trips} trip(s) verified in Daily Trip Logs`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: badge.fg }} />
+      {badge.label}
+      {status === "partial" ? ` ${verified}/${row.total_trips}` : null}
+    </span>
+  );
+}
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -314,6 +346,7 @@ export default function DailyWasteComparisonList({
   const [bottomTab, setBottomTab] = useState<"locality" | "localbody">("locality");
   const [sortMode, setSortMode] = useState("weight");
   const [source, setSource] = useState("bin");
+  const [verification, setVerification] = useState<VerificationFilter>("");
 
   /* ── local body filter cascade ── */
   const [stateId, setStateId] = useState("");
@@ -609,6 +642,7 @@ export default function DailyWasteComparisonList({
       if (areaTypeId) params.area_type_id = areaTypeId;
       if (localBodyLevel && localBodyIds.length) params[localBodyLevel] = localBodyIds.join(",");
       if (wardIds.length) params.ward_id = wardIds.join(",");
+      if (verification) params.verification = verification;
 
       const { data } = await api.get<DailyReportResponse>(
         "/schedule-masters/daily-waste-comparisons/",
@@ -662,6 +696,7 @@ export default function DailyWasteComparisonList({
     localBodyLevel,
     localBodyIds,
     wardIds,
+    verification,
     detailPage,
     detailPageSize,
   ]);
@@ -672,7 +707,7 @@ export default function DailyWasteComparisonList({
      immediately snap the user back to page 1. */
   useEffect(() => {
     setDetailPage(1);
-  }, [dateFrom, dateTo, wasteTypeId, sortMode, source, stateId, districtId, areaTypeId, localBodyLevel, localBodyIds, wardIds]);
+  }, [dateFrom, dateTo, wasteTypeId, sortMode, source, stateId, districtId, areaTypeId, localBodyLevel, localBodyIds, wardIds, verification]);
 
   /* ── derived ── */
 
@@ -774,6 +809,7 @@ export default function DailyWasteComparisonList({
       if (areaTypeId) params.area_type_id = areaTypeId;
       if (localBodyLevel && localBodyIds.length) params[localBodyLevel] = localBodyIds.join(",");
       if (wardIds.length) params.ward_id = wardIds.join(",");
+      if (verification) params.verification = verification;
 
       // Built on the server by a background job, then downloaded.
       await dailyWasteComparisonApi.exportToExcel(
@@ -787,6 +823,7 @@ export default function DailyWasteComparisonList({
           { header: "Waste Type", field: "waste_type" },
           { header: "Weight Collected (kg)", field: "actual_weight_kg" },
           { header: "Trips", field: "total_trips" },
+          { header: "Verification", field: "verification_label" },
           { header: "Points", field: "collection_points_covered" },
           { header: "Avg Weight / Trip (kg)", field: "average_weight_per_trip" },
         ],
@@ -1153,7 +1190,20 @@ export default function DailyWasteComparisonList({
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-lg border p-0.5" style={{ borderColor: C.line, background: C.surfaceSunk }} role="group" aria-label="Verification">
+              {VERIFICATION_FILTERS.map((f) => (
+                <button
+                  key={f.key || "all"}
+                  type="button"
+                  onClick={() => setVerification(f.key)}
+                  className="rounded-md px-2.5 py-0.5 text-[11px] font-semibold transition-colors"
+                  style={verification === f.key ? { background: C.surface, color: C.ink, boxShadow: "0 1px 2px rgba(15,23,42,.08)" } : { color: C.inkFaint }}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
             <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} className="h-7 rounded-lg border px-2 text-[11px] outline-none" style={fieldStyle} aria-label="Sort">
               <option value="weight">Highest weight</option>
               <option value="trips">Most trips</option>
@@ -1169,7 +1219,13 @@ export default function DailyWasteComparisonList({
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border" style={{ borderColor: C.line }}>
             <div className="min-h-0 flex-1 overflow-auto">
               {bottomTab === "locality" ? (
-                loading && rows.length === 0 ? spinner : rows.length === 0 ? empty("No records for this selection.") : (
+                loading && rows.length === 0 ? spinner : rows.length === 0 ? empty(
+                  verification === "verified"
+                    ? (kpis.verified_trips ?? 0) > 0
+                      ? "The verified trips in this period have no collected weight."
+                      : "No trips verified in Daily Trip Logs for this period."
+                    : "No records for this selection.",
+                ) : (
                   <table className="w-full text-left">
                     <thead className="sticky top-0 z-10" style={{ background: C.surfaceSunk }}>
                       <tr style={{ color: C.inkFaint }}>
@@ -1178,6 +1234,7 @@ export default function DailyWasteComparisonList({
                         <th className={th}>Waste type</th>
                         <th className={`${th} text-right`}>Weight</th>
                         <th className={`${th} text-right`}>Trips</th>
+                        <th className={th}>Status</th>
                       </tr>
                     </thead>
                     <tbody className={loading ? "opacity-50" : undefined}>
@@ -1196,6 +1253,7 @@ export default function DailyWasteComparisonList({
                           </td>
                           <td className={`${td} text-right font-semibold tabular-nums`}>{fmtKg(r.actual_weight_kg)} kg</td>
                           <td className={`${td} text-right tabular-nums`}>{fmtKg(r.total_trips)}</td>
+                          <td className={`${td} whitespace-nowrap`}><VerificationBadge row={r} /></td>
                         </tr>
                       ))}
                     </tbody>

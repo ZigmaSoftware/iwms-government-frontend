@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useSessionEndedToast } from "@/hooks/useSessionEndedToast";
+import { startLoginSession } from "@/utils/loginSession";
 import { ArrowRight, Eye, EyeOff, Landmark, Lock, User } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import {
@@ -35,6 +37,7 @@ export default function DistrictAuth() {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  useSessionEndedToast();
 
   useEffect(() => {
     if (localStorage.getItem("db_access_token")) {
@@ -69,6 +72,7 @@ export default function DistrictAuth() {
       const dbToken = payload.access_token ?? payload.access ?? "";
       if (dbToken) {
         localStorage.setItem("db_access_token", dbToken);
+        startLoginSession("db_access_token");
       }
 
       // Store district context for the dashboard

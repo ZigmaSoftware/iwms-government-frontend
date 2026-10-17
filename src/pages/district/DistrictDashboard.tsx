@@ -12,6 +12,8 @@ import { Card, Change, Donut, EmptyNote, MultiLineTrend, Segmented, Shimmer, Spi
 import { currentMonth, fmtInt, fmtWeight, weightParts } from "@/components/leader/format";
 import type { LeaderSummary } from "@/components/leader/types";
 import ComparisonView, { type CmpTable, type CmpView } from "@/components/leader/ComparisonView";
+import { useLeaderSession } from "@/hooks/useLeaderSession";
+import { clearLoginSessionTracking } from "@/utils/loginSession";
 
 /* ─────────────────────────────────────────────────────────────────────
    District Leader dashboard — every figure is live:
@@ -33,6 +35,7 @@ dbApi.interceptors.request.use((config) => {
 });
 
 function clearDistrictSession() {
+  clearLoginSessionTracking("db_access_token");
   ["db_access_token", "db_district_unique_id", "db_district_name", "db_leader_name", "db_role"]
     .forEach((k) => localStorage.removeItem(k));
 }
@@ -108,6 +111,12 @@ export default function DistrictDashboard() {
     const token = localStorage.getItem("db_access_token");
     if (role !== "district_leader" || !token) navigate("/district", { replace: true });
   }, [navigate]);
+
+  const handleLogout = useLeaderSession({
+    tokenKey: "db_access_token",
+    clearSession: clearDistrictSession,
+    signInPath: "/district",
+  });
 
   /* ── filters ── */
   const [month, setMonth] = useState(currentMonth());
@@ -468,7 +477,7 @@ export default function DistrictDashboard() {
           <span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" />
           <span className="hidden text-xs font-semibold text-gray-900 sm:block">{leaderName}</span>
           <button
-            onClick={() => { clearDistrictSession(); navigate("/district", { replace: true }); }}
+            onClick={handleLogout}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
           >
             <LogOut size={13} /> Logout

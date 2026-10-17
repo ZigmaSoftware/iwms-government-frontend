@@ -10,6 +10,8 @@ import { AreaTrend, Card, Donut, KpiTile, RankBars, Segmented } from "@/componen
 import { fmtInt, fmtWeight, weightParts } from "@/components/leader/format";
 import type { LeaderSummary } from "@/components/leader/types";
 import ComparisonView, { type CmpTable, type CmpView } from "@/components/leader/ComparisonView";
+import { useLeaderSession } from "@/hooks/useLeaderSession";
+import { clearLoginSessionTracking } from "@/utils/loginSession";
 
 const stApi = axios.create({ baseURL: API_ROOT });
 stApi.interceptors.request.use((config) => {
@@ -22,6 +24,7 @@ stApi.interceptors.request.use((config) => {
 });
 
 function clearStateSession() {
+  clearLoginSessionTracking("st_access_token");
   ["st_access_token", "st_state_unique_id", "st_state_name", "st_leader_name", "st_role"].forEach((k) =>
     localStorage.removeItem(k)
   );
@@ -173,10 +176,11 @@ export default function StateLeaderDashboard() {
     if (role !== "state_leader" || !token) navigate("/state", { replace: true });
   }, [navigate]);
 
-  const handleLogout = () => {
-    clearStateSession();
-    navigate("/state", { replace: true });
-  };
+  const handleLogout = useLeaderSession({
+    tokenKey: "st_access_token",
+    clearSession: clearStateSession,
+    signInPath: "/state",
+  });
 
   /* ── overview: districts ── */
   const [districts, setDistricts] = useState<DistrictRow[]>([]);
