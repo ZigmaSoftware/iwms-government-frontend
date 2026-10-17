@@ -107,6 +107,8 @@ export default {
     "customer_masters": "Customer Masters",
     "customer_creation": "Customer Creation",
     "apartment_list": "Apartment List",
+    "customer_access_configuration": "Customer Access Configuration",
+    "customer_notifications": "Notification",
     "household_collection_event": "Household Collection Event",
     "feedback": "Feedback",
     "customer_tag": "Customer Tag",

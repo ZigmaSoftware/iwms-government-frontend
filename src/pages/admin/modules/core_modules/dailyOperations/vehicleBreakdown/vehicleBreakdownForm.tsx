@@ -305,8 +305,10 @@ export default function VehicleBreakdownForm() {
 
           setFetchingStaff(true);
           Promise.all([
-            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Driver" } }),
-            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, role: "Company Operator" } }),
+            // trip_assignment_id lets the backend narrow "busy" to crews working
+            // this trip's own time slot, instead of anyone with a trip that day.
+            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, trip_assignment_id: assignId, role: "Company Driver" } }),
+            api.get("/schedule-operations/vehicle-breakdowns/available-staff/", { params: { ...params, trip_assignment_id: assignId, role: "Company Operator" } }),
           ])
             .then(([driverRes, operatorRes]) => {
               const toOpts = (list: any[]): SelectOption[] =>

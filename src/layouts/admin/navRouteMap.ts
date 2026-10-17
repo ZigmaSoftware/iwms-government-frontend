@@ -29,6 +29,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encCustomerMaster,
     encCustomerCreation,
     encApartmentList,
+    encCustomerNotifications,
     encReport,
     encMonthlyDistance,
     encTripSummary,
@@ -197,6 +198,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Masters > Customer Masters ──
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
+    { path: `/${encCustomerMaster}/${encCustomerNotifications}`, nameKey: "admin.nav.customer_notifications", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encHouseholdPickupEvent}`, nameKey: "admin.nav.household_pickup_event", parentNameKey: "admin.nav.customer_masters" },
 
     // ── Masters > Leader Management ──

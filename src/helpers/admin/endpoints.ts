@@ -112,6 +112,7 @@ export const adminEndpoints = {
   customerCreations: "customer-masters/customercreations",
   /** Per-customer app access: which app they may sign into, which screens they see. */
   customerAccessConfiguration: "customer-masters/customer-access-configuration",
+  customerNotifications: "customer-masters/customer-notifications",
   wasteCollections: "schedule-operations/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 

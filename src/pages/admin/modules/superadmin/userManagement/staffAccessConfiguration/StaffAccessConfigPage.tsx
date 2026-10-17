@@ -1210,7 +1210,9 @@ export default function StaffAccessConfigPage() {
   // UserScreenPermission/StaffDataScope, while app-module access lives on the
   // separate StaffAccessConfiguration record.
   const [appModuleOptions, setAppModuleOptions] = useState<AppModuleOption[]>([]);
-  const [appModuleIds, setAppModuleIds] = useState<string[]>([]);
+  // One app per person — a Driver does not also open the Supervisor shell —
+  // so this is a single id, empty meaning no mobile access at all.
+  const [appModuleId, setAppModuleId] = useState<string>("");
   // Staff id assigned once a new (create-mode) record is saved — `id` from
   // the route stays undefined until then, and there is no `staffId` on the
   // form's own values, so this is tracked separately.
@@ -1239,11 +1241,11 @@ export default function StaffAccessConfigPage() {
       .action("staff-app-modules", undefined, { params: { staff_id: staffId } })
       .then((res: unknown) => {
         if (cancelled) return;
-        const ids = (res as { app_module_ids?: string[] })?.app_module_ids ?? [];
-        setAppModuleIds(ids);
+        const data = res as { app_module_id?: string | null };
+        setAppModuleId(data?.app_module_id ? String(data.app_module_id) : "");
       })
       .catch(() => {
-        /* no configuration yet — nothing ticked */
+        /* no configuration yet — no app selected */
       });
     return () => {
       cancelled = true;
@@ -1255,7 +1257,7 @@ export default function StaffAccessConfigPage() {
     try {
       await staffAccessConfigurationApi.action("staff-app-modules", {
         staff_id: staffId,
-        app_module_ids: appModuleIds,
+        app_module_id: appModuleId || null,
       });
     } catch {
       // Non-fatal: the rest of the configuration is already saved, and the
@@ -1531,22 +1533,36 @@ export default function StaffAccessConfigPage() {
           Mobile App Access
         </p>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Tick the apps this person may sign into. Without one, their mobile
-          sign-in is refused. What they can do inside each app comes from the
-          screen permissions below — the same ticks that govern the web screens.
+          Choose the one app this person signs into. Without one, their mobile
+          sign-in is refused. What they can do inside comes from the screen
+          permissions below — the same ticks that govern the web screens.
         </p>
       </div>
 
       {appModuleOptions.length === 0 ? (
         <p className="text-xs text-gray-400">No app modules configured.</p>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {appModuleOptions.map((module) => {
-            const checked = appModuleIds.includes(module.uniqueId);
+        <div
+          className="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-label="Mobile app"
+        >
+          {[
+            {
+              uniqueId: "",
+              moduleKey: "",
+              surfaceKey: "",
+              label: "No app access",
+              route: "",
+              description: null,
+            },
+            ...appModuleOptions,
+          ].map((module) => {
+            const checked = appModuleId === module.uniqueId;
             return (
               <label
-                key={module.uniqueId}
-                title={module.description ?? module.route}
+                key={module.uniqueId || "none"}
+                title={module.description ?? module.route ?? undefined}
                 className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
                   checked
                     ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
@@ -1554,16 +1570,12 @@ export default function StaffAccessConfigPage() {
                 }`}
               >
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name="app_module"
                   className="h-4 w-4"
+                  value={module.uniqueId}
                   checked={checked}
-                  onChange={(event) =>
-                    setAppModuleIds((current) =>
-                      event.target.checked
-                        ? [...current, module.uniqueId]
-                        : current.filter((moduleId) => moduleId !== module.uniqueId),
-                    )
-                  }
+                  onChange={() => setAppModuleId(module.uniqueId)}
                 />
                 <span className="font-medium">{module.label}</span>
               </label>

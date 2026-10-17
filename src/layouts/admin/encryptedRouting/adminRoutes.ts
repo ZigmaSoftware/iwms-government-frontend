@@ -49,6 +49,7 @@ const StaffCreationForm = lazy(() => import("@/pages/admin/modules/superadmin/us
 const StaffAccessConfigList = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigList"));
 const AppModuleList = lazy(() => import("@/pages/admin/modules/superadmin/screenManagement/appModules/AppModuleList"));
 const CustomerAccessConfigList = lazy(() => import("@/pages/admin/modules/masters/customerMasters/customerAccessConfiguration/CustomerAccessConfigList"));
+const CustomerNotificationList = lazy(() => import("@/pages/admin/modules/masters/customerMasters/customerNotifications/CustomerNotificationList"));
 const StaffAccessConfigPage = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/staffAccessConfiguration/StaffAccessConfigPage"));
 const StaffAccessDashboard = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/staffAccessDashboard/StaffAccessDashboard"));
 const UserTypeList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/userType/user-typeList"));
@@ -238,6 +239,7 @@ export const ROUTES: RouteMap = {
     "customer-creation": { list: CustomerCreationList, form: CustomerCreationForm },
     "apartment-list": { list: ApartmentListPage },
     "customer-access-configuration": { list: CustomerAccessConfigList },
+    "customer-notifications": { list: CustomerNotificationList },
     "household-pickup-event": { list: HouseholdPickupEventList, form: HouseholdPickupEventForm },
   },
   "waste-management": {
