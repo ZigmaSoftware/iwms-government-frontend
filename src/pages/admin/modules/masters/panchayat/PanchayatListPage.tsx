@@ -10,7 +10,6 @@ import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { panchayatApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { Can } from "@/contexts/ScreenPermissionContext";
@@ -40,7 +39,6 @@ const columns = [
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
   { field: "panchayat_name", header: "Panchayat Name" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function PanchayatListPage() {
@@ -213,11 +211,7 @@ export default function PanchayatListPage() {
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: PanchayatListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : displayValue(row[column.field])
-            }
+            body={(row: PanchayatListRecord) => displayValue(row[column.field])}
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

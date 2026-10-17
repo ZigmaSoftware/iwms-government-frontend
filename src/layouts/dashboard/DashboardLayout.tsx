@@ -13,16 +13,16 @@ import { useUser } from "@/contexts/UserContext";
 import { useToast } from "@/hooks/use-toast";
 import ZigmaLogo from "@/images/logo.png";
 import {
-  DEFAULT_ROLE,
   ADMIN_VIEW_MODE_ADMIN,
   USER_ROLE_STORAGE_KEY,
-  isAdmin,
+  canOpenAdmin,
   normalizeRole,
   setAdminViewPreference,
   type DashboardLayoutProps,
   type UserRole,
 } from "@/types/roles";
-import { clearAuthSession } from "@/utils/authStorage";
+import { ACCESS_TOKEN_STORAGE_KEY, clearAuthSession } from "@/utils/authStorage";
+import { endLoginSession } from "@/utils/loginSession";
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
@@ -43,8 +43,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => window.clearTimeout(timer);
   }, [location.pathname]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
+      await endLoginSession(ACCESS_TOKEN_STORAGE_KEY, "manual");
       clearAuthSession();
       setUser(null);
 
@@ -63,7 +64,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     navigate("/admin", { replace: true });
   };
 
-  const canSwitchToAdmin = role === DEFAULT_ROLE || isAdmin(role);
+  const canSwitchToAdmin = canOpenAdmin(role);
   const AdminViewIcon = role === "superadmin" ? Crown : ShieldCheck;
 
   return (

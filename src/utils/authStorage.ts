@@ -2,6 +2,7 @@ import { jwtDecode } from "jwt-decode";
 import { API_ROOT } from "@/config/configApi";
 import {
   clearAdminViewPreference,
+  USER_IS_ADMIN_STORAGE_KEY,
   USER_ROLE_STORAGE_KEY,
   normalizeRole,
 } from "@/types/roles";
@@ -14,6 +15,7 @@ import {
   setStoredPermissionDetails,
   setStoredPermissions,
 } from "@/utils/permissions";
+import { clearLoginSessionTracking, startLoginSession } from "@/utils/loginSession";
 
 export const ACCESS_TOKEN_STORAGE_KEY = "access_token";
 export const REFRESH_TOKEN_STORAGE_KEY = "refresh_token";
@@ -153,6 +155,7 @@ export type LoginPayload = {
   refresh_token?: string;
   user?: AuthUser;
   role?: string;
+  is_admin?: boolean;
   unique_id?: string;
   username?: string;
   name?: string;
@@ -254,10 +257,14 @@ export const persistLoginSession = (payload: LoginPayload): void => {
   const profile = payload.profile ?? null;
   const role = normalizeRole(user.role ?? payload.role ?? null);
 
-  if (access) safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, access);
+  if (access) {
+    safeSetStorageItem(ACCESS_TOKEN_STORAGE_KEY, access);
+    startLoginSession(ACCESS_TOKEN_STORAGE_KEY);
+  }
   if (refresh) safeSetStorageItem(REFRESH_TOKEN_STORAGE_KEY, refresh);
   safeSetStorageItem(USER_STORAGE_KEY, JSON.stringify(user));
   if (role) safeSetStorageItem(USER_ROLE_STORAGE_KEY, role);
+  safeSetStorageItem(USER_IS_ADMIN_STORAGE_KEY, String(payload.is_admin === true));
   if (user.unique_id) safeSetStorageItem("unique_id", String(user.unique_id));
 
   if (profile) {
@@ -384,11 +391,13 @@ export const scheduleProactiveRefresh = (): void => {
 
 export const clearAuthSession = (): void => {
   clearScheduledRefresh();
+  clearLoginSessionTracking(ACCESS_TOKEN_STORAGE_KEY);
   localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
   localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(USER_STORAGE_KEY);
   localStorage.removeItem(PROFILE_STORAGE_KEY);
   localStorage.removeItem(USER_ROLE_STORAGE_KEY);
+  localStorage.removeItem(USER_IS_ADMIN_STORAGE_KEY);
   localStorage.removeItem("unique_id");
   localStorage.removeItem("user_name");
   localStorage.removeItem("user_email");
