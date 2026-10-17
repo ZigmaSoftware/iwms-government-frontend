@@ -58,10 +58,6 @@ export const PermissionProvider = ({ children }: { children: ReactNode }) => {
     screenName: string,
     action: PermissionAction = "view"
   ): boolean => {
-    if (moduleName?.toLowerCase() === "dashboard") {
-      return true;
-    }
-
     return checkPermission(moduleName, screenName, action, permissions);
   };
 

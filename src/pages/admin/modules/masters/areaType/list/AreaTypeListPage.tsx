@@ -9,6 +9,7 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { useAreaTypeList } from "./useAreaType.list";
 import { LIST_COLUMNS, SORTABLE_FIELDS, areaTypeColumnBody } from "./areaType.list.functionality";
 import type { AreaTypeListRecord } from "./areaType.list.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 export default function AreaTypeListPage() {
   const {
@@ -54,12 +55,14 @@ export default function AreaTypeListPage() {
         title="Area Type"
         subtitle="Manage Area Type records"
         actions={
-          <Button
-            label="Add Area Type"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={navigateToNew}
-          />
+          <Can action="add">
+            <Button
+              label="Add Area Type"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={navigateToNew}
+            />
+          </Can>
         }
         className="mb-6"
       />

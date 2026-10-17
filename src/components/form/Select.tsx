@@ -96,6 +96,11 @@ export default function Select({
       >
         {selectedLabel ? (
           <span className="truncate">{displayLabel(selectedLabel)}</span>
+        ) : isEmpty ? (
+          // Rendered directly for the same Radix reason as above: with the
+          // hidden sentinel item as the value, <SelectValue> can print the
+          // raw "__placeholder__" value instead of the placeholder text.
+          <span className="truncate text-muted-foreground">{finalPlaceholder}</span>
         ) : (
           <SelectValue placeholder={finalPlaceholder} />
         )}

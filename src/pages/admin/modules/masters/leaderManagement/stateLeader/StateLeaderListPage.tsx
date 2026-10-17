@@ -15,17 +15,32 @@ import { stateLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import {
-  exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   excelFileToCsvFile,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 // ─── Template columns ──────────────────────────────────────────────────────────
 const STATE_LEADER_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
@@ -69,6 +84,16 @@ export default function StateLeaderListPage() {
   const [searchTerm, setSearchTerm]         = useState("");
   const [sortField, setSortField]           = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
+  const BULK_KEY = "state-leaders";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
+  const { canAdd, canImport } = useScreenAccess();
+  const geo    = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   // ── Load ────────────────────────────────────────────────────────────────────
   const loadRows = async (page: number, limit: number, search: string, ordering?: string) => {
@@ -76,6 +101,7 @@ export default function StateLeaderListPage() {
     try {
       const response = await stateLeaderApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -98,7 +124,7 @@ export default function StateLeaderListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -129,38 +155,43 @@ export default function StateLeaderListPage() {
   };
 
   const handleDownloadAll = async () => {
-    const all = await stateLeaderApi.readAllForExport();
-    await exportRecordsToExcel(
-      all as unknown as Record<string, unknown>[],
-      getAdminScreenExcelFilename("all"),
-      "State Leaders",
-    );
+    try {
+      await stateLeaderApi.exportToExcel({ params: filterParams }, getAdminScreenExcelFilename("all"), "State Leaders");
+    } catch (error) {
+      notify.fire("Export failed", error instanceof Error ? error.message : "Export failed.", "error");
+    }
   };
 
   const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "state_leader_bulk.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
 
-      const res = await adminApi.stateLeaders.action("bulk-upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await runBulkUpload(adminApi.stateLeaders, formData);
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number((res as { success_count?: unknown })?.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
+        ...(res.file_url ? { file_url: res.file_url, file_name: res.file_name ?? file.name } : {}),
       });
+      const uploadSummary: BulkUploadResult = { fileName: file.name, successCount, errors, originalRows };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
 
       notify.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
       });
       setRefetchTrigger((p) => p + 1);
     } catch {
@@ -199,19 +230,11 @@ export default function StateLeaderListPage() {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await stateLeaderApi.delete(id);
+      await stateLeaderApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -242,36 +265,6 @@ export default function StateLeaderListPage() {
       onSearchChange={setGlobalFilterValue}
       searchPlaceholder="Search"
       className="mb-4"
-      trailing={
-        <>
-          <Button
-            label="Download Template"
-            icon="pi pi-download"
-            severity="secondary"
-            className="p-button-sm !text-gray-700 !border-gray-300 !bg-white hover:!bg-gray-50"
-            onClick={handleDownloadTemplate}
-          />
-          <Button
-            label="Upload Excel"
-            icon="pi pi-upload"
-            className="p-button-sm !bg-blue-600 !border-blue-600 hover:!bg-blue-700"
-            onClick={() => fileInputRef.current?.click()}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleUploadExcel}
-          />
-          <Button
-            label="Download All Excel"
-            icon="pi pi-download"
-            className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
-            onClick={() => void handleDownloadAll()}
-          />
-        </>
-      }
     />
   );
 
@@ -284,15 +277,38 @@ export default function StateLeaderListPage() {
         title="State Leader"
         subtitle="Manage State Leader records"
         actions={
-          <Button
-            label="Add State Leader"
-            icon="pi pi-plus"
-            className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add State Leader"
+              icon="pi pi-plus"
+              className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        hidden
+        onChange={handleUploadExcel}
+      />
+
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={canAdd && canImport ? () => fileInputRef.current?.click() : undefined}
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="state_leader_rejected.xlsx"
+        />
+      )}
 
       {/* ── DataTable ── */}
       <DataTable
@@ -310,6 +326,12 @@ export default function StateLeaderListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={renderHeader()}
+        filterPanel={combineFilters(geo, status)}
+        documentActions={{
+          uploadExcel: { onClick: () => fileInputRef.current?.click(), hidden: !(canAdd && canImport) },
+          downloadTemplate: { onClick: () => void handleDownloadTemplate() },
+          downloadExcel: { onClick: () => void handleDownloadAll() },
+        }}
         stripedRows
         showGridlines
         emptyMessage="No State Leader found."
@@ -354,6 +376,14 @@ export default function StateLeaderListPage() {
           style={{ width: "100px", textAlign: "center" }}
         />
       </DataTable>
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="State leader bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="state_leader_rejected.xlsx"
+      />
     </div>
   );
 }

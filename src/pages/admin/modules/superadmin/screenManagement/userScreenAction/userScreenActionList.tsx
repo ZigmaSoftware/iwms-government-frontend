@@ -18,6 +18,9 @@ import { FilterBar } from "@/components/common/FilterBar";
 import { userScreenActionApi } from "@/helpers/admin";
 
 import type { UserScreenAction } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const toRecordList = (value: unknown): UserScreenAction[] => {
   if (Array.isArray(value)) return value as UserScreenAction[];
@@ -42,6 +45,7 @@ export default function UserScreenActionList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
   const { encSuperAdmin, encUserScreenAction } = getEncryptedRoute();
@@ -56,6 +60,7 @@ export default function UserScreenActionList() {
     try {
       const response = await userScreenActionApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -90,7 +95,7 @@ export default function UserScreenActionList() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, t]);
+  }, [first, rowsPerPage, searchTerm, ordering, t, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -111,7 +116,8 @@ export default function UserScreenActionList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await userScreenActionApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    userScreenActionApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (
     _: UserScreenAction,
@@ -119,19 +125,11 @@ export default function UserScreenActionList() {
   ) => rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await userScreenActionApi.delete(id);
+      await userScreenActionApi.delete(id, withDeleteReason(reason));
       setRecords((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -190,20 +188,23 @@ export default function UserScreenActionList() {
             item: t("admin.nav.user_screen_action"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.user_screen_action.action_label"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.user_screen_action.action_label"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />
 
         {/* Table */}
         <DataTable
+          filterPanel={combineFilters(status)}
           value={records}
           dataKey="unique_id"
           lazy
@@ -232,7 +233,7 @@ export default function UserScreenActionList() {
           })}
           stripedRows
           showGridlines
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

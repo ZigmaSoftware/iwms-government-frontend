@@ -23,7 +23,7 @@ export function useCollectionPointLocationOptions() {
 
   useEffect(() => {
     setPanchayatId("");
-    panchayatApi.readAll({ params: baseParams })
+    panchayatApi.readAll({ params: { ...baseParams, lite: 1 } })
       .then((panchayatResult) => {
       setPanchayats(optionsOf(normalizeList(panchayatResult) as ApiItem[], "panchayat_name"));
     }).catch(() => {

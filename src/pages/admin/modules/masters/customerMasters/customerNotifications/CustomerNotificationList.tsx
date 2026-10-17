@@ -8,6 +8,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
 import { customerNotificationApi } from "@/helpers/admin";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type CustomerOption = {
   unique_id: string;
@@ -130,17 +131,15 @@ export default function CustomerNotificationList() {
   };
 
   const removeCustomer = async (row: NotificationRow) => {
-    const confirm = await notify.fire({
-      icon: "warning",
+    const reason = await confirmDeleteWithReason({
       title: "Remove customer?",
       text: row.customer_name,
-      showCancelButton: true,
       confirmButtonText: "Remove",
     });
-    if (!confirm.isConfirmed) return;
+    if (reason === null) return;
 
     try {
-      await customerNotificationApi.delete(row.unique_id);
+      await customerNotificationApi.delete(row.unique_id, withDeleteReason(reason));
       notify.fire(t("common.success"), "Customer removed.", "success");
       load();
     } catch {

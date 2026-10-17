@@ -14,6 +14,8 @@ import {
 } from "recharts";
 import ZigmaLogo from "../../images/logo.png";
 import { API_ROOT } from "../../config/configApi";
+import { useLeaderSession } from "@/hooks/useLeaderSession";
+import { clearLoginSessionTracking } from "@/utils/loginSession";
 
 const lbApi = axios.create({ baseURL: API_ROOT });
 lbApi.interceptors.request.use((config) => {
@@ -76,6 +78,7 @@ const currentMonth = () => {
 const todayStr = () => new Date().toISOString().split("T")[0];
 
 function clearLocalBodySession() {
+  clearLoginSessionTracking("lb_access_token");
   ["lb_access_token","lb_panchayat_unique_id","lb_panchayat_name","lb_leader_name","lb_role"]
     .forEach((k) => localStorage.removeItem(k));
 }
@@ -117,6 +120,12 @@ export default function LocalBodyDashboard() {
     const token = localStorage.getItem("lb_access_token");
     if (role !== "panchayat_leader" || !token) navigate("/auth/localbody", { replace: true });
   }, [navigate]);
+
+  const handleLogout = useLeaderSession({
+    tokenKey: "lb_access_token",
+    clearSession: clearLocalBodySession,
+    signInPath: "/localbody",
+  });
 
   /* ── view / filters ── */
   const [view,      setView]      = useState<View>("home");
@@ -293,7 +302,7 @@ export default function LocalBodyDashboard() {
           <span className="text-xs font-semibold text-gray-700 hidden sm:block">{leaderName}</span>
         </div>
         <button
-          onClick={() => { clearLocalBodySession(); navigate("/auth/localbody", { replace: true }); }}
+          onClick={handleLogout}
           className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
         >
           <LogOut className="h-3.5 w-3.5" /> Logout

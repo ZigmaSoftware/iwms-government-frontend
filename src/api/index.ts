@@ -42,7 +42,14 @@ const stripTenancyKeys = <T>(value: T): T => {
 -------------------------------------------------------- */
 type CreateApiOptions = {
   tokenStorageKey: string;
-  loginPathIncludes: string[];
+  // Sign-in endpoints (credentials, no token). Matched exactly, so other
+  // endpoints under /login/ (e.g. my-permissions) still send the token.
+  loginPaths: string[];
+};
+
+const normalizePath = (url?: string): string => {
+  const path = (url ?? "").split("?")[0];
+  return `/${path.replace(/^\/+|\/+$/g, "")}/`;
 };
 
 const createApi = (opts: CreateApiOptions): AxiosInstance => {
@@ -57,9 +64,7 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
   api.interceptors.request.use((config) => {
     const token = localStorage.getItem(opts.tokenStorageKey);
 
-    const isLogin = opts.loginPathIncludes.some((p) =>
-      config.url?.includes(p)
-    );
+    const isLogin = opts.loginPaths.includes(normalizePath(config.url));
 
     if (token && !isLogin) {
       config.headers = config.headers ?? {};
@@ -80,7 +85,7 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
         | (typeof error.config & { _retry?: boolean })
         | undefined;
       const isLogin = originalRequest
-        ? opts.loginPathIncludes.some((p) => originalRequest.url?.includes(p))
+        ? opts.loginPaths.includes(normalizePath(originalRequest.url))
         : true;
       const isRefreshEndpoint = originalRequest?.url?.includes("refresh-token");
 
@@ -118,5 +123,5 @@ const createApi = (opts: CreateApiOptions): AxiosInstance => {
 -------------------------------------------------------- */
 export const api = createApi({
   tokenStorageKey: "access_token",
-  loginPathIncludes: ["/login/"],
+  loginPaths: ["/login/", "/login/login-user/"],
 });

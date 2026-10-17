@@ -11,8 +11,13 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { asArray, errorText, yesNo } from "../utils";
 import { MASTER_CONFIG, type MasterKind } from "./masterConfig";
+import type { ComplaintSlaEscalationLevel } from "@/features/complaintTicketing/types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type Props = {
   kind: MasterKind;
@@ -20,8 +25,7 @@ type Props = {
 
 // Mirrors the `ordering_fields` configured on each backend viewset, intersected
 // with the fields that are actually rendered as visible columns below. Related-object
-// display fields (e.g. module_name, category_name, department_name, lead_staff_name,
-// default_priority_code/default_team_name, and the slaRule category_code/priority_code
+// display fields (e.g. module_name, category_name, default_priority_code, and the slaRule category_code/priority_code
 // lookups) are not safely orderable and are intentionally left out.
 const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
   module: new Set(["module_code"]),
@@ -30,7 +34,6 @@ const SORTABLE_FIELDS_BY_KIND: Record<MasterKind, Set<string>> = {
   priority: new Set(["priority_code"]),
   status: new Set(["status_code"]),
   source: new Set(["source_code", "source_name"]),
-  team: new Set(["team_code", "team_name"]),
   slaRule: new Set([]),
 };
 
@@ -49,6 +52,12 @@ export default function MasterList({ kind }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
+  // Only SLA rules carry a location (their scope); the other masters are global.
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const hasLocation = kind === "slaRule";
+  const filterParams = { ...status.applied, ...(hasLocation ? geo.applied : {}) };
+  const filterKey = JSON.stringify(filterParams);
 
   const api = useMemo(() => config.api(), [config]);
 
@@ -66,6 +75,7 @@ export default function MasterList({ kind }: Props) {
     try {
       const response = await api.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(sortOrdering ? { ordering: sortOrdering } : {}),
         },
@@ -84,7 +94,7 @@ export default function MasterList({ kind }: Props) {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, first, rowsPerPage, searchTerm, ordering]);
+  }, [api, first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -108,19 +118,11 @@ export default function MasterList({ kind }: Props) {
   const edit = (row: any) => navigate(editPath(row.unique_id));
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await api.delete(id);
+      await api.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -139,11 +141,14 @@ export default function MasterList({ kind }: Props) {
         title={config.titlePlural}
         subtitle="Complaint ticketing setup"
         actions={
-          <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          <Can action="add">
+            <Button label="Add New" icon="pi pi-plus" className="p-button-success" onClick={() => navigate(newPath)} />
+          </Can>
         }
         className="mb-6"
       />
       <DataTable
+        filterPanel={hasLocation ? combineFilters(geo, status) : combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -177,7 +182,6 @@ export default function MasterList({ kind }: Props) {
         {kind === "category" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} />}
         {kind === "category" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} />}
         {kind === "category" && <Column field="default_priority_code" header="Default Priority" />}
-        {kind === "category" && <Column field="default_team_name" header="Default Team" />}
         {kind === "subcategory" && <Column field="subcategory_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_code")} />}
         {kind === "subcategory" && <Column field="subcategory_name" header="Subcategory" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_name")} />}
         {kind === "subcategory" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} />}
@@ -189,15 +193,20 @@ export default function MasterList({ kind }: Props) {
         {kind === "status" && <Column header="Allow Reopen" body={(row) => yesNo(row.allow_reopen)} />}
         {kind === "source" && <Column field="source_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_code")} />}
         {kind === "source" && <Column field="source_name" header="Source" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_name")} />}
-        {kind === "team" && <Column field="team_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("team_code")} />}
-        {kind === "team" && <Column field="team_name" header="Team" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("team_name")} />}
-        {kind === "team" && <Column field="department_name" header="Department" />}
-        {kind === "team" && <Column field="lead_staff_name" header="Lead Staff" />}
+        {kind === "slaRule" && <Column header="Location" body={(row) => row.scope_label || "All areas"} />}
         {kind === "slaRule" && <Column field="category_code" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} />}
         {kind === "slaRule" && <Column field="priority_code" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} />}
-        {kind === "slaRule" && <Column field="assign_within_minutes" header="Assign Minutes" />}
-        {kind === "slaRule" && <Column field="resolve_within_minutes" header="Resolve Minutes" />}
         {kind === "slaRule" && <Column header="Working Hours" body={(row) => yesNo(row.working_hours_only)} />}
+        {kind === "slaRule" && (
+          <Column
+            header="Escalation Levels"
+            body={(row) =>
+              (row.escalation_levels || [])
+                .map((level: ComplaintSlaEscalationLevel) => `L${level.level}: ${level.resolve_within_minutes}m`)
+                .join(", ") || "-"
+            }
+          />
+        )}
         <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
         <Column
           header="Actions"

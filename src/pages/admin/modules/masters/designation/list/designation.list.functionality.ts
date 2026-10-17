@@ -1,6 +1,7 @@
 import { designationApi } from "@/helpers/admin";
 import { resolveSimpleOrdering, toRecordList } from "../../shared/recordHelpers";
 import type { DesignationListRecord, SortOrder } from "./designation.list.types";
+import { withDeleteReason } from "@/utils/deleteReason";
 
 export const SORTABLE_FIELDS = new Set(["designation_name"]);
 
@@ -14,9 +15,11 @@ export async function loadDesignationRows(
   limit: number,
   search: string,
   ordering?: string,
+  filters: Record<string, string> = {},
 ) {
   const response = await designationApi.readAllwithPaginated(page, limit, {
     params: {
+      ...filters,
       ...(search ? { search } : {}),
       ...(ordering ? { ordering } : {}),
     },
@@ -29,8 +32,8 @@ export async function loadDesignationRows(
   return { rows, totalRecords };
 }
 
-export async function loadDesignationsForExport() {
-  return toRecordList<DesignationListRecord>(await designationApi.readAllForExport());
+export async function loadDesignationsForExport(filters: Record<string, string> = {}) {
+  return toRecordList<DesignationListRecord>(await designationApi.readAllForExport({ params: filters }));
 }
 
 export async function updateDesignationStatus(row: DesignationListRecord, value: boolean) {
@@ -42,6 +45,6 @@ export async function updateDesignationStatus(row: DesignationListRecord, value:
   });
 }
 
-export async function deleteDesignation(id: string) {
-  await designationApi.delete(id);
+export async function deleteDesignation(id: string, reason: string) {
+  await designationApi.delete(id, withDeleteReason(reason));
 }

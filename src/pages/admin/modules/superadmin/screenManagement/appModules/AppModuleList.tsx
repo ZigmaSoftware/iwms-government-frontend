@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { FilterMatchMode } from "primereact/api";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { DataTable } from "@/components/common/SafeDataTable";
+import { FilterBar } from "@/components/common/FilterBar";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 
 import { appModuleApi } from "@/helpers/admin";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
 
 /** One row of the mobile app module master. */
 type AppModuleRow = {
@@ -49,6 +52,16 @@ export default function AppModuleList() {
   const [drafts, setDrafts] = useState<
     Record<string, { label: string; order_no: number }>
   >({});
+  const status = useStatusFilter();
+  const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const [filters, setFilters] = useState({
+    global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
+  });
+
+  const onGlobalFilterChange = (value: string) => {
+    setFilters({ global: { value, matchMode: FilterMatchMode.CONTAINS } });
+    setGlobalFilterValue(value);
+  };
 
   const load = () => {
     setLoading(true);
@@ -118,7 +131,23 @@ export default function AppModuleList() {
         stop new people being granted it.
       </p>
 
-      <DataTable value={rows} loading={loading} dataKey="unique_id" stripedRows>
+      <DataTable
+        value={rows.filter(status.matches)}
+        filterPanel={combineFilters(status)}
+        loading={loading}
+        dataKey="unique_id"
+        stripedRows
+        filters={filters}
+        globalFilterFields={["module_key", "label", "route", "description"]}
+        header={
+          <FilterBar
+            searchValue={globalFilterValue}
+            onSearchChange={onGlobalFilterChange}
+            searchPlaceholder={t("common.search_placeholder", { item: "app modules" })}
+            className="mb-4"
+          />
+        }
+      >
         <Column field="module_key" header="Key" style={{ width: "14rem" }} />
         <Column
           header="Label"

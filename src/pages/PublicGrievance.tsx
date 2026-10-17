@@ -15,6 +15,7 @@ import {
   ListFilter,
   Loader2,
   LocateFixed,
+  Map as MapIcon,
   Mail,
   MapPin,
   Pencil,
@@ -39,6 +40,7 @@ import type {
   PublicGrievanceSubcategory,
 } from "@/features/complaintTicketing/types";
 import LocationPicker, { TRUSTED_ACCURACY_METERS } from "@/pages/publicGrievance/LocationPicker";
+import GrievanceMapView from "@/pages/publicGrievance/GrievanceMapView";
 
 const DEVICE_STORAGE_KEY = "public_grievance_device_id";
 
@@ -148,7 +150,7 @@ function Segmented<T extends string>({
 }
 
 
-type View = "landing" | "wizard";
+type View = "landing" | "wizard" | "map";
 type StatusMode = "ticket" | "mobile";
 type Gender = "male" | "female" | "transgender" | "";
 type Step = 1 | 2 | 3 | 4;
@@ -163,6 +165,20 @@ const STEPS: { label: string; icon: typeof User }[] = [
 // Each wizard step lives at /publicgrivence/regcomplaint/<slug> so steps are
 // deep-linkable and the browser back button walks the wizard.
 const BASE_PATH = "/publicgrivence";
+
+/** The complaint map opened on one tracked complaint (its local body, with the
+ *  complaint picked when it has a pin), or the map's start when it has no place. */
+const complaintMapPath = (row?: PublicGrievanceStatusResult | null) => {
+  const link = row?.map;
+  if (!link) return `${BASE_PATH}/map`;
+  const params = new URLSearchParams({
+    ...(link.district ? { district: link.district } : {}),
+    type: link.type,
+    id: link.id,
+    ...(link.ticket ? { ticket: link.ticket } : {}),
+  });
+  return `${BASE_PATH}/map?${params.toString()}`;
+};
 const STEP_SLUGS = ["yourDetails", "location", "complaint", "review"] as const;
 
 function Stepper({ step, onJump }: { step: Step; onJump: (target: Step) => void }) {
@@ -267,7 +283,7 @@ function ReviewRow({ label, value, mono }: { label: string; value: ReactNode; mo
   );
 }
 
-function TrackResultCard({ row }: { row: PublicGrievanceStatusResult }) {
+function TrackResultCard({ row, onViewMap }: { row: PublicGrievanceStatusResult; onViewMap: () => void }) {
   const terminated = TERMINATED_CODES.has(row.status_code || "");
   const stage = trackStageIndex(row.status_code);
   const timeline = row.timeline ?? [];
@@ -280,7 +296,19 @@ function TrackResultCard({ row }: { row: PublicGrievanceStatusResult }) {
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-base font-extrabold text-[#0A0A0A]">{row.ticket_no}</span>
-        <StatusBadge status={row.status} code={row.status_code} />
+        <div className="flex items-center gap-2">
+          {row.map && (
+            <button
+              type="button"
+              onClick={onViewMap}
+              className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-[#0A5C36]/25 px-3 py-1 text-xs font-bold text-[#0A5C36] transition hover:bg-[#0A5C36]/5"
+              title={row.map.ticket ? "Show this complaint on the complaint map" : "Show this area on the complaint map"}
+            >
+              <MapPin className="h-3.5 w-3.5" /> View on map
+            </button>
+          )}
+          <StatusBadge status={row.status} code={row.status_code} />
+        </div>
       </div>
 
       <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
@@ -394,7 +422,7 @@ export default function PublicGrievance() {
   const inWizard = segments[1] === "regcomplaint";
   const stepSlug = inWizard ? segments[2] : undefined;
   const slugIndex = stepSlug ? STEP_SLUGS.indexOf(stepSlug as (typeof STEP_SLUGS)[number]) : -1;
-  const view: View = inWizard ? "wizard" : "landing";
+  const view: View = inWizard ? "wizard" : segments[1] === "map" ? "map" : "landing";
   const step: Step = slugIndex >= 0 ? ((slugIndex + 1) as Step) : 1;
 
   const [stepError, setStepError] = useState("");
@@ -767,7 +795,7 @@ export default function PublicGrievance() {
     <main className="fixed inset-0 flex flex-col overflow-hidden bg-[#F5F7F5] text-[#0A0A0A]">
       {/* hero band - royal green with orange accent line */}
       <header className="relative shrink-0 px-4 py-4 text-white sm:py-5" style={{ backgroundColor: ROYAL }}>
-        <div className="mx-auto flex w-full max-w-7xl items-center gap-4">
+        <div className={`mx-auto flex w-full items-center gap-4 ${view === "map" ? "max-w-none" : "max-w-7xl"}`}>
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white p-1.5 shadow-md sm:h-12 sm:w-12">
             <img src={ZigmaLogo} alt="Zigma" className="h-full w-full object-contain" />
           </span>
@@ -776,9 +804,24 @@ export default function PublicGrievance() {
               Public Grievance &amp; Redressal
             </p>
             <h1 className="truncate text-lg font-extrabold sm:text-xl">
-              {view === "landing" ? "We're here to help your city stay clean" : "Report a Waste Management Issue"}
+              {view === "landing"
+                ? "We're here to help your city stay clean"
+                : view === "map"
+                  ? "Complaint Map"
+                  : "Report a Waste Management Issue"}
             </h1>
           </div>
+          {view !== "map" && (
+            <button
+              type="button"
+              onClick={() => navigate(`${BASE_PATH}/map`)}
+              className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-xs font-bold text-[#0A5C36] shadow-sm transition hover:bg-[#FDBA74]/90"
+            >
+              <MapIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Complaint Map</span>
+              <span className="sm:hidden">Map</span>
+            </button>
+          )}
           <div
             className="hidden items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold sm:flex"
             style={{ backgroundColor: "rgba(255,255,255,0.12)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.25)" }}
@@ -796,8 +839,15 @@ export default function PublicGrievance() {
 
       {/* scrollable content */}
       <div className={`relative z-10 w-full min-h-0 flex-1 overflow-y-auto ${noScrollbarClass}`}>
-        <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col px-4 py-5 sm:px-6 sm:py-8">
-          {view === "landing" ? (
+        {/* the complaint map uses the whole width; the other views stay centred */}
+        <div
+          className={`mx-auto flex min-h-full w-full flex-col px-4 py-5 sm:px-6 sm:py-8 ${
+            view === "map" ? "max-w-none lg:px-8" : "max-w-7xl"
+          }`}
+        >
+          {view === "map" ? (
+            <GrievanceMapView onBack={goHome} />
+          ) : view === "landing" ? (
             <motion.div
               variants={staggerParent}
               initial="hidden"
@@ -929,7 +979,11 @@ export default function PublicGrievance() {
                 {statusResults && statusResults.length > 0 && (
                   <div className="mx-auto mt-4 flex w-full max-w-2xl flex-col gap-3">
                     {statusResults.map((row) => (
-                      <TrackResultCard key={row.ticket_no} row={row} />
+                      <TrackResultCard
+                        key={row.ticket_no}
+                        row={row}
+                        onViewMap={() => navigate(complaintMapPath(row))}
+                      />
                     ))}
                   </div>
                 )}
@@ -942,7 +996,7 @@ export default function PublicGrievance() {
                   <p className="shrink-0 text-[11px] font-extrabold uppercase tracking-wider text-black/45">
                     How it works
                   </p>
-                  <ol className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-2">
+                  <ol className="flex flex-1 flex-wrap items-center justify-center gap-x-2.5 gap-y-2">
                     {STEPS.map((item, index) => {
                       const Icon = item.icon;
                       return (
@@ -963,6 +1017,15 @@ export default function PublicGrievance() {
                       );
                     })}
                   </ol>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    // with a complaint tracked above, open the map on it
+                    onClick={() => navigate(complaintMapPath(statusResults?.find((r) => r.map)))}
+                    className={`${primaryBtnClass} h-10 shrink-0 px-5`}
+                  >
+                    <MapPin className="h-4 w-4" /> View Complaint Map
+                  </motion.button>
                 </div>
               </motion.div>
             </motion.div>
@@ -1298,30 +1361,29 @@ export default function PublicGrievance() {
                             placeholder="Nearby landmark or address"
                           />
                         </label>
+                        {/* Read-only: filled only from the device's current location
+                            ("Detect My Location") or the map pin - never typed or
+                            browser-autofilled with old coordinates. */}
                         <label className={labelClass}>
                           Latitude
                           <input
                             value={latitude}
-                            onChange={(event) => {
-                              setLatitude(event.target.value);
-                              setGpsAccuracy(null);
-                            }}
-                            className={`${fieldClass} font-mono`}
-                            inputMode="decimal"
-                            placeholder="0.0000000"
+                            readOnly
+                            autoComplete="off"
+                            tabIndex={-1}
+                            className={`${fieldClass} cursor-default bg-black/[0.03] font-mono`}
+                            placeholder="Tap Detect My Location"
                           />
                         </label>
                         <label className={labelClass}>
                           Longitude
                           <input
                             value={longitude}
-                            onChange={(event) => {
-                              setLongitude(event.target.value);
-                              setGpsAccuracy(null);
-                            }}
-                            className={`${fieldClass} font-mono`}
-                            inputMode="decimal"
-                            placeholder="0.0000000"
+                            readOnly
+                            autoComplete="off"
+                            tabIndex={-1}
+                            className={`${fieldClass} cursor-default bg-black/[0.03] font-mono`}
+                            placeholder="Tap Detect My Location"
                           />
                         </label>
                       </div>

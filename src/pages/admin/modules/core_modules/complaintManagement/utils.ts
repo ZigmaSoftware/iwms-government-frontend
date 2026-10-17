@@ -27,3 +27,24 @@ export const errorText = (error: unknown, fallback = "Request failed") => {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
 };
+
+/** "govt_panchayat_supervisor" -> "Panchayat Supervisor". */
+export const roleLabel = (name?: string | null) =>
+  (name || "")
+    .replace(/^govt_/i, "")
+    .split("_")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+
+/** Compact "2h 15m" / "3d 4h" style duration for a number of seconds. */
+export const formatDuration = (totalSeconds: number) => {
+  const seconds = Math.abs(Math.round(totalSeconds));
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days) return `${days}d ${hours}h`;
+  if (hours) return `${hours}h ${minutes}m`;
+  if (minutes) return `${minutes}m`;
+  return `${seconds % 60}s`;
+};

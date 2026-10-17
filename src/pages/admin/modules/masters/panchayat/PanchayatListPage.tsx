@@ -10,9 +10,10 @@ import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { panchayatApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type PanchayatListRecord = {
   unique_id: string;
@@ -38,7 +39,6 @@ const columns = [
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
   { field: "panchayat_name", header: "Panchayat Name" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function PanchayatListPage() {
@@ -105,7 +105,8 @@ export default function PanchayatListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await panchayatApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    panchayatApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: PanchayatListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -131,19 +132,11 @@ export default function PanchayatListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await panchayatApi.delete(id);
+      await panchayatApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -171,12 +164,14 @@ export default function PanchayatListPage() {
         title="Panchayat"
         subtitle="Manage Panchayat records"
         actions={
-          <Button
-            label="Add Panchayat"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Panchayat"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -206,7 +201,7 @@ export default function PanchayatListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Panchayat records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
@@ -216,11 +211,7 @@ export default function PanchayatListPage() {
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: PanchayatListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : displayValue(row[column.field])
-            }
+            body={(row: PanchayatListRecord) => displayValue(row[column.field])}
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

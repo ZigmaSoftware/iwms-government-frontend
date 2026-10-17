@@ -17,7 +17,8 @@ export type EncryptedRoutes = {
   encComplaintPriorities: string;
   encComplaintStatuses: string;
   encComplaintSources: string;
-  encComplaintTeams: string;
+  encMyTasks: string;
+  encComplaintsReport: string;
   encComplaintSlaRules: string;
   encContinents: string;
   encCountries: string;
@@ -42,7 +43,6 @@ export type EncryptedRoutes = {
   encDailyOperations: string;
   encStaffTemplate: string;
   encAlternativeStaffTemplate: string;
-  encStaffTemplateAudit: string;
   encMonthlyDistance: string;
   encProperties: string;
   encReport: string;
@@ -52,6 +52,7 @@ export type EncryptedRoutes = {
   encCustomerAccessConfiguration: string;
   encStaffAccessDashboard: string;
   encStaffUserType: string;
+  encStaffHierarchy: string;
   encStates: string;
   encSubProperties: string;
   encTripSummary: string;
@@ -89,13 +90,10 @@ export type EncryptedRoutes = {
   encTripRetripRequest: string;
   encSchedulerConfig: string;
   encDailyWasteComparison: string;
-  encBinLoadLog: string;
   encCustomerTag: string;
   encHouseholdPickupEvent: string;
   encUnassignedStaffPool: string;
   encTripAttendance: string;
-  encVehicleTripAudit: string;
-  encTripExceptionLog: string;
 
   // dashboard
   encDashboardOverall: string;
@@ -115,7 +113,8 @@ export type EncryptedRoutes = {
   encLoginAudits: string;
   encApprovalHistory: string;
   encPermissionAudit: string;
-  encStaffChangeRequests: string;
+  encComplaintAudit: string;
+  encAuditDashboard: string;
   encProjectCreation: string;
   encSuperAdminMaster: string;
   encCommonMasters: string;
@@ -154,7 +153,8 @@ const plainRoutes: EncryptedRoutes = {
   encComplaintPriorities: "priorities",
   encComplaintStatuses: "statuses",
   encComplaintSources: "sources",
-  encComplaintTeams: "teams",
+  encMyTasks: "my-tasks",
+  encComplaintsReport: "complaints-report",
   encComplaintSlaRules: "sla-rules",
   encContinents: "continents",
   encCountries: "countries",
@@ -173,7 +173,8 @@ const plainRoutes: EncryptedRoutes = {
   encLoginAudits: "login-audits",
   encApprovalHistory: "approval-history",
   encPermissionAudit: "permission-audit",
-  encStaffChangeRequests: "staff-change-requests",
+  encComplaintAudit: "complaint-audit",
+  encAuditDashboard: "audit-dashboard",
   encProjectCreation: "project-creation",
   encDistricts: "districts",
   encFeedback: "feedback",
@@ -190,7 +191,6 @@ const plainRoutes: EncryptedRoutes = {
   encDailyOperations: "schedule-operations",
   encStaffTemplate: "staff-template",
   encAlternativeStaffTemplate: "alternative-staff-template",
-  encStaffTemplateAudit: "staff-template-audit",
   encMonthlyDistance: "monthly-distance",
   encProperties: "properties",
   encReport: "reports",
@@ -200,6 +200,7 @@ const plainRoutes: EncryptedRoutes = {
   encCustomerAccessConfiguration: "customer-access-configuration",
   encStaffAccessDashboard: "staff-access-dashboard",
   encStaffUserType: "staff-user-type",
+  encStaffHierarchy: "staff-hierarchy",
   encStates: "states",
   encSubProperties: "sub-properties",
   encTripSummary: "trip-summary",
@@ -237,13 +238,10 @@ const plainRoutes: EncryptedRoutes = {
   encTripRetripRequest: "retrip-requests",
   encSchedulerConfig: "scheduler-config",
   encDailyWasteComparison: "daily-waste-comparisons",
-  encBinLoadLog: "bin-load-log",
   encCustomerTag: "customer-tag",
   encHouseholdPickupEvent: "household-pickup-event",
   encUnassignedStaffPool: "unassigned-staff-pool",
   encTripAttendance: "trip-attendance",
-  encVehicleTripAudit: "vehicle-trip-audit",
-  encTripExceptionLog: "trip-exception-log",
 
   // palakkad
 

@@ -17,6 +17,9 @@ import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
 import type { UserScreen } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes"; 
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 export default function UserScreenList() {
   const { t } = useTranslation();
@@ -25,6 +28,7 @@ export default function UserScreenList() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const status = useStatusFilter();
   const [filters, setFilters] = useState({
     global: { value: null as string | null, matchMode: FilterMatchMode.CONTAINS },
     userscreen_name: { value: null as string | null, matchMode: FilterMatchMode.STARTS_WITH },
@@ -99,19 +103,11 @@ export default function UserScreenList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await userScreenApi.delete(id);
+      await userScreenApi.delete(id, withDeleteReason(reason));
       setScreens((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -142,20 +138,23 @@ export default function UserScreenList() {
             item: t("admin.nav.user_screen"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.nav.user_screen"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.nav.user_screen"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />
 
         <DataTable
-          value={screens}
+          filterPanel={combineFilters(status)}
+          value={screens.filter(status.matches)}
           paginator
           rows={10}
           loading={isLoading}

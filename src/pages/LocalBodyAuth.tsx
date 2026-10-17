@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api";
 import { useToast } from "@/hooks/use-toast";
+import { useSessionEndedToast } from "@/hooks/useSessionEndedToast";
+import { startLoginSession } from "@/utils/loginSession";
 import { Eye, EyeOff, Lock, User, Building2, Leaf, AlertCircle } from "lucide-react";
 import ZigmaLogo from "../images/logo.png";
 import AnimatedLoginScene from "@/components/auth/AnimatedLoginScene";
@@ -43,6 +45,7 @@ export default function LocalBodyAuth() {
 
   const navigate = useNavigate();
   const { toast } = useToast();
+  useSessionEndedToast();
 
   useEffect(() => {
     if (localStorage.getItem("lb_access_token")) {
@@ -93,6 +96,7 @@ export default function LocalBodyAuth() {
       const lbToken = payload.access_token ?? payload.access ?? "";
       if (lbToken) {
         localStorage.setItem("lb_access_token", lbToken);
+        startLoginSession("lb_access_token");
       }
 
       // Store panchayat context for the dashboard

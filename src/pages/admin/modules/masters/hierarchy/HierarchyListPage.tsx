@@ -16,6 +16,9 @@ import notify from "@/lib/notify";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 
 const HIERARCHY_COLUMN_FIELDS: Record<string, string[]> = {
@@ -71,6 +74,7 @@ export default function HierarchyListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
     "masters",
     "hierarchies",
@@ -89,6 +93,7 @@ export default function HierarchyListPage() {
     try {
       const response = await adminApi.hierarchies.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -115,7 +120,7 @@ export default function HierarchyListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -136,7 +141,8 @@ export default function HierarchyListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await adminApi.hierarchies.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    adminApi.hierarchies.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const statusTemplate = (row: HierarchyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -178,19 +184,11 @@ export default function HierarchyListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await adminApi.hierarchies.delete(id);
+      await adminApi.hierarchies.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -230,12 +228,14 @@ export default function HierarchyListPage() {
           item: t("admin.nav.hierarchy"),
         })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.hierarchy") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -269,7 +269,8 @@ export default function HierarchyListPage() {
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.hierarchy"),
         })}
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
+        filterPanel={combineFilters(status)}
         className="p-datatable-sm"
       >
         <Column

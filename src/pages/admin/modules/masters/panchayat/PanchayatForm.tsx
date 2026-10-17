@@ -1,6 +1,5 @@
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { capitalize } from "@/utils/capitalize";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
@@ -10,13 +9,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { adminApi } from "@/helpers/admin/registry";
 import { stateApi, districtApi, areaTypeApi } from "@/helpers/admin";
@@ -244,25 +237,19 @@ function PanchayatEditor({
               State <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="stateId"
               value={stateId}
-              onValueChange={(value) => {
+              onChange={(value) => {
                 setStateId(value);
                 setDistrictId("");
                 setAreaTypeId("");
               }}
+              options={states}
+              placeholder="Select State"
+              className="input-validate w-full"
               disabled={isSubmitting || stateScope.mode === "locked"}
-            >
-              <SelectTrigger className="input-validate w-full" id="stateId">
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -272,24 +259,18 @@ function PanchayatEditor({
               District <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="districtId"
               value={districtId}
-              onValueChange={(value) => {
+              onChange={(value) => {
                 setDistrictId(value);
                 setAreaTypeId("");
               }}
+              options={filteredDistricts}
+              placeholder="Select District"
+              className="input-validate w-full"
               disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
-            >
-              <SelectTrigger className="input-validate w-full" id="districtId">
-                <SelectValue placeholder="Select District" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredDistricts.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -299,21 +280,15 @@ function PanchayatEditor({
               Area Type <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="areaTypeId"
               value={areaTypeId}
-              onValueChange={setAreaTypeId}
+              onChange={setAreaTypeId}
+              options={filteredAreaTypes}
+              placeholder="Select Area Type"
+              className="input-validate w-full"
               disabled={isSubmitting || !districtId || areaTypeScope.mode === "locked"}
-            >
-              <SelectTrigger className="input-validate w-full" id="areaTypeId">
-                <SelectValue placeholder="Select Area Type" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredAreaTypes.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -345,18 +320,18 @@ function PanchayatEditor({
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="isActive"
               value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
+              onChange={(value) => setIsActive(value === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="input-validate w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
       </div>

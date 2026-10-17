@@ -18,11 +18,13 @@ import { capitalize } from "@/utils/capitalize";
 import type { WasteTypeListRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const WASTE_TYPE_COLUMN_FIELDS: Record<string, string[]> = {
   waste_type_name: ["waste_type_name", "name"],
   is_active: ["is_active"],
-  default_team: ["default_team"],
 };
 
 const SORTABLE_FIELDS = new Set(["waste_type_name"]);
@@ -49,6 +51,7 @@ export default function WasteTypeListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const { encWasteMasters, encWasteTypes } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -67,6 +70,7 @@ export default function WasteTypeListPage() {
     try {
       const response = await wasteTypeApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -95,7 +99,7 @@ export default function WasteTypeListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -116,7 +120,8 @@ export default function WasteTypeListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await wasteTypeApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    wasteTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (
     _: WasteTypeListRecord,
@@ -124,19 +129,11 @@ export default function WasteTypeListPage() {
   ) => rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await wasteTypeApi.delete(id);
+      await wasteTypeApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -202,17 +199,20 @@ export default function WasteTypeListPage() {
         title={t("common.waste_type")}
         subtitle={t("common.manage_item_records", { item: t("common.waste_type") })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("common.waste_type") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("common.waste_type") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
 
       <DataTable
+        filterPanel={combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -239,7 +239,7 @@ export default function WasteTypeListPage() {
         stripedRows
         showGridlines
         className="p-datatable-sm"
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         emptyMessage={t("common.no_items_found", {
           item: t("common.waste_type"),
         })}
@@ -261,12 +261,6 @@ export default function WasteTypeListPage() {
             header={t("common.item_name", { item: t("common.waste_type") })}
             sortable
             body={(row: WasteTypeListRecord) => capitalize(row.waste_type_name)}
-          />
-        )}
-        {showCol("default_team") && (
-          <Column
-            header="Default Team"
-            body={(row: WasteTypeListRecord) => row.default_team_name || "-"}
           />
         )}
         {showCol("is_active") && (

@@ -65,6 +65,7 @@ export const contractorRoleTypesApi = adminApi.contractorRoleTypes;
 export const governmentUserTypeApi = adminApi.governmentUserTypes;
 export const governmentRoleTypesApi = adminApi.governmentRoleTypes;
 export const governmentLevelTypesApi = adminApi.governmentLevelTypes;
+export const staffHierarchyApi = adminApi.staffHierarchy;
 
 /* =========================
    USER CREATION
@@ -107,7 +108,6 @@ export const complaintPriorityApi = adminApi.complaintPriorities;
 export const complaintStatusApi = adminApi.complaintStatuses;
 export const complaintSourceApi = adminApi.complaintSources;
 export const complaintLanguageApi = adminApi.complaintLanguages;
-export const complaintTeamApi = adminApi.complaintTeams;
 export const complaintSlaRuleApi = adminApi.complaintSlaRules;
 export const complaintRoutingRuleApi = adminApi.complaintRoutingRules;
 export const complaintFeedbackApi = adminApi.complaintFeedback;
@@ -132,14 +132,8 @@ export const dailyWasteComparisonApi = adminApi.dailyWasteComparison;
 /* =========================
    AUDITS
 ========================= */
-export const vehicleTripAuditApi = adminApi.vehicleTripAudits;
-export const tripExceptionLogApi = adminApi.tripExceptionLogs;
-export const binLoadLogApi = adminApi.binLoadLogs;
-export const staffTemplateAuditLogApi = adminApi.staffTemplateAuditLogs;
 export const commonAuditApi = adminApi.commonAudits;
-export const staffAuditApi = adminApi.staffAudits;
 export const permissionAuditApi = adminApi.permissionAudits;
-export const staffChangeRequestApi = adminApi.staffChangeRequests;
 export const monthlyWasteComparisonApi = adminApi.monthlyWasteComparison;
 
 /* =========================

@@ -2,12 +2,11 @@ import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from "r
 import { useNavigate, useLocation } from "react-router-dom";
 import { api } from "@/api";
 import { useToast } from "@/hooks/use-toast";
+import { useSessionEndedToast } from "@/hooks/useSessionEndedToast";
 import { useTranslation } from "react-i18next";
 import { useUser } from "@/contexts/UserContext";
 import { usePermission } from "@/contexts/PermissionContext";
 import {
-  DEFAULT_ROLE,
-  normalizeRole,
   setAdminViewPreference,
   clearAdminViewPreference,
   ADMIN_VIEW_MODE_ADMIN,
@@ -18,10 +17,14 @@ import {
   getStoredPermissions,
 } from "@/utils/permissions";
 import {
+  clearAuthSession,
   persistLoginSession,
+  persistPermissions,
   unwrapLoginPayload,
   type LoginEnvelope,
+  type PermissionsPayload,
 } from "@/utils/authStorage";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { toNotifyMessage } from "@/lib/zodErrors";
 import { loginSchema } from "@/schemas/auth.schema";
 import {
@@ -103,6 +106,8 @@ export default function Auth() {
   const { t } = useTranslation();
   const { setUser } = useUser();
 
+  useSessionEndedToast();
+
   // Show success toast once when redirected from reset-password
   useEffect(() => {
     const successMessage = (location.state as { successMessage?: string } | null)?.successMessage;
@@ -153,8 +158,18 @@ export default function Auth() {
       const payload = unwrapLoginPayload(res.data);
       persistLoginSession(payload);
 
-      const normalizedRole =
-        normalizeRole(payload.user?.role ?? payload.role ?? null) ?? DEFAULT_ROLE;
+      // The login response carries no permissions — fetch them with the new
+      // token. Without them the session is unusable, so undo it on failure.
+      try {
+        const { data: permissionPayload } = await api.get<PermissionsPayload>(
+          `/${adminEndpoints.userpermission}/`,
+        );
+        persistPermissions(permissionPayload);
+      } catch (error) {
+        clearAuthSession();
+        throw error;
+      }
+
       const freshPermissions = getStoredPermissions();
       updatePermissions(freshPermissions, getStoredColumnPermissions());
 
@@ -169,11 +184,8 @@ export default function Auth() {
         email: payload.user?.email ?? payload.email ?? "",
       });
 
-      // Check admin access by role name OR by any permission granted by superadmin
-      const hasAdminAccess =
-        isAdmin(normalizedRole) ||
-        hasAnyPermission(freshPermissions) ||
-        hasAnyPermission((payload.permissions ?? {}) as Record<string, unknown>);
+      // Admin per the backend's is_admin flag, OR any permission granted by superadmin
+      const hasAdminAccess = isAdmin() || hasAnyPermission(freshPermissions);
 
       if (hasAdminAccess) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);

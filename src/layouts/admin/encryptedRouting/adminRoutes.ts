@@ -74,10 +74,6 @@ const TripPlanList = lazy(() => import("@/pages/admin/modules/core_modules/sched
 const TripPlanForm = lazy(() => import("@/pages/admin/modules/core_modules/scheduleSetup/tripPlan/tripPlanForm"));
 const TripAttendanceList = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripAttendance/tripAttendanceList"));
 const TripAttendanceForm = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripAttendance/tripAttendanceForm"));
-const VehicleTripAuditList = lazy(() => import("@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditList"));
-const VehicleTripAuditForm = lazy(() => import("@/pages/admin/modules/masters/transportMasters/vehicleTripAudit/vehicleTripAuditForm"));
-const TripExceptionLogList = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogList"));
-const TripExceptionLogForm = lazy(() => import("@/pages/admin/modules/masters/transportMasters/tripExceptionLog/tripExceptionLogForm"));
 const DailyTripAssignmentList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentList"));
 const DailyTripAssignmentForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripAssignment/dailyTripAssignmentForm"));
 const DailyTripTracking = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/dailyTripTracking/DailyTripTracking"));
@@ -87,6 +83,8 @@ const WasteCollectedDataList = lazy(() => import("@/pages/admin/modules/core_mod
 const WasteCollectedForm = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/wasteCollectedData/wasteCollectedDataForm"));
 const StaffUserTypeForm = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeForm"));
 const StaffUserTypeList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffUserType/staffUserTypeList"));
+const StaffHierarchyForm = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffHierarchy/staffHierarchyForm"));
+const StaffHierarchyList = lazy(() => import("@/pages/admin/modules/superadmin/roleManagement/staffHierarchy/staffHierarchyList"));
 const CategoryList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/category/CategoryList"));
 const CategoryForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/category/CategoryForm"));
 const SubcategoryList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/subcategory/SubcategoryList"));
@@ -99,8 +97,8 @@ const StatusList = lazy(() => import("@/pages/admin/modules/core_modules/complai
 const StatusForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/StatusForm"));
 const SourceList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SourceList"));
 const SourceForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SourceForm"));
-const TeamList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/TeamList"));
-const TeamForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/TeamForm"));
+const MyTasks = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/dashboard/MyTasks"));
+const ComplaintsReportPage = lazy(() => import("@/pages/admin/modules/reports/complaintReports/ComplaintsReportPage"));
 const SlaRuleList = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleList"));
 const SlaRuleForm = lazy(() => import("@/pages/admin/modules/core_modules/complaintManagement/masters/SlaRuleForm"));
 const MainScreenTypeList = lazy(() => import("@/pages/admin/modules/superadmin/screenManagement/mainScreenType/mainScreenTypeList"));
@@ -124,12 +122,11 @@ const VehicleBreakdownForm = lazy(() => import("@/pages/admin/modules/core_modul
 const TripRetripRequestList = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/tripRetripRequest/tripRetripRequestList"));
 const SchedulerConfigPage = lazy(() => import("@/pages/admin/modules/core_modules/dailyOperations/schedulerConfig/SchedulerConfigPage"));
 const DailyWasteComparisonList = lazy(() => import("@/pages/admin/modules/reports/wasteReports/dailyWasteComparison/dailyWasteComparisonList"));
-const StaffTemplateAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditList"));
-const StaffTemplateAuditForm = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffTemplateAudit/staffTemplateAuditForm"));
 const CommonAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/commonAudit/commonAuditList"));
 const LoginAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/loginAudit/loginAuditList"));
 const PermissionAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/permissionAudit/permissionAuditList"));
-const StaffChangeRequestList = lazy(() => import("@/pages/admin/modules/superadmin/audits/staffChangeRequest/staffChangeRequestList"));
+const ComplaintAuditList = lazy(() => import("@/pages/admin/modules/superadmin/audits/complaintAudit/ComplaintAuditList"));
+const AuditDashboard = lazy(() => import("@/pages/admin/modules/superadmin/audits/auditDashboard/AuditDashboard"));
 const UnassignedStaffPoolList = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolList"));
 const UnassignedStaffPoolForm = lazy(() => import("@/pages/admin/modules/superadmin/userManagement/unassignedStaffPool/unassignedStaffPoolForm"));
 const DailyAttendanceRegList = lazy(() => import("@/pages/admin/modules/core_modules/attendance/DailyAttendanceRegList"));
@@ -173,6 +170,7 @@ export const ROUTES: RouteMap = {
   "role-management": {
     "user-type": { list: UserTypeList, form: UserTypeForm },
     "staff-user-type": { list: StaffUserTypeList, form: StaffUserTypeForm },
+    "staff-hierarchy": { list: StaffHierarchyList, form: StaffHierarchyForm },
   },
   "common-masters": {
     continents: { list: ContinentList, form: ContinentForm },
@@ -212,8 +210,6 @@ export const ROUTES: RouteMap = {
     "vehicle-type": { list: VehicleTypeCreation, form: VehicleTypeCreationForm },
     "vehicle-creation": { list: VehicleCreationListPage, form: VehicleCreationForm },
     "trip-attendance": { list: TripAttendanceList, form: TripAttendanceForm },
-    "vehicle-trip-audit": { list: VehicleTripAuditList, form: VehicleTripAuditForm },
-    "trip-exception-log": { list: TripExceptionLogList, form: TripExceptionLogForm },
   },
   "schedule-setup": {
     "staff-template": {list: StaffTemplateList, form: StaffTemplateForm},
@@ -253,11 +249,13 @@ export const ROUTES: RouteMap = {
     priorities: { list: PriorityList, form: PriorityForm },
     statuses: { list: StatusList, form: StatusForm },
     sources: { list: SourceList, form: SourceForm },
-    teams: { list: TeamList, form: TeamForm },
+    "my-tasks": { list: MyTasks },
+    "complaints-report": { list: ComplaintsReportPage },
     "sla-rules": { list: SlaRuleList, form: SlaRuleForm },
     feedback: { list: FeedbackList },
   },
   audits: {
+    "audit-dashboard": { component: AuditDashboard },
     "common-audit": { list: CommonAuditList },
     // Both folded into Transaction Audit (commonAuditList.tsx handles
     // hierarchy auto-scoping and an "Approvals only" toggle itself now) —
@@ -267,9 +265,8 @@ export const ROUTES: RouteMap = {
     "approval-history": { list: CommonAuditList },
     "login-audit": { list: LoginAuditList },
     "login-audits": { list: LoginAuditList },
-    "staff-template-audit": { list: StaffTemplateAuditList, form: StaffTemplateAuditForm },
     "permission-audit": { list: PermissionAuditList },
-    "staff-change-requests": { list: StaffChangeRequestList },
+    "complaint-audit": { list: ComplaintAuditList },
   },
   reports: {
     "monthly-waste-comparison": { list: MonthlyWasteComparisonListPage },
@@ -331,6 +328,7 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   "user-type": ["user-type"],
   "staff-user-type": ["staff-user-type"],
   staffusertypes: ["staff-user-type"],
+  "staff-hierarchy": ["staff-hierarchy"],
 
   // Staff management
   staffcreation: ["staff-creation"],
@@ -380,7 +378,8 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   priorities: ["priorities"],
   statuses: ["statuses"],
   sources: ["sources"],
-  teams: ["teams"],
+  "my-tasks": ["my-tasks"],
+  "complaints-report": ["complaints-report"],
   feedback: ["feedback", "feedbacks"],
   feedbacks: ["feedback"],
   "sla-rules": ["sla-rules", "sla-rule", "sla_rules", "slaRules", "slarules", "sla"],
@@ -396,8 +395,6 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   fuels: ["fuel"],
   fuel: ["fuel"],
   "trip-attendance": ["trip-attendance"],
-  "vehicle-trip-audit": ["vehicle-trip-audit"],
-  "trip-exception-log": ["trip-exception-log"],
 
   // Schedule setup
   "staff-templates": ["staff-template"],
@@ -437,7 +434,6 @@ export const MODULE_ALIASES: Record<string, string[]> = {
   "common-audit": ["common-audit"],
   "approval-history": ["approval-history"],
   "permission-audit": ["permission-audit"],
-  "staff-change-requests": ["staff-change-requests"],
 
   // Leader login
   "plb-leader-creation": ["plb-leader-creation"],

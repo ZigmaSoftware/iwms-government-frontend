@@ -2,14 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { capitalize } from "@/utils/capitalize";
+import Select from "@/components/form/Select";
 import GeoFenceCoordinates from "../../shared/GeoFenceCoordinates";
 
 import { useAreaTypeFields } from "./useAreaType";
@@ -67,24 +60,18 @@ export default function AreaTypeFields({
               State <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="stateId"
               value={stateId}
-              onValueChange={(value) => {
+              onChange={(value) => {
                 setStateId(value);
                 setDistrictId("");
               }}
+              options={states}
+              placeholder="Select State"
+              className="input-validate w-full"
               disabled={isSubmitting || stateScope.mode === "locked"}
-            >
-              <SelectTrigger className="input-validate w-full" id="stateId">
-                <SelectValue placeholder="Select State" />
-              </SelectTrigger>
-              <SelectContent>
-                {states.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -94,21 +81,15 @@ export default function AreaTypeFields({
               District <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="districtId"
               value={districtId}
-              onValueChange={setDistrictId}
+              onChange={setDistrictId}
+              options={filteredDistricts}
+              placeholder="Select District"
+              className="input-validate w-full"
               disabled={isSubmitting || !stateId || districtScope.mode === "locked"}
-            >
-              <SelectTrigger className="input-validate w-full" id="districtId">
-                <SelectValue placeholder="Select District" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredDistricts.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {capitalize(item.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
 
@@ -117,15 +98,19 @@ export default function AreaTypeFields({
             <Label htmlFor="areaTypeName">
               Area Type <span className="text-red-500">*</span>
             </Label>
-            <Select value={name} onValueChange={setName} disabled={isSubmitting}>
-              <SelectTrigger className="input-validate w-full" id="areaTypeName">
-                <SelectValue placeholder="Select Area Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Urban Local Body">Urban Local Body</SelectItem>
-                <SelectItem value="Rural Local Body">Rural Local Body</SelectItem>
-              </SelectContent>
-            </Select>
+            <Select
+              id="areaTypeName"
+              value={name}
+              onChange={setName}
+              options={[
+                { value: "Urban Local Body", label: "Urban Local Body" },
+                { value: "Rural Local Body", label: "Rural Local Body" },
+              ]}
+              placeholder="Select Area Type"
+              className="input-validate w-full"
+              disabled={isSubmitting}
+              required
+            />
           </div>
         )}
 
@@ -139,18 +124,18 @@ export default function AreaTypeFields({
               {t("common.status")} <span className="text-red-500">*</span>
             </Label>
             <Select
+              id="isActive"
               value={isActive ? "true" : "false"}
-              onValueChange={(value) => setIsActive(value === "true")}
+              onChange={(value) => setIsActive(value === "true")}
+              options={[
+                { value: "true", label: t("common.active") },
+                { value: "false", label: t("common.inactive") },
+              ]}
+              placeholder={t("common.select_status")}
+              className="input-validate w-full"
               disabled={isSubmitting}
-            >
-              <SelectTrigger className="input-validate w-full" id="isActive">
-                <SelectValue placeholder={t("common.select_status")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="true">{t("common.active")}</SelectItem>
-                <SelectItem value="false">{t("common.inactive")}</SelectItem>
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
       </div>

@@ -5,10 +5,12 @@ import { Switch } from "@/components/ui/switch";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { combineFilters } from "@/components/filters/useOptionFilter";
 
 import { useDepartmentList } from "./useDepartment.list";
 import { SORTABLE_FIELDS } from "./department.list.functionality";
 import type { DepartmentListRecord } from "./department.list.types";
+import { Can } from "@/contexts/ScreenPermissionContext";
 
 export default function DepartmentListPage() {
   const {
@@ -24,6 +26,7 @@ export default function DepartmentListPage() {
     onPage,
     onSort,
     onExportRequest,
+    status,
     onToggleStatus,
     onDelete,
     navigateToNew,
@@ -36,7 +39,9 @@ export default function DepartmentListPage() {
         title="Department Master"
         subtitle="Manage department records"
         actions={
-          <Button label="Add Department" icon="pi pi-plus" className="p-button-success" onClick={navigateToNew} />
+          <Can action="add">
+            <Button label="Add Department" icon="pi pi-plus" className="p-button-success" onClick={navigateToNew} />
+          </Can>
         }
         className="mb-6"
       />
@@ -54,6 +59,7 @@ export default function DepartmentListPage() {
         onSort={onSort}
         loading={isLoading}
         onExportRequest={onExportRequest}
+        filterPanel={combineFilters(status)}
         header={
           <FilterBar
             searchValue={globalFilterValue}

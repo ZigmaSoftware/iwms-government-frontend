@@ -1,5 +1,7 @@
 export default {
   "common": {
+    "access_denied_title": "அணுகல் மறுக்கப்பட்டது",
+    "access_denied_message": "இந்தப் பக்கத்தைத் திறக்க உங்களுக்கு அனுமதி இல்லை. பணியாளர் அணுகல் கட்டமைப்பில் இதை வழங்க உங்கள் நிர்வாகியிடம் கேளுங்கள்.",
     "appName": "ஒன்றுபட்ட கழிவு மேலாண்மை அமைப்பு",
     "language_en": "English",
     "language_ta": "தமிழ்",
@@ -92,6 +94,9 @@ export default {
     "confirm_title": "நீங்கள் உறுதியாக இருக்கிறீர்களா?",
     "confirm_delete_text": "இந்த பதிவு நிரந்தரமாக அழிக்கப்படும்!",
     "confirm_delete_button": "ஆம், அழிக்கவும்!",
+    "delete_reason_label": "நீக்குவதற்கான காரணம்",
+    "delete_reason_placeholder": "இந்த பதிவு ஏன் நீக்கப்படுகிறது என்பதை உள்ளிடவும்",
+    "delete_reason_required": "நீக்குவதற்கான காரணத்தை உள்ளிடவும்.",
     "deleted_success": "வெற்றிகரமாக நீக்கப்பட்டது!",
     "updated_success": "வெற்றிகரமாக புதுப்பிக்கப்பட்டது!",
     "added_success": "வெற்றிகரமாக சேர்க்கப்பட்டது!",
@@ -105,6 +110,7 @@ export default {
     "invalid_data": "தவறான தரவு",
     "update_status_failed": "நிலையை புதுப்பிக்க முடியவில்லை",
     "fetch_failed": "தரவை பெற முடியவில்லை",
+    "page_report": "{totalRecords} பதிவுகளில் {first}–{last}",
     "delete_failed": "அழித்தல் தோல்வியடைந்தது",
     "record_removed": "பதிவு வெற்றிகரமாக நீக்கப்பட்டது",
     "select_item_placeholder": "{{item}} தேர்ந்தெடுக்கவும்",

@@ -19,6 +19,10 @@ import { formatCoordinates } from "../../../masters/shared/formatCoordinates";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 
 const toDisplay = (value: unknown): string =>
@@ -89,6 +93,10 @@ export default function CollectionPointListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const { encScheduleSetup, encCollectionPoints } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -107,6 +115,7 @@ export default function CollectionPointListPage() {
     try {
       const response = await collectionPointApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -133,7 +142,7 @@ export default function CollectionPointListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   const displayRows = rows.map((row) => {
     const ulb = resolveLocalBody(row, ULB_LEVELS);
@@ -170,19 +179,11 @@ export default function CollectionPointListPage() {
   const indexTemplate = (_: CollectionPointRecord, { rowIndex }: { rowIndex: number }) => rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await collectionPointApi.delete(id);
+      await collectionPointApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -246,12 +247,14 @@ export default function CollectionPointListPage() {
         title={t("admin.nav.collection_point")}
         subtitle={t("common.manage_item_records", { item: t("admin.nav.collection_point") })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.collection_point") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.collection_point") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -270,6 +273,7 @@ export default function CollectionPointListPage() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
+        filterPanel={combineFilters(geo, status)}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -350,19 +354,6 @@ export default function CollectionPointListPage() {
         )}
         {showCol("longitude") && (
           <Column field="longitude" header="Longitude" body={(row: CollectionPointRecord) => toDisplay(row.longitude)} />
-        )}
-        {showCol("coordinates") && (
-          <Column
-            field="coordinates"
-            header="Coordinates"
-            body={(row: CollectionPointRecord) =>
-              formatCoordinates(row.coordinates, {
-                latitude: row.latitude,
-                longitude: row.longitude,
-              })
-            }
-            style={{ minWidth: "240px" }}
-          />
         )}
         {showCol("is_active") && (
           <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />

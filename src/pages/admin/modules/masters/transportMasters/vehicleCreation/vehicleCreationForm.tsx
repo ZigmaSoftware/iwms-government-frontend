@@ -442,9 +442,9 @@ export default function VehicleCreationForm() {
         }
 
         if (isEdit && id) {
-          await adminApi.vehicleCreations.update(id, formBody);
+          await adminApi.vehicleCreations.uploadUpdate(id, formBody);
         } else {
-          await adminApi.vehicleCreations.create(formBody);
+          await adminApi.vehicleCreations.upload(formBody);
         }
       } else if (isEdit && id) {
         // JSON update — include file removal flags if needed

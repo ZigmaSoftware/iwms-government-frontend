@@ -61,7 +61,6 @@ const ALTERNATIVE_STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
   extra_operator: ["extra_operator", "extra_operator_id", "extra_staff"],
   change_reason: ["change_reason"],
   change_remarks: ["change_remarks", "remarks"],
-  approval_status: ["approval_status"],
   display_code: ["display_code"],
 };
 
@@ -334,7 +333,6 @@ export default function AlternativeStaffTemplateForm() {
           extra_operator: extraOperatorIds,
           change_reason: rec.change_reason ?? "",
           change_remarks: rec.change_remarks ?? "",
-          approval_status: rec.approval_status,
           display_code: rec.display_code,
         });
         setStaffTemplateOptions((items) =>
@@ -475,15 +473,6 @@ export default function AlternativeStaffTemplateForm() {
     const validation = alternativeStaffTemplateSchema.safeParse(formData);
     if (!validation.success) {
       notify.fire("Invalid details", toNotifyMessage(validation.error), "warning");
-      return;
-    }
-
-    if (
-      showField("approval_status") &&
-      isEdit &&
-      formData.approval_status === "APPROVED"
-    ) {
-      notify.fire("Warning", "Approved records cannot be modified.", "warning");
       return;
     }
 

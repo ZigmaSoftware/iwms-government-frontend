@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { MultiSelect } from "@/components/form/MultiSelect";
+import Select from "@/components/form/Select";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,6 @@ import LocationFields, {
   type GeoLocationValue,
 } from "../../../masters/shared/LocationHierarchyFields";
 import { mergeWithScopeOptionExtra, scopeFieldState } from "../../../masters/shared/dataScopeOptions";
-import { capitalize } from "@/utils/capitalize";
 
 type ApiRecord = Record<string, unknown>;
 type Option = { value: string; label: string };
@@ -367,15 +367,14 @@ export default function CollectionPointForm() {
         </div>
         <div>
           <Label>Collection Type *</Label>
-          <select
-            className="h-10 w-full rounded-md border px-3 text-sm"
+          <Select
             value={collectionType}
-            onChange={(e) => setCollectionType(e.target.value)}
-          >
-            {COLLECTION_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
+            onChange={(v) => setCollectionType(v)}
+            options={COLLECTION_TYPE_OPTIONS}
+            placeholder="Select Collection Type"
+            className="w-full"
+            required
+          />
         </div>
         {/* <div>
           <Label>Latitude</Label>
@@ -401,29 +400,21 @@ export default function CollectionPointForm() {
           <div className="space-y-3">
             {bins.map((bin) => (
               <div key={bin.key} className="grid gap-3 md:grid-cols-[2fr_2fr_1fr_1fr_1.5fr_auto_auto]">
-                <select
-                  className="h-10 w-full rounded-md border px-3 text-sm"
+                <Select
                   value={bin.wastetype_id}
-                  onChange={(e) => updateBin(bin.key, { wastetype_id: e.target.value })}
-                >
-                  <option value="">Select Waste Type</option>
-                  {wasteTypes.map((option) => (
-                    <option key={option.value} value={option.value}>{capitalize(option.label)}</option>
-                  ))}
-                </select>
-                <select
-                  className="h-10 w-full rounded-md border px-3 text-sm"
+                  onChange={(v) => updateBin(bin.key, { wastetype_id: v })}
+                  options={wasteTypes}
+                  placeholder="Select Waste Type"
+                  className="w-full"
+                />
+                <Select
                   value={bin.ward_id}
-                  onChange={(e) => updateBin(bin.key, { ward_id: e.target.value })}
+                  onChange={(v) => updateBin(bin.key, { ward_id: v })}
+                  options={wardOptions.filter((option) => selectedWardIds.includes(option.value))}
+                  placeholder="Bin Ward"
+                  className="w-full"
                   disabled={selectedWardIds.length === 0 || wardScope.mode === "locked"}
-                >
-                  <option value="">Bin Ward</option>
-                  {wardOptions
-                    .filter((option) => selectedWardIds.includes(option.value))
-                    .map((option) => (
-                      <option key={option.value} value={option.value}>{capitalize(option.label)}</option>
-                    ))}
-                </select>
+                />
                 <Input
                   placeholder="Bin Name"
                   value={bin.bin_name}
@@ -435,16 +426,13 @@ export default function CollectionPointForm() {
                   value={bin.bin_capacity}
                   onChange={(e) => updateBin(bin.key, { bin_capacity: e.target.value })}
                 />
-                <select
-                  className="h-10 w-full rounded-md border px-3 text-sm"
+                <Select
                   value={bin.bin_type}
-                  onChange={(e) => updateBin(bin.key, { bin_type: e.target.value })}
-                >
-                  <option value="">Bin Type</option>
-                  {BIN_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                  onChange={(v) => updateBin(bin.key, { bin_type: v })}
+                  options={BIN_TYPE_OPTIONS}
+                  placeholder="Bin Type"
+                  className="w-full"
+                />
                 <label className="flex items-center gap-1.5 text-sm">
                   <input
                     type="checkbox"

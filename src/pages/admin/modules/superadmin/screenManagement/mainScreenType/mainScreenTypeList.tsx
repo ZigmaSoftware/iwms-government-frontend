@@ -18,6 +18,9 @@ import { mainScreenTypeApi } from "@/helpers/admin";
 import type { MainScreenType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const toRecordList = (value: unknown): MainScreenType[] => {
   if (Array.isArray(value)) return value as MainScreenType[];
@@ -42,6 +45,7 @@ export default function MainScreenTypeList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
   const { encSuperAdmin, encMainScreenType } = getEncryptedRoute();
@@ -56,6 +60,7 @@ export default function MainScreenTypeList() {
     try {
       const response = await mainScreenTypeApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -78,7 +83,7 @@ export default function MainScreenTypeList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -99,25 +104,18 @@ export default function MainScreenTypeList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await mainScreenTypeApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    mainScreenTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (_: MainScreenType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await mainScreenTypeApi.delete(id);
+      await mainScreenTypeApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -176,19 +174,22 @@ export default function MainScreenTypeList() {
             item: t("admin.nav.main_screen_type"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.nav.main_screen_type"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.nav.main_screen_type"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={rows}
           lazy
           paginator
@@ -216,7 +217,7 @@ export default function MainScreenTypeList() {
           })}
           stripedRows
           showGridlines
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

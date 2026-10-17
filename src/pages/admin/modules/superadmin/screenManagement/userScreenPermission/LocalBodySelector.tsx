@@ -15,7 +15,7 @@ type ApiOptionRecord = {
   corporation_name?: string;
   municipality_name?: string;
   town_panchayat_name?: string;
-  panchayat_union_name?: string;
+  union_name?: string;
   panchayat_name?: string;
 };
 
@@ -52,7 +52,7 @@ const optionLabel = (record: ApiOptionRecord) =>
   record.corporation_name ??
   record.municipality_name ??
   record.town_panchayat_name ??
-  record.panchayat_union_name ??
+  record.union_name ??
   record.panchayat_name ??
   record.name ??
   record.unique_id ??
@@ -101,11 +101,11 @@ export default function LocalBodySelector({ value, onChange, disabled }: Props) 
             adminApi.states.readAll(),
             adminApi.districts.readAll(),
             adminApi.areatypes.readAll(),
-            adminApi.corporations.readAll(),
-            adminApi.municipalities.readAll(),
-            adminApi.townPanchayats.readAll(),
-            adminApi.panchayatUnions.readAll(),
-            adminApi.panchayats.readAll(),
+            adminApi.corporations.readAll({ params: { lite: 1 } }),
+            adminApi.municipalities.readAll({ params: { lite: 1 } }),
+            adminApi.townPanchayats.readAll({ params: { lite: 1 } }),
+            adminApi.panchayatUnions.readAll({ params: { lite: 1 } }),
+            adminApi.panchayats.readAll({ params: { lite: 1 } }),
           ]);
         if (!mounted) return;
         const valueOrEmpty = (result: PromiseSettledResult<unknown>) =>

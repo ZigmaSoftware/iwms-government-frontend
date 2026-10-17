@@ -17,11 +17,15 @@ import { fuelApi } from "@/helpers/admin";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 const FUEL_COLUMN_FIELDS: Record<string, string[]> = {
   fuel_type: ["fuel_type", "fuel"],
+  description: ["description"],
   is_active: ["is_active", "active_status", "status"],
 };
 
@@ -60,6 +64,7 @@ export default function FuelList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   // ── Routes ────────────────────────────────────────────────────────────────
   const { encTransportMaster, encFuel } = getEncryptedRoute();
@@ -78,6 +83,7 @@ export default function FuelList() {
     try {
       const response = await fuelApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -96,7 +102,7 @@ export default function FuelList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -118,7 +124,8 @@ export default function FuelList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => toRecordList(await fuelApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    fuelApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   // ── Status toggle ─────────────────────────────────────────────────────────
   const statusTemplate = (row: Fuel) => {
@@ -158,19 +165,11 @@ export default function FuelList() {
 
   // ── Delete ────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await fuelApi.delete(id);
+      await fuelApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -203,17 +202,20 @@ export default function FuelList() {
         title={t("admin.fuel.title")}
         subtitle={t("admin.fuel.subtitle")}
         actions={
-          <Button
-            label={t("admin.fuel.add")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.fuel.add")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
 
       <DataTable
+        filterPanel={combineFilters(status)}
         value={rows}
         dataKey="unique_id"
         lazy
@@ -238,7 +240,7 @@ export default function FuelList() {
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
         showGridlines
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column
@@ -254,6 +256,15 @@ export default function FuelList() {
             sortable={SORTABLE_FIELDS.has("fuel_type")}
             body={(row: Fuel) => capitalize(row.fuel_type)}
             style={{ minWidth: "200px" }}
+          />
+        )}
+
+        {showCol("description") && (
+          <Column
+            field="description"
+            header={t("common.description")}
+            body={(row: Fuel) => row.description || "-"}
+            style={{ minWidth: "250px" }}
           />
         )}
 

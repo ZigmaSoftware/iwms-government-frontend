@@ -18,6 +18,9 @@ import { capitalize } from "@/utils/capitalize";
 import type { PropertyRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -69,6 +72,7 @@ export default function PropertyList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
 
@@ -94,6 +98,7 @@ export default function PropertyList() {
     try {
       const response = await adminApi.properties.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(order ? { ordering: order } : {}),
         },
@@ -117,7 +122,7 @@ export default function PropertyList() {
   useEffect(() => {
     void loadProperties(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -138,10 +143,8 @@ export default function PropertyList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => {
-    const all = await adminApi.properties.readAllForExport();
-    return toRecordList(all);
-  };
+  const onServerExport = (filename: string, sheetName: string) =>
+    adminApi.properties.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const statusTemplate = (row: PropertyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -179,19 +182,11 @@ export default function PropertyList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await adminApi.properties.delete(id);
+      await adminApi.properties.delete(id, withDeleteReason(reason));
       setProperties((current) =>
         current.filter((property) => String(property.unique_id) !== id)
       );
@@ -228,17 +223,20 @@ export default function PropertyList() {
         title={t("admin.nav.property")}
         subtitle={t("common.manage_item_records", { item: t("admin.nav.property") })}
         actions={
-          <Button
-            label={t("common.add_item", { item: t("admin.nav.property") })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", { item: t("admin.nav.property") })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={properties}
           dataKey="unique_id"
           lazy
@@ -267,7 +265,7 @@ export default function PropertyList() {
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.property"),
           })}
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

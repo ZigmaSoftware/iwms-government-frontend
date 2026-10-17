@@ -40,7 +40,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   priorities: "complaintPriorities",
   statuses: "complaintStatuses",
   sources: "complaintSources",
-  teams: "complaintTeams",
   "vehicle-type": "vehicleTypes",
   "vehicle-creation": "vehicleCreations",
   "trip-plans": "tripPlans",
@@ -52,9 +51,6 @@ const routeEntityBySlug: Record<string, AdminEntity> = {
   "waste-collected-data": "wasteCollections",
   "unassigned-staff-pool": "unassignedStaffPool",
   "trip-attendance": "tripAttendances",
-  "vehicle-trip-audit": "vehicleTripAudits",
-  "trip-exception-log": "tripExceptionLogs",
-  "bin-load-log": "binLoadLogs",
 };
 
 const readPlainPathSegments = () => {

@@ -19,6 +19,10 @@ import { api } from "@/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 /* ── Badge helpers ─────────────────────────────────────────────── */
 
@@ -30,6 +34,11 @@ const STATUS_STYLES: Record<BreakdownStatus, string> = {
 const STATUS_LABELS: Record<BreakdownStatus, string> = {
   REPORTED: "Reported",
   REPLACEMENT_ARRANGED: "Replacement Arranged",
+  REJECTED: "Rejected",
+};
+const APPROVAL_LABELS: Record<ApprovalStatus, string> = {
+  PENDING: "Pending",
+  APPROVED: "Approved",
   REJECTED: "Rejected",
 };
 const APPROVAL_STYLES: Record<ApprovalStatus, string> = {
@@ -295,6 +304,21 @@ export default function VehicleBreakdownList() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [first, setFirst] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const statusFilter = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: (Object.keys(STATUS_LABELS) as BreakdownStatus[]).map((value) => ({ value, label: STATUS_LABELS[value] })),
+    onAppliedChange: () => setFirst(0),
+  });
+  const approvalFilter = useOptionFilter({
+    param: "approval_status",
+    label: "Approval",
+    options: (Object.keys(APPROVAL_LABELS) as ApprovalStatus[]).map((value) => ({ value, label: APPROVAL_LABELS[value] })),
+    onAppliedChange: () => setFirst(0),
+  });
+  const filterParams = { ...geo.applied, ...statusFilter.applied, ...approvalFilter.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const [verifyTarget, setVerifyTarget] = useState<VehicleBreakdownRecord | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -307,6 +331,7 @@ export default function VehicleBreakdownList() {
     try {
       const response = await vehicleBreakdownApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -329,7 +354,7 @@ export default function VehicleBreakdownList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -364,18 +389,10 @@ export default function VehicleBreakdownList() {
 
   /* ── Delete ─────────────────────────────────────────────────────── */
   const handleDelete = async (row: VehicleBreakdownRecord) => {
-    const result = await notify.fire({
-      title: t("common.confirm_title"),
-      text: `Delete breakdown record ${row.unique_id}?`,
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#ef4444",
-      confirmButtonText: t("common.delete"),
-      cancelButtonText: "Cancel",
-    });
-    if (!result.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
     try {
-      await vehicleBreakdownApi.delete(row.unique_id);
+      await vehicleBreakdownApi.delete(row.unique_id, withDeleteReason(reason));
       setRawRows((prev) => prev.filter((r) => r.unique_id !== row.unique_id));
       notify.fire(t("common.success"), t("common.deleted_success"), "success");
     } catch (err: any) {
@@ -502,12 +519,14 @@ export default function VehicleBreakdownList() {
         title="Vehicle Breakdowns"
         subtitle="Report breakdowns and arrange replacement vehicles for trips"
         actions={
-          <Button
-            label="Report Breakdown"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(newPath)}
-          />
+          <Can action="add">
+            <Button
+              label="Report Breakdown"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(newPath)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -527,6 +546,7 @@ export default function VehicleBreakdownList() {
         onSort={onSort}
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={loading}
+        filterPanel={combineFilters(geo, statusFilter, approvalFilter)}
         header={
           <FilterBar
             searchValue={globalFilterValue}

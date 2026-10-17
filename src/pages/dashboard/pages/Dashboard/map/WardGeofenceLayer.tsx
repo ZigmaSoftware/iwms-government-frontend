@@ -97,11 +97,17 @@ export function WardGeofenceLayer({
   return null;
 }
 
-export function useWardGeofences(params: Record<string, string>) {
+/**
+ * `enabled` defers the (coordinate-heavy) ward fetch until the geofence
+ * toggle is on or the Wards tab is opened, so the dashboard's first load
+ * doesn't pay for it.
+ */
+export function useWardGeofences(params: Record<string, string>, enabled = true) {
   const [wards, setWards] = useState<WardGeofence[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     setLoading(true);
     const fetchWards = async () => {
@@ -129,7 +135,7 @@ export function useWardGeofences(params: Record<string, string>) {
     };
     fetchWards();
     return () => { cancelled = true; };
-  }, [JSON.stringify(params)]);
+  }, [JSON.stringify(params), enabled]);
 
   return { wards, loading };
 }

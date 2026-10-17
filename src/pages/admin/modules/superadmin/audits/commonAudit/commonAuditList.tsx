@@ -5,9 +5,10 @@ import type {
   MainScreenOption,
   SubScreenOption,
 } from "./types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import notify from "@/lib/notify";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import {
@@ -19,15 +20,22 @@ import {
 import { Column } from "primereact/column";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   ShieldCheck,
   Lock,
   ListChecks,
   CalendarClock,
   XCircle,
+  Paperclip,
+  FileText,
+  Download,
+  Eye,
 } from "lucide-react";
+import {
+  collectAuditFiles,
+  countAuditFiles,
+  type AuditFileRef,
+} from "@/utils/auditFiles";
 import type {
   DataTablePageEvent,
   DataTableSortEvent,
@@ -37,6 +45,9 @@ import type {
 import { commonAuditApi, mainScreenApi, userScreenApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter, type FilterPart } from "@/components/filters/useOptionFilter";
 
 type RawMainScreen = {
   unique_id?: string;
@@ -70,6 +81,72 @@ const formatJson = (value?: CommonAuditJsonValue) => {
   if (value === undefined || value === null) return "-";
   return JSON.stringify(value, null, 2);
 };
+
+const DATE_INPUT_CLASS = "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
+
+/** "From / To date" for the Filters panel: a draft committed on Apply. */
+function useDateRangeFilter({
+  section,
+  fromLabel,
+  toLabel,
+  onAppliedChange,
+}: {
+  section: string;
+  fromLabel: string;
+  toLabel: string;
+  onAppliedChange?: () => void;
+}) {
+  const [applied, setApplied] = useState({ from: "", to: "" });
+  const [draft, setDraft] = useState({ from: "", to: "" });
+
+  const commit = (next: { from: string; to: string }) => {
+    setDraft(next);
+    if (next.from !== applied.from || next.to !== applied.to) {
+      setApplied(next);
+      onAppliedChange?.();
+    }
+  };
+
+  const chips: ActiveFilterChip[] = [
+    ...(applied.from
+      ? [{ key: "date_from", label: fromLabel, value: applied.from, onRemove: () => commit({ ...applied, from: "" }) }]
+      : []),
+    ...(applied.to
+      ? [{ key: "date_to", label: toLabel, value: applied.to, onRemove: () => commit({ ...applied, to: "" }) }]
+      : []),
+  ];
+
+  return {
+    from: applied.from,
+    to: applied.to,
+    field: (
+      <FilterSection label={section}>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            value={draft.from}
+            max={draft.to || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={fromLabel}
+          />
+          <input
+            type="date"
+            value={draft.to}
+            min={draft.from || undefined}
+            onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+            className={DATE_INPUT_CLASS}
+            aria-label={toLabel}
+          />
+        </div>
+      </FilterSection>
+    ),
+    chips,
+    count: chips.length,
+    apply: () => commit(draft),
+    reset: () => commit({ from: "", to: "" }),
+  } satisfies FilterPart & Record<string, unknown>;
+}
 
 const JsonViewer = ({
   title,
@@ -243,15 +320,122 @@ const DiffJsonViewer = ({
   );
 };
 
+/** Documents & images referenced by an audit record — viewable and downloadable. */
+const AuditFilesSection = ({ record }: { record: CommonAuditRecord }) => {
+  const files = useMemo(() => collectAuditFiles(record), [record]);
+  const [previewImage, setPreviewImage] = useState<AuditFileRef | null>(null);
+  if (files.length === 0) return null;
+  const images = files.filter((f) => f.kind === "image");
+  const documents = files.filter((f) => f.kind !== "image");
+
+  return (
+    <div className="rounded-md border bg-white p-3">
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+        <Paperclip className="h-4 w-4 text-gray-500" />
+        Documents &amp; images ({files.length})
+      </h3>
+
+      {images.length > 0 && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {images.map((file) => (
+            <button
+              key={file.url}
+              type="button"
+              onClick={() => setPreviewImage(file)}
+              title={`${file.name} (${file.field}) — click to preview`}
+              className="overflow-hidden rounded-md border border-gray-200 hover:ring-2 hover:ring-blue-300"
+            >
+              <img
+                src={file.url}
+                alt={file.name}
+                className="h-16 w-16 object-cover"
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="divide-y divide-gray-100">
+        {files.map((file) => (
+          <div key={file.url} className="flex items-center gap-2 py-1.5 text-sm">
+            {file.kind === "image" ? (
+              <img src={file.url} alt="" className="h-8 w-8 rounded object-cover" loading="lazy" />
+            ) : (
+              <FileText className="h-5 w-5 shrink-0 text-gray-400" />
+            )}
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="truncate font-medium text-gray-800" title={file.name}>
+                {file.name}
+              </div>
+              <div className="truncate text-xs text-gray-500" title={file.field}>
+                {file.field} · {file.source === "previous" ? "before" : "after"}
+              </div>
+            </div>
+            <a
+              href={file.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View"
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-blue-100 text-blue-700 hover:bg-blue-50"
+            >
+              <Eye className="h-4 w-4" />
+            </a>
+            <a
+              href={file.url}
+              download={file.name}
+              title="Download"
+              className="inline-flex h-8 w-8 items-center justify-center rounded border border-green-100 text-green-700 hover:bg-green-50"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+          </div>
+        ))}
+      </div>
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="max-h-[90vh] max-w-[90vw] overflow-auto rounded-lg bg-white p-3">
+            <img src={previewImage.url} alt={previewImage.name} className="max-h-[75vh] w-auto" />
+            <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+              <span className="truncate text-gray-600">{previewImage.name}</span>
+              <a
+                href={previewImage.url}
+                download={previewImage.name}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex shrink-0 items-center gap-1 rounded bg-green-700 px-3 py-1.5 font-medium text-white hover:bg-green-800"
+              >
+                <Download className="h-4 w-4" /> Download
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {documents.length === 0 && images.length > 0 && (
+        <p className="mt-1 text-xs text-gray-500">Click a thumbnail to preview, or use the row buttons to view / download.</p>
+      )}
+    </div>
+  );
+};
+
 export default function CommonAuditList() {
   const { t } = useTranslation();
+  const { moduleLabel, screenLabel } = usePermissionLabels();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  // Main / Sub Screen multi-selects: applied values drive the API; the
+  // draft is what the Filters panel edits until "Apply filters".
   const [mainScreenFilter, setMainScreenFilter] = useState<string[]>([]);
   const [subScreenFilter, setSubScreenFilter] = useState<string[]>([]);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [approvalOnly, setApprovalOnly] = useState(false);
+  const [screenDraft, setScreenDraft] = useState<{ main: string[]; sub: string[] }>({
+    main: [],
+    sub: [],
+  });
+  const requestIdRef = useRef(0);
   const [selectedRecord, setSelectedRecord] =
     useState<CommonAuditRecord | null>(null);
   const [rows, setRows] = useState<CommonAuditRecord[]>([]);
@@ -267,14 +451,104 @@ export default function CommonAuditList() {
   const [subScreensLoading, setSubScreensLoading] = useState(false);
 
   const mainScreenOptions = useMemo(
-    () => mainScreens.map((m) => ({ value: m.value, label: m.label })),
-    [mainScreens],
+    () => mainScreens.map((m) => ({ value: m.value, label: moduleLabel(m.label) })),
+    [mainScreens, moduleLabel],
   );
 
   const subScreenOptions = useMemo(
-    () => subScreens.map((s) => ({ value: s.value, label: s.label })),
-    [subScreens],
+    () => subScreens.map((s) => ({ value: s.value, label: screenLabel(s.label) })),
+    [subScreens, screenLabel],
   );
+
+  const resetPage = () => setFirst(0);
+  // Location replaces the old District / Local Body dropdowns (rows here are
+  // scoped by geography; the API takes the flat ?state_id=… params).
+  const geo = useHierarchyFilter(resetPage);
+  // "" = all, "true"/"false" = only successful / only rejected writes.
+  const status = useOptionFilter({
+    param: "success",
+    label: t("common.status"),
+    options: [
+      { label: t("admin.common_audit.status_success", "Successful"), value: "true" },
+      { label: t("admin.common_audit.status_failed", "Failed"), value: "false" },
+    ],
+    onAppliedChange: resetPage,
+  });
+  const approval = useOptionFilter({
+    param: "approval_only",
+    label: t("admin.common_audit.approval_only_filter", "Approvals only"),
+    section: t("admin.common_audit.events", "Events"),
+    options: [{ label: t("admin.common_audit.approval_only_filter", "Approvals only"), value: "true" }],
+    allLabel: t("common.all", "All"),
+    onAppliedChange: resetPage,
+  });
+  const dates = useDateRangeFilter({
+    section: t("admin.common_audit.date_range", "Date"),
+    fromLabel: t("admin.common_audit.date_from", "From Date"),
+    toLabel: t("admin.common_audit.date_to", "To Date"),
+    onAppliedChange: resetPage,
+  });
+
+  const commitScreens = (next: { main: string[]; sub: string[] }) => {
+    setScreenDraft(next);
+    if (next.main.join(",") !== mainScreenFilter.join(",") || next.sub.join(",") !== subScreenFilter.join(",")) {
+      setMainScreenFilter(next.main);
+      setSubScreenFilter(next.sub);
+      resetPage();
+    }
+  };
+  const labelsFor = (values: string[], options: { value: string; label: string }[]) =>
+    values.map((v) => options.find((o) => o.value === v)?.label ?? v).join(", ");
+  const screenChips: ActiveFilterChip[] = [
+    ...(mainScreenFilter.length
+      ? [
+          {
+            key: "main_screen",
+            label: t("admin.common_audit.module_filter"),
+            value: labelsFor(mainScreenFilter, mainScreenOptions),
+            // sub screens cascade from the main screens, so they go too
+            onRemove: () => commitScreens({ main: [], sub: [] }),
+          },
+        ]
+      : []),
+    ...(subScreenFilter.length
+      ? [
+          {
+            key: "sub_screen",
+            label: t("admin.common_audit.sub_screen_filter", "Sub Screen"),
+            value: subScreenFilter.join(", "),
+            onRemove: () => commitScreens({ main: mainScreenFilter, sub: [] }),
+          },
+        ]
+      : []),
+  ];
+  const screenPart: FilterPart = {
+    field: (
+      <FilterSection label={t("admin.common_audit.screens", "Screens")}>
+        <div className="flex flex-col gap-2">
+          <MultiSelect
+            value={screenDraft.main}
+            onChange={(next) => setScreenDraft((d) => ({ ...d, main: next }))}
+            options={mainScreenOptions}
+            placeholder={t("admin.common_audit.module_filter")}
+            aria-label={t("admin.common_audit.module_filter")}
+          />
+          <MultiSelect
+            value={screenDraft.sub}
+            onChange={(next) => setScreenDraft((d) => ({ ...d, sub: next }))}
+            options={subScreenOptions}
+            disabled={screenDraft.main.length === 0 || subScreensLoading}
+            placeholder={t("admin.common_audit.sub_screen_filter", "Sub Screen")}
+            aria-label={t("admin.common_audit.sub_screen_filter", "Sub Screen")}
+          />
+        </div>
+      </FilterSection>
+    ),
+    chips: screenChips,
+    count: screenChips.length,
+    apply: () => commitScreens(screenDraft),
+    reset: () => commitScreens({ main: [], sub: [] }),
+  };
 
   const loading = isLoading && rows.length === 0;
 
@@ -306,18 +580,45 @@ export default function CommonAuditList() {
     [],
   );
 
+  // Every active filter as API params — shared by the paginated table and
+  // the "all data" Excel export so both always cover the same rows.
+  const mainScreenFilterKey = mainScreenFilter.join(",");
+  const subScreenFilterKey = subScreenFilter.join(",");
+  const geoKey = JSON.stringify(geo.applied);
+
+  const filterParams = useMemo(
+    () => ({
+      ...(searchTerm ? { search: searchTerm } : {}),
+      ...(mainScreenFilterKey ? { main_screen: mainScreenFilterKey } : {}),
+      ...(subScreenFilterKey ? { sub_screen: subScreenFilterKey } : {}),
+      ...(dates.from ? { date_from: dates.from } : {}),
+      ...(dates.to ? { date_to: dates.to } : {}),
+      ...(approval.value ? { approval_only: true } : {}),
+      ...(JSON.parse(geoKey) as Record<string, string>),
+      ...(status.value ? { success: status.value } : {}),
+    }),
+    [
+      searchTerm,
+      mainScreenFilterKey,
+      subScreenFilterKey,
+      dates.from,
+      dates.to,
+      approval.value,
+      geoKey,
+      status.value,
+    ],
+  );
+
   const loadRows = useCallback(
     async (
       page: number,
       limit: number,
-      search: string,
+      params: Record<string, unknown>,
       ordering?: string,
-      mainScreenValues?: string[],
-      subScreenValues?: string[],
-      dateFromValue?: string,
-      dateToValue?: string,
-      approvalOnlyValue?: boolean,
     ) => {
+      // Rapid filter changes can resolve out of order; only the latest
+      // request may write to the table.
+      const requestId = ++requestIdRef.current;
       setIsLoading(true);
       try {
         const response = await commonAuditApi.readAllwithPaginated(
@@ -325,20 +626,12 @@ export default function CommonAuditList() {
           limit,
           {
             params: {
-              ...(search ? { search } : {}),
+              ...params,
               ...(ordering ? { ordering } : {}),
-              ...(mainScreenValues && mainScreenValues.length
-                ? { main_screen: mainScreenValues.join(",") }
-                : {}),
-              ...(subScreenValues && subScreenValues.length
-                ? { sub_screen: subScreenValues.join(",") }
-                : {}),
-              ...(dateFromValue ? { date_from: dateFromValue } : {}),
-              ...(dateToValue ? { date_to: dateToValue } : {}),
-              ...(approvalOnlyValue ? { approval_only: true } : {}),
             },
           },
         );
+        if (requestId !== requestIdRef.current) return;
         setRows(toRecordList(response));
         setTotalRecords(
           typeof response?.count === "number"
@@ -346,9 +639,10 @@ export default function CommonAuditList() {
             : toRecordList(response).length,
         );
       } catch {
+        if (requestId !== requestIdRef.current) return;
         notify.fire(t("common.error"), t("common.fetch_failed"), "error");
       } finally {
-        setIsLoading(false);
+        if (requestId === requestIdRef.current) setIsLoading(false);
       }
     },
     [t],
@@ -359,33 +653,18 @@ export default function CommonAuditList() {
       ? `${sortOrder === -1 ? "-" : ""}${sortField}`
       : undefined;
 
-  const mainScreenFilterKey = mainScreenFilter.join(",");
-  const subScreenFilterKey = subScreenFilter.join(",");
-
   useEffect(() => {
-    void loadRows(
-      first / rowsPerPage + 1,
-      rowsPerPage,
-      searchTerm,
-      ordering,
-      mainScreenFilter,
-      subScreenFilter,
-      dateFrom,
-      dateTo,
-      approvalOnly,
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    first,
-    rowsPerPage,
-    searchTerm,
-    ordering,
-    mainScreenFilterKey,
-    subScreenFilterKey,
-    dateFrom,
-    dateTo,
-    approvalOnly,
-  ]);
+    void loadRows(first / rowsPerPage + 1, rowsPerPage, filterParams, ordering);
+  }, [first, rowsPerPage, filterParams, ordering, loadRows]);
+
+  // Feeds the table's "Download Excel" button: re-fetches every audit row
+  // matching the current filters, since the table is lazily paginated and
+  // only holds one page.
+  const onServerExport = useCallback(
+    (filename: string, sheetName: string) =>
+      commonAuditApi.exportToExcel({ params: filterParams }, filename, sheetName),
+    [filterParams],
+  );
 
   // Main Screen options come from the real MainScreen master data (the same
   // records that build the admin sidebar), not from whatever module names
@@ -420,7 +699,7 @@ export default function CommonAuditList() {
     };
   }, []);
 
-  // Sub Screen options cascade from the selected Main Screen(s) — fetched
+  // Sub Screen options cascade from the Main Screen(s) picked in the panel — fetched
   // from the real UserScreen master data, scoped server-side via
   // ?mainscreen_id= (the same param UserScreen's own list page/form use),
   // so this stays searchable and accurate instead of a static list. With
@@ -430,7 +709,7 @@ export default function CommonAuditList() {
     let mounted = true;
 
     const selectedMainScreens = mainScreens.filter((m) =>
-      mainScreenFilter.includes(m.value),
+      screenDraft.main.includes(m.value),
     );
     if (selectedMainScreens.length === 0) {
       setSubScreens([]);
@@ -477,15 +756,16 @@ export default function CommonAuditList() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainScreenFilterKey, mainScreens]);
+  }, [screenDraft.main.join(","), mainScreens]);
 
-  // Drop any Sub Screen selections that fell out of the option list once the
-  // Main Screen selection (and therefore the cascaded options) changed.
+  // Drop any draft Sub Screen selections that fell out of the option list
+  // once the Main Screen selection (and therefore the cascaded options)
+  // changed.
   useEffect(() => {
-    setSubScreenFilter((prev) => {
+    setScreenDraft((prev) => {
       const validValues = new Set(subScreens.map((s) => s.value));
-      const next = prev.filter((v) => validValues.has(v));
-      return next.length === prev.length ? prev : next;
+      const sub = prev.sub.filter((v) => validValues.has(v));
+      return sub.length === prev.sub.length ? prev : { ...prev, sub };
     });
   }, [subScreens]);
 
@@ -604,94 +884,17 @@ export default function CommonAuditList() {
 
       <Card>
         <CardContent className="p-4">
-          <FilterBar
-            searchValue={globalFilterValue}
-            onSearchChange={setGlobalFilterValue}
-            searchPlaceholder={t("admin.common_audit.search_placeholder")}
-            className="mb-4"
-          >
-            <div className="w-full sm:w-64">
-              <MultiSelect
-                value={mainScreenFilter}
-                onChange={(next) => {
-                  setMainScreenFilter(next);
-                  setFirst(0);
-                }}
-                options={mainScreenOptions}
-                placeholder={t("admin.common_audit.module_filter")}
-                aria-label={t("admin.common_audit.module_filter")}
-              />
-            </div>
-            <div className="w-full sm:w-64">
-              <MultiSelect
-                value={subScreenFilter}
-                onChange={(next) => {
-                  setSubScreenFilter(next);
-                  setFirst(0);
-                }}
-                options={subScreenOptions}
-                disabled={mainScreenFilter.length === 0 || subScreensLoading}
-                placeholder={t(
-                  "admin.common_audit.sub_screen_filter",
-                  "Sub Screen",
-                )}
-                aria-label={t(
-                  "admin.common_audit.sub_screen_filter",
-                  "Sub Screen",
-                )}
-              />
-            </div>
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">
-                {t("admin.common_audit.date_from", "From Date")}
-              </span>
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(event) => {
-                  setDateFrom(event.target.value);
-                  setFirst(0);
-                }}
-                className="h-10 rounded-md border px-3"
-                aria-label={t("admin.common_audit.date_from", "From Date")}
-              />
-            </label>
-            <label className="text-sm text-gray-700">
-              <span className="mb-1 block">
-                {t("admin.common_audit.date_to", "To Date")}
-              </span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(event) => {
-                  setDateTo(event.target.value);
-                  setFirst(0);
-                }}
-                className="h-10 rounded-md border px-3"
-                aria-label={t("admin.common_audit.date_to", "To Date")}
-              />
-            </label>
-            <label className="flex h-10 items-center gap-2 text-sm text-gray-700">
-              <Switch
-                checked={approvalOnly}
-                onCheckedChange={(checked) => {
-                  setApprovalOnly(checked);
-                  setFirst(0);
-                }}
-                aria-label={t(
-                  "admin.common_audit.approval_only_filter",
-                  "Approvals only",
-                )}
-              />
-              <Label className="cursor-pointer font-normal">
-                {t("admin.common_audit.approval_only_filter", "Approvals only")}
-              </Label>
-            </label>
-          </FilterBar>
-
           <DataTable
+            filterPanel={combineFilters(geo, screenPart, status, dates, approval)}
+            header={
+              <FilterBar
+                searchValue={globalFilterValue}
+                onSearchChange={setGlobalFilterValue}
+                searchPlaceholder={t("admin.common_audit.search_placeholder")}
+                className="mb-4"
+              />
+            }
+            onServerExport={onServerExport}
             value={rows}
             dataKey="uuid"
             lazy
@@ -734,9 +937,43 @@ export default function CommonAuditList() {
               body={(r: CommonAuditRecord) => r.object_id ?? "-"}
             />
             <Column
+              field="district_name"
+              header={t("common.district")}
+              body={(r: CommonAuditRecord) => r.district_name ?? "-"}
+            />
+            <Column
+              field="local_body_name"
+              header={t("admin.common_audit.local_body", "Local Body")}
+              body={(r: CommonAuditRecord) =>
+                r.local_body_name ? (
+                  <div className="leading-tight">
+                    <div>{r.local_body_name}</div>
+                    {r.local_body_level ? (
+                      <div className="text-xs text-gray-500">
+                        {r.local_body_level}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  "-"
+                )
+              }
+            />
+            <Column
               field="createdBy"
               header={t("admin.common_audit.created_by")}
-              body={(r: CommonAuditRecord) => r.createdBy ?? "-"}
+              body={(r: CommonAuditRecord) => {
+                const name = r.created_by_name ?? r.createdBy;
+                if (!name) return "-";
+                return (
+                  <div className="leading-tight">
+                    <div className="font-medium text-gray-800">{name}</div>
+                    {r.created_by_id ? (
+                      <div className="text-xs text-gray-500">{r.created_by_id}</div>
+                    ) : null}
+                  </div>
+                );
+              }}
             />
             <Column
               field="ip_address"
@@ -758,29 +995,59 @@ export default function CommonAuditList() {
             <Column
               field="success"
               header={t("admin.common_audit.success", "Success")}
-              body={(r: CommonAuditRecord) => (
-                <span
-                  className={
-                    r.success === false
-                      ? "font-medium text-red-600"
-                      : "font-medium text-green-600"
-                  }
-                >
-                  {r.success === false ? t("common.no") : t("common.yes")}
-                </span>
-              )}
+              body={(r: CommonAuditRecord) =>
+                r.success === false ? (
+                  <span
+                    title={r.reason ?? undefined}
+                    className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+                  >
+                    {t("admin.common_audit.status_failed", "Failed")}
+                  </span>
+                ) : (
+                  <span className="rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    {t("admin.common_audit.status_success", "Successful")}
+                  </span>
+                )
+              }
             />
             <Column
               field="reason"
               header={t("admin.common_audit.reason", "Reason")}
-              body={(r: CommonAuditRecord) => (
-                <span
-                  className="block max-w-[260px] truncate"
-                  title={r.reason ?? undefined}
-                >
-                  {r.reason ?? "-"}
-                </span>
-              )}
+              body={(r: CommonAuditRecord) => {
+                // One column for both: DELETE rows carry the user's
+                // justification in delete_reason; failed writes carry the
+                // error in reason. The two are never set on the same row.
+                const value =
+                  r.method === "DELETE"
+                    ? (r.delete_reason ?? r.reason)
+                    : (r.reason ?? r.delete_reason);
+                return (
+                  <span
+                    className="block max-w-[260px] truncate"
+                    title={value ?? undefined}
+                  >
+                    {value ?? "-"}
+                  </span>
+                );
+              }}
+            />
+            <Column
+              header={t("admin.common_audit.files", "Files")}
+              body={(r: CommonAuditRecord) => {
+                const count = countAuditFiles(r);
+                if (!count) return <span className="text-gray-300">-</span>;
+                return (
+                  <span
+                    title={t("admin.common_audit.files_attached", `${count} file(s) attached — open details to view`)}
+                    className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+                  >
+                    <Paperclip className="h-3 w-3" />
+                    {count}
+                  </span>
+                );
+              }}
+              style={{ width: 90 }}
+              bodyStyle={{ textAlign: "center" }}
             />
             <Column
               field="createdAt"
@@ -806,6 +1073,75 @@ export default function CommonAuditList() {
             <DialogTitle>{t("admin.common_audit.detail_title")}</DialogTitle>
           </DialogHeader>
 
+          <div className="grid gap-3 rounded-md border bg-gray-50 p-3 text-sm sm:grid-cols-2">
+            <div>
+              <div className="text-xs text-gray-500">{t("common.status")}</div>
+              <div
+                className={
+                  selectedRecord?.success === false
+                    ? "font-medium text-red-700"
+                    : "font-medium text-green-700"
+                }
+              >
+                {selectedRecord?.success === false
+                  ? t("admin.common_audit.status_failed", "Failed")
+                  : t("admin.common_audit.status_success", "Successful")}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.ip_address", "IP Address")}
+              </div>
+              <div>{selectedRecord?.ip_address || "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.created_by")}
+              </div>
+              <div>
+                {selectedRecord?.created_by_name ?? selectedRecord?.createdBy ?? "-"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500">{t("common.location")}</div>
+              <div>
+                {[selectedRecord?.local_body_name, selectedRecord?.district_name]
+                  .filter(Boolean)
+                  .join(", ") || "-"}
+              </div>
+            </div>
+            {(selectedRecord?.method === "DELETE"
+              ? (selectedRecord?.delete_reason ?? selectedRecord?.reason)
+              : (selectedRecord?.reason ?? selectedRecord?.delete_reason)) ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs text-gray-500">
+                  {selectedRecord?.method === "DELETE"
+                    ? t("admin.common_audit.delete_reason", "Delete Reason")
+                    : t("admin.common_audit.reason", "Reason")}
+                </div>
+                <div
+                  className={
+                    selectedRecord?.method === "DELETE"
+                      ? "whitespace-pre-line"
+                      : "text-red-700"
+                  }
+                >
+                  {selectedRecord?.method === "DELETE"
+                    ? (selectedRecord?.delete_reason ?? selectedRecord?.reason)
+                    : (selectedRecord?.reason ?? selectedRecord?.delete_reason)}
+                </div>
+              </div>
+            ) : null}
+            <div className="min-w-0 sm:col-span-2">
+              <div className="text-xs text-gray-500">
+                {t("admin.common_audit.user_agent", "User Agent")}
+              </div>
+              <div className="break-words text-xs text-gray-700">
+                {selectedRecord?.user_agent || "-"}
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <JsonViewer
               title={t("admin.common_audit.previous_data")}
@@ -817,6 +1153,12 @@ export default function CommonAuditList() {
               previousData={selectedRecord?.previous_data}
             />
           </div>
+
+          {selectedRecord && (
+            <div className="mt-4">
+              <AuditFilesSection record={selectedRecord} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

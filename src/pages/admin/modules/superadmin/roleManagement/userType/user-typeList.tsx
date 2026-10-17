@@ -18,6 +18,9 @@ import type { UserType } from "@/pages/admin/modules/superadmin/screenManagement
 import { userTypeApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const toRecordList = (value: unknown): UserType[] => {
   if (Array.isArray(value)) return value as UserType[];
@@ -43,6 +46,7 @@ export default function UserTypePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const navigate = useNavigate();
   const { encRoleManagement, encUserType } = getEncryptedRoute();
@@ -57,6 +61,7 @@ export default function UserTypePage() {
     try {
       const response = await userTypeApi.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -79,7 +84,7 @@ export default function UserTypePage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -100,25 +105,18 @@ export default function UserTypePage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await userTypeApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    userTypeApi.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const indexTemplate = (_: UserType, { rowIndex }: { rowIndex: number }) =>
     rowIndex + 1;
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await userTypeApi.delete(id);
+      await userTypeApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -179,17 +177,20 @@ export default function UserTypePage() {
             item: t("admin.nav.user_type"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.user_type") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", { item: t("admin.nav.user_type") })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={rows}
           dataKey="unique_id"
           lazy
@@ -218,7 +219,7 @@ export default function UserTypePage() {
           })}
           stripedRows
           showGridlines
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column

@@ -1,8 +1,8 @@
 import { areaTypeApi } from "@/helpers/admin";
-import { formatCoordinates } from "../../shared/formatCoordinates";
 import { displayValue, toRecordList } from "../../shared/recordHelpers";
 
 import type { AreaTypeListRecord, SortOrder } from "./areaType.list.types";
+import { withDeleteReason } from "@/utils/deleteReason";
 
 // Backend `ordering_fields = ["name", "is_active"]`. The `area_type_name`
 // column is serialized from the model's `name` field (source="name" in
@@ -17,13 +17,10 @@ export const LIST_COLUMNS = [
   { field: "state_name", header: "State" },
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export const areaTypeColumnBody = (row: AreaTypeListRecord, field: string) =>
-  field === "coordinates"
-    ? formatCoordinates(row.coordinates as never)
-    : displayValue(row[field]);
+  displayValue(row[field]);
 
 /** Fetches a page of Area Type list rows. */
 export async function loadAreaTypeRows(
@@ -54,8 +51,8 @@ export async function updateAreaTypeStatus(id: string, value: boolean) {
   await areaTypeApi.update(id, { is_active: value });
 }
 
-export async function deleteAreaType(id: string) {
-  await areaTypeApi.delete(id);
+export async function deleteAreaType(id: string, reason: string) {
+  await areaTypeApi.delete(id, withDeleteReason(reason));
 }
 
 export function resolveOrdering(sortField: string | undefined, sortOrder: SortOrder) {

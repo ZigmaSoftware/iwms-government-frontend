@@ -1,6 +1,7 @@
 import { departmentApi } from "@/helpers/admin";
 import { resolveSimpleOrdering, toRecordList } from "../../shared/recordHelpers";
 import type { DepartmentListRecord, SortOrder } from "./department.list.types";
+import { withDeleteReason } from "@/utils/deleteReason";
 
 export const SORTABLE_FIELDS = new Set(["department_name", "department_code"]);
 
@@ -14,9 +15,11 @@ export async function loadDepartmentRows(
   limit: number,
   search: string,
   ordering?: string,
+  filters: Record<string, string> = {},
 ) {
   const response = await departmentApi.readAllwithPaginated(page, limit, {
     params: {
+      ...filters,
       ...(search ? { search } : {}),
       ...(ordering ? { ordering } : {}),
     },
@@ -29,8 +32,8 @@ export async function loadDepartmentRows(
   return { rows, totalRecords };
 }
 
-export async function loadDepartmentsForExport() {
-  return toRecordList<DepartmentListRecord>(await departmentApi.readAllForExport());
+export async function loadDepartmentsForExport(filters: Record<string, string> = {}) {
+  return toRecordList<DepartmentListRecord>(await departmentApi.readAllForExport({ params: filters }));
 }
 
 export async function updateDepartmentStatus(row: DepartmentListRecord, value: boolean) {
@@ -42,6 +45,6 @@ export async function updateDepartmentStatus(row: DepartmentListRecord, value: b
   });
 }
 
-export async function deleteDepartment(id: string) {
-  await departmentApi.delete(id);
+export async function deleteDepartment(id: string, reason: string) {
+  await departmentApi.delete(id, withDeleteReason(reason));
 }

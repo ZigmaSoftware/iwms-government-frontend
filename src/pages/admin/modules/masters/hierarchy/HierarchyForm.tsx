@@ -9,13 +9,7 @@ import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import ComponentCard from "@/components/common/ComponentCard";
 import { FieldError } from "@/components/form/FieldError";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -220,21 +214,14 @@ export default function HierarchyForm() {
               name="area_type"
               render={({ field }) => (
                 <Select
+                  id="areaType"
                   value={field.value ?? ""}
-                  onValueChange={field.onChange}
+                  onChange={field.onChange}
+                  options={areaTypes}
+                  placeholder="Select Area Type"
                   disabled={areaTypes.length === 0 || areaTypeScope.mode === "locked"}
-                >
-                  <SelectTrigger id="areaType">
-                    <SelectValue placeholder="Select Area Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {areaTypes.map((a) => (
-                      <SelectItem key={a.value} value={a.value}>
-                        {a.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  required
+                />
               )}
             />
             {areaTypes.length === 0 && (
@@ -272,17 +259,16 @@ export default function HierarchyForm() {
               name="is_active"
               render={({ field }) => (
                 <Select
+                  id="isActive"
                   value={field.value ? "true" : "false"}
-                  onValueChange={(value) => field.onChange(value === "true")}
-                >
-                  <SelectTrigger id="isActive">
-                    <SelectValue placeholder={t("common.select_status")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="true">{t("common.active")}</SelectItem>
-                    <SelectItem value="false">{t("common.inactive")}</SelectItem>
-                  </SelectContent>
-                </Select>
+                  onChange={(value) => field.onChange(value === "true")}
+                  options={[
+                    { value: "true", label: t("common.active") },
+                    { value: "false", label: t("common.inactive") },
+                  ]}
+                  placeholder={t("common.select_status")}
+                  required
+                />
               )}
             />
           </div>

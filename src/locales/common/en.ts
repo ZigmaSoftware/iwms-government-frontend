@@ -1,5 +1,7 @@
 export default {
   "common": {
+    "access_denied_title": "Access denied",
+    "access_denied_message": "You do not have permission to open this page. Ask your administrator to grant it in Staff Access Configuration.",
     "appName": "Integrated Waste Management Suite",
     "language_en": "English",
     "language_ta": "தமிழ்",
@@ -32,6 +34,7 @@ export default {
     "area_type": "Area Type",
     "address": "Address",
     "location": "Location",
+    "this_page": "this page",
     "owner": "Owner",
     "mobile": "Mobile",
     "vehicle": "Vehicle",
@@ -92,6 +95,9 @@ export default {
     "confirm_title": "Are you sure?",
     "confirm_delete_text": "This record will be permanently deleted!",
     "confirm_delete_button": "Yes, delete it!",
+    "delete_reason_label": "Reason for deletion",
+    "delete_reason_placeholder": "Enter why this record is being deleted",
+    "delete_reason_required": "Please enter the reason for deletion.",
     "deleted_success": "Deleted successfully!",
     "updated_success": "Updated successfully!",
     "added_success": "Added successfully!",
@@ -105,6 +111,7 @@ export default {
     "invalid_data": "Invalid data",
     "update_status_failed": "Failed to update status",
     "fetch_failed": "Failed to fetch records",
+    "page_report": "{first}–{last} of {totalRecords} records",
     "delete_failed": "Delete failed",
     "record_removed": "Record removed successfully",
     "select_item_placeholder": "Select {{item}}",

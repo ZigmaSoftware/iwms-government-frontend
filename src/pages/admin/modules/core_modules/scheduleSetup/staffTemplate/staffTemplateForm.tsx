@@ -42,8 +42,6 @@ const initialFormData: StaffTemplateFormData = {
   operator_id: "",
   extra_operator_id: [],
   status: "ACTIVE",
-  approval_status: "PENDING",
-  approved_by: "",
 };
 
 const STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
@@ -51,8 +49,6 @@ const STAFF_TEMPLATE_FIELDS: Record<string, string[]> = {
   operator_id: ["operator_id", "primary_operator", "operator"],
   extra_operator_id: ["extra_operator_id", "extra_staff", "extra_operator"],
   status: ["status", "active_status"],
-  approval_status: ["approval_status"],
-  approved_by: ["approved_by", "approver"],
 };
 
 /* ================= COMPONENT ================= */
@@ -74,8 +70,6 @@ export default function StaffTemplateForm() {
 
   const [driverOptions, setDriverOptions] = useState<Option[]>([]);
   const [operatorOptions, setOperatorOptions] = useState<Option[]>([]);
-  const [adminOptions, setAdminOptions] = useState<Option[]>([]);
-  const [supervisorOptions, setSupervisorOptions] = useState<Option[]>([]);
   const [staffRecords, setStaffRecords] = useState<StaffRecord[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
@@ -85,7 +79,6 @@ export default function StaffTemplateForm() {
   const [pendingDriverId, setPendingDriverId] = useState<string | null>(null);
   const [pendingOperatorId, setPendingOperatorId] = useState<string | null>(null);
   const [pendingExtraIds, setPendingExtraIds] = useState<string[] | null>(null);
-  const [pendingApprovedBy, setPendingApprovedBy] = useState<string | null>(null);
 
   const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
   const { listPath: ENC_LIST_PATH } = createCrudRoutePaths(encScheduleSetup, encStaffTemplate);
@@ -93,11 +86,6 @@ export default function StaffTemplateForm() {
   const statusOptions = [
     { value: "ACTIVE", label: t("common.active") },
     { value: "INACTIVE", label: t("common.inactive") },
-  ];
-  const approvalStatusOptions = [
-    { value: "PENDING", label: t("common.pending") },
-    { value: "APPROVED", label: t("common.approved") },
-    { value: "REJECTED", label: t("common.rejected") },
   ];
 
   const normalizeRole = (value: unknown) =>
@@ -243,22 +231,13 @@ export default function StaffTemplateForm() {
           (u: StaffRecord) => isStaffRow(u) && isActiveStaff(u) && getStaffId(u)
         );
         setStaffRecords(staffOnly);
-
-        const currentUserId = localStorage.getItem("unique_id") || "";
-        const isAdmin = staffOnly
-          .filter((s: StaffRecord) => getStaffRole(s) === "admin")
-          .some((s: StaffRecord) => getStaffId(s) === currentUserId);
-        setFormData((prev) => ({
-          ...prev,
-          approved_by: isAdmin ? currentUserId : prev.approved_by,
-        }));
       })
       .catch(() => {
         notify.fire(t("common.error"), t("common.load_failed"), "error");
       });
   }, [geo.stateId, geo.districtId, geo.localBodyLevel, geo.localBodyId, t]);
 
-  /* ================= SCOPE DRIVERS / OPERATORS / APPROVERS BY ROLE ================= */
+  /* ================= SCOPE DRIVERS / OPERATORS BY ROLE ================= */
 
   useEffect(() => {
     const inGeo = (s: StaffRecord) =>
@@ -266,12 +245,6 @@ export default function StaffTemplateForm() {
 
     setDriverOptions(staffRecords.filter((s) => isDriverRole(s) && inGeo(s)).map(toStaffOption));
     setOperatorOptions(staffRecords.filter((s) => isOperatorRole(s) && inGeo(s)).map(toStaffOption));
-    setAdminOptions(
-      staffRecords.filter((s) => getStaffRole(s).includes("admin")).map(toStaffOption)
-    );
-    setSupervisorOptions(
-      staffRecords.filter((s) => getStaffRole(s).includes("supervisor") && inGeo(s)).map(toStaffOption)
-    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffRecords, geo.districtId, geo.localBodyLevel, geo.localBodyId]);
 
@@ -294,7 +267,6 @@ export default function StaffTemplateForm() {
         setFormData((prev) => ({
           ...prev,
           status: tpl.status ?? "ACTIVE",
-          approval_status: tpl.approval_status ?? "PENDING",
         }));
 
         const nextGeo: GeoLocationValue = {
@@ -312,7 +284,6 @@ export default function StaffTemplateForm() {
 
         const driverId = toEntityId(tpl.driver_id ?? tpl.driver);
         const operatorId = toEntityId(tpl.operator_id ?? tpl.operator);
-        const approvedBy = toEntityId(tpl.approved_by ?? tpl.approver);
         const extraNames: string[] = Array.isArray(tpl.extra_operator_names) ? tpl.extra_operator_names : [];
         setDriverOptions((items) => ensureOption(items, driverId, tpl.driver_name));
         setOperatorOptions((items) => {
@@ -322,11 +293,9 @@ export default function StaffTemplateForm() {
           });
           return next;
         });
-        setAdminOptions((items) => ensureOption(items, approvedBy, tpl.approved_by_name));
         if (driverId) setPendingDriverId(driverId);
         if (operatorId) setPendingOperatorId(operatorId);
         if (extraIds.length > 0) setPendingExtraIds(extraIds);
-        if (approvedBy) setPendingApprovedBy(approvedBy);
       })
       .catch((error) => {
         const message = extractError(error);
@@ -417,18 +386,6 @@ export default function StaffTemplateForm() {
   }, [pendingOperatorId, operatorOptions, staffRecords]);
 
   useEffect(() => {
-    if (!pendingApprovedBy) return;
-    const allApproverOptions = [...adminOptions, ...supervisorOptions];
-    if (allApproverOptions.length === 0 && staffRecords.length === 0) return;
-    const inOptions = allApproverOptions.some((o) => o.value === pendingApprovedBy);
-    const inRecords = staffRecords.some((s) => getStaffId(s) === pendingApprovedBy);
-    if (inOptions || inRecords) {
-      setFormData((prev) => ({ ...prev, approved_by: pendingApprovedBy }));
-      setPendingApprovedBy(null);
-    }
-  }, [pendingApprovedBy, adminOptions, supervisorOptions, staffRecords]);
-
-  useEffect(() => {
     if (!pendingExtraIds) return;
     if (operatorOptions.length === 0 && staffRecords.length === 0) return;
     const validIds = pendingExtraIds.filter(
@@ -475,14 +432,6 @@ export default function StaffTemplateForm() {
     if (operatorOptions.some((option) => option.value === formData.operator_id)) return operatorOptions;
     const staff = staffRecords.find((item) => getStaffId(item) === formData.operator_id);
     return staff ? [toStaffOption(staff), ...operatorOptions] : operatorOptions;
-  })();
-
-  const approverOptionsWithCurrent = (() => {
-    const scopedOptions = [...adminOptions, ...supervisorOptions];
-    if (!formData.approved_by) return scopedOptions;
-    if (scopedOptions.some((option) => option.value === formData.approved_by)) return scopedOptions;
-    const staff = staffRecords.find((item) => getStaffId(item) === formData.approved_by);
-    return staff ? [toStaffOption(staff), ...scopedOptions] : scopedOptions;
   })();
 
   /* ================= SUBMIT ================= */
@@ -536,8 +485,6 @@ export default function StaffTemplateForm() {
           operator_id: formData.operator_id,
           extra_operator_id: formData.extra_operator_id,
           status: formData.status,
-          approval_status: formData.approval_status,
-          approved_by: formData.approved_by || null,
           ...buildPayload(),
         },
         GEO_PAYLOAD_KEYS as unknown as string[],
@@ -663,33 +610,6 @@ export default function StaffTemplateForm() {
                   options={statusOptions}
                   placeholder={t("common.select_status")}
                   required
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
-            {showField("approval_status") && (
-              <div>
-                <Label>{t("admin.staff_template.approval_status")}</Label>
-                <Select
-                  value={formData.approval_status}
-                  onChange={(v) => setFormData((p) => ({ ...p, approval_status: v as any }))}
-                  options={approvalStatusOptions}
-                  placeholder={t("common.select_status")}
-                  required
-                  disabled={fetching}
-                />
-              </div>
-            )}
-
-            {showField("approved_by") && (
-              <div>
-                <Label>{t("admin.staff_template.approved_by")}</Label>
-                <Select
-                  value={formData.approved_by}
-                  onChange={(v) => setFormData((p) => ({ ...p, approved_by: v }))}
-                  options={approverOptionsWithCurrent}
-                  placeholder={t("common.select_option")}
                   disabled={fetching}
                 />
               </div>
