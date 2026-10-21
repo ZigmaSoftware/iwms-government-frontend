@@ -91,6 +91,7 @@ export const dashboardSummaryApi = adminApi.dashboardSummary;
 export const customerCreationApi = adminApi.customerCreations;
 /** Per-customer app access: which app they open, which screens they see. */
 export const customerAccessConfigurationApi = adminApi.customerAccessConfiguration;
+export const customerNotificationApi = adminApi.customerNotifications;
 // NOTE: householdPickupEvents removed — not defined in adminEndpoints
 export const wasteCollectionApi = adminApi.wasteCollections;
 export const panchayatWiseCollectionApi = adminApi.panchayatWiseCollections;

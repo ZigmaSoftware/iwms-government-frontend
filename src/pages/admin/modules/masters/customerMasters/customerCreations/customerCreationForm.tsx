@@ -25,7 +25,6 @@ import {
   wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
-import { appModuleApi } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
@@ -702,7 +701,7 @@ function CustomerEditor({
   const [formData, setFormData] = useState<FormDataType>({
     customer_name: initialPayload.customer_name,
     contact_no: initialPayload.contact_no,
-    app_module: initialPayload.app_module,
+    app_module: "citizen",
     username: initialPayload.username,
     email: initialPayload.email,
     password: initialPayload.password,
@@ -741,35 +740,6 @@ function CustomerEditor({
     industry_name: initialPayload.industry_name,
     industry_type: initialPayload.industry_type,
   });
-
-  // Sourced from the App Module master so a rename in Screen Management shows
-  // up here without a frontend release.
-  const [appModuleOptions, setAppModuleOptions] = useState<
-    { value: string; label: string }[]
-  >([{ value: "citizen", label: "Customer" }]);
-
-  useEffect(() => {
-    let cancelled = false;
-    appModuleApi
-      .readAll()
-      .then((rows) => {
-        if (cancelled) return;
-        const list = Array.isArray(rows) ? rows : [];
-        const options = list
-          .filter((row: { is_active?: boolean }) => row.is_active !== false)
-          .map((row: { surface_key: string; label: string }) => ({
-            value: row.surface_key,
-            label: row.label,
-          }));
-        if (options.length) setAppModuleOptions(options);
-      })
-      .catch(() => {
-        /* keep the default so the field still works offline */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const [selectedAreaType, setSelectedAreaType] = useState<AreaType | "">(
     initialPayload.selectedAreaType,
@@ -1460,15 +1430,15 @@ function CustomerEditor({
                   Mobile App
                 </label>
                 <Select
-                  value={formData.app_module || "citizen"}
-                  onChange={(value) => update("app_module", value)}
-                  options={appModuleOptions}
-                  placeholder="Select the app this customer opens"
+                  value="citizen"
+                  onChange={() => update("app_module", "citizen")}
+                  options={[{ value: "citizen", label: "Customer" }]}
+                  placeholder="Customer"
                   className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
                 />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Which app opens after sign-in. Whether they may sign in, and
-                  which screens they see, is set in Customer Access Configuration.
+                  Customers use the Customer app. Sign-in access and visible
+                  screens are managed in Customer Access Configuration.
                 </p>
               </div>
             )}
@@ -2491,7 +2461,7 @@ export default function CustomerCreationForm() {
     initialPayload = {
       customer_name: String(d.customer_name ?? ""),
       contact_no: String(d.contact_no ?? ""),
-      app_module: String(d.app_module ?? "citizen"),
+      app_module: "citizen",
       username: String(d.username ?? ""),
       email: String(d.email ?? ""),
       password: String(d.password ?? ""),
