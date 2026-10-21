@@ -6,7 +6,7 @@ import SessionIdleGuard from "@/components/auth/SessionIdleGuard";
 import { AdminRoute, DashboardRoute, HomeRedirect } from "@/routes/guards";
 import {
   AdminEncryptedRouter,
-  AdminHome,
+  AdminDashboard,
   AdminHomeGate,
   Auth,
   CommonAuditList,
@@ -25,6 +25,7 @@ import {
   StateAuth,
   StateDashboard,
   StateLeaderDashboard,
+  SuperadminDashboard,
   VerifyOTP,
 } from "@/routes/pages";
 
@@ -59,7 +60,8 @@ export default function App() {
         <Route path="/dashboard/:encModule" element={<DashboardRoute><DashboardEncryptedRouter /></DashboardRoute>} />
 
         {/* ---------- Admin ---------- */}
-        <Route path="/admin" element={<AdminRoute><AdminHomeGate><AdminHome /></AdminHomeGate></AdminRoute>} />
+        <Route path="/admin" element={<AdminRoute><AdminHomeGate><AdminDashboard /></AdminHomeGate></AdminRoute>} />
+        <Route path="/admin/superadmin-dashboard" element={<AdminRoute><SuperadminDashboard /></AdminRoute>} />
         <Route path="/audits/common-audit" element={<AdminRoute><CommonAuditList /></AdminRoute>} />
         {/* Old "Collection Audit" bookmark — now merged into the common audit page. */}
         <Route path="/audits/staff-audit" element={<AdminRoute><CommonAuditList /></AdminRoute>} />
