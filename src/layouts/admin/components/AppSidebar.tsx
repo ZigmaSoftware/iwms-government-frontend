@@ -96,6 +96,7 @@ const AppSidebar: React.FC = () => {
         .map((section) => {
           // Filter items within section
           const filteredItems = section.items
+            .filter((item) => !item.superadminOnly)
             .map((item) => {
               const filteredSubItems = filterSubItems(item.subItems);
               return {

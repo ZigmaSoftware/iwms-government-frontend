@@ -32,7 +32,12 @@ export const DashboardEncryptedRouter = lazy(
 export const AdminLayout = lazy(() =>
   import("@/layouts/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })),
 );
-export const AdminHome = lazy(() => import("@/pages/admin/AdminHome"));
+export const AdminDashboard = lazy(
+  () => import("@/pages/admin/dashboards/AdminDashboard"),
+);
+export const SuperadminDashboard = lazy(
+  () => import("@/pages/admin/dashboards/SuperadminDashboard"),
+);
 export const AdminHomeGate = lazy(() => import("@/layouts/admin/AdminHomeGate"));
 export const AdminEncryptedRouter = lazy(() => import("@/layouts/admin/encryptedRouting/AdminEncryptedRouter"));
 export const CommonAuditList = lazy(

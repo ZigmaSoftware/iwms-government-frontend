@@ -15,6 +15,7 @@ import {
 import {
   getStoredColumnPermissions,
   getStoredPermissions,
+  isStoredSuperAdmin,
 } from "@/utils/permissions";
 import {
   clearAuthSession,
@@ -189,7 +190,9 @@ export default function Auth() {
 
       if (hasAdminAccess) {
         setAdminViewPreference(ADMIN_VIEW_MODE_ADMIN);
-        navigate("/admin", { replace: true });
+        // Super admins land on the platform-wide Superadmin Dashboard; the
+        // scoped Admin Dashboard (/admin) stays one click away.
+        navigate(isStoredSuperAdmin() ? "/admin/superadmin-dashboard" : "/admin", { replace: true });
       } else {
         clearAdminViewPreference();
         navigate("/", { replace: true });
