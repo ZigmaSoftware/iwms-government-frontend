@@ -18,6 +18,9 @@ import { capitalize } from "@/utils/capitalize";
 import type { SubPropertyRecord } from "./types";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const extractErrorMessage = (error: unknown, fallback: string) => {
   const data = (error as { response?: { data?: unknown } }).response?.data;
@@ -67,6 +70,7 @@ export default function SubPropertyList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
   const [isLoading, setIsLoading] = useState(true);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
@@ -89,6 +93,7 @@ export default function SubPropertyList() {
     try {
       const response = await adminApi.subProperties.readAllwithPaginated(page, limit, {
         params: {
+          ...status.applied,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -115,7 +120,7 @@ export default function SubPropertyList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -136,7 +141,8 @@ export default function SubPropertyList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await adminApi.subProperties.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    adminApi.subProperties.exportToExcel({ params: status.applied }, filename, sheetName);
 
   const statusTemplate = (row: SubPropertyRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -172,19 +178,11 @@ export default function SubPropertyList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await adminApi.subProperties.delete(id);
+      await adminApi.subProperties.delete(id, withDeleteReason(reason));
       setSubProperties((current) =>
         current.filter((row) => String(row.unique_id) !== id)
       );
@@ -224,17 +222,20 @@ export default function SubPropertyList() {
             item: t("admin.nav.sub_property"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", { item: t("admin.nav.sub_property") })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", { item: t("admin.nav.sub_property") })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />
 
         <DataTable
+          filterPanel={combineFilters(status)}
           value={subProperties}
           dataKey="unique_id"
           lazy
@@ -263,7 +264,7 @@ export default function SubPropertyList() {
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.sub_property"),
           })}
-          onExportRequest={onExportRequest}
+          onServerExport={onServerExport}
           className="p-datatable-sm"
         >
           <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

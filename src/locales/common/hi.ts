@@ -1,5 +1,7 @@
 export default {
   "common": {
+    "access_denied_title": "पहुंच अस्वीकृत",
+    "access_denied_message": "आपको यह पेज खोलने की अनुमति नहीं है। अपने व्यवस्थापक से स्टाफ एक्सेस कॉन्फ़िगरेशन में यह अनुमति देने के लिए कहें।",
     "appName": "एकीकृत अपशिष्ट प्रबंधन प्रणाली",
     "language_en": "English",
     "language_ta": "தமிழ்",
@@ -83,6 +85,7 @@ export default {
     "warning": "चेतावनी",
     "search_placeholder": "खोजें...",
     "search_item_placeholder": "{{item}} खोजें...",
+    "clear_all_filters": "सभी फ़िल्टर हटाएँ",
     "add": "Add",
     "add_item": "{{item}} जोड़ें",
     "edit_item": "{{item}} संपादित करें",
@@ -94,6 +97,9 @@ export default {
     "confirm_title": "क्या आप सुनिश्चित हैं?",
     "confirm_delete_text": "यह रिकॉर्ड स्थायी रूप से हट जाएगा!",
     "confirm_delete_button": "हाँ, हटाएं!",
+    "delete_reason_label": "हटाने का कारण",
+    "delete_reason_placeholder": "यह रिकॉर्ड क्यों हटाया जा रहा है, दर्ज करें",
+    "delete_reason_required": "कृपया हटाने का कारण दर्ज करें।",
     "deleted_success": "सफलतापूर्वक हटाया गया!",
     "updated_success": "सफलतापूर्वक अपडेट किया गया!",
     "added_success": "सफलतापूर्वक जोड़ा गया!",
@@ -107,6 +113,7 @@ export default {
     "invalid_data": "अमान्य डेटा",
     "update_status_failed": "स्थिति अपडेट नहीं हो पाई",
     "fetch_failed": "डेटा प्राप्त नहीं हो पाया",
+    "page_report": "{totalRecords} में से {first}–{last} रिकॉर्ड",
     "delete_failed": "हटाना विफल",
     "record_removed": "रिकॉर्ड सफलतापूर्वक हटाया गया",
     "select_item_placeholder": "{{item}} चुनें",

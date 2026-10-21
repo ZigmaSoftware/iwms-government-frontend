@@ -8,14 +8,7 @@ import ComponentCard from "@/components/common/ComponentCard";
 import { Button } from "@/components/ui/button";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
-import { capitalize } from "@/utils/capitalize";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import {
   contractorRoleTypesApi,
@@ -238,22 +231,12 @@ function StaffUserTypeEditor({
           </label>
           <Select
             value={selectedUserType}
-            onValueChange={handleUserTypeChange}
+            onChange={handleUserTypeChange}
+            options={userTypes.map((u) => ({ value: u.unique_id, label: u.name }))}
+            placeholder={t("common.select_item_placeholder", { item: t("admin.nav.user_type") })}
             disabled={isSubmitting}
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={t("common.select_item_placeholder", { item: t("admin.nav.user_type") })}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {userTypes.map((u) => (
-                <SelectItem key={u.unique_id} value={u.unique_id}>
-                  {u.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            required
+          />
         </div>
 
         {/* Government Level — only when Government is selected */}
@@ -264,20 +247,12 @@ function StaffUserTypeEditor({
             </label>
             <Select
               value={selectedLevel}
-              onValueChange={handleLevelChange}
+              onChange={handleLevelChange}
+              options={levelOptions}
+              placeholder="Select Level"
               disabled={isSubmitting}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Level" />
-              </SelectTrigger>
-              <SelectContent>
-                {levelOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {capitalize(opt.label)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              required
+            />
           </div>
         )}
       </div>
@@ -290,32 +265,20 @@ function StaffUserTypeEditor({
           </label>
           <Select
             value={name}
-            onValueChange={setName}
+            onChange={setName}
+            options={
+              roleOptions.length === 0
+                ? [{ value: "__no_roles__", label: t("common.not_available"), disabled: true }]
+                : roleOptions
+            }
+            placeholder={
+              isGovernment && !selectedLevel
+                ? "Select a level first"
+                : t("common.select_role")
+            }
             disabled={isSubmitting || (isGovernment && !selectedLevel)}
-          >
-            <SelectTrigger>
-              <SelectValue
-                placeholder={
-                  isGovernment && !selectedLevel
-                    ? "Select a level first"
-                    : t("common.select_role")
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {roleOptions.length === 0 ? (
-                <SelectItem value="__no_roles__" disabled>
-                  {t("common.not_available")}
-                </SelectItem>
-              ) : (
-                roleOptions.map((role) => (
-                  <SelectItem key={role.value} value={role.value}>
-                    {role.label}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+            required
+          />
         </div>
       </div>
 
@@ -326,17 +289,14 @@ function StaffUserTypeEditor({
         </label>
         <Select
           value={isActive ? "true" : "false"}
-          onValueChange={(v) => setIsActive(v === "true")}
+          onChange={(v) => setIsActive(v === "true")}
+          options={[
+            { value: "true", label: t("common.active") },
+            { value: "false", label: t("common.inactive") },
+          ]}
           disabled={isSubmitting}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="true">{t("common.active")}</SelectItem>
-            <SelectItem value="false">{t("common.inactive")}</SelectItem>
-          </SelectContent>
-        </Select>
+          required
+        />
       </div>
 
       {/* Buttons */}

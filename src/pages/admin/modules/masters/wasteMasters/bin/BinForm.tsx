@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
+import Select from "@/components/form/Select";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +26,6 @@ import LocationFields, {
   type GeoLocationValue,
   type LocalBodyLevel,
 } from "../../shared/LocationHierarchyFields";
-import { capitalize } from "@/utils/capitalize";
 
 type Option = {
   value: string;
@@ -252,42 +252,39 @@ export default function BinForm() {
         <LocationFields value={geo} onChange={(next) => { setGeo(next); setCollectionPointId(""); setWardId(""); }} />
         <div>
           <Label>Ward *</Label>
-          <select
+          <Select
             className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             value={wardId}
-            onChange={(e) => setWardId(e.target.value)}
-            disabled={!geo.localBodyLevel || !geo.localBodyId || wardScope.mode === "locked"}
-          >
-            <option value="">
-              {geo.localBodyLevel && geo.localBodyId
+            onChange={(v) => setWardId(v)}
+            options={wards}
+            placeholder={
+              geo.localBodyLevel && geo.localBodyId
                 ? "Select Ward"
-                : "Select local body first"}
-            </option>
-            {wards.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-          </select>
+                : "Select local body first"
+            }
+            disabled={!geo.localBodyLevel || !geo.localBodyId || wardScope.mode === "locked"}
+            required
+          />
         </div>
         <div>
           <Label>Collection Point *</Label>
-          <select
+          <Select
             className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             value={collectionPointId}
-            onChange={(e) => setCollectionPointId(e.target.value)}
-            disabled={!geo.localBodyLevel || !geo.localBodyId}
-          >
-            <option value="">
-              {geo.localBodyLevel && geo.localBodyId
+            onChange={(v) => setCollectionPointId(v)}
+            options={filteredCollectionPoints}
+            placeholder={
+              geo.localBodyLevel && geo.localBodyId
                 ? "Select Collection Point"
-                : "Select local body first"}
-            </option>
-            {filteredCollectionPoints.map((item) => <option key={item.value} value={item.value}>{capitalize(item.label)}</option>)}
-          </select>
+                : "Select local body first"
+            }
+            disabled={!geo.localBodyLevel || !geo.localBodyId}
+            required
+          />
         </div>
         <div>
           <Label>Waste Type *</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={wasteTypeId} onChange={(e) => setWasteTypeId(e.target.value)}>
-            <option value="">Select Waste Type</option>
-            {wasteTypes.map((item) => <option key={item.value} value={item.value}>{capitalize(item.label)}</option>)}
-          </select>
+          <Select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={wasteTypeId} onChange={(v) => setWasteTypeId(v)} options={wasteTypes} placeholder="Select Waste Type" required />
         </div>
         <div>
           <Label>Bin Name *</Label>
@@ -299,10 +296,7 @@ export default function BinForm() {
         </div>
         <div>
           <Label>Bin Type</Label>
-          <select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={binType} onChange={(e) => setBinType(e.target.value)}>
-            <option value="">Select Bin Type</option>
-            {BIN_TYPE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+          <Select className="h-10 w-full rounded-md border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" value={binType} onChange={(v) => setBinType(v)} options={BIN_TYPE_OPTIONS} placeholder="Select Bin Type" />
         </div>
         <div>
           <Label htmlFor="latitude">Latitude</Label>

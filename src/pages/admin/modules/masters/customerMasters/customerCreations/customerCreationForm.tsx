@@ -25,19 +25,12 @@ import {
   wardApi,
   wasteTypeApi,
 } from "@/helpers/admin";
-import { appModuleApi } from "@/helpers/admin";
 
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useTranslation } from "react-i18next";
@@ -144,7 +137,6 @@ const CUSTOMER_CREATION_FIELDS: Record<string, string[]> = {
   state_id: ["state_id", "state"],
   district_id: ["district_id", "district"],
   area_type_id: ["area_type_id", "area_type"],
-  location_node_id: ["location_node_id", "location_node"],
   corporation_id: ["corporation_id", "corporation"],
   municipality_id: ["municipality_id", "municipality"],
   town_panchayat_id: ["town_panchayat_id", "town_panchayat"],
@@ -384,22 +376,15 @@ const ShadcnSelect = ({
         {label}
         {isRequired && <span className="text-red-500 ml-1">*</span>}
       </Label>
-      <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.length > 0 ? (
-            options.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {capitalize(o.label)}
-              </SelectItem>
-            ))
-          ) : (
-            <div className="p-2 text-sm text-gray-500">No options available</div>
-          )}
-        </SelectContent>
-      </Select>
+      <Select
+        value={value}
+        onChange={onChange}
+        options={options}
+        placeholder={placeholder}
+        className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+        required={isRequired}
+      />
     </div>
   );
 };
@@ -560,20 +545,12 @@ const FamilyMembersRepeater = ({
                 autoComplete="off"
               />
               <Select
-                value={member.id_proof_type || undefined}
-                onValueChange={(v) => updateMember(index, { id_proof_type: v })}
-              >
-                <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white">
-                  <SelectValue placeholder="ID proof type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {idProofTypeOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {capitalize(o.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                value={member.id_proof_type}
+                onChange={(v) => updateMember(index, { id_proof_type: v })}
+                options={idProofTypeOptions}
+                placeholder="ID proof type"
+                className="w-full border border-gray-300 rounded-md bg-white"
+              />
               <Input
                 value={member.id_no}
                 onChange={(e) => updateMember(index, { id_no: e.target.value })}
@@ -724,7 +701,7 @@ function CustomerEditor({
   const [formData, setFormData] = useState<FormDataType>({
     customer_name: initialPayload.customer_name,
     contact_no: initialPayload.contact_no,
-    app_module: initialPayload.app_module,
+    app_module: "citizen",
     username: initialPayload.username,
     email: initialPayload.email,
     password: initialPayload.password,
@@ -747,7 +724,6 @@ function CustomerEditor({
     state_id: initialPayload.state_id,
     district_id: initialPayload.district_id,
     area_type_id: initialPayload.area_type_id,
-    location_node_id: initialPayload.location_node_id,
     corporation_id: initialPayload.corporation_id,
     municipality_id: initialPayload.municipality_id,
     town_panchayat_id: initialPayload.town_panchayat_id,
@@ -764,35 +740,6 @@ function CustomerEditor({
     industry_name: initialPayload.industry_name,
     industry_type: initialPayload.industry_type,
   });
-
-  // Sourced from the App Module master so a rename in Screen Management shows
-  // up here without a frontend release.
-  const [appModuleOptions, setAppModuleOptions] = useState<
-    { value: string; label: string }[]
-  >([{ value: "citizen", label: "Customer" }]);
-
-  useEffect(() => {
-    let cancelled = false;
-    appModuleApi
-      .readAll()
-      .then((rows) => {
-        if (cancelled) return;
-        const list = Array.isArray(rows) ? rows : [];
-        const options = list
-          .filter((row: { is_active?: boolean }) => row.is_active !== false)
-          .map((row: { surface_key: string; label: string }) => ({
-            value: row.surface_key,
-            label: row.label,
-          }));
-        if (options.length) setAppModuleOptions(options);
-      })
-      .catch(() => {
-        /* keep the default so the field still works offline */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const [selectedAreaType, setSelectedAreaType] = useState<AreaType | "">(
     initialPayload.selectedAreaType,
@@ -1061,7 +1008,6 @@ function CustomerEditor({
     setSelectedHierarchyType(level);
     setFormData((prev) => ({
       ...prev,
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -1077,7 +1023,6 @@ function CustomerEditor({
     setSelectedHierarchyType("");
     setFormData((prev) => ({
       ...prev,
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -1091,7 +1036,6 @@ function CustomerEditor({
     setSelectedHierarchyType("");
     setFormData((prev) => ({
       ...prev,
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",
@@ -1486,23 +1430,15 @@ function CustomerEditor({
                   Mobile App
                 </label>
                 <Select
-                  value={formData.app_module || "citizen"}
-                  onValueChange={(value) => update("app_module", value)}
-                >
-                  <SelectTrigger className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select the app this customer opens" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {appModuleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  value="citizen"
+                  onChange={() => update("app_module", "citizen")}
+                  options={[{ value: "citizen", label: "Customer" }]}
+                  placeholder="Customer"
+                  className="w-full border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500"
+                />
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Which app opens after sign-in. Whether they may sign in, and
-                  which screens they see, is set in Customer Access Configuration.
+                  Customers use the Customer app. Sign-in access and visible
+                  screens are managed in Customer Access Configuration.
                 </p>
               </div>
             )}
@@ -1614,7 +1550,6 @@ function CustomerEditor({
                   state_id: v,
                   district_id: "",
                   area_type_id: "",
-                  location_node_id: "",
                   corporation_id: "",
                   municipality_id: "",
                   town_panchayat_id: "",
@@ -1640,7 +1575,6 @@ function CustomerEditor({
                   ...prev,
                   district_id: v,
                   area_type_id: "",
-                  location_node_id: "",
                   corporation_id: "",
                   municipality_id: "",
                   town_panchayat_id: "",
@@ -1680,7 +1614,6 @@ function CustomerEditor({
                 setFormData((prev) => ({
                   ...prev,
                   area_type_id: v,
-                  location_node_id: "",
                   corporation_id: "",
                   municipality_id: "",
                   town_panchayat_id: "",
@@ -2528,7 +2461,7 @@ export default function CustomerCreationForm() {
     initialPayload = {
       customer_name: String(d.customer_name ?? ""),
       contact_no: String(d.contact_no ?? ""),
-      app_module: String(d.app_module ?? "citizen"),
+      app_module: "citizen",
       username: String(d.username ?? ""),
       email: String(d.email ?? ""),
       password: String(d.password ?? ""),
@@ -2557,7 +2490,6 @@ export default function CustomerCreationForm() {
       state_id: stateId,
       district_id: districtId,
       area_type_id: areaTypeId,
-      location_node_id: String(d.location_node_id ?? d.location_node?.unique_id ?? ""),
       corporation_id: corporationId,
       municipality_id: municipalityId,
       town_panchayat_id: townPanchayatId,
@@ -2608,7 +2540,6 @@ export default function CustomerCreationForm() {
       state_id: "",
       district_id: "",
       area_type_id: "",
-      location_node_id: "",
       corporation_id: "",
       municipality_id: "",
       town_panchayat_id: "",

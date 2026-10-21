@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchGrievances } from "@/features/complaintTicketing/api";
+import { complaintTicketApi, fetchGrievances } from "@/features/complaintTicketing/api";
 import { vehicleBreakdownApi } from "@/helpers/admin";
 import {
   BREAKDOWN_REASON_LABELS,
@@ -45,7 +45,8 @@ import {
 } from "@/pages/admin/modules/core_modules/dailyOperations/vehicleBreakdown/types";
 import { AttachmentPreview } from "@/features/complaintTicketing/components/AttachmentPreview";
 import { InfoField } from "@/features/complaintTicketing/components/InfoField";
-import type { Grievance } from "@/features/complaintTicketing/types";
+import { EscalationDetails } from "@/features/complaintTicketing/components/EscalationDetails";
+import type { ComplaintTicket, Grievance } from "@/features/complaintTicketing/types";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,32 @@ export default function Grievances() {
 
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<Grievance | null>(null);
+  // Full ticket (escalation + status history) for the detail dialog; null
+  // while loading or when this user can't read the ticket itself.
+  const [selectedDetail, setSelectedDetail] = useState<ComplaintTicket | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const openComplaint = (complaint: Grievance) => {
+    setSelectedComplaint(complaint);
+    setSelectedDetail(null);
+    setOpenDialog(true);
+    if (!complaint.ticket_id) return;
+    setDetailLoading(true);
+    complaintTicketApi
+      .read(complaint.ticket_id)
+      .then((ticket) => setSelectedDetail(ticket as ComplaintTicket))
+      .catch(() => setSelectedDetail(null))
+      .finally(() => setDetailLoading(false));
+  };
+
+  // Latest non-empty remark on the status timeline (resolution note,
+  // escalation reason, ...), newest first.
+  const latestRemark = useMemo(() => {
+    const rows = [...(selectedDetail?.status_history ?? [])]
+      .filter((row) => (row.remarks || "").trim())
+      .sort((a, b) => new Date(b.changed_at ?? 0).getTime() - new Date(a.changed_at ?? 0).getTime());
+    return rows[0]?.remarks || selectedComplaint?.action_remarks || "";
+  }, [selectedDetail, selectedComplaint]);
 
   const loadComplaints = useCallback(
     async (signal?: AbortSignal) => {
@@ -167,7 +194,7 @@ export default function Grievances() {
       (value) => value === "PUBLIC_GRIEVANCE" ? "Public Grievance" : capitalize(value.replaceAll("_", " ")),
     ),
     categories: optionList(complaints.map((item) => item.category_name || item.category)),
-    assignees: optionList(complaints.map((item) => item.assigned_staff_name || item.assigned_team_name)),
+    assignees: optionList(complaints.map((item) => item.assigned_staff_name)),
   }), [complaints]);
 
   // SEARCH + MULTI-SELECT FILTERS
@@ -187,7 +214,6 @@ export default function Grievances() {
       g.operational_context?.operator_reference,
       g.operational_context?.vehicle_reference,
       g.assigned_staff_name,
-      g.assigned_team_name,
       g.customer_name,
       g.profile_name,
       g.reporter_name,
@@ -202,7 +228,7 @@ export default function Grievances() {
     const incident = g.operational_context?.incident_type || "other";
     const source = g.source_code || "INTERNAL";
     const category = g.category_name || g.category || "";
-    const assignee = g.assigned_staff_name || g.assigned_team_name || "";
+    const assignee = g.assigned_staff_name || "";
 
     return (
       searchable.includes(s) &&
@@ -638,7 +664,7 @@ export default function Grievances() {
               ["Incident type", incidentFilters, setIncidentFilters, filterOptions.incidents],
               ["Source", sourceFilters, setSourceFilters, filterOptions.sources],
               ["Category", categoryFilters, setCategoryFilters, filterOptions.categories],
-              ["Assigned staff / team", assigneeFilters, setAssigneeFilters, filterOptions.assignees],
+              ["Assigned staff", assigneeFilters, setAssigneeFilters, filterOptions.assignees],
             ].map(([label, value, setter, options]) => (
               <div key={label as string}>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">{label as string}</label>
@@ -816,17 +842,14 @@ export default function Grievances() {
                               {context?.vehicle_reference && <Badge variant="secondary">Vehicle: {context.vehicle_reference}</Badge>}
                               {context?.driver_reference && <Badge variant="secondary">Driver: {context.driver_reference}</Badge>}
                               {context?.operator_reference && <Badge variant="secondary">Operator: {context.operator_reference}</Badge>}
-                              {(g.assigned_staff_name || g.assigned_team_name) && (
-                                <Badge variant="outline">Assigned: {g.assigned_staff_name || g.assigned_team_name}</Badge>
+                              {g.assigned_staff_name && (
+                                <Badge variant="outline">Assigned: {g.assigned_staff_name}</Badge>
                               )}
                               <Badge variant="outline">{g.reporter_type || "Public Grievance"}</Badge>
                               {g.raised_by_name && <Badge variant="outline">Raised by: {g.raised_by_name}</Badge>}
                             </div>
                             <Button
-                              onClick={() => {
-                                setSelectedComplaint(g);
-                                setOpenDialog(true);
-                              }}
+                              onClick={() => openComplaint(g)}
                               size="sm"
                               variant="outline"
                             >
@@ -939,9 +962,17 @@ export default function Grievances() {
                     <InfoField label="Vehicle" value={selectedComplaint.operational_context?.vehicle_reference || "—"} />
                     <InfoField label="Driver" value={selectedComplaint.operational_context?.driver_reference || "—"} />
                     <InfoField label="Operator" value={selectedComplaint.operational_context?.operator_reference || "—"} />
-                    <InfoField label="Assigned to" value={selectedComplaint.assigned_staff_name || selectedComplaint.assigned_team_name || "—"} />
+                    <InfoField label="Assigned to" value={selectedComplaint.assigned_staff_name || "—"} />
                   </div>
                 </div>
+
+                <hr />
+
+                <EscalationDetails
+                  grievance={selectedComplaint}
+                  history={selectedDetail ? selectedDetail.escalation_history ?? [] : null}
+                  loading={detailLoading}
+                />
 
                 <hr />
 
@@ -952,7 +983,7 @@ export default function Grievances() {
 
                 <hr />
 
-                <InfoField label={t("dashboard.grievances.detail.remarks")} value={selectedComplaint.action_remarks || "-"} />
+                <InfoField label={t("dashboard.grievances.detail.remarks")} value={latestRemark || "-"} />
               </div>
             )}
           </div>

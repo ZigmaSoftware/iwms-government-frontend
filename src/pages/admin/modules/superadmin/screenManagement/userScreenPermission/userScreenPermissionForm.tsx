@@ -6,14 +6,9 @@ import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import Select from "@/components/form/Select";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -136,7 +131,13 @@ export default function UserScreenPermissionForm() {
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
   const [loadingWidgets, setLoadingWidgets] = useState(false);
 
-  const [mainScreens, setMainScreens] = useState<Option[]>([]);
+  const [rawMainScreens, setMainScreens] = useState<Option[]>([]);
+  // Shown with the sidebar's names ("Daily Operations"), not the stored keys.
+  const { moduleLabel } = usePermissionLabels();
+  const mainScreens = useMemo(
+    () => rawMainScreens.map((opt) => ({ ...opt, label: moduleLabel(opt.label) })),
+    [rawMainScreens, moduleLabel]
+  );
   const [allUserScreens, setAllUserScreens] = useState<ApiUserScreen[]>([]);
   const [actions, setActions] = useState<Option[]>([]);
 
@@ -162,7 +163,10 @@ export default function UserScreenPermissionForm() {
       const entityConfig = LOCAL_BODY_TYPES.find((t) => t.value === decodedRoute.localBodyType);
       if (!entityConfig) return;
       try {
-        const records = (await adminApi[entityConfig.entity].readAll()) as Array<Record<string, unknown>>;
+        // lite still carries state_id / district_id / area_type_id.
+        const records = (await adminApi[entityConfig.entity].readAll({
+          params: { lite: 1 },
+        })) as Array<Record<string, unknown>>;
         if (cancelled || !Array.isArray(records)) return;
         const record = records.find((r) => String(r.unique_id) === decodedRoute.localBodyId);
         if (!record) return;
@@ -575,19 +579,11 @@ export default function UserScreenPermissionForm() {
           <Label>Permission Type *</Label>
           <Select
             value={permissionType}
-            onValueChange={(value) => setPermissionType(value as PermissionType)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select Permission Type" />
-            </SelectTrigger>
-            <SelectContent>
-              {PERMISSION_TYPE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {capitalize(opt.label)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onChange={(value) => setPermissionType(value as PermissionType)}
+            options={PERMISSION_TYPE_OPTIONS}
+            placeholder="Select Permission Type"
+            required
+          />
         </div>
 
         <div className="mb-6 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
@@ -619,24 +615,14 @@ export default function UserScreenPermissionForm() {
               <Label>{t("admin.nav.main_screen")} *</Label>
               <Select
                 value={addSectionValue}
-                onValueChange={handleAddSection}
+                onChange={handleAddSection}
+                options={mainScreens}
+                placeholder={t("common.select_item_placeholder", {
+                  item: t("admin.nav.main_screen"),
+                })}
                 disabled={!hasLocalBody}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={t("common.select_item_placeholder", {
-                      item: t("admin.nav.main_screen"),
-                    })}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {mainScreens.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {capitalize(opt.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                required
+              />
             </div>
           </div>
         )}
@@ -668,28 +654,17 @@ export default function UserScreenPermissionForm() {
               <Label>{t("admin.user_screen_permission.add_another_main_screen")}</Label>
               <Select
                 value={addSectionValue}
-                onValueChange={handleAddSection}
+                onChange={handleAddSection}
+                options={availableMainScreens}
+                placeholder={
+                  availableMainScreens.length === 0
+                    ? t("admin.user_screen_permission.all_main_screens_added")
+                    : t("common.select_item_placeholder", {
+                        item: t("admin.nav.main_screen"),
+                      })
+                }
                 disabled={!hasLocalBody || availableMainScreens.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      availableMainScreens.length === 0
-                        ? t("admin.user_screen_permission.all_main_screens_added")
-                        : t("common.select_item_placeholder", {
-                            item: t("admin.nav.main_screen"),
-                          })
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableMainScreens.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {capitalize(opt.label)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
           </div>
         )}

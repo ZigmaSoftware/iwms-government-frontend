@@ -15,17 +15,32 @@ import { panchayatLeaderApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import {
-  exportRecordsToExcel,
   exportTemplateToExcel,
   getAdminScreenExcelFilename,
   excelFileToCsvFile,
+  readExcelRows,
   type ExcelTemplateColumn,
 } from "@/utils/exportExcel";
+import BulkUploadResultDialog from "@/components/common/BulkUploadResultDialog";
+import BulkRejectedPanel from "@/components/common/BulkRejectedPanel";
+import {
+  clearBulkResult,
+  loadBulkResult,
+  normalizeBulkErrors,
+  saveBulkResult,
+  type BulkUploadResult,
+} from "@/utils/bulkUpload";
+import { runBulkUpload } from "@/utils/backgroundJobs";
 import { adminApi } from "@/helpers/admin/registry";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useScreenAccess } from "@/contexts/screenPermission";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 // ─── Template columns ──────────────────────────────────────────────────────────
 const PLB_TEMPLATE_COLUMNS: ExcelTemplateColumn[] = [
@@ -60,6 +75,16 @@ export default function PanchayatLeaderListPage() {
   const [searchTerm, setSearchTerm]         = useState("");
   const [sortField, setSortField]           = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder]           = useState<SortOrder>(undefined);
+  const BULK_KEY = "panchayat-leaders";
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(() =>
+    loadBulkResult(BULK_KEY),
+  );
+  const [resultOpen, setResultOpen] = useState(false);
+  const { canAdd, canImport } = useScreenAccess();
+  const geo    = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const toRecordList = (value: unknown): PanchayatLeader[] => {
     if (Array.isArray(value)) return value as PanchayatLeader[];
@@ -81,6 +106,7 @@ export default function PanchayatLeaderListPage() {
     try {
       const response = await panchayatLeaderApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -99,7 +125,7 @@ export default function PanchayatLeaderListPage() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger]);
+  }, [first, rowsPerPage, searchTerm, ordering, refetchTrigger, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -130,38 +156,43 @@ export default function PanchayatLeaderListPage() {
   };
 
   const handleDownloadAll = async () => {
-    const all = await panchayatLeaderApi.readAllForExport();
-    await exportRecordsToExcel(
-      all as unknown as Record<string, unknown>[],
-      getAdminScreenExcelFilename("all"),
-      "PLB Leaders",
-    );
+    try {
+      await panchayatLeaderApi.exportToExcel({ params: filterParams }, getAdminScreenExcelFilename("all"), "PLB Leaders");
+    } catch (error) {
+      notify.fire("Export failed", error instanceof Error ? error.message : "Export failed.", "error");
+    }
   };
 
   const handleUploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      const originalRows = (await readExcelRows(file)) as Record<string, unknown>[];
       const csvFile = await excelFileToCsvFile(file, "plb_leader_bulk.csv");
       const formData = new FormData();
       formData.append("file", csvFile);
 
-      const res = await adminApi.panchayatLeaders.action("bulk-upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await runBulkUpload(adminApi.panchayatLeaders, formData);
 
-      const errors = Array.isArray(res.errors) ? res.errors : [];
+      const errors = normalizeBulkErrors(res.errors, originalRows);
+      const successCount = Number((res as { success_count?: unknown })?.success_count ?? 0);
       recordExcelAudit("upload_excel", {
         file_name: file.name,
         status: "completed",
-        success_count: Number(res.success_count ?? 0),
+        success_count: successCount,
         error_count: errors.length,
+        ...(res.file_url ? { file_url: res.file_url, file_name: res.file_name ?? file.name } : {}),
       });
+      const uploadSummary: BulkUploadResult = { fileName: file.name, successCount, errors, originalRows };
+      if (errors.length > 0) saveBulkResult(BULK_KEY, uploadSummary);
+      else clearBulkResult(BULK_KEY);
+      setUploadResult(uploadSummary);
+      setResultOpen(true);
 
       notify.fire({
-        icon: "success",
+        icon: errors.length > 0 ? "warning" : "success",
         title: "Upload Completed",
-        html: `<b>Success:</b> ${res.success_count ?? 0}<br/><b>Errors:</b> ${errors.length}`,
+        text: `Success: ${successCount} · Rejected: ${errors.length}. ${errors.length > 0 ? "See rejected list below." : ""}`,
       });
       setRefetchTrigger((p) => p + 1);
     } catch {
@@ -200,19 +231,11 @@ export default function PanchayatLeaderListPage() {
 
   // ── Delete ──────────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await panchayatLeaderApi.delete(id);
+      await panchayatLeaderApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({ icon: "success", title: "Deleted successfully", timer: 1500, showConfirmButton: false });
     } catch (error: any) {
@@ -239,36 +262,6 @@ export default function PanchayatLeaderListPage() {
       onSearchChange={setGlobalFilterValue}
       searchPlaceholder="Search"
       className="mb-4"
-      trailing={
-        <>
-          <Button
-            label="Download Template"
-            icon="pi pi-download"
-            severity="secondary"
-            className="p-button-sm !text-gray-700 !border-gray-300 !bg-white hover:!bg-gray-50"
-            onClick={handleDownloadTemplate}
-          />
-          <Button
-            label="Upload Excel"
-            icon="pi pi-upload"
-            className="p-button-sm !bg-blue-600 !border-blue-600 hover:!bg-blue-700"
-            onClick={() => fileInputRef.current?.click()}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            hidden
-            onChange={handleUploadExcel}
-          />
-          <Button
-            label="Download All Excel"
-            icon="pi pi-download"
-            className="p-button-sm !bg-green-600 !border-green-600 hover:!bg-green-700"
-            onClick={() => void handleDownloadAll()}
-          />
-        </>
-      }
     />
   );
 
@@ -281,15 +274,38 @@ export default function PanchayatLeaderListPage() {
         title="PLB Leader"
         subtitle="Manage PLB Leader records"
         actions={
-          <Button
-            label="Add PLB Leader"
-            icon="pi pi-plus"
-            className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add PLB Leader"
+              icon="pi pi-plus"
+              className="p-button-success !bg-green-600 !border-green-600 hover:!bg-green-700"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        hidden
+        onChange={handleUploadExcel}
+      />
+
+      {uploadResult && uploadResult.errors.length > 0 && (
+        <BulkRejectedPanel
+          result={uploadResult}
+          onClear={() => {
+            clearBulkResult(BULK_KEY);
+            setUploadResult(null);
+          }}
+          onReupload={canAdd && canImport ? () => fileInputRef.current?.click() : undefined}
+          onViewAll={() => setResultOpen(true)}
+          downloadFilename="panchayat_leader_rejected.xlsx"
+        />
+      )}
 
       {/* ── DataTable ── */}
       <DataTable
@@ -307,6 +323,12 @@ export default function PanchayatLeaderListPage() {
         rowsPerPageOptions={[5, 10, 25, 50]}
         loading={isLoading}
         header={renderHeader()}
+        filterPanel={combineFilters(geo, status)}
+        documentActions={{
+          uploadExcel: { onClick: () => fileInputRef.current?.click(), hidden: !(canAdd && canImport) },
+          downloadTemplate: { onClick: () => void handleDownloadTemplate() },
+          downloadExcel: { onClick: () => void handleDownloadAll() },
+        }}
         stripedRows
         showGridlines
         emptyMessage="No PLB Leader found."
@@ -351,6 +373,14 @@ export default function PanchayatLeaderListPage() {
           style={{ width: "100px", textAlign: "center" }}
         />
       </DataTable>
+
+      <BulkUploadResultDialog
+        visible={resultOpen}
+        onClose={() => setResultOpen(false)}
+        title="Panchayat leader bulk upload — rejected records"
+        result={uploadResult}
+        downloadFilename="panchayat_leader_rejected.xlsx"
+      />
     </div>
   );
 }

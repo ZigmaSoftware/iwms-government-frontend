@@ -6,6 +6,7 @@ import notify from "@/lib/notify";
 import ComponentCard from "@/components/common/ComponentCard";
 import AutoDetectLocationButton from "@/components/form/AutoDetectLocationButton";
 import { Label } from "@/components/ui/label";
+import Select from "@/components/form/Select";
 import { Input } from "@/components/ui/input";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
@@ -33,6 +34,21 @@ const LOCAL_BODY_TYPES: LocalBodyType[] = [
   "panchayat_union",
   "panchayat",
 ];
+
+const INCIDENT_TYPE_OPTIONS = [
+  { value: "public", label: "Public Grievance" },
+  { value: "trip", label: "Trip Related" },
+  { value: "driver", label: "Driver Related" },
+  { value: "operator", label: "Operator Related" },
+  { value: "vehicle", label: "Vehicle Related" },
+  { value: "other", label: "Other" },
+];
+
+// Optional pickers keep an explicit "None" / "Walk-in" entry so a chosen value
+// can be cleared again; the sentinel maps back to "" in the form state.
+const EMPTY_OPTION = "__none__";
+const withEmpty = (label: string, options: { value: string; label: string }[]) => [{ value: EMPTY_OPTION, label }, ...options];
+const fromOptional = (value: string) => (value === EMPTY_OPTION ? "" : value);
 
 const LOCAL_BODY_TYPE_LABELS: Record<LocalBodyType, string> = {
   corporation: "Corporation",
@@ -548,19 +564,25 @@ export default function TicketWizardForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <div>
               <Label>Customer</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.customer} onChange={(e) => onCustomer(e.target.value)}>
-                <option value="">Walk-in / unknown</option>
-                {customers.map((item) => <option key={item.unique_id ?? item.id} value={item.unique_id ?? item.id}>{capitalize(item.customer_name)}</option>)}
-              </select>
+              <Select
+                value={form.customer}
+                onChange={(v) => onCustomer(fromOptional(v))}
+                options={withEmpty("Walk-in / unknown", customers.map((item) => ({ value: item.unique_id ?? item.id, label: item.customer_name })))}
+                placeholder="Walk-in / unknown"
+                className="w-full"
+              />
             </div>
             <div><Label>Phone</Label><Input value={form.wa_phone} onChange={(e) => setValue("wa_phone", e.target.value)} /></div>
             <div><Label>Profile Name</Label><Input value={form.profile_name} onChange={(e) => setValue("profile_name", e.target.value)} /></div>
             <div>
               <Label>Source</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.source} onChange={(e) => setValue("source", e.target.value)}>
-                <option value="">None</option>
-                {sources.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.source_name)}</option>)}
-              </select>
+              <Select
+                value={form.source}
+                onChange={(v) => setValue("source", fromOptional(v))}
+                options={withEmpty("None", sources.map((item) => ({ value: item.unique_id, label: item.source_name })))}
+                placeholder="None"
+                className="w-full"
+              />
             </div>
           </div>
         )}
@@ -569,31 +591,46 @@ export default function TicketWizardForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <div>
               <Label>Category</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.category} onChange={(e) => setForm((prev) => ({ ...prev, category: e.target.value, subcategory: "" }))} required>
-                <option value="">Select category</option>
-                {categories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.category_name)}</option>)}
-              </select>
+              <Select
+                value={form.category}
+                onChange={(v) => setForm((prev) => ({ ...prev, category: v, subcategory: "" }))}
+                options={categories.map((item) => ({ value: item.unique_id, label: item.category_name }))}
+                placeholder="Select category"
+                className="w-full"
+                required
+              />
             </div>
             <div>
               <Label>Subcategory</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.subcategory} onChange={(e) => setValue("subcategory", e.target.value)}>
-                <option value="">None</option>
-                {filteredSubcategories.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.subcategory_name)}</option>)}
-              </select>
+              <Select
+                value={form.subcategory}
+                onChange={(v) => setValue("subcategory", fromOptional(v))}
+                options={withEmpty("None", filteredSubcategories.map((item) => ({ value: item.unique_id, label: item.subcategory_name })))}
+                placeholder="None"
+                className="w-full"
+              />
             </div>
             <div>
               <Label>Priority</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.priority} onChange={(e) => setValue("priority", e.target.value)} required>
-                <option value="">Select priority</option>
-                {priorities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.priority_name)}</option>)}
-              </select>
+              <Select
+                value={form.priority}
+                onChange={(v) => setValue("priority", v)}
+                options={priorities.map((item) => ({ value: item.unique_id, label: item.priority_name }))}
+                placeholder="Select priority"
+                className="w-full"
+                required
+              />
             </div>
             <div>
               <Label>Status</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.status} onChange={(e) => setValue("status", e.target.value)} required>
-                <option value="">Select status</option>
-                {statuses.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.status_name)}</option>)}
-              </select>
+              <Select
+                value={form.status}
+                onChange={(v) => setValue("status", v)}
+                options={statuses.map((item) => ({ value: item.unique_id, label: item.status_name }))}
+                placeholder="Select status"
+                className="w-full"
+                required
+              />
             </div>
             <div className="md:col-span-3">
               <Label>Waste Type</Label>
@@ -623,18 +660,13 @@ export default function TicketWizardForm() {
             <div className="md:col-span-3"><Label>Description</Label><textarea className="w-full rounded-md border px-3 py-2 text-sm" rows={4} value={form.description} onChange={(e) => setValue("description", e.target.value)} /></div>
             <div>
               <Label>Complaint / Incident Type</Label>
-              <select
-                className="h-11 w-full rounded-md border px-3 text-sm"
+              <Select
                 value={form.incident_type}
-                onChange={(e) => setValue("incident_type", e.target.value)}
-              >
-                <option value="public">Public Grievance</option>
-                <option value="trip">Trip Related</option>
-                <option value="driver">Driver Related</option>
-                <option value="operator">Operator Related</option>
-                <option value="vehicle">Vehicle Related</option>
-                <option value="other">Other</option>
-              </select>
+                onChange={(v) => setValue("incident_type", v)}
+                options={INCIDENT_TYPE_OPTIONS}
+                placeholder="Select incident type"
+                className="w-full"
+              />
             </div>
             <div><Label>Trip Reference</Label><Input placeholder="Trip ID / trip plan code" value={form.trip_reference} onChange={(e) => setValue("trip_reference", e.target.value)} /></div>
             <div><Label>Vehicle Reference</Label><Input placeholder="Vehicle number / ID" value={form.vehicle_reference} onChange={(e) => setValue("vehicle_reference", e.target.value)} /></div>
@@ -648,38 +680,57 @@ export default function TicketWizardForm() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
             <div>
               <Label>State</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.state} onChange={(e) => onStateChange(e.target.value)}>
-                <option value="">Select state</option>
-                {states.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <Select
+                value={form.state}
+                onChange={(v) => onStateChange(v)}
+                options={states.map((item) => ({ value: item.unique_id, label: item.name }))}
+                placeholder="Select state"
+                className="w-full"
+              />
             </div>
             <div>
               <Label>District</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.district} onChange={(e) => onDistrictChange(e.target.value)} disabled={!form.state}>
-                <option value="">{form.state ? "Select district" : "Select a state first"}</option>
-                {filteredDistricts.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <Select
+                value={form.district}
+                onChange={(v) => onDistrictChange(v)}
+                options={filteredDistricts.map((item) => ({ value: item.unique_id, label: item.name }))}
+                placeholder={form.state ? "Select district" : "Select a state first"}
+                className="w-full"
+                disabled={!form.state}
+              />
             </div>
             <div>
               <Label>Area Type</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.area_type} onChange={(e) => onAreaTypeChange(e.target.value)} disabled={!form.district}>
-                <option value="">{form.district ? "Select area type" : "Select a district first"}</option>
-                {filteredAreaTypes.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <Select
+                value={form.area_type}
+                onChange={(v) => onAreaTypeChange(v)}
+                options={filteredAreaTypes.map((item) => ({ value: item.unique_id, label: item.name }))}
+                placeholder={form.district ? "Select area type" : "Select a district first"}
+                className="w-full"
+                disabled={!form.district}
+              />
             </div>
             <div>
               <Label>Local Body Type</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.city_type} onChange={(e) => onLocalBodyTypeChange(e.target.value)} disabled={!form.area_type}>
-                <option value="">{form.area_type ? "Select local body type" : "Select area type first"}</option>
-                {availableLocalBodyTypes.map((type) => <option key={type} value={type}>{LOCAL_BODY_TYPE_LABELS[type]}</option>)}
-              </select>
+              <Select
+                value={form.city_type}
+                onChange={(v) => onLocalBodyTypeChange(v)}
+                options={availableLocalBodyTypes.map((type) => ({ value: type, label: LOCAL_BODY_TYPE_LABELS[type] }))}
+                placeholder={form.area_type ? "Select local body type" : "Select area type first"}
+                className="w-full"
+                disabled={!form.area_type}
+              />
             </div>
             <div>
               <Label>Local Body</Label>
-              <select className="h-11 w-full rounded-md border px-3 text-sm" value={form.city} onChange={(e) => onCityChange(e.target.value)} disabled={!form.district || !form.area_type || !form.city_type}>
-                <option value="">{form.city_type ? "Select local body" : "Select local body type first"}</option>
-                {cities.map((item) => <option key={item.unique_id} value={item.unique_id}>{capitalize(item.name)}</option>)}
-              </select>
+              <Select
+                value={form.city}
+                onChange={(v) => onCityChange(v)}
+                options={cities.map((item) => ({ value: item.unique_id, label: item.name }))}
+                placeholder={form.city_type ? "Select local body" : "Select local body type first"}
+                className="w-full"
+                disabled={!form.district || !form.area_type || !form.city_type}
+              />
             </div>
             <div className="md:col-span-3"><Label>Location</Label><Input value={form.location_text} onChange={(e) => setValue("location_text", e.target.value)} /></div>
             <div><Label>Latitude</Label><Input value={form.latitude} onChange={(e) => setValue("latitude", e.target.value)} /></div>

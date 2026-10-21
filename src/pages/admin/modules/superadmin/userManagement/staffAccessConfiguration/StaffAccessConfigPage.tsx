@@ -28,12 +28,10 @@ import {
   fetchEnabledScreensForLocalBody,
   fetchRawUserScreenActions,
   fetchScreenCatalogPermissions,
-  fetchScopeAdmins,
   fetchUserScreenActions,
   mapPermissionModules,
   updateStaffAccess,
   type AllowedActionsMap,
-  type ScopeAdminRecord,
 } from "@/helpers/admin/staffAccessConfigApi";
 import type {
   AppModuleOption,
@@ -53,11 +51,8 @@ import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
 
 type FormValues = {
   employeeName: string;
-  staffConfigName: string;
   mobileNumber: string;
   officeEmail: string;
-  departmentId: string;
-  designation: string;
   doj: string;
   activeStatus: boolean;
   username: string;
@@ -66,7 +61,6 @@ type FormValues = {
   userTypeId: string;
   governmentUserTypeId: string;
   loginEnabled: boolean;
-  scopeAdminId: string;
   stateId: string;
   districtId: string;
   areaTypeId: string;
@@ -76,7 +70,6 @@ type FormValues = {
   localBodies: LocalBodySelection[];
   /** Wards chosen, further narrowing `localBodies` (optional). */
   wardIds: string[];
-  locationNodeIds: string[];
 };
 
 type ApiOptionRecord = {
@@ -243,11 +236,8 @@ const normalizeEntityId = (value: unknown): string => {
 
 const defaultValues: FormValues = {
   employeeName: "",
-  staffConfigName: "",
   mobileNumber: "",
   officeEmail: "",
-  departmentId: "",
-  designation: "",
   doj: "",
   activeStatus: true,
   username: "",
@@ -256,14 +246,12 @@ const defaultValues: FormValues = {
   userTypeId: "",
   governmentUserTypeId: "",
   loginEnabled: true,
-  scopeAdminId: "",
   stateId: "",
   districtId: "",
   areaTypeId: "",
   localBodyLevels: [],
   localBodies: [],
   wardIds: [],
-  locationNodeIds: [],
 };
 
 const optionLabel = (record: ApiOptionRecord) =>
@@ -359,8 +347,6 @@ export default function StaffAccessConfigPage() {
 
   const [userTypes, setUserTypes] = useState<ApiOptionRecord[]>([]);
   const [governmentRoles, setGovernmentRoles] = useState<ApiOptionRecord[]>([]);
-  const [scopeAdmins, setScopeAdmins] = useState<ScopeAdminRecord[]>([]);
-  const [departmentOptions, setDepartmentOptions] = useState<SelectOption[]>([]);
 
   const [governmentLevel, setGovernmentLevel] = useState("");
 
@@ -375,20 +361,6 @@ export default function StaffAccessConfigPage() {
     panchayat_id: [],
   });
   const [wardRecords, setWardRecords] = useState<ApiOptionRecord[]>([]);
-
-  useEffect(() => {
-    let mounted = true;
-    fetchScopeAdmins()
-      .then((records) => {
-        if (mounted) setScopeAdmins(records);
-      })
-      .catch(() => {
-        if (mounted) setScopeAdmins([]);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   // Wards aren't filterable server-side by an arbitrary SET of local bodies
   // (the API only supports one parent id at a time), so load the full table
@@ -462,11 +434,11 @@ export default function StaffAccessConfigPage() {
           adminApi.states.readAll(),
           adminApi.districts.readAll(),
           adminApi.areatypes.readAll(),
-          adminApi.corporations.readAll(),
-          adminApi.municipalities.readAll(),
-          adminApi.townPanchayats.readAll(),
-          adminApi.panchayatUnions.readAll(),
-          adminApi.panchayats.readAll(),
+          adminApi.corporations.readAll({ params: { lite: 1 } }),
+          adminApi.municipalities.readAll({ params: { lite: 1 } }),
+          adminApi.townPanchayats.readAll({ params: { lite: 1 } }),
+          adminApi.panchayatUnions.readAll({ params: { lite: 1 } }),
+          adminApi.panchayats.readAll({ params: { lite: 1 } }),
         ]);
         if (!mounted) return;
         const valueOrEmpty = (result: PromiseSettledResult<unknown>) =>
@@ -474,8 +446,6 @@ export default function StaffAccessConfigPage() {
 
         setUserTypes(valueOrEmpty(userTypeRes) as ApiOptionRecord[]);
         setGovernmentRoles(valueOrEmpty(governmentRoleRes) as ApiOptionRecord[]);
-        // Departments are loaded separately, filtered by the selected
-        // corporation (see the corporation-scoped effect below).
         setStateOptions(
           mergeWithScopeOptionExtra(
             toOptions(valueOrEmpty(stateRes) as ApiOptionRecord[]) as Array<{ value: string; label: string }>,
@@ -559,31 +529,6 @@ export default function StaffAccessConfigPage() {
     };
   }, []);
 
-  // Departments belong to a corporation. Load them filtered by the corporation
-  // chosen in the data scope (when exactly one corporation is selected);
-  // otherwise load all so the field stays usable before/without a narrow scope.
-  const selectedCorporations = values.localBodies.filter((body) => body.level === "corporation_id");
-  const selectedCorporationId =
-    selectedCorporations.length === 1 ? selectedCorporations[0].id : "";
-  useEffect(() => {
-    let active = true;
-    const request = selectedCorporationId
-      ? adminApi.departments.readAll({ params: { corporation_id: selectedCorporationId } })
-      : adminApi.departments.readAll();
-    request
-      .then((res) => {
-        if (active) {
-          setDepartmentOptions(toOptions((Array.isArray(res) ? res : []) as ApiOptionRecord[]));
-        }
-      })
-      .catch(() => {
-        if (active) setDepartmentOptions([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [selectedCorporationId]);
-
   useEffect(() => {
     if (!isEdit || !id || loadingOptions || loadedConfigId === id) return;
     let cancelled = false;
@@ -617,17 +562,10 @@ export default function StaffAccessConfigPage() {
         const wardIds = Array.isArray(dataScope.wardIds) ? dataScope.wardIds.map((wardId) => String(wardId)) : [];
 
         setValue("employeeName", String(basicInfo.employeeName ?? record.employee_name ?? ""));
-        setValue("staffConfigName", String(basicInfo.staffConfigName ?? record.staff_config_name ?? ""));
         setValue("mobileNumber", String(basicInfo.mobileNumber ?? record.contact_mobile ?? ""));
         setValue("officeEmail", String(basicInfo.officeEmail ?? record.contact_email ?? ""));
-        setValue("departmentId", String(basicInfo.departmentId ?? record.department_id ?? ""));
-        setValue("designation", String(basicInfo.designation ?? record.designation ?? ""));
         setValue("doj", String(basicInfo.doj ?? record.doj ?? ""));
         setValue("activeStatus", Boolean(basicInfo.activeStatus ?? record.active_status ?? true));
-        setValue(
-          "scopeAdminId",
-          String(basicInfo.scopeAdminId ?? record.staff_head_id ?? ""),
-        );
         setValue("username", String(loginConfig.username ?? record.username ?? ""));
         const existingPassword = String(loginConfig.password ?? record.password ?? "");
         setValue("password", existingPassword);
@@ -645,12 +583,6 @@ export default function StaffAccessConfigPage() {
         setValue("localBodyLevels", localBodyLevels);
         setValue("localBodies", localBodies);
         setValue("wardIds", wardIds);
-        setValue(
-          "locationNodeIds",
-          Array.isArray(dataScope.locationNodes)
-            ? dataScope.locationNodes.map((nodeId) => String(nodeId))
-            : [],
-        );
 
         const [nextActions, rawActions] = await Promise.all([
           fetchUserScreenActions(),
@@ -719,33 +651,17 @@ export default function StaffAccessConfigPage() {
 
   const governmentLevelOptions = useMemo(() => {
     const seen = new Set<string>();
-    const parentLevel = scopeAdmins.find(
-      (admin) => admin.id === values.scopeAdminId,
-    )?.roleLevel;
-    const rank: Record<string, number> = {
-      state: 0,
-      district: 1,
-      corporation: 2,
-      municipality: 2,
-      town_panchayat: 2,
-      panchayat_union: 2,
-      panchayat: 2,
-    };
     return governmentRoles
       .filter((role) => {
         const level = role.level ?? "";
-        if (
-          !level ||
-          seen.has(level) ||
-          (parentLevel && (rank[level] ?? 99) < (rank[parentLevel] ?? 99))
-        ) {
+        if (!level || seen.has(level)) {
           return false;
         }
         seen.add(level);
         return true;
       })
       .map((role) => ({ value: role.level ?? "", label: role.level_display || role.level || "" }));
-  }, [governmentRoles, scopeAdmins, values.scopeAdminId]);
+  }, [governmentRoles]);
 
   const governmentRoleOptions = useMemo(() => {
     if (!governmentLevel) return [];
@@ -755,58 +671,6 @@ export default function StaffAccessConfigPage() {
         .map((role) => ({ ...role, name: role.name_display || role.name })),
     );
   }, [governmentLevel, governmentRoles]);
-
-  const selectedScopeAdmin = useMemo(
-    () => scopeAdmins.find((admin) => admin.id === values.scopeAdminId) ?? null,
-    [scopeAdmins, values.scopeAdminId],
-  );
-  const scopeAdminOptions = useMemo(
-    () =>
-      scopeAdmins.map((admin) => ({
-        value: admin.id,
-        label: `${admin.name} — ${admin.role}${admin.username ? ` (${admin.username})` : ""}`,
-      })),
-    [scopeAdmins],
-  );
-
-  const applyScopeAdmin = (adminId: string) => {
-    setValue("scopeAdminId", adminId, { shouldValidate: true });
-    const admin = scopeAdmins.find((item) => item.id === adminId);
-    if (!admin) return;
-    const rank: Record<string, number> = {
-      state: 0,
-      district: 1,
-      corporation: 2,
-      municipality: 2,
-      town_panchayat: 2,
-      panchayat_union: 2,
-      panchayat: 2,
-    };
-    if (
-      governmentLevel &&
-      (rank[governmentLevel] ?? 99) < (rank[admin.roleLevel] ?? 99)
-    ) {
-      setGovernmentLevel("");
-      setValue("governmentUserTypeId", "");
-    }
-    const localBodies = Object.entries(admin.scope.localBodies).flatMap(
-      ([level, entries]) =>
-        entries.map((entry) => ({
-          level: level as LocalBodyLevel,
-          id: entry.id,
-        })),
-    );
-    setValue("stateId", admin.scope.stateId ?? "");
-    setValue("districtId", admin.scope.districtId ?? "");
-    setValue("areaTypeId", admin.scope.areaTypeId ?? "");
-    setValue(
-      "localBodyLevels",
-      Array.from(new Set(localBodies.map((body) => body.level))),
-    );
-    setValue("localBodies", localBodies);
-    setValue("wardIds", admin.scope.wards.map((ward) => ward.id));
-    setValue("locationNodeIds", []);
-  };
 
   // "Any local body selected" — drives display/payload (the staff's data
   // scope always includes exactly what was picked here). Permissions and
@@ -867,7 +731,6 @@ export default function StaffAccessConfigPage() {
     setValue("localBodyLevels", []);
     setValue("localBodies", []);
     setValue("wardIds", []);
-    setValue("locationNodeIds", []);
   }, [
     isStateScopeSelected,
     setValue,
@@ -1018,18 +881,8 @@ export default function StaffAccessConfigPage() {
         return Array.isArray(entries) && entries.length > 0;
       });
     }
-    if (selectedScopeAdmin) {
-      const restrictedLevels = new Set(
-        Object.entries(selectedScopeAdmin.scope.localBodies)
-          .filter(([, entries]) => entries.length > 0)
-          .map(([level]) => level),
-      );
-      if (restrictedLevels.size) {
-        levels = levels.filter((level) => restrictedLevels.has(level.value));
-      }
-    }
     return levels;
-  }, [selectedAreaTypeCategory, selectedScopeAdmin]);
+  }, [selectedAreaTypeCategory]);
 
   const localBodyLevelOptions = useMemo(
     () => availableLocalBodyLevels.map((level) => ({ value: level.value, label: level.label })),
@@ -1044,25 +897,14 @@ export default function StaffAccessConfigPage() {
     return values.localBodyLevels.flatMap((level) => {
       const levelLabel = LOCAL_BODY_LEVELS.find((item) => item.value === level)?.label ?? level;
       const records = (localBodyRecords[level] ?? []).filter(
-        (record) => {
-          if (normalizeEntityId(record.district_id) !== values.districtId) return false;
-          if (!selectedScopeAdmin) return true;
-          const allowed = selectedScopeAdmin.scope.localBodies[level] ?? [];
-          const parentHasBodyRestriction = Object.values(
-            selectedScopeAdmin.scope.localBodies,
-          ).some((entries) => entries.length > 0);
-          return (
-            !parentHasBodyRestriction ||
-            allowed.some((entry) => entry.id === normalizeEntityId(record.unique_id ?? record.id))
-          );
-        },
+        (record) => normalizeEntityId(record.district_id) === values.districtId,
       );
       return toOptions(records).map((option) => ({
         value: `${level}::${option.value}`,
         label: `${levelLabel}: ${capitalize(String(option.label ?? ""))}`,
       }));
     });
-  }, [localBodyRecords, selectedScopeAdmin, values.districtId, values.localBodyLevels]);
+  }, [localBodyRecords, values.districtId, values.localBodyLevels]);
 
   const selectedLocalBodyValues = values.localBodies.map((body) => `${body.level}::${body.id}`);
 
@@ -1091,18 +933,12 @@ export default function StaffAccessConfigPage() {
   const wardOptions = useMemo(
     () =>
       toOptions(
-        wardsForLocalBodies(values.localBodies)
-          .filter((ward) => {
-            if (!selectedScopeAdmin?.scope.wards.length) return true;
-            const wardId = normalizeEntityId(ward.unique_id ?? ward.id);
-            return selectedScopeAdmin.scope.wards.some((allowed) => allowed.id === wardId);
-          })
-          .map((ward) => ({
+        wardsForLocalBodies(values.localBodies).map((ward) => ({
           ...ward,
           name: (ward as Record<string, unknown>).ward_name as string,
         })),
       ),
-    [values.localBodies, wardsForLocalBodies, selectedScopeAdmin],
+    [values.localBodies, wardsForLocalBodies],
   );
 
   // Dropping a Local Body Type/Local Body must also drop any already-picked
@@ -1119,10 +955,10 @@ export default function StaffAccessConfigPage() {
 
   const tabFields = (tab: number) => {
     if (tab === 0) {
-      return ["employeeName", "staffConfigName", "mobileNumber", "departmentId"] as const;
+      return ["employeeName", "mobileNumber"] as const;
     }
     if (tab === 1) {
-      return ["username", "password", "confirmPassword", "userTypeId", "governmentUserTypeId", "scopeAdminId"] as const;
+      return ["username", "password", "confirmPassword", "userTypeId", "governmentUserTypeId"] as const;
     }
     return [] as const;
   };
@@ -1156,20 +992,6 @@ export default function StaffAccessConfigPage() {
       const missing: string[] = [];
       if (!values.stateId) missing.push("State");
       if (!isStateScopeSelected && !values.districtId) missing.push("District");
-      const adminHasLocalBodyRestriction = selectedScopeAdmin
-        ? Object.values(selectedScopeAdmin.scope.localBodies).some(
-            (entries) => entries.length > 0,
-          )
-        : false;
-      if (adminHasLocalBodyRestriction && !values.localBodies.length) {
-        missing.push("Local Body");
-      }
-      if (
-        selectedScopeAdmin?.scope.wards.length &&
-        !values.wardIds.length
-      ) {
-        missing.push("Ward");
-      }
       if (missing.length) {
         setStepError(`Select ${missing.join(", ")} to define this staff member's data scope.`);
         return false;
@@ -1210,7 +1032,9 @@ export default function StaffAccessConfigPage() {
   // UserScreenPermission/StaffDataScope, while app-module access lives on the
   // separate StaffAccessConfiguration record.
   const [appModuleOptions, setAppModuleOptions] = useState<AppModuleOption[]>([]);
-  const [appModuleIds, setAppModuleIds] = useState<string[]>([]);
+  // One app per person — a Driver does not also open the Supervisor shell —
+  // so this is a single id, empty meaning no mobile access at all.
+  const [appModuleId, setAppModuleId] = useState<string>("");
   // Staff id assigned once a new (create-mode) record is saved — `id` from
   // the route stays undefined until then, and there is no `staffId` on the
   // form's own values, so this is tracked separately.
@@ -1239,11 +1063,11 @@ export default function StaffAccessConfigPage() {
       .action("staff-app-modules", undefined, { params: { staff_id: staffId } })
       .then((res: unknown) => {
         if (cancelled) return;
-        const ids = (res as { app_module_ids?: string[] })?.app_module_ids ?? [];
-        setAppModuleIds(ids);
+        const data = res as { app_module_id?: string | null };
+        setAppModuleId(data?.app_module_id ? String(data.app_module_id) : "");
       })
       .catch(() => {
-        /* no configuration yet — nothing ticked */
+        /* no configuration yet — no app selected */
       });
     return () => {
       cancelled = true;
@@ -1255,7 +1079,7 @@ export default function StaffAccessConfigPage() {
     try {
       await staffAccessConfigurationApi.action("staff-app-modules", {
         staff_id: staffId,
-        app_module_ids: appModuleIds,
+        app_module_id: appModuleId || null,
       });
     } catch {
       // Non-fatal: the rest of the configuration is already saved, and the
@@ -1271,15 +1095,10 @@ export default function StaffAccessConfigPage() {
   const buildPayload = (): StaffAccessConfigPayload => ({
     basicInfo: {
       employeeName: values.employeeName,
-      staffConfigName: values.staffConfigName,
       mobileNumber: values.mobileNumber,
       officeEmail: values.officeEmail,
-      departmentId: values.departmentId,
-      designation: values.designation,
       doj: values.doj,
       activeStatus: values.activeStatus,
-      scopeAdminId: values.scopeAdminId,
-      scopeAdminName: selectedScopeAdmin?.name,
     },
     loginConfig: {
       username: values.username,
@@ -1292,7 +1111,6 @@ export default function StaffAccessConfigPage() {
     permissions: modules,
     dashboardPermissions: widgets,
     dataScope: {
-      locationNodes: values.locationNodeIds,
       stateId: values.stateId || null,
       districtId: isStateScopeSelected ? null : values.districtId || null,
       areaTypeId: isStateScopeSelected ? null : values.areaTypeId || null,
@@ -1351,15 +1169,6 @@ export default function StaffAccessConfigPage() {
         {renderError("employeeName")}
       </div>
       <div>
-        <Label htmlFor="staffConfigName">Staff Config Name</Label>
-        <Input
-          id="staffConfigName"
-          placeholder="e.g. Corporation Admin"
-          {...register("staffConfigName", { required: "Staff config name is required." })}
-        />
-        {renderError("staffConfigName")}
-      </div>
-      <div>
         <Label htmlFor="mobileNumber">Mobile Number</Label>
         <Input id="mobileNumber" {...register("mobileNumber", { required: "Mobile number is required." })} />
         {renderError("mobileNumber")}
@@ -1372,27 +1181,6 @@ export default function StaffAccessConfigPage() {
       <div>
         <Label htmlFor="doj">Date Of Joining</Label>
         <Input id="doj" type="date" {...register("doj")} />
-      </div>
-      <div>
-        <Label htmlFor="departmentId">Department</Label>
-        <Select
-          id="departmentId"
-          value={values.departmentId}
-          onChange={(value) => setValue("departmentId", value)}
-          options={departmentOptions}
-          placeholder="Select department"
-        />
-        <input type="hidden" {...register("departmentId", { required: "Department is required." })} />
-        {renderError("departmentId")}
-      </div>
-      <div>
-        <Label htmlFor="designation">Designation</Label>
-        <Input
-          id="designation"
-          placeholder="e.g. Sanitary Inspector"
-          {...register("designation")}
-        />
-        {renderError("designation")}
       </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
         <input type="checkbox" className="h-4 w-4" {...register("activeStatus")} />
@@ -1482,38 +1270,6 @@ export default function StaffAccessConfigPage() {
         />
         {renderError("governmentUserTypeId")}
       </div>
-      <div className="md:col-span-2">
-        <Label htmlFor="scopeAdminId">
-          Admin Name (Access Owner)<span className="text-red-500"> *</span>
-        </Label>
-        <Select
-          id="scopeAdminId"
-          value={values.scopeAdminId}
-          onChange={applyScopeAdmin}
-          options={scopeAdminOptions}
-          placeholder="Select the admin responsible for this login"
-        />
-        <input
-          type="hidden"
-          {...register("scopeAdminId", { required: "Scope admin is required." })}
-        />
-        {renderError("scopeAdminId")}
-        {selectedScopeAdmin && (
-          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-            <p className="font-semibold text-emerald-800 dark:text-emerald-200">
-              {selectedScopeAdmin.name} · {selectedScopeAdmin.role}
-            </p>
-            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
-              Allowed hierarchy:{" "}
-              {selectedScopeAdmin.hierarchy.map((item) => item.name).join(" → ") ||
-                "No active hierarchy"}
-            </p>
-            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-              The Data Scope tab is limited to this admin’s hierarchy and anything below it.
-            </p>
-          </div>
-        )}
-      </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">
         <input type="checkbox" className="h-4 w-4" {...register("loginEnabled")} />
         Login Enabled
@@ -1531,22 +1287,36 @@ export default function StaffAccessConfigPage() {
           Mobile App Access
         </p>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Tick the apps this person may sign into. Without one, their mobile
-          sign-in is refused. What they can do inside each app comes from the
-          screen permissions below — the same ticks that govern the web screens.
+          Choose the one app this person signs into. Without one, their mobile
+          sign-in is refused. What they can do inside comes from the screen
+          permissions below — the same ticks that govern the web screens.
         </p>
       </div>
 
       {appModuleOptions.length === 0 ? (
         <p className="text-xs text-gray-400">No app modules configured.</p>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          {appModuleOptions.map((module) => {
-            const checked = appModuleIds.includes(module.uniqueId);
+        <div
+          className="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-label="Mobile app"
+        >
+          {[
+            {
+              uniqueId: "",
+              moduleKey: "",
+              surfaceKey: "",
+              label: "No app access",
+              route: "",
+              description: null,
+            },
+            ...appModuleOptions,
+          ].map((module) => {
+            const checked = appModuleId === module.uniqueId;
             return (
               <label
-                key={module.uniqueId}
-                title={module.description ?? module.route}
+                key={module.uniqueId || "none"}
+                title={module.description ?? module.route ?? undefined}
                 className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition ${
                   checked
                     ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200"
@@ -1554,16 +1324,12 @@ export default function StaffAccessConfigPage() {
                 }`}
               >
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name="app_module"
                   className="h-4 w-4"
+                  value={module.uniqueId}
                   checked={checked}
-                  onChange={(event) =>
-                    setAppModuleIds((current) =>
-                      event.target.checked
-                        ? [...current, module.uniqueId]
-                        : current.filter((moduleId) => moduleId !== module.uniqueId),
-                    )
-                  }
+                  onChange={() => setAppModuleId(module.uniqueId)}
                 />
                 <span className="font-medium">{module.label}</span>
               </label>
@@ -1607,18 +1373,8 @@ export default function StaffAccessConfigPage() {
           Geographic scope
         </h4>
         <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-          {selectedScopeAdmin ? (
-            <>
-              This staff member can only be assigned within{" "}
-              <b>{selectedScopeAdmin.name}’s hierarchy</b>. Fixed parent levels are locked;
-              lower Local Bodies and Wards can be narrowed but cannot be expanded.
-            </>
-          ) : (
-            <>
-              Pick <b>State → District</b> as the access boundary. Area Type,
-              Local Body, and Ward can narrow that boundary further.
-            </>
-          )}
+          Pick <b>State → District</b> as the access boundary. Area Type,
+          Local Body, and Ward can narrow that boundary further.
         </p>
         <div className="grid gap-4 md:grid-cols-2">
           <div>
@@ -1638,7 +1394,6 @@ export default function StaffAccessConfigPage() {
               }}
               options={stateOptions}
               placeholder="Select state"
-              disabled={Boolean(selectedScopeAdmin?.scope.stateId)}
             />
           </div>
           <div>
@@ -1657,7 +1412,7 @@ export default function StaffAccessConfigPage() {
               }}
               options={districtOptions}
               placeholder={values.stateId ? "Select district" : "Select a state first"}
-              disabled={!values.stateId || Boolean(selectedScopeAdmin?.scope.districtId)}
+              disabled={!values.stateId}
             />
           </div>
           <div>
@@ -1673,7 +1428,7 @@ export default function StaffAccessConfigPage() {
               }}
               options={areaTypeOptions}
               placeholder={values.districtId ? "Select area type" : "Select a district first"}
-              disabled={!values.districtId || Boolean(selectedScopeAdmin?.scope.areaTypeId)}
+              disabled={!values.districtId}
             />
           </div>
           <div>
@@ -1808,11 +1563,8 @@ export default function StaffAccessConfigPage() {
         <UserRound className="h-4 w-4 text-gray-500" />,
         <>
           {reviewRow("Name", values.employeeName)}
-          {reviewRow("Staff config", values.staffConfigName)}
           {reviewRow("Mobile", values.mobileNumber)}
           {reviewRow("Email", values.officeEmail)}
-          {reviewRow("Department", labelFromOptions(departmentOptions, values.departmentId))}
-          {reviewRow("Designation", values.designation)}
           {reviewRow("Date of joining", values.doj)}
           {reviewRow("Status", values.activeStatus ? "Active" : "Inactive")}
         </>,
@@ -1826,11 +1578,6 @@ export default function StaffAccessConfigPage() {
           {reviewRow("User type", userTypeLabel)}
           {reviewRow("Government level", governmentLevelOptions.find((option) => option.value === governmentLevel)?.label)}
           {reviewRow("Role", roleLabel)}
-          {reviewRow("Scope admin", selectedScopeAdmin?.name)}
-          {reviewRow(
-            "Admin hierarchy",
-            selectedScopeAdmin?.hierarchy.map((item) => item.name).join(" → "),
-          )}
           {reviewRow("Account", values.loginEnabled ? "Enabled" : "Disabled")}
         </>,
       )}

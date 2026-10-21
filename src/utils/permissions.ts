@@ -531,7 +531,7 @@ const resolveScreenActions = (
   return screenKey ? moduleEntry[screenKey] : undefined;
 };
 
-const isStoredSuperAdmin = (): boolean => {
+export const isStoredSuperAdmin = (): boolean => {
   if (typeof window === "undefined") return false;
   const role = String(localStorage.getItem("user_role") ?? "").trim().toLowerCase();
   return role === "superadmin" || role === "super_admin";

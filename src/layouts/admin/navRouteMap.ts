@@ -29,6 +29,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encCustomerMaster,
     encCustomerCreation,
     encApartmentList,
+    encCustomerNotifications,
     encReport,
     encMonthlyDistance,
     encTripSummary,
@@ -43,7 +44,8 @@ export function buildNavRouteMap(): RouteEntry[] {
     encComplaintPriorities,
     encComplaintStatuses,
     encComplaintSources,
-    encComplaintTeams,
+    encMyTasks,
+    encComplaintsReport,
     encComplaintSlaRules,
     encTransportMaster,
     encFuel,
@@ -58,6 +60,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     encWasteManagementMaster,
     encWorkforceManagement,
     encStaffUserType,
+    encStaffHierarchy,
     encMainScreenType,
     encUserScreenAction,
     encMainScreen,
@@ -66,16 +69,17 @@ export function buildNavRouteMap(): RouteEntry[] {
     encUserManagement,
     encStaffTemplate,
     encAlternativeStaffTemplate,
-    encStaffTemplateAudit,
     encCommonAudit,
     encStaffAudit,
     encLoginAudits,
+    encApprovalHistory,
+    encPermissionAudit,
+    encComplaintAudit,
+    encAuditDashboard,
     encUnassignedStaffPool,
     encTripAttendance,
     encHouseholdPickupEvent,
     encTripPlans,
-    encVehicleTripAudit,
-    encTripExceptionLog,
     encCommonMasters,
     encContinents,
     encCountries,
@@ -115,6 +119,7 @@ export function buildNavRouteMap(): RouteEntry[] {
   _cache = [
     // ── Dashboard ──
     { path: "/admin", nameKey: "admin.nav.dashboard" },
+    { path: "/admin/superadmin-dashboard", nameKey: "admin.nav.superadmin_dashboard" },
 
     // ── Attendance ──
     { path: `/${encAttendance}/${encAttendance}`, nameKey: "admin.nav.attendance" },
@@ -130,6 +135,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Super Admin > Role Management ──
     { path: `/${encRoleManagement}/${encUserType}`, nameKey: "admin.nav.user_type", parentNameKey: "admin.nav.role_management" },
     { path: `/${encRoleManagement}/${encStaffUserType}`, nameKey: "admin.nav.staff_user_type", parentNameKey: "admin.nav.role_management" },
+    { path: `/${encRoleManagement}/${encStaffHierarchy}`, nameKey: "admin.nav.staff_hierarchy", parentNameKey: "admin.nav.role_management" },
 
     // ── Super Admin > User Management ──
     { path: `/${encUserManagement}/${encStaffCreation}`, nameKey: "admin.nav.staff_creation", parentNameKey: "admin.nav.user_creations" },
@@ -150,9 +156,18 @@ export function buildNavRouteMap(): RouteEntry[] {
     { path: `/${encCommonMasters}/${encStates}`, nameKey: "admin.nav.state", parentNameKey: "admin.nav.common_masters" },
 
     // ── Super Admin > Audits ──
-    { path: `/${encAudits}/${encLoginAudits}`, nameKey: "admin.nav.login_audit", parentNameKey: "admin.nav.audit_items" },
+    // Approval History and Collection Audit (staff-audit) folded into
+    // Transaction Audit (an in-page toggle and hierarchy auto-scoping,
+    // respectively) — their routes stay registered in adminRoutes.ts for
+    // old bookmarks/permission grants, but no longer have their own nav
+    // entry, so both breadcrumb labels now point at the merged screen.
+    { path: `/${encAudits}/${encAuditDashboard}`, nameKey: "admin.nav.audit_dashboard", parentNameKey: "admin.nav.audit_items" },
     { path: `/${encAudits}/${encCommonAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encAudits}/${encStaffAudit}`, nameKey: "admin.nav.staff_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encApprovalHistory}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encLoginAudits}`, nameKey: "admin.nav.login_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encPermissionAudit}`, nameKey: "admin.nav.user_access_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encComplaintAudit}`, nameKey: "admin.nav.complaint_audit", parentNameKey: "admin.nav.audit_items" },
+    { path: `/${encAudits}/${encStaffAudit}`, nameKey: "admin.nav.common_audit", parentNameKey: "admin.nav.audit_items" },
 
 
     // ── Masters > (general) ──
@@ -186,6 +201,7 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Masters > Customer Masters ──
     { path: `/${encCustomerMaster}/${encCustomerCreation}`, nameKey: "admin.nav.customer_creation", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encApartmentList}`, nameKey: "admin.nav.apartment_list", parentNameKey: "admin.nav.customer_masters" },
+    { path: `/${encCustomerMaster}/${encCustomerNotifications}`, nameKey: "admin.nav.customer_notifications", parentNameKey: "admin.nav.customer_masters" },
     { path: `/${encCustomerMaster}/${encHouseholdPickupEvent}`, nameKey: "admin.nav.household_pickup_event", parentNameKey: "admin.nav.customer_masters" },
 
     // ── Masters > Leader Management ──
@@ -195,13 +211,14 @@ export function buildNavRouteMap(): RouteEntry[] {
 
     // ── Core Modules > Complaint Management ──
     { path: `/${encComplaintTicket}/${encComplaint}`, nameKey: "admin.nav.complaint_tickets", parentNameKey: "admin.nav.complaint_ticket" },
+    { path: `/${encComplaintTicket}/${encMyTasks}`, nameKey: "admin.nav.my_tasks", parentNameKey: "admin.nav.complaint_ticket" },
+    { path: `/${encComplaintTicket}/${encComplaintsReport}`, nameKey: "admin.nav.complaints_report", parentNameKey: "admin.nav.complaint_reports" },
     { path: `/${encComplaintTicket}/${encComplaintModules}`, nameKey: "admin.nav.modules", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintCategories}`, nameKey: "admin.nav.categories", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintSubcategories}`, nameKey: "admin.nav.subcategories", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintPriorities}`, nameKey: "admin.nav.priorities", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintStatuses}`, nameKey: "admin.nav.statuses", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintSources}`, nameKey: "admin.nav.sources", parentNameKey: "admin.nav.complaint_ticket" },
-    { path: `/${encComplaintTicket}/${encComplaintTeams}`, nameKey: "admin.nav.teams", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encComplaintSlaRules}`, nameKey: "admin.nav.sla_rules", parentNameKey: "admin.nav.complaint_ticket" },
     { path: `/${encComplaintTicket}/${encFeedback}`, nameKey: "admin.nav.feedback", parentNameKey: "admin.nav.complaint_ticket" },
 
@@ -225,11 +242,6 @@ export function buildNavRouteMap(): RouteEntry[] {
     // ── Reports > Schedule Reports ──
     { path: `/${encScheduleMasters}/${encDailyWasteComparison}`, nameKey: "Daily Waste Comparison", parentNameKey: "admin.nav.schedule_reports" },
     { path: `/${encScheduleMasters}/${encMonthlyWasteComparison}`, nameKey: "admin.nav.monthly_waste_comparison", parentNameKey: "admin.nav.schedule_reports" },
-
-    // ── Additional audit items (not in sidebar) ──
-    { path: `/${encTransportMaster}/${encVehicleTripAudit}`, nameKey: "admin.nav.vehicle_trip_audit", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encTransportMaster}/${encTripExceptionLog}`, nameKey: "admin.nav.trip_exception_log", parentNameKey: "admin.nav.audit_items" },
-    { path: `/${encStaffMasters}/${encStaffTemplateAudit}`, nameKey: "admin.nav.staff_template_audit", parentNameKey: "admin.nav.audit_items" },
 
     // ── Vehicle Tracking (not in sidebar) ──
     { path: `/${encVehicleTracking}/${encVehicleTrack}`, nameKey: "admin.nav.vehicle_tracking", parentNameKey: "admin.nav.vehicle_tracking" },

@@ -16,6 +16,8 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 
 const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code"],
@@ -25,7 +27,6 @@ const ALTERNATIVE_STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   operator_name: ["operator", "operator_id", "operator_name"],
   extra_operator: ["extra_operator", "extra_operator_id", "extra_staff"],
   change_reason: ["change_reason"],
-  approval_status: ["approval_status"],
   created_at: ["created_at"],
 };
 
@@ -37,7 +38,7 @@ const toRecordList = (value: unknown): AlternativeStaffTemplate[] => {
   return [];
 };
 
-const SORTABLE_FIELDS = new Set(["approval_status"]);
+const SORTABLE_FIELDS = new Set<string>([]);
 
 
 export default function AlternativeStaffTemplateList() {
@@ -57,6 +58,8 @@ export default function AlternativeStaffTemplateList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const filterKey = JSON.stringify(geo.applied);
 
   const { encScheduleSetup, encAlternativeStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -73,6 +76,7 @@ export default function AlternativeStaffTemplateList() {
     try {
       const response: any = await adminApi.alternativeStaffTemplate.readAllwithPaginated(page, limit, {
         params: {
+          ...geo.applied,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -91,7 +95,7 @@ export default function AlternativeStaffTemplateList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -128,12 +132,14 @@ export default function AlternativeStaffTemplateList() {
         title={t("admin.alternative_staff_template.list_title")}
         subtitle={t("admin.alternative_staff_template.list_subtitle")}
         actions={
-          <Button
-            label={t("admin.alternative_staff_template.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.alternative_staff_template.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -150,6 +156,7 @@ export default function AlternativeStaffTemplateList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={loading}
+        filterPanel={geo.panel}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -225,23 +232,6 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="change_reason"
             header={t("admin.alternative_staff_template.columns.change_reason")}
-          />
-        )}
-
-        {showCol("approval_status") && (
-          <Column
-            field="approval_status"
-            header={t("admin.alternative_staff_template.columns.approval_status")}
-            sortable={SORTABLE_FIELDS.has("approval_status")}
-          />
-        )}
-
-        {showCol("created_at") && (
-          <Column
-            header={t("common.created_at")}
-            body={(r: AlternativeStaffTemplate) =>
-              r.created_at ? new Date(r.created_at).toLocaleDateString() : "-"
-            }
           />
         )}
 

@@ -11,9 +11,10 @@ import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { townPanchayatApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type TownPanchayatListRecord = {
   unique_id: string;
@@ -39,7 +40,6 @@ const columns = [
   { field: "district_name", header: "District" },
   { field: "area_type_name", header: "Area Type" },
   { field: "town_panchayat_name", header: "Town Panchayat Name" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function TownPanchayatListPage() {
@@ -107,7 +107,8 @@ export default function TownPanchayatListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await townPanchayatApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    townPanchayatApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: TownPanchayatListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -133,19 +134,11 @@ export default function TownPanchayatListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await townPanchayatApi.delete(id);
+      await townPanchayatApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -177,12 +170,14 @@ export default function TownPanchayatListPage() {
         title="Town Panchayat"
         subtitle="Manage Town Panchayat records"
         actions={
-          <Button
-            label="Add Town Panchayat"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Town Panchayat"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -212,7 +207,7 @@ export default function TownPanchayatListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Town Panchayat records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
@@ -222,11 +217,7 @@ export default function TownPanchayatListPage() {
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: TownPanchayatListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : displayValue(row[column.field])
-            }
+            body={(row: TownPanchayatListRecord) => displayValue(row[column.field])}
           />
         ))}
         <Column header="Status" body={statusTemplate} style={{ width: 120 }} />

@@ -1,7 +1,8 @@
 import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "@/contexts/UserContext";
-import { clearAuthSession } from "@/utils/authStorage";
+import { ACCESS_TOKEN_STORAGE_KEY, clearAuthSession } from "@/utils/authStorage";
+import { endLoginSession } from "@/utils/loginSession";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +13,8 @@ export default function UserDropdown() {
   const isDark = theme === "dark";
   const displayName = user?.name || "User";
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    await endLoginSession(ACCESS_TOKEN_STORAGE_KEY, "manual");
     clearAuthSession();
     setUser(null);
     navigate("/auth", { replace: true });

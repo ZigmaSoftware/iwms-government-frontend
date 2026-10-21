@@ -19,6 +19,9 @@ import { contractorUserTypeApi, governmentUserTypeApi, staffUserTypeApi } from "
 import type { StaffUserType } from "@/pages/admin/modules/superadmin/screenManagement/shared/adminTypes";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const toRecordList = (value: unknown): StaffUserType[] => {
   if (Array.isArray(value)) return value as StaffUserType[];
@@ -57,6 +60,7 @@ export default function StaffUserTypeList() {
   const [isUpdatingGovernment, setIsUpdatingGovernment] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [globalFilterValue, setGlobalFilterValue] = useState("");
+  const status = useStatusFilter();
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -165,24 +169,16 @@ export default function StaffUserTypeList() {
      DELETE
   ----------------------------------------------------------- */
   const handleDelete = async (row: StaffUserTypeRow & { category?: string }) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
       if (row.category === "Contractor") {
-        await contractorUserTypeApi.delete(row.unique_id);
+        await contractorUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
       } else if (row.category === "Government") {
-        await governmentUserTypeApi.delete(row.unique_id);
+        await governmentUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
       } else {
-        await staffUserTypeApi.delete(row.unique_id);
+        await staffUserTypeApi.delete(row.unique_id, withDeleteReason(reason));
       }
       await loadRecords();
       notify.fire({
@@ -240,20 +236,23 @@ export default function StaffUserTypeList() {
             item: t("admin.nav.staff_user_type"),
           })}
           actions={
-            <Button
-              label={t("common.add_item", {
-                item: t("admin.nav.staff_user_type"),
-              })}
-              icon="pi pi-plus"
-              className="p-button-success"
-              onClick={() => navigate(ENC_NEW_PATH)}
-            />
+            <Can action="add">
+              <Button
+                label={t("common.add_item", {
+                  item: t("admin.nav.staff_user_type"),
+                })}
+                icon="pi pi-plus"
+                className="p-button-success"
+                onClick={() => navigate(ENC_NEW_PATH)}
+              />
+            </Can>
           }
           className="mb-6"
         />
 
         <DataTable
-          value={records}
+          filterPanel={combineFilters(status)}
+          value={records.filter(status.matches)}
           paginator
           rows={10}
           loading={isLoading && records.length === 0}

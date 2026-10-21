@@ -8,6 +8,7 @@ import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
+import { useQrSheetDownload } from "@/hooks/useQrSheetDownload";
 import { useTranslation } from "react-i18next";
 
 import { Switch } from "@/components/ui/switch";
@@ -24,6 +25,10 @@ import { createBinQrPdfBlob, downloadBinQrPdf } from "./binQrPdf";
 import { downloadAllBinsPdf } from "./binAllDetailsPdf";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const { encWasteMasters, encBins } = getEncryptedRoute();
 const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -71,6 +76,10 @@ export default function BinList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useStatusFilter(() => setFirst(0));
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const { showColumn: showCol, filterPayload } = useFieldVisibility(
@@ -91,6 +100,7 @@ export default function BinList() {
       try {
         const response = await binApi.readAllwithPaginated(page, limit, {
           params: {
+            ...filterParams,
             ...(search ? { search } : {}),
             ...(orderingParam ? { ordering: orderingParam } : {}),
           },
@@ -117,7 +127,7 @@ export default function BinList() {
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering, t]);
+  }, [first, rowsPerPage, searchTerm, ordering, t, filterKey]);
 
   const onPage = (event: DataTablePageEvent) => {
     setFirst(event.first);
@@ -138,10 +148,17 @@ export default function BinList() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await binApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    binApi.exportToExcel({ params: filterParams }, filename, sheetName);
+  const qrSheetAction = useQrSheetDownload(
+    () => fetchExportBins(),
+    (bin) => ({ qr: bin.bin_qr, title: bin.bin_name || "-", subtitle: bin.ward_name ?? bin.unique_id }),
+    "bin_qr_codes",
+    "Bin QR codes",
+  );
 
   const fetchExportBins = async (): Promise<Bin[]> => {
-    const rowsForExport = toRecordList(await binApi.readAllForExport());
+    const rowsForExport = toRecordList(await binApi.readAllForExport({ params: filterParams }));
     return rowsForExport.map((row) => ({
       unique_id: String(row.unique_id ?? ""),
       bin_name: String(row.bin_name ?? ""),
@@ -325,19 +342,11 @@ export default function BinList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("common.confirm_delete_text"),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await binApi.delete(id);
+      await binApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => String(row.unique_id ?? "") !== id));
       notify.fire({
         icon: "success",
@@ -386,28 +395,14 @@ export default function BinList() {
         title={t("admin.nav.bin_master")}
         subtitle={t("common.manage_item_records", { item: t("admin.nav.bin_master") })}
         actions={
-          <>
-            <Button
-              label={isExportingExcel ? "Downloading…" : "Download Excel"}
-              icon="pi pi-file-excel"
-              className="p-button-outlined"
-              disabled={isExportingExcel}
-              onClick={handleDownloadExcel}
-            />
-            <Button
-              label={isExportingPdf ? "Generating PDF…" : "Download PDF"}
-              icon="pi pi-file-pdf"
-              className="p-button-outlined"
-              disabled={isExportingPdf}
-              onClick={handleDownloadPdf}
-            />
+          <Can action="add">
             <Button
               label={t("common.add_item", { item: t("admin.nav.bin_creation") })}
               icon="pi pi-plus"
               className="p-button-success"
               onClick={() => navigate(ENC_NEW_PATH)}
             />
-          </>
+          </Can>
         }
         className="mb-6"
       />
@@ -436,7 +431,13 @@ export default function BinList() {
         stripedRows
         showGridlines
         loading={isLoading}
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
+        documentActions={{
+          downloadExcel: { onClick: () => void handleDownloadExcel(), busy: isExportingExcel },
+          downloadPdf: { onClick: () => void handleDownloadPdf(), busy: isExportingPdf },
+          downloadQr: qrSheetAction,
+        }}
+        filterPanel={combineFilters(geo, status)}
         className="p-datatable-sm"
       >
         <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />

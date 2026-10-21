@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { ApexOptions } from "apexcharts";
 import {
   Activity,
@@ -29,39 +29,10 @@ import {
 import { api } from "@/api";
 import { Button } from "@/components/ui/button";
 import {
-  areaTypeApi,
-  binApi,
-  collectionPointApi,
-  columnPermissionApi,
-  complaintCategoryApi,
-  complaintSubcategoryApi,
-  complaintTicketApi,
-  continentApi,
-  countryApi,
-  customerCreationApi,
-  departmentApi,
-  designationApi,
-  districtApi,
-  feedbackApi,
-  fuelApi,
-  hierarchyApi,
   mainScreenApi,
   mainScreenTypeApi,
-  panchayatApi,
-  propertiesApi,
-  staffCreationApi,
-  staffUserTypeApi,
-  stateApi,
-  subPropertiesApi,
-  userCreationApi,
-  userScreenActionApi,
   userScreenApi,
   userScreenPermissionApi,
-  userTypeApi,
-  vehicleCreationApi,
-  vehicleTypeApi,
-  wasteCollectionApi,
-  wasteTypeApi,
 } from "@/helpers/admin";
 
 // Deferred out of the initial bundle: apexcharts is 300KB+ and these charts
@@ -106,7 +77,20 @@ type EntityKey =
   | "screenPermissions"
   | "columnPermissions";
 
-type DashboardData = Record<EntityKey, Record<string, unknown>[]>;
+// Only the screen tables need actual rows (for the "screens by module"
+// table); everything else on this page is a count.
+type RowKey = "mainScreenTypes" | "mainScreens" | "userScreens" | "screenPermissions";
+
+type DashboardData = Record<RowKey, Record<string, unknown>[]>;
+
+type ActiveKey = "users" | "staff" | "bins" | "vehicles" | "complaints";
+
+// GET /dashboard/admin-overview/ — a count is null when the user may not
+// view that resource.
+type AdminOverview = {
+  counts: Partial<Record<EntityKey, number | null>>;
+  active: Partial<Record<ActiveKey, number>>;
+};
 
 type KpiConfig = {
   title: string;
@@ -306,40 +290,13 @@ const CHART_COLORS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const emptyData = (): DashboardData => ({
-  continents: [],
-  countries: [],
-  states: [],
-  districts: [],
-  panchayats: [],
-  departments: [],
-  designations: [],
-  areaTypes: [],
-  hierarchies: [],
-  properties: [],
-  subProperties: [],
-  collectionPoints: [],
-  wasteTypes: [],
-  bins: [],
-  users: [],
-  userTypes: [],
-  staffUserTypes: [],
-  staff: [],
-  customers: [],
-  vehicleTypes: [],
-  vehicles: [],
-  fuels: [],
-  wasteCollections: [],
-  complaints: [],
-  feedbacks: [],
-  mainCategories: [],
-  subCategories: [],
   mainScreenTypes: [],
   mainScreens: [],
   userScreens: [],
-  screenActions: [],
   screenPermissions: [],
-  columnPermissions: [],
 });
+
+const emptyOverview = (): AdminOverview => ({ counts: {}, active: {} });
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -350,9 +307,6 @@ const toRows = (value: unknown): Record<string, unknown>[] => {
     return value.results.filter(isRecord);
   return [];
 };
-
-const isActive = (row: Record<string, unknown>) =>
-  row.is_active !== false && row.is_deleted !== true;
 
 const getLabel = (row: Record<string, unknown>, fallback: string) =>
   String(
@@ -386,64 +340,45 @@ const extractUserTypeName = (permission: Record<string, unknown>): string => {
   return "";
 };
 
-const entityRequests: Array<[EntityKey, () => Promise<unknown>]> = [
-  ["continents", () => continentApi.readAll()],
-  ["countries", () => countryApi.readAll()],
-  ["states", () => stateApi.readAll({ params: { lite: 1 } })],
-  ["districts", () => districtApi.readAll({ params: { lite: 1 } })],
-  ["panchayats", () => panchayatApi.readAll({ params: { lite: 1 } })],
-  ["departments", () => departmentApi.readAll()],
-  ["designations", () => designationApi.readAll()],
-  ["areaTypes", () => areaTypeApi.readAll({ params: { lite: 1 } })],
-  ["hierarchies", () => hierarchyApi.readAll()],
-  ["properties", () => propertiesApi.readAll()],
-  ["subProperties", () => subPropertiesApi.readAll()],
-  ["collectionPoints", () => collectionPointApi.readAll()],
-  ["wasteTypes", () => wasteTypeApi.readAll({ params: { lite: 1 } })],
-  ["bins", () => binApi.readAll()],
-  ["users", () => userCreationApi.readAll()],
-  ["userTypes", () => userTypeApi.readAll()],
-  ["staffUserTypes", () => staffUserTypeApi.readAll()],
-  ["staff", () => staffCreationApi.readAll()],
-  ["customers", () => customerCreationApi.readAll()],
-  ["vehicleTypes", () => vehicleTypeApi.readAll()],
-  ["vehicles", () => vehicleCreationApi.readAll()],
-  ["fuels", () => fuelApi.readAll()],
-  ["wasteCollections", () => wasteCollectionApi.readAll()],
-  ["complaints", () => complaintTicketApi.readAll()],
-  ["feedbacks", () => feedbackApi.readAll()],
-  ["mainCategories", () => complaintCategoryApi.readAll()],
-  ["subCategories", () => complaintSubcategoryApi.readAll()],
+const rowRequests: Array<[RowKey, () => Promise<unknown>]> = [
   ["mainScreenTypes", () => mainScreenTypeApi.readAll()],
   ["mainScreens", () => mainScreenApi.readAll()],
   ["userScreens", () => userScreenApi.readAll()],
-  ["screenActions", () => userScreenActionApi.readAll()],
   ["screenPermissions", () => userScreenPermissionApi.readAll()],
-  ["columnPermissions", () => columnPermissionApi.readAll()],
 ];
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminHome() {
   const [data, setData] = useState<DashboardData>(emptyData);
+  const [overview, setOverview] = useState<AdminOverview>(emptyOverview);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [wasteKpis, setWasteKpis] = useState<WasteKpis | null>(null);
   const [wasteKpisLoading, setWasteKpisLoading] = useState(true);
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null);
 
+  // Counts for every card come from ONE request instead of downloading 33
+  // whole tables (customers, bins, 20k+ panchayats, ...) just to read
+  // `.length`. Only the screen tables used by the module table fetch rows.
   const fetchDashboardData = async () => {
     setLoading(true);
     const next = emptyData();
     try {
-      const results = await Promise.allSettled(
-        entityRequests.map(([, req]) => req()),
-      );
-      results.forEach((result, i) => {
-        const key = entityRequests[i][0];
+      const [overviewResult, ...rowResults] = await Promise.allSettled([
+        api.get<AdminOverview>("/dashboard/admin-overview/"),
+        ...rowRequests.map(([, req]) => req()),
+      ]);
+      rowResults.forEach((result, i) => {
+        const key = rowRequests[i][0];
         next[key] = result.status === "fulfilled" ? toRows(result.value) : [];
       });
       setData(next);
+      setOverview(
+        overviewResult.status === "fulfilled" && overviewResult.value.data
+          ? { ...emptyOverview(), ...overviewResult.value.data }
+          : emptyOverview(),
+      );
       setLastUpdated(new Date());
     } finally {
       setLoading(false);
@@ -478,47 +413,52 @@ export default function AdminHome() {
     void fetchWasteKpis();
   }, []);
 
+  // Hidden/denied resources (null) count as 0, as a failed request did before.
+  const count = useCallback(
+    (key: EntityKey): number =>
+      overview.counts[key] ?? (data as Partial<DashboardData>)[key as RowKey]?.length ?? 0,
+    [overview, data],
+  );
+
   const dashboard = useMemo(() => {
     const geographyTotal =
-      data.continents.length +
-      data.countries.length +
-      data.states.length +
-      data.districts.length +
-      data.panchayats.length;
+      count("continents") +
+      count("countries") +
+      count("states") +
+      count("districts") +
+      count("panchayats");
     const orgTotal =
-      data.departments.length +
-      data.designations.length +
-      data.areaTypes.length +
-      data.hierarchies.length;
-    const wasteTotal = data.properties.length + data.subProperties.length;
+      count("departments") +
+      count("designations") +
+      count("areaTypes") +
+      count("hierarchies");
+    const wasteTotal = count("properties") + count("subProperties");
     const masterTotal = geographyTotal + orgTotal + wasteTotal;
     const assetTotal =
-      data.collectionPoints.length + data.wasteTypes.length + data.bins.length;
+      count("collectionPoints") + count("wasteTypes") + count("bins");
     const workforceTotal =
-      data.users.length + data.staff.length + data.customers.length;
+      count("users") + count("staff") + count("customers");
     const transportTotal =
-      data.vehicleTypes.length + data.vehicles.length + data.fuels.length;
+      count("vehicleTypes") + count("vehicles") + count("fuels");
     const grievanceTotal =
-      data.complaints.length +
-      data.feedbacks.length +
-      data.mainCategories.length +
-      data.subCategories.length;
+      count("complaints") +
+      count("feedbacks") +
+      count("mainCategories") +
+      count("subCategories");
     const screenTotal =
-      data.mainScreenTypes.length +
-      data.mainScreens.length +
-      data.userScreens.length +
-      data.screenActions.length;
+      count("mainScreenTypes") +
+      count("mainScreens") +
+      count("userScreens") +
+      count("screenActions");
     const permissionTotal =
-      data.screenPermissions.length + data.columnPermissions.length;
+      count("screenPermissions") + count("columnPermissions");
 
-    const activeUsers = data.users.filter(isActive).length;
-    const activeStaff = data.staff.filter(isActive).length;
-    const activeBins = data.bins.filter(isActive).length;
-    const activeVehicles = data.vehicles.filter(isActive).length;
-    const activeComplaints = data.complaints.filter((c) => {
-      const status = String(c.status ?? c.complaint_status ?? "").toLowerCase();
-      return !["closed", "resolved", "completed"].includes(status);
-    }).length;
+    const activeUsers = overview.active.users ?? 0;
+    const activeStaff = overview.active.staff ?? 0;
+    const activeBins = overview.active.bins ?? 0;
+    const activeVehicles = overview.active.vehicles ?? 0;
+    // Open = not in a final ComplaintStatus (server-side).
+    const activeComplaints = overview.active.complaints ?? 0;
 
     // Module bar chart data
     const moduleNames = [
@@ -554,11 +494,11 @@ export default function AdminHome() {
       "User Types",
     ];
     const userDonutSeries = [
-      data.users.length,
+      count("users"),
       activeUsers,
-      data.staff.length,
-      data.customers.length,
-      data.userTypes.length,
+      count("staff"),
+      count("customers"),
+      count("userTypes"),
     ];
 
     // Grievance area data
@@ -569,24 +509,24 @@ export default function AdminHome() {
       "Categories",
     ];
     const grievanceSeries = [
-      data.complaints.length,
+      count("complaints"),
       activeComplaints,
-      data.feedbacks.length,
-      data.mainCategories.length + data.subCategories.length,
+      count("feedbacks"),
+      count("mainCategories") + count("subCategories"),
     ];
 
     // Asset radial data
     const maxAsset = Math.max(
-      data.collectionPoints.length,
-      data.wasteTypes.length,
-      data.bins.length,
+      count("collectionPoints"),
+      count("wasteTypes"),
+      count("bins"),
       activeBins,
       1,
     );
     const assetRadialSeries = [
-      Math.round((data.collectionPoints.length / maxAsset) * 100),
-      Math.round((data.wasteTypes.length / maxAsset) * 100),
-      Math.round((data.bins.length / maxAsset) * 100),
+      Math.round((count("collectionPoints") / maxAsset) * 100),
+      Math.round((count("wasteTypes") / maxAsset) * 100),
+      Math.round((count("bins") / maxAsset) * 100),
       Math.round((activeBins / maxAsset) * 100),
     ];
 
@@ -598,10 +538,10 @@ export default function AdminHome() {
       "Actions",
     ];
     const screenDonutSeries = [
-      data.mainScreenTypes.length,
-      data.mainScreens.length,
-      data.userScreens.length,
-      data.screenActions.length,
+      count("mainScreenTypes"),
+      count("mainScreens"),
+      count("userScreens"),
+      count("screenActions"),
     ];
 
     // User screens by module (enhanced table)
@@ -656,65 +596,65 @@ export default function AdminHome() {
 
     const kpiBreakdowns: Record<string, BreakdownItem[]> = {
       "Total Masters": [
-        { label: "Continents", value: data.continents.length, sub: "Geography" },
-        { label: "Countries", value: data.countries.length, sub: "Geography" },
-        { label: "States", value: data.states.length, sub: "Geography" },
-        { label: "Districts", value: data.districts.length, sub: "Geography" },
-        { label: "Panchayats", value: data.panchayats.length, sub: "Geography" },
-        { label: "Departments", value: data.departments.length, sub: "Organisation" },
-        { label: "Designations", value: data.designations.length, sub: "Organisation" },
-        { label: "Area Types", value: data.areaTypes.length, sub: "Organisation" },
-        { label: "Hierarchies", value: data.hierarchies.length, sub: "Organisation" },
-        { label: "Properties", value: data.properties.length, sub: "Waste" },
-        { label: "Sub Properties", value: data.subProperties.length, sub: "Waste" },
+        { label: "Continents", value: count("continents"), sub: "Geography" },
+        { label: "Countries", value: count("countries"), sub: "Geography" },
+        { label: "States", value: count("states"), sub: "Geography" },
+        { label: "Districts", value: count("districts"), sub: "Geography" },
+        { label: "Panchayats", value: count("panchayats"), sub: "Geography" },
+        { label: "Departments", value: count("departments"), sub: "Organisation" },
+        { label: "Designations", value: count("designations"), sub: "Organisation" },
+        { label: "Area Types", value: count("areaTypes"), sub: "Organisation" },
+        { label: "Hierarchies", value: count("hierarchies"), sub: "Organisation" },
+        { label: "Properties", value: count("properties"), sub: "Waste" },
+        { label: "Sub Properties", value: count("subProperties"), sub: "Waste" },
       ],
       "Active Users": [
-        { label: "Total Users", value: data.users.length, sub: "User accounts" },
+        { label: "Total Users", value: count("users"), sub: "User accounts" },
         { label: "Active Users", value: activeUsers, sub: "Currently active" },
-        { label: "Total Staff", value: data.staff.length, sub: "Staff members" },
+        { label: "Total Staff", value: count("staff"), sub: "Staff members" },
         { label: "Active Staff", value: activeStaff, sub: "Currently active" },
-        { label: "Customers", value: data.customers.length, sub: "Registered" },
-        { label: "User Types", value: data.userTypes.length, sub: "Role types" },
-        { label: "Staff Types", value: data.staffUserTypes.length, sub: "Staff roles" },
+        { label: "Customers", value: count("customers"), sub: "Registered" },
+        { label: "User Types", value: count("userTypes"), sub: "Role types" },
+        { label: "Staff Types", value: count("staffUserTypes"), sub: "Staff roles" },
       ],
       "Fleet & Transport": [
-        { label: "Vehicle Types", value: data.vehicleTypes.length, sub: "Categories" },
-        { label: "Total Vehicles", value: data.vehicles.length, sub: "Fleet size" },
+        { label: "Vehicle Types", value: count("vehicleTypes"), sub: "Categories" },
+        { label: "Total Vehicles", value: count("vehicles"), sub: "Fleet size" },
         { label: "Active Vehicles", value: activeVehicles, sub: "Operational" },
-        { label: "Fuel Records", value: data.fuels.length, sub: "Fuel entries" },
+        { label: "Fuel Records", value: count("fuels"), sub: "Fuel entries" },
       ],
       "Assets": [
-        { label: "Collection Points", value: data.collectionPoints.length, sub: "Pickup locations" },
-        { label: "Waste Types", value: data.wasteTypes.length, sub: "Classified types" },
-        { label: "Total Bins", value: data.bins.length, sub: "All bins" },
+        { label: "Collection Points", value: count("collectionPoints"), sub: "Pickup locations" },
+        { label: "Waste Types", value: count("wasteTypes"), sub: "Classified types" },
+        { label: "Total Bins", value: count("bins"), sub: "All bins" },
         { label: "Active Bins", value: activeBins, sub: "Operational" },
       ],
       "Open Grievances": [
-        { label: "Total Complaints", value: data.complaints.length, sub: "All time" },
+        { label: "Total Complaints", value: count("complaints"), sub: "All time" },
         { label: "Open / Active", value: activeComplaints, sub: "Pending resolution" },
-        { label: "Total Feedbacks", value: data.feedbacks.length, sub: "Submitted" },
-        { label: "Main Categories", value: data.mainCategories.length, sub: "Complaint types" },
-        { label: "Sub Categories", value: data.subCategories.length, sub: "Detailed types" },
+        { label: "Total Feedbacks", value: count("feedbacks"), sub: "Submitted" },
+        { label: "Main Categories", value: count("mainCategories"), sub: "Complaint types" },
+        { label: "Sub Categories", value: count("subCategories"), sub: "Detailed types" },
       ],
       "Screen Coverage": [
-        { label: "Screen Types", value: data.mainScreenTypes.length, sub: "Module types" },
-        { label: "Main Screens", value: data.mainScreens.length, sub: "Modules" },
-        { label: "User Screens", value: data.userScreens.length, sub: "Sub-screens" },
-        { label: "Screen Actions", value: data.screenActions.length, sub: "Actions" },
-        { label: "Screen Perms", value: data.screenPermissions.length, sub: "Access rules" },
-        { label: "Column Perms", value: data.columnPermissions.length, sub: "Field access" },
+        { label: "Screen Types", value: count("mainScreenTypes"), sub: "Module types" },
+        { label: "Main Screens", value: count("mainScreens"), sub: "Modules" },
+        { label: "User Screens", value: count("userScreens"), sub: "Sub-screens" },
+        { label: "Screen Actions", value: count("screenActions"), sub: "Actions" },
+        { label: "Screen Perms", value: count("screenPermissions"), sub: "Access rules" },
+        { label: "Column Perms", value: count("columnPermissions"), sub: "Field access" },
       ],
       "Customers": [
-        { label: "Total Customers", value: data.customers.length, sub: "Registered" },
-        { label: "User Types", value: data.userTypes.length, sub: "User roles" },
-        { label: "Staff User Types", value: data.staffUserTypes.length, sub: "Staff roles" },
+        { label: "Total Customers", value: count("customers"), sub: "Registered" },
+        { label: "User Types", value: count("userTypes"), sub: "User roles" },
+        { label: "Staff User Types", value: count("staffUserTypes"), sub: "Staff roles" },
       ],
       "Waste Collections": [
-        { label: "Total Collections", value: data.wasteCollections.length, sub: "All records" },
-        { label: "Waste Types", value: data.wasteTypes.length, sub: "Classified" },
-        { label: "Properties", value: data.properties.length, sub: "Waste properties" },
-        { label: "Sub Properties", value: data.subProperties.length, sub: "Sub-properties" },
-        { label: "Collection Points", value: data.collectionPoints.length, sub: "Pickup locations" },
+        { label: "Total Collections", value: count("wasteCollections"), sub: "All records" },
+        { label: "Waste Types", value: count("wasteTypes"), sub: "Classified" },
+        { label: "Properties", value: count("properties"), sub: "Waste properties" },
+        { label: "Sub Properties", value: count("subProperties"), sub: "Sub-properties" },
+        { label: "Collection Points", value: count("collectionPoints"), sub: "Pickup locations" },
       ],
     };
 
@@ -750,7 +690,7 @@ export default function AdminHome() {
       mainScreenDetails,
       kpiBreakdowns,
     };
-  }, [data]);
+  }, [data, count, overview.active]);
 
   const kpis: KpiConfig[] = [
     {
@@ -764,7 +704,7 @@ export default function AdminHome() {
     {
       title: "Active Users",
       value: dashboard.totals.activeUsers,
-      detail: `${dashboard.totals.activeStaff} active staff · ${data.customers.length} customers`,
+      detail: `${dashboard.totals.activeStaff} active staff · ${count("customers")} customers`,
       icon: Users,
       gradient: "from-emerald-600 to-teal-500",
       bg: "bg-emerald-50",
@@ -772,7 +712,7 @@ export default function AdminHome() {
     {
       title: "Fleet & Transport",
       value: dashboard.totals.transportTotal,
-      detail: `${data.vehicles.length} vehicles · ${dashboard.totals.activeVehicles} active`,
+      detail: `${count("vehicles")} vehicles · ${dashboard.totals.activeVehicles} active`,
       icon: Truck,
       gradient: "from-orange-500 to-amber-500",
       bg: "bg-orange-50",
@@ -780,7 +720,7 @@ export default function AdminHome() {
     {
       title: "Assets",
       value: dashboard.totals.assetTotal,
-      detail: `${dashboard.totals.activeBins} active bins · ${data.collectionPoints.length} collection points`,
+      detail: `${dashboard.totals.activeBins} active bins · ${count("collectionPoints")} collection points`,
       icon: Boxes,
       gradient: "from-green-500 to-emerald-400",
       bg: "bg-green-50",
@@ -788,7 +728,7 @@ export default function AdminHome() {
     {
       title: "Open Grievances",
       value: dashboard.totals.activeComplaints,
-      detail: `${data.complaints.length} total complaints · ${data.feedbacks.length} feedbacks`,
+      detail: `${count("complaints")} total complaints · ${count("feedbacks")} feedbacks`,
       icon: AlertTriangle,
       gradient: "from-rose-600 to-red-500",
       bg: "bg-rose-50",
@@ -796,23 +736,23 @@ export default function AdminHome() {
     {
       title: "Screen Coverage",
       value: dashboard.totals.screenTotal,
-      detail: `${data.mainScreens.length} main screens · ${data.userScreens.length} user screens`,
+      detail: `${count("mainScreens")} main screens · ${count("userScreens")} user screens`,
       icon: Layers3,
       gradient: "from-orange-600 to-amber-500",
       bg: "bg-orange-50",
     },
     {
       title: "Customers",
-      value: data.customers.length,
-      detail: `${data.userTypes.length} user types · ${data.staffUserTypes.length} staff types`,
+      value: count("customers"),
+      detail: `${count("userTypes")} user types · ${count("staffUserTypes")} staff types`,
       icon: Building2,
       gradient: "from-green-700 to-green-500",
       bg: "bg-green-50",
     },
     {
       title: "Waste Collections",
-      value: data.wasteCollections.length,
-      detail: `${data.wasteTypes.length} waste types · ${data.properties.length} properties`,
+      value: count("wasteCollections"),
+      detail: `${count("wasteTypes")} waste types · ${count("properties")} properties`,
       icon: Activity,
       gradient: "from-orange-500 to-yellow-500",
       bg: "bg-orange-50",
@@ -1119,17 +1059,17 @@ export default function AdminHome() {
                   {[
                     {
                       label: "Collection Points",
-                      value: data.collectionPoints.length,
+                      value: count("collectionPoints"),
                       color: "#16a34a",
                     },
                     {
                       label: "Waste Types",
-                      value: data.wasteTypes.length,
+                      value: count("wasteTypes"),
                       color: "#f97316",
                     },
                     {
                       label: "Total Bins",
-                      value: data.bins.length,
+                      value: count("bins"),
                       color: "#059669",
                     },
                     {

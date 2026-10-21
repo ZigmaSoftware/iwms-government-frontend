@@ -13,8 +13,6 @@ export default {
     "primary_operator": "ஆபரேட்டர்",
     "extra_staff": "கூடுதல் ஆபரேட்டர்கள்",
     "extra_staff_placeholder": "கமாவால் பிரிக்கப்பட்ட ஆபரேட்டர் ஐடிகள்",
-    "approval_status": "ஒப்புதல் நிலை",
-    "approved_by": "ஒப்புதல் வழங்கியவர்",
     "created_by": "உருவாக்கியவர்",
     "updated_by": "புதுப்பித்தவர்",
     "columns": {
@@ -22,7 +20,6 @@ export default {
       "primary_driver": "டிரைவர்",
       "primary_operator": "ஆபரேட்டர்",
       "extra_staff": "கூடுதல் ஆபரேட்டர்கள்",
-      "approval_status": "ஒப்புதல் நிலை",
       "created_at": "உருவாக்கப்பட்டது",
       "updated_at": "புதுப்பிக்கப்பட்டது"
     }
@@ -30,14 +27,13 @@ export default {
   "alternative_staff_template": {
     "title_add": "மாற்று பணியாளர் டெம்ப்ளேட்டை சேர்க்கவும்",
     "title_edit": "மாற்று பணியாளர் டெம்ப்ளேட்டை திருத்தவும்",
-    "subtitle": "ஒப்புதல்களுடன் தற்காலிக பணியாளர் மாற்றங்கள்.",
+    "subtitle": "தற்காலிக பணியாளர் மாற்றங்கள்.",
     "list_title": "மாற்று பணியாளர் டெம்ப்ளேட் பட்டியல்",
-    "list_subtitle": "நிலுவை/ஒப்புதலான மாற்று ஒதுக்கீடுகள்",
+    "list_subtitle": "மாற்று பணியாளர் ஒதுக்கீடுகள்",
     "create_button": "மாற்று டெம்ப்ளேட் உருவாக்கு",
     "search_placeholder": "மாற்று டெம்ப்ளேட்டுகளை தேடவும்",
     "empty_message": "மாற்று பணியாளர் டெம்ப்ளேட்டுகள் இல்லை",
     "error_same_driver_operator": "டிரைவர் மற்றும் ஆபரேட்டர் ஒரே நபராக இருக்க முடியாது.",
-    "approved_locked": "Approved records cannot be modified.",
     "staff_template": "பணியாளர் டெம்ப்ளேட்",
     "effective_date": "செயல்படும் தேதி",
     "driver": "டிரைவர்",
@@ -53,8 +49,7 @@ export default {
       "driver": "டிரைவர்",
       "operator": "ஆபரேட்டர்",
       "extra_operator": "கூடுதல் ஆபரேட்டர்",
-      "change_reason": "காரணம்",
-      "approval_status": "ஒப்புதல் நிலை"
+      "change_reason": "காரணம்"
     }
   },
   "trip_plans": {

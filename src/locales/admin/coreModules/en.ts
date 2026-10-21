@@ -13,8 +13,6 @@ export default {
     "primary_operator": "Operator",
     "extra_staff": "Extra Operators",
     "extra_staff_placeholder": "Comma-separated operator IDs",
-    "approval_status": "Approval Status",
-    "approved_by": "Approved By",
     "created_by": "Created By",
     "updated_by": "Updated By",
     "columns": {
@@ -22,7 +20,6 @@ export default {
       "primary_driver": "Driver",
       "primary_operator": "Operator",
       "extra_staff": "Extra Operators",
-      "approval_status": "Approval Status",
       "created_at": "Created At",
       "updated_at": "Updated At"
     }
@@ -30,14 +27,13 @@ export default {
   "alternative_staff_template": {
     "title_add": "Add Alternative Staff Template",
     "title_edit": "Edit Alternative Staff Template",
-    "subtitle": "Temporary substitution for staff template with approvals.",
+    "subtitle": "Temporary substitution for staff template.",
     "list_title": "Alternative Staff Template List",
-    "list_subtitle": "Pending/approved alternative assignments",
+    "list_subtitle": "Alternative staff assignments",
     "create_button": "Create Alternative Template",
     "search_placeholder": "Search alternative templates",
     "empty_message": "No alternative staff templates found",
     "error_same_driver_operator": "Driver and Operator cannot be the same user.",
-    "approved_locked": "Approved records cannot be modified.",
     "staff_template": "Staff Template",
     "effective_date": "Effective Date",
     "driver": "Driver",
@@ -53,8 +49,7 @@ export default {
       "driver": "Driver",
       "operator": "Operator",
       "extra_operator": "Extra Operator",
-      "change_reason": "Reason",
-      "approval_status": "Approval Status"
+      "change_reason": "Reason"
     }
   },
   "trip_plans": {

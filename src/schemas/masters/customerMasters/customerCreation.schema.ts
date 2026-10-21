@@ -70,7 +70,6 @@ export const customerCreationSchema = z
     state_id: requiredString("State"),
     district_id: requiredString("District"),
     area_type_id: requiredString("Area Type"),
-    location_node_id: optionalString,
     corporation_id: optionalString,
     municipality_id: optionalString,
     town_panchayat_id: optionalString,

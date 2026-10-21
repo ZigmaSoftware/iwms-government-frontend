@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Crown, LogOut, Menu, Moon, ShieldCheck, Sun } from "lucide-react";
+import { Crown, LogOut, Menu, Moon, Sun } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 

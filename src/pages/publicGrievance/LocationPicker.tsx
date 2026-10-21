@@ -9,6 +9,10 @@ const DEFAULT_CENTER: [number, number] = [13.0827, 80.2707]; // Chennai
 // accuracy in the thousands of metres and routinely land in the wrong city.
 export const TRUSTED_ACCURACY_METERS = 500;
 
+// Nominatim (the free OpenStreetMap address lookup) allows about one request
+// a second and blocks clients that send more - wait for the pin to settle.
+const GEOCODE_DELAY_MS = 800;
+
 const pinIcon = L.divIcon({
   html: `<svg width="34" height="34" viewBox="0 0 24 24" fill="#0A5C36" stroke="white" stroke-width="1">
     <path d="M12 2C7.6 2 4 5.6 4 10c0 6 8 12 8 12s8-6 8-12c0-4.4-3.6-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
@@ -34,6 +38,8 @@ export default function LocationPicker({ latitude, longitude, accuracy, onPick }
   const onPickRef = useRef(onPick);
   const accuracyRef = useRef(accuracy);
   const lastAppliedRef = useRef<string>("");
+  const geocodeTimer = useRef<number | undefined>(undefined);
+  const lastGeocodedRef = useRef<string>("");
   onPickRef.current = onPick;
   accuracyRef.current = accuracy;
 
@@ -44,19 +50,30 @@ export default function LocationPicker({ latitude, longitude, accuracy, onPick }
     }
   };
 
-  const reverseGeocode = async (lat: number, lng: number) => {
-    const coordLabel = `${lat.toFixed(7)},${lng.toFixed(7)}`;
-    lastAppliedRef.current = coordLabel;
+  /** Look up the address for the pin once it has settled (one request per
+   *  final position, never one per change). Best-effort: lat/lng are set
+   *  already, so a failed lookup just leaves the address blank. */
+  const lookupAddress = (lat: number, lng: number) => {
+    window.clearTimeout(geocodeTimer.current);
+    geocodeTimer.current = window.setTimeout(() => {
+      const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+      if (key === lastGeocodedRef.current) return;
+      lastGeocodedRef.current = key;
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((json) => {
+          if (json?.display_name) onPickRef.current(lat.toFixed(7), lng.toFixed(7), json.display_name);
+        })
+        .catch(() => {
+          /* best-effort */
+        });
+    }, GEOCODE_DELAY_MS);
+  };
+
+  const reverseGeocode = (lat: number, lng: number) => {
+    lastAppliedRef.current = `${lat.toFixed(7)},${lng.toFixed(7)}`;
     onPickRef.current(lat.toFixed(7), lng.toFixed(7));
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
-      );
-      const json = await res.json();
-      if (json?.display_name) onPickRef.current(lat.toFixed(7), lng.toFixed(7), json.display_name);
-    } catch {
-      /* reverse-geocoding is best-effort; lat/lng are already set */
-    }
+    lookupAddress(lat, lng);
   };
 
   useEffect(() => {
@@ -89,6 +106,7 @@ export default function LocationPicker({ latitude, longitude, accuracy, onPick }
     setTimeout(() => map.invalidateSize(), 200);
 
     return () => {
+      window.clearTimeout(geocodeTimer.current);
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
@@ -126,14 +144,7 @@ export default function LocationPicker({ latitude, longitude, accuracy, onPick }
     // Only trust the reverse-geocoded address when the fix is genuinely
     // precise - IP-based desktop fixes can be a whole city away.
     if (fixAccuracy != null && fixAccuracy > TRUSTED_ACCURACY_METERS) return;
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`)
-      .then((res) => res.json())
-      .then((json) => {
-        if (json?.display_name) onPickRef.current(latitude, longitude, json.display_name);
-      })
-      .catch(() => {
-        /* reverse-geocoding is best-effort; lat/lng are already set */
-      });
+    lookupAddress(lat, lng);
   }, [latitude, longitude]);
 
   return (

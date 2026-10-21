@@ -17,6 +17,10 @@ import { useFieldVisibility } from "@/hooks/useFieldVisibility";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   unique_id: ["unique_id", "display_code", "template_id"],
@@ -24,7 +28,6 @@ const STAFF_TEMPLATE_COLUMN_FIELDS: Record<string, string[]> = {
   operator_name: ["operator_id", "operator_name", "primary_operator", "operator"],
   extra_operator_id: ["extra_operator_id", "extra_staff", "extra_operator"],
   status: ["status", "active_status"],
-  approval_status: ["approval_status"],
   created_at: ["created_at"],
   updated_at: ["updated_at"],
 };
@@ -45,7 +48,13 @@ const BACKEND_ORDER_FIELD: Record<string, string> = {
   unique_id: "display_code",
 };
 
-const SORTABLE_FIELDS = new Set(["status", "approval_status", "unique_id"]);
+const SORTABLE_FIELDS = new Set(["status", "unique_id"]);
+
+// the template's own `status` column (ACTIVE / INACTIVE) is what the list toggles
+const STATUS_OPTIONS = [
+  { label: "Active", value: "ACTIVE" },
+  { label: "Inactive", value: "INACTIVE" },
+];
 
 export default function StaffTemplateList() {
   const { t } = useTranslation();
@@ -67,6 +76,15 @@ export default function StaffTemplateList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  const status = useOptionFilter({
+    param: "status",
+    label: "Status",
+    options: STATUS_OPTIONS,
+    onAppliedChange: () => setFirst(0),
+  });
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const { encScheduleSetup, encStaffTemplate } = getEncryptedRoute();
   const { newPath: ENC_NEW_PATH, editPath: ENC_EDIT_PATH } = createCrudRoutePaths(
@@ -81,6 +99,7 @@ export default function StaffTemplateList() {
     try {
       const response = await staffTemplateApi.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(ordering ? { ordering } : {}),
         },
@@ -103,7 +122,7 @@ export default function StaffTemplateList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   /* ================= FILTERS ================= */
 
@@ -160,19 +179,11 @@ export default function StaffTemplateList() {
   /* ================= ACTIONS ================= */
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await staffTemplateApi.delete(id);
+      await staffTemplateApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -204,12 +215,14 @@ export default function StaffTemplateList() {
         title={t("admin.staff_template.list_title")}
         subtitle={t("admin.staff_template.list_subtitle")}
         actions={
-          <Button
-            label={t("admin.staff_template.create_button")}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("admin.staff_template.create_button")}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -226,6 +239,7 @@ export default function StaffTemplateList() {
         sortOrder={sortOrder}
         onSort={onSort}
         loading={loading}
+        filterPanel={combineFilters(geo, status)}
         header={
           <FilterBar
             searchValue={globalFilterValue}
@@ -279,28 +293,6 @@ export default function StaffTemplateList() {
             header={t("common.status")}
             body={statusBodyTemplate}
             style={{ width: 120 }}
-          />
-        )}
-
-        {showCol("approval_status") && (
-          <Column
-            field="approval_status"
-            header={t("admin.staff_template.columns.approval_status")}
-            sortable
-          />
-        )}
-
-        {showCol("created_at") && (
-          <Column
-            header={t("admin.staff_template.columns.created_at")}
-            body={(r: StaffTemplate) => new Date(r.created_at).toLocaleDateString()}
-          />
-        )}
-
-        {showCol("updated_at") && (
-          <Column
-            header={t("admin.staff_template.columns.updated_at")}
-            body={(r: StaffTemplate) => new Date(r.updated_at).toLocaleDateString()}
           />
         )}
 

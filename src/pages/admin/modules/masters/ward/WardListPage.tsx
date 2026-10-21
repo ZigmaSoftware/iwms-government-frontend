@@ -10,9 +10,10 @@ import notify from "@/lib/notify";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { Switch } from "@/components/ui/switch";
 import { wardApi } from "@/helpers/admin";
-import { formatCoordinates } from "../shared/formatCoordinates";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type WardListRecord = {
   unique_id: string;
@@ -48,7 +49,6 @@ const columns = [
   { field: "local_body_type", header: "Local Body Type" },
   { field: "local_body_name", header: "Local Body" },
   { field: "ward_name", header: "Ward Name" },
-  { field: "coordinates", header: "Coordinates" },
 ];
 
 export default function WardListPage() {
@@ -115,7 +115,8 @@ export default function WardListPage() {
     return () => clearTimeout(timeout);
   }, [globalFilterValue]);
 
-  const onExportRequest = async () => toRecordList(await wardApi.readAllForExport());
+  const onServerExport = (filename: string, sheetName: string) =>
+    wardApi.exportToExcel(undefined, filename, sheetName);
 
   const statusTemplate = (row: WardListRecord) => {
     const updateStatus = async (value: boolean) => {
@@ -141,19 +142,11 @@ export default function WardListPage() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await wardApi.delete(id);
+      await wardApi.delete(id, withDeleteReason(reason));
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -181,12 +174,14 @@ export default function WardListPage() {
         title="Ward"
         subtitle="Manage Ward records"
         actions={
-          <Button
-            label="Add Ward"
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label="Add Ward"
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -216,7 +211,7 @@ export default function WardListPage() {
         stripedRows
         showGridlines
         emptyMessage="No Ward records found."
-        onExportRequest={onExportRequest}
+        onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
@@ -227,11 +222,9 @@ export default function WardListPage() {
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
             body={(row: WardListRecord) =>
-              column.field === "coordinates"
-                ? formatCoordinates(row.coordinates)
-                : column.field === "local_body_type"
-                  ? displayValue(LOCAL_BODY_TYPE_LABELS[String(row.local_body_type ?? "")])
-                  : displayValue(row[column.field])
+              column.field === "local_body_type"
+                ? displayValue(LOCAL_BODY_TYPE_LABELS[String(row.local_body_type ?? "")])
+                : displayValue(row[column.field])
             }
           />
         ))}

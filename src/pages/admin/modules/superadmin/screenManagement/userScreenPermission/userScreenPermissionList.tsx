@@ -8,16 +8,22 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 import { useTranslation } from "react-i18next";
+import { usePermissionLabels } from "@/utils/permissionLabels";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { appendRouteQuery, createCrudRoutePaths } from "@/utils/routePaths";
+import { api } from "@/api";
 import { userScreenPermissionApi } from "@/helpers/admin";
-import { adminApi } from "@/helpers/admin/registry";
+import { adminEndpoints } from "@/helpers/admin/endpoints";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
 
 import { encodeLocalBodyRouteId } from "./userScreenPermissionForm";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter, useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
   corporation: "Corporation",
@@ -27,29 +33,23 @@ const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
   panchayat: "Panchayat",
 };
 
-const LOCAL_BODY_ENTITY_BY_TYPE: Record<string, keyof typeof adminApi> = {
-  corporation: "corporations",
-  municipality: "municipalities",
-  town_panchayat: "townPanchayats",
-  panchayat_union: "panchayatUnions",
-  panchayat: "panchayats",
-};
-
-const localBodyRecordLabel = (record: Record<string, unknown>): string =>
-  String(
-    record.corporation_name ??
-      record.municipality_name ??
-      record.town_panchayat_name ??
-      record.panchayat_union_name ??
-      record.panchayat_name ??
-      record.name ??
-      record.unique_id ??
-      "",
-  );
-
 const PERMISSION_TYPE_LABELS: Record<string, string> = {
   screen: "Screen Permission",
   field: "Field Permission",
+};
+
+// GET .../userscreenpermissions/summary/ — one row per (local body,
+// permission type), grouped server-side.
+type SummaryRow = {
+  composite_key: string;
+  local_body_type: string;
+  local_body_id: string;
+  local_body_name: string | null;
+  mainscreen_ids: string[];
+  mainscreen_names: Array<string | null>;
+  permission_type: string;
+  is_active: boolean;
+  legacy: boolean;
 };
 
 type GroupedRow = {
@@ -73,13 +73,22 @@ type GroupedRow = {
 
 export default function UserScreenPermissionList() {
   const { t } = useTranslation();
+  const { moduleLabel } = usePermissionLabels();
   const navigate = useNavigate();
 
   const [globalFilterValue, setGlobalFilterValue] = useState("");
 
-  const [permissionRows, setPermissionRows] = useState<any[]>([]);
+  const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [localBodyLabels, setLocalBodyLabels] = useState<Record<string, string>>({});
+
+  const geo = useHierarchyFilter();
+  const status = useStatusFilter();
+  const permissionType = useOptionFilter({
+    param: "permission_type",
+    label: "Permission Type",
+    options: Object.entries(PERMISSION_TYPE_LABELS).map(([value, label]) => ({ label, value })),
+  });
+  const filterKey = JSON.stringify({ ...geo.applied, ...status.applied });
 
   const [filters, setFilters] = useState<any>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -113,10 +122,11 @@ export default function UserScreenPermissionList() {
     const loadPermissions = async () => {
       setIsLoading(true);
       try {
-        const data = await userScreenPermissionApi.readAll({
-          params: { limit: 6000, offset: 0 },
-        });
-        if (mounted) setPermissionRows(data as any[]);
+        const { data } = await api.get<SummaryRow[]>(
+          `/${adminEndpoints.userScreenPermissions}/summary/`,
+          { params: JSON.parse(filterKey) },
+        );
+        if (mounted) setSummaryRows(Array.isArray(data) ? data : []);
       } catch {
         if (mounted) notify.fire(t("common.error"), t("common.load_failed"), "error");
       } finally {
@@ -129,85 +139,33 @@ export default function UserScreenPermissionList() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, filterKey]);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const loadLocalBodyLabels = async () => {
-      try {
-        const entities = Object.values(LOCAL_BODY_ENTITY_BY_TYPE);
-        const results = await Promise.allSettled(
-          entities.map((entity) => adminApi[entity].readAll()),
+  const records = useMemo<GroupedRow[]>(
+    () =>
+      summaryRows.map((row) => {
+        const mainscreenNames = row.mainscreen_names.map((name) =>
+          name ? moduleLabel(String(name)) : t("common.unknown"),
         );
-        if (!mounted) return;
-
-        const labels: Record<string, string> = {};
-        results.forEach((result) => {
-          if (result.status !== "fulfilled" || !Array.isArray(result.value)) return;
-          (result.value as Array<Record<string, unknown>>).forEach((record) => {
-            const id = String(record.unique_id ?? "");
-            if (id) labels[id] = localBodyRecordLabel(record);
-          });
-        });
-        setLocalBodyLabels(labels);
-      } catch {
-        // Non-fatal — falls back to showing the raw id.
-      }
-    };
-
-    void loadLocalBodyLabels();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const records = useMemo<GroupedRow[]>(() => {
-      const groupedObj: Record<string, GroupedRow> = permissionRows.reduce((acc, item) => {
-        const localBodyType = String(item.local_body_type ?? "");
-        const localBodyId = String(item.local_body_id ?? "");
-        const screenId = String(item.mainscreen_id ?? "");
-        const screenName = String(item.mainscreen_name ?? t("common.unknown"));
-        const permissionType = String(item.permission_type ?? "screen");
-        const isLegacy = !localBodyType || !localBodyId;
-        const key = isLegacy
-          ? `legacy__${item.unique_id}__${screenId}`
-          : `${localBodyType}__${localBodyId}__${permissionType}`;
-
-        if (!acc[key]) {
-          acc[key] = {
-            composite_key: key,
-            local_body_type: localBodyType,
-            local_body_id: localBodyId,
-            local_body_type_label: isLegacy
-              ? t("common.legacy", "Legacy")
-              : LOCAL_BODY_TYPE_LABELS[localBodyType] ?? localBodyType,
-            local_body_label: isLegacy
-              ? ""
-              : localBodyLabels[localBodyId] || localBodyId,
-            mainscreen_ids: [],
-            mainscreen_names: [],
-            mainscreen_names_joined: "",
-            permission_type: permissionType,
-            permission_type_label: PERMISSION_TYPE_LABELS[permissionType] ?? permissionType,
-            is_active: item.is_active,
-            legacy: isLegacy,
-          };
-        }
-
-        if (screenId && !acc[key].mainscreen_ids.includes(screenId)) {
-          acc[key].mainscreen_ids.push(screenId);
-          acc[key].mainscreen_names.push(screenName);
-        }
-
-        return acc;
-      }, {} as Record<string, GroupedRow>);
-
-      return Object.values(groupedObj).map((row) => ({
-        ...row,
-        mainscreen_names_joined: row.mainscreen_names.join(", "),
-      }));
-  }, [permissionRows, localBodyLabels, t]);
+        return {
+          composite_key: row.composite_key,
+          local_body_type: row.local_body_type,
+          local_body_id: row.local_body_id,
+          local_body_type_label: row.legacy
+            ? t("common.legacy", "Legacy")
+            : LOCAL_BODY_TYPE_LABELS[row.local_body_type] ?? row.local_body_type,
+          local_body_label: row.legacy ? "" : row.local_body_name || row.local_body_id,
+          mainscreen_ids: row.mainscreen_ids,
+          mainscreen_names: mainscreenNames,
+          mainscreen_names_joined: mainscreenNames.join(", "),
+          permission_type: row.permission_type,
+          permission_type_label: PERMISSION_TYPE_LABELS[row.permission_type] ?? row.permission_type,
+          is_active: row.is_active,
+          legacy: row.legacy,
+        };
+      }),
+    [summaryRows, t, moduleLabel],
+  );
 
   /* -----------------------------------------------------------
      DELETE RECORD
@@ -219,36 +177,18 @@ export default function UserScreenPermissionList() {
       return;
     }
 
-    const confirmDelete = await notify.fire({
-      title: t("common.confirm_title"),
-      text: t("admin.user_screen_permission.confirm_delete_count", {
-        count: row.mainscreen_ids.length,
-        defaultValue: t("admin.user_screen_permission.confirm_delete"),
-      }),
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
       await Promise.all(
         row.mainscreen_ids.map((mainscreenId) =>
-          userScreenPermissionApi.delete(
-            `delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${mainscreenId}`
-          )
+          userScreenPermissionApi.delete(`delete-by-localbody/${row.local_body_type}/${row.local_body_id}/?mainscreen_id=${mainscreenId}`, withDeleteReason(reason))
         )
       );
 
-      setPermissionRows((current) =>
-        current.filter((item) => {
-          const sameLocalBody =
-            String(item.local_body_type ?? "") === row.local_body_type &&
-            String(item.local_body_id ?? "") === row.local_body_id;
-          const samePermissionType = String(item.permission_type ?? "screen") === row.permission_type;
-          return !(sameLocalBody && samePermissionType);
-        })
+      setSummaryRows((current) =>
+        current.filter((item) => item.composite_key !== row.composite_key)
       );
 
       notify.fire(
@@ -320,20 +260,27 @@ export default function UserScreenPermissionList() {
         title={t("admin.user_screen_permission.title")}
         subtitle={t("admin.user_screen_permission.subtitle")}
         actions={
-          <Button
-            label={t("common.add_item", {
-              item: t("admin.user_screen_permission.permission_label"),
-            })}
-            icon="pi pi-plus"
-            className="p-button-success"
-            onClick={() => navigate(ENC_NEW_PATH)}
-          />
+          <Can action="add">
+            <Button
+              label={t("common.add_item", {
+                item: t("admin.user_screen_permission.permission_label"),
+              })}
+              icon="pi pi-plus"
+              className="p-button-success"
+              onClick={() => navigate(ENC_NEW_PATH)}
+            />
+          </Can>
         }
         className="mb-6"
       />
 
       <DataTable
-        value={records}
+        filterPanel={combineFilters(geo, status, permissionType)}
+        value={
+          permissionType.value
+            ? records.filter((row) => row.permission_type === permissionType.value)
+            : records
+        }
         dataKey="composite_key"
         paginator
         rows={10}

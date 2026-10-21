@@ -4,6 +4,8 @@ import notify from "@/lib/notify";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { extractErrorMessage } from "../../shared/recordHelpers";
+import { useStatusFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason } from "@/utils/deleteReason";
 
 import {
   deleteDesignation,
@@ -34,6 +36,7 @@ export function useDesignationList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const status = useStatusFilter(() => setFirst(0));
 
   const ordering = resolveOrdering(sortField, sortOrder);
 
@@ -45,6 +48,7 @@ export function useDesignationList() {
         rowsPerPage,
         searchTerm,
         ordering,
+        status.applied,
       );
       setRows(nextRows);
       setTotalRecords(nextTotal);
@@ -58,7 +62,7 @@ export function useDesignationList() {
   useEffect(() => {
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, status.value]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -79,7 +83,7 @@ export function useDesignationList() {
     setSortOrder(event.sortOrder);
   };
 
-  const onExportRequest = async () => loadDesignationsForExport();
+  const onExportRequest = async () => loadDesignationsForExport(status.applied);
 
   const onToggleStatus = async (row: DesignationListRecord, value: boolean) => {
     await updateDesignationStatus(row, value);
@@ -87,19 +91,11 @@ export function useDesignationList() {
   };
 
   const onDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await deleteDesignation(id);
+      await deleteDesignation(id, reason);
       setRows((current) => current.filter((row) => row.unique_id !== id));
       notify.fire({
         icon: "success",
@@ -125,6 +121,7 @@ export function useDesignationList() {
     onPage,
     onSort,
     onExportRequest,
+    status,
     onToggleStatus,
     onDelete,
     navigateToNew: () => navigate(NEW_PATH),

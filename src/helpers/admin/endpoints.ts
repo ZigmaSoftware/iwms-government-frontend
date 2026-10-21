@@ -9,6 +9,8 @@ export const adminEndpoints = {
   loginUser: "login/login-user",
   userpermission: "login/my-permissions",
   dashboardSummary: "dashboard/summary",
+  adminDashboard: "dashboard/admin",
+  superadminDashboard: "dashboard/superadmin",
 
   /* =========================
      SUPERADMIN
@@ -94,6 +96,7 @@ export const adminEndpoints = {
   governmentUserTypes: "role-assigns/governmentusertypes",
   governmentRoleTypes: "role-assigns/governmentusertypes/role-choices",
   governmentLevelTypes: "role-assigns/governmentusertypes/level-choices",
+  staffHierarchy: "role-assigns/staff-hierarchy",
 
   /* =========================
      USER CREATION
@@ -110,8 +113,8 @@ export const adminEndpoints = {
      CUSTOMERS
   ========================= */
   customerCreations: "customer-masters/customercreations",
-  /** Per-customer app access: which app they may sign into, which screens they see. */
   customerAccessConfiguration: "customer-masters/customer-access-configuration",
+  customerNotifications: "customer-masters/customer-notifications",
   wasteCollections: "schedule-operations/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 
@@ -131,7 +134,6 @@ export const adminEndpoints = {
   complaintStatuses: "complaint-ticket/statuses",
   complaintSources: "complaint-ticket/sources",
   complaintLanguages: "complaint-ticket/languages",
-  complaintTeams: "complaint-ticket/teams",
   complaintSlaRules: "complaint-ticket/sla-rules",
   complaintRoutingRules: "complaint-ticket/routing-rules",
   complaintFeedback: "complaint-ticket/feedback",
@@ -150,13 +152,11 @@ export const adminEndpoints = {
   /* =========================
      AUDITS
   ========================= */
-  vehicleTripAudits: "audits/vehicle-trip-audit",
-  tripExceptionLogs: "audits/trip-exception-log",
-  binLoadLogs: "audits/bin-load-log",
-  staffTemplateAuditLogs: "audits/stafftemplate-audit-log",
    loginAudits: "audits/login-audit",
    commonAudits: "audits/common-audit",
-   staffAudits: "audits/staff-audit",
+   permissionAudits: "audits/permission-audit",
+   complaintAudits: "audits/complaint-audit",
+   auditDashboard: "audits/audit-dashboard",
 } as const;
 
 export type AdminEntity = keyof typeof adminEndpoints;

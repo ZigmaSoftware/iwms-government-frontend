@@ -13,6 +13,10 @@ import { getEncryptedRoute } from "@/utils/routeCache";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { Can } from "@/contexts/ScreenPermissionContext";
+import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
+import { combineFilters, useOptionFilter } from "@/components/filters/useOptionFilter";
+import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
 type StaffAccessRecord = {
   unique_id?: string;
@@ -71,6 +75,19 @@ export default function StaffAccessConfigList() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<string | undefined>(undefined);
   const [sortOrder, setSortOrder] = useState<SortOrder>(undefined);
+  const geo = useHierarchyFilter(() => setFirst(0));
+  // the Status column is the staff flag (`active_status`), as on Staff Creation
+  const status = useOptionFilter({
+    param: "active_status",
+    label: "Status",
+    options: [
+      { label: "Active", value: "1" },
+      { label: "Inactive", value: "0" },
+    ],
+    onAppliedChange: () => setFirst(0),
+  });
+  const filterParams = { ...geo.applied, ...status.applied };
+  const filterKey = JSON.stringify(filterParams);
 
   const ordering = sortField && SORTABLE_FIELDS.has(sortField)
     ? `${sortOrder === -1 ? "-" : ""}${sortField}`
@@ -81,6 +98,7 @@ export default function StaffAccessConfigList() {
     try {
       const response = await adminApi.staffAccessConfiguration.readAllwithPaginated(page, limit, {
         params: {
+          ...filterParams,
           ...(search ? { search } : {}),
           ...(orderingParam ? { ordering: orderingParam } : {}),
         },
@@ -102,7 +120,7 @@ export default function StaffAccessConfigList() {
   useEffect(() => {
     void loadRows(first / rowsPerPage + 1, rowsPerPage, searchTerm, ordering);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [first, rowsPerPage, searchTerm, ordering]);
+  }, [first, rowsPerPage, searchTerm, ordering, filterKey]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -137,7 +155,8 @@ export default function StaffAccessConfigList() {
   const permissionTemplate = (row: StaffAccessRecord) =>
     row.permission_count ?? (Array.isArray(row.permissions) ? row.permissions.length : "-");
   const statusTemplate = (row: StaffAccessRecord) => {
-    const status = row.account_status ?? (row.active_status === false ? "Inactive" : "Active");
+    // Staff status (same flag as Staff Creation), not the login/account toggle.
+    const status = row.active_status === false ? "Inactive" : "Active";
     return (
       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
         String(status).toLowerCase() === "inactive"
@@ -151,19 +170,11 @@ export default function StaffAccessConfigList() {
   };
 
   const handleDelete = async (id: string) => {
-    const confirmDelete = await notify.fire({
-      title: "Are you sure?",
-      text: "This action cannot be undone.",
-      icon: "warning",
-      showCancelButton: true,
-      confirmButtonColor: "#d33",
-      cancelButtonColor: "#3085d6",
-    });
-
-    if (!confirmDelete.isConfirmed) return;
+    const reason = await confirmDeleteWithReason();
+    if (reason === null) return;
 
     try {
-      await adminApi.staffAccessConfiguration.delete(id);
+      await adminApi.staffAccessConfiguration.delete(id, withDeleteReason(reason));
       setRecords((current) =>
         current.filter((row) => textOf(row.unique_id, row.id) !== id)
       );
@@ -195,12 +206,14 @@ export default function StaffAccessConfigList() {
         title="Staff Access Configuration"
         subtitle="Manage staff access, permissions, and scope."
         actions={
-          <Button
-            label="New staff access"
-            icon="pi pi-plus"
-            className="p-button-success p-button-sm"
-            onClick={() => navigate(newPath)}
-          />
+          <Can action="add">
+            <Button
+              label="New staff access"
+              icon="pi pi-plus"
+              className="p-button-success p-button-sm"
+              onClick={() => navigate(newPath)}
+            />
+          </Can>
         }
         className="mb-6"
       />
@@ -225,6 +238,7 @@ export default function StaffAccessConfigList() {
             className="mb-4"
           />
         }
+        filterPanel={combineFilters(geo, status)}
         emptyMessage="No staff access configurations found."
         responsiveLayout="scroll"
       >

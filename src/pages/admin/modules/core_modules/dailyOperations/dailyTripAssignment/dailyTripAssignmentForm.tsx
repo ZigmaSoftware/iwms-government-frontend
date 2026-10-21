@@ -98,6 +98,21 @@ const STATUS_OPTIONS: Option[] = [
   { value: "Cancelled", label: "Cancelled" },
 ];
 
+const CP_STOP_STATUS_OPTIONS: Option[] = [
+  { value: "Pending", label: "Pending" },
+  { value: "In Progress", label: "In Progress" },
+  { value: "Collected", label: "Collected" },
+  { value: "Skipped", label: "Skipped" },
+  { value: "Missed", label: "Missed" },
+];
+
+const HOUSEHOLD_STOP_STATUS_OPTIONS: Option[] = [
+  { value: "Pending", label: "Pending" },
+  { value: "Collected", label: "Collected" },
+  { value: "Not Available", label: "Not Available" },
+  { value: "Collect Later", label: "Collect Later" },
+];
+
 const toOptions = (items: any[], labelKey: string): Option[] =>
   items
     .map((item) => ({
@@ -1344,17 +1359,13 @@ export default function DailyTripAssignmentForm() {
                             />
                           </td>
                           <td className="px-4 py-3">
-                            <select
+                            <Select
                               value={point.status ?? "Pending"}
-                              onChange={(e) => updateCpStop(ptKey, { status: e.target.value, is_collected: e.target.value === "Collected" })}
-                              className="h-9 rounded-md border border-gray-300 px-2 text-sm"
-                            >
-                              <option value="Pending">Pending</option>
-                              <option value="In Progress">In Progress</option>
-                              <option value="Collected">Collected</option>
-                              <option value="Skipped">Skipped</option>
-                              <option value="Missed">Missed</option>
-                            </select>
+                              onChange={(v) => updateCpStop(ptKey, { status: v, is_collected: v === "Collected" })}
+                              options={CP_STOP_STATUS_OPTIONS}
+                              placeholder="Select status"
+                              className="h-9 w-36 border-gray-300 px-2"
+                            />
                             {point.carried_to_assignment && (
                               <div className="mt-1.5">
                                 <CarriedOverBadge assignmentId={point.carried_to_assignment} />
@@ -1490,12 +1501,13 @@ export default function DailyTripAssignmentForm() {
                               <input type="checkbox" checked={Boolean(stop.is_collected)} onChange={(e) => updateHouseholdStop(stopKey, { is_collected: e.target.checked, status: e.target.checked ? "Collected" : "Pending" })} className="h-4 w-4 rounded border-gray-300" />
                             </td>
                             <td className="px-4 py-3">
-                              <select value={stop.status ?? "Pending"} onChange={(e) => updateHouseholdStop(stopKey, { status: e.target.value, is_collected: e.target.value === "Collected" })} className="h-9 rounded-md border border-purple-200 px-2 text-sm">
-                                <option value="Pending">Pending</option>
-                                <option value="Collected">Collected</option>
-                                <option value="Not Available">Not Available</option>
-                                <option value="Collect Later">Collect Later</option>
-                              </select>
+                              <Select
+                                value={stop.status ?? "Pending"}
+                                onChange={(v) => updateHouseholdStop(stopKey, { status: v, is_collected: v === "Collected" })}
+                                options={HOUSEHOLD_STOP_STATUS_OPTIONS}
+                                placeholder="Select status"
+                                className="h-9 w-36 border-purple-200 px-2"
+                              />
                               {stop.carried_to_assignment && (
                                 <div className="mt-1.5">
                                   <CarriedOverBadge assignmentId={stop.carried_to_assignment} />

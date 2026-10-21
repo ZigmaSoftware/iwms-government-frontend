@@ -33,7 +33,7 @@ function AdminLayoutShell({ children }: AdminLayoutProps) {
       <main
         className={`pt-[calc(var(--admin-header-h)+0.75rem)] transition-all duration-300 lg:-mt-24 lg:pt-[calc(var(--admin-header-h)+1.5rem)] ${desktopPadding}`}
       >
-        <div className="min-h-[calc(100vh-4rem)] px-2 py-4 sm:px-3 lg:px-6 lg:py-8">
+        <div className="min-h-[calc(100vh-4rem)] px-2 py-4 sm:px-3 lg:min-h-0 lg:px-6 lg:py-8">
           <div className="mx-auto flex w-full max-w-[1600px] min-w-0 flex-col gap-5">
             <div className="w-full min-w-0 overflow-hidden rounded-2xl border border-(--admin-border) bg-(--admin-surfaceAlt)/95 px-3 py-4 shadow-(--admin-cardShadow) backdrop-blur sm:px-4 sm:py-5 lg:rounded-[28px]">
               <AdminBreadcrumb />
