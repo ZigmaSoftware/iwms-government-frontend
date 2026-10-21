@@ -9,6 +9,8 @@ export const adminEndpoints = {
   loginUser: "login/login-user",
   userpermission: "login/my-permissions",
   dashboardSummary: "dashboard/summary",
+  adminDashboard: "dashboard/admin",
+  superadminDashboard: "dashboard/superadmin",
 
   /* =========================
      SUPERADMIN

@@ -119,6 +119,7 @@ export function buildNavRouteMap(): RouteEntry[] {
   _cache = [
     // ── Dashboard ──
     { path: "/admin", nameKey: "admin.nav.dashboard" },
+    { path: "/admin/superadmin-dashboard", nameKey: "admin.nav.superadmin_dashboard" },
 
     // ── Attendance ──
     { path: `/${encAttendance}/${encAttendance}`, nameKey: "admin.nav.attendance" },

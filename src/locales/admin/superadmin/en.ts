@@ -47,6 +47,7 @@ export default {
   },
   "nav": {
     "dashboard": "Dashboard",
+    "superadmin_dashboard": "Superadmin Dashboard",
     "admin": "Admin",
     "common_masters": "Common Masters",
     "superAdmin_masters": "SuperAdmin Masters",

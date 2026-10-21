@@ -47,6 +47,7 @@ export default {
   },
   "nav": {
     "dashboard": "डैशबोर्ड",
+    "superadmin_dashboard": "सुपरएडमिन डैशबोर्ड",
     "admin": "एडमिन",
     "wastetype": "कचरा प्रकार",
     "assets": "एसेट्स",

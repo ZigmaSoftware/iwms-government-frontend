@@ -47,6 +47,7 @@ export default {
   },
   "nav": {
     "dashboard": "டாஷ்போர்டு",
+    "superadmin_dashboard": "சூப்பர் அட்மின் டாஷ்போர்டு",
     "admin": "நிர்வாகம்",
     "wastetype": "கழிவு வகை",
     "assets": "சொத்துகள்",

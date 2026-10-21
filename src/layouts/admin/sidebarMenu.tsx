@@ -24,6 +24,7 @@ import {
   PieChart,
   Recycle,
   Route,
+  ShieldCheck,
   Truck,
   UserCircle,
   Users,
@@ -138,6 +139,8 @@ export type NavSubItem = SidebarPermission & NavMatchable & {
 export type NavItem = SidebarPermission & NavMatchable & {
   nameKey: string;
   icon: React.ReactNode;
+  /** Shown to super admins only; no grant opens it for anyone else. */
+  superadminOnly?: boolean;
   // A heading with sub-items has no permission of its own: it shows when
   // any of its sub-items does.
   subItems?: NavSubItem[];
@@ -229,6 +232,12 @@ export const MODULE_GROUPS: {
 ===================== */
 
 export const navItems: NavItem[] = [
+  {
+    nameKey: "admin.nav.superadmin_dashboard",
+    icon: <ShieldCheck size={18} />,
+    path: "/admin/superadmin-dashboard",
+    superadminOnly: true,
+  },
   {
     nameKey: "admin.nav.dashboard",
     icon: <LayoutDashboard size={18} />,
