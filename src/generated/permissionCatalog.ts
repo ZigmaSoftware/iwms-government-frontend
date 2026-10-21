@@ -136,6 +136,7 @@ export const PERMISSION_CATALOG = {
       "secondary-bin-collection-event": { label: "Secondary Bin Collection Event" },
       "household-collection-event": { label: "Household Collection Event" },
       "vehicle-breakdown": { label: "Vehicle Breakdown" },
+      "trip-delay-reports": { label: "Trip Delay Reports" },
       "re-trip-requests": { label: "Re-Trip Requests" },
       "daily-trip-logs": { label: "Daily Trip Logs" },
       "staff-notifications": { label: "Staff Notifications (Mobile App)" },

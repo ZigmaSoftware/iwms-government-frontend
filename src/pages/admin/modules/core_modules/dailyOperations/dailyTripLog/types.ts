@@ -91,6 +91,8 @@ export type DailyTripLogRecord = {
     waste_type_breakdown?: WasteTypeBreakdownItem[];
     collected_at?: string | null;
     status?: string;
+    status_reason?: string | null;
+    status_evidence_image_url?: string | null;
     capture_images?: TripLogCaptureImage[];
     // Set when this stop was carried over to a Re-Trip continuation trip —
     // that continuation's unique_id.
