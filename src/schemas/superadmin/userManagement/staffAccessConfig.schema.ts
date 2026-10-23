@@ -46,7 +46,8 @@ export const buildStaffAccessConfigSchema = ({
       mobileNumber: requiredString("Mobile Number").pipe(mobileField),
       officeEmail: optionalEmailString,
       doj: optionalString,
-    
+      activeStatus: z.boolean(),
+
       // Login
       username: requiredString("Username").max(150, "Username must be at most 150 characters"),
       password: z.string(),
