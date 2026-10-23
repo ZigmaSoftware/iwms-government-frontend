@@ -114,6 +114,7 @@ export const adminEndpoints = {
   ========================= */
   customerCreations: "customer-masters/customercreations",
   customerAccessConfiguration: "customer-masters/customer-access-configuration",
+  customerNotifications: "customer-masters/customer-notifications",
   wasteCollections: "schedule-operations/wastecollections",
   feedbacks: "customer-masters/feedbacks",
 

@@ -639,7 +639,14 @@ export default function DailyTripLogReportPage() {
               style={{ width: 140 }}
               body={(hh: any) => (
                 <CollectionImageLinks
-                  images={householdImages.get(hh.unique_id) ?? hh.capture_images}
+                  images={[
+                    ...(householdImages.get(hh.unique_id) ?? hh.capture_images ?? []),
+                    ...(hh.status_evidence_image_url
+                      ? [{ url: hh.status_evidence_image_url }]
+                      : []),
+                  ].filter((image, index, images) =>
+                    images.findIndex((candidate) => candidate.url === image.url) === index,
+                  )}
                 />
               )}
             />
