@@ -2,6 +2,11 @@ import type { RetripStatus, TripRetripRequestRecord } from "./types";
 import { RETRIP_STATUS_LABELS } from "./types";
 import { useEffect, useState } from "react";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import {
+  retripApproveSchema,
+  retripRejectSchema,
+} from "@/schemas/core_modules/dailyOperations/tripRetripRequest.schema";
 import { useTranslation } from "react-i18next";
 
 import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
@@ -379,6 +384,11 @@ export default function TripRetripRequestList() {
   /* ── Approve ────────────────────────────────────────────────────── */
   const handleApproveConfirm = async (collectionPointIds: string[] | undefined, remarks: string) => {
     if (!approveTarget) return;
+    const validation = retripApproveSchema.safeParse({ collection_point_ids: collectionPointIds, remarks });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setIsApproving(true);
     try {
       await api.post(`/schedule-operations/retrip-requests/${approveTarget.unique_id}/approve/`, {
@@ -405,6 +415,11 @@ export default function TripRetripRequestList() {
   /* ── Reject ─────────────────────────────────────────────────────── */
   const handleRejectConfirm = async (remarks: string) => {
     if (!rejectTarget) return;
+    const validation = retripRejectSchema.safeParse({ remarks });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setIsRejecting(true);
     try {
       await api.post(`/schedule-operations/retrip-requests/${rejectTarget.unique_id}/reject/`, {
