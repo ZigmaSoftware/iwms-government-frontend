@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { MultiSelect } from "@/components/form/MultiSelect";
 import { CheckCircle2, KeyRound, Loader2, MapPinned, ShieldCheck, UserRound } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -48,29 +49,13 @@ import {
   scopeOption,
 } from "../../../masters/shared/dataScopeOptions";
 import type { ScopeLevel } from "../../../masters/shared/dataScopeOptions";
+import { CONFIRM_PASSWORD_MESSAGE } from "@/schemas/shared/fields";
+import {
+  buildStaffAccessConfigSchema,
+  type StaffAccessConfigFormValues,
+} from "@/schemas/superadmin/userManagement/staffAccessConfig.schema";
 
-type FormValues = {
-  employeeName: string;
-  mobileNumber: string;
-  officeEmail: string;
-  doj: string;
-  activeStatus: boolean;
-  username: string;
-  password: string;
-  confirmPassword: string;
-  userTypeId: string;
-  governmentUserTypeId: string;
-  loginEnabled: boolean;
-  stateId: string;
-  districtId: string;
-  areaTypeId: string;
-  /** Local Body Types chosen (can be several at once, e.g. Corporation + Municipality). */
-  localBodyLevels: LocalBodyLevel[];
-  /** Specific local bodies chosen, across any of `localBodyLevels`. */
-  localBodies: LocalBodySelection[];
-  /** Wards chosen, further narrowing `localBodies` (optional). */
-  wardIds: string[];
-};
+type FormValues = StaffAccessConfigFormValues;
 
 type ApiOptionRecord = {
   unique_id?: string;
@@ -320,14 +305,28 @@ export default function StaffAccessConfigPage() {
   const { encUserManagement, encStaffAccessConfiguration } = getEncryptedRoute();
   const { listPath, newPath, editPath } = createCrudRoutePaths(encUserManagement, encStaffAccessConfiguration);
 
+  const [governmentLevel, setGovernmentLevel] = useState("");
+  // Stored password returned by the API in edit mode; left unchanged it is
+  // not re-checked against the password policy.
+  const [initialPassword, setInitialPassword] = useState("");
+  const formSchema = useMemo(
+    () =>
+      buildStaffAccessConfigSchema({
+        isEdit,
+        initialPassword,
+        isStateScope: normalizeRoleLevel(governmentLevel) === "state",
+      }),
+    [governmentLevel, initialPassword, isEdit],
+  );
+
   const {
     register,
     setValue,
     watch,
     trigger,
-    getValues,
+    getFieldState,
     formState: { errors },
-  } = useForm<FormValues>({ defaultValues, mode: "onBlur" });
+  } = useForm<FormValues>({ defaultValues, mode: "onBlur", resolver: zodResolver(formSchema) });
 
   const values = watch();
   const [activeTab, setActiveTab] = useState(0);
@@ -348,7 +347,6 @@ export default function StaffAccessConfigPage() {
   const [userTypes, setUserTypes] = useState<ApiOptionRecord[]>([]);
   const [governmentRoles, setGovernmentRoles] = useState<ApiOptionRecord[]>([]);
 
-  const [governmentLevel, setGovernmentLevel] = useState("");
 
   const [stateOptions, setStateOptions] = useState<SelectOption[]>([]);
   const [districtRecords, setDistrictRecords] = useState<ApiOptionRecord[]>([]);
@@ -568,6 +566,7 @@ export default function StaffAccessConfigPage() {
         setValue("activeStatus", Boolean(basicInfo.activeStatus ?? record.active_status ?? true));
         setValue("username", String(loginConfig.username ?? record.username ?? ""));
         const existingPassword = String(loginConfig.password ?? record.password ?? "");
+        setInitialPassword(existingPassword);
         setValue("password", existingPassword);
         setValue("confirmPassword", String(loginConfig.confirmPassword ?? existingPassword));
         setValue("userTypeId", String(loginConfig.userTypeId ?? record.user_type_id ?? ""));
@@ -960,6 +959,9 @@ export default function StaffAccessConfigPage() {
     if (tab === 1) {
       return ["username", "password", "confirmPassword", "userTypeId", "governmentUserTypeId"] as const;
     }
+    if (tab === DATA_SCOPE_TAB) {
+      return ["stateId", "districtId"] as const;
+    }
     return [] as const;
   };
 
@@ -972,30 +974,23 @@ export default function StaffAccessConfigPage() {
     setStepError(null);
     const valid = await trigger(tabFields(tab));
     if (!valid) {
-      setStepError("Please complete the required fields on this tab before continuing.");
-      return false;
-    }
-    if (
-      tab === 1 &&
-      (getValues("password") || getValues("confirmPassword")) &&
-      getValues("password") !== getValues("confirmPassword")
-    ) {
-      setApiErrors({ confirmPassword: "Passwords do not match." });
-      setStepError("Passwords do not match.");
-      return false;
-    }
-    if (tab === DATA_SCOPE_TAB) {
-      // State and District are the only mandatory fields — selecting a
-      // District already grants everything beneath it. Area Type, Local
-      // Body Type, Local Body, and Ward are optional narrowing on top of
-      // that boundary, not prerequisites.
-      const missing: string[] = [];
-      if (!values.stateId) missing.push("State");
-      if (!isStateScopeSelected && !values.districtId) missing.push("District");
-      if (missing.length) {
+      if (tab === DATA_SCOPE_TAB) {
+        // State (and District, unless the level is State-wide) are the only
+        // mandatory scope fields — enforced by the schema. Area Type, Local
+        // Body Type, Local Body, and Ward are optional narrowing.
+        const missing: string[] = [];
+        if (getFieldState("stateId").error) missing.push("State");
+        if (getFieldState("districtId").error) missing.push("District");
         setStepError(`Select ${missing.join(", ")} to define this staff member's data scope.`);
-        return false;
+      } else if (
+        tab === 1 &&
+        getFieldState("confirmPassword").error?.message === CONFIRM_PASSWORD_MESSAGE
+      ) {
+        setStepError(CONFIRM_PASSWORD_MESSAGE);
+      } else {
+        setStepError("Please complete the required fields on this tab before continuing.");
       }
+      return false;
     }
     setApiErrors({});
     return true;
@@ -1120,7 +1115,9 @@ export default function StaffAccessConfigPage() {
   });
 
   const handleSave = async () => {
-    const valid = await trigger();
+    // Basic Info + Login fields first; Data Scope separately so a missing
+    // scope sends the user back to that tab with its banner.
+    const valid = await trigger([...tabFields(0), ...tabFields(1)]);
     if (!valid) return;
     if (!(await validateTab(DATA_SCOPE_TAB))) {
       setActiveTab(DATA_SCOPE_TAB);
@@ -1163,12 +1160,12 @@ export default function StaffAccessConfigPage() {
     <div className="grid gap-4 md:grid-cols-2">
       <div>
         <Label htmlFor="employeeName">Employee Name</Label>
-        <Input id="employeeName" {...register("employeeName", { required: "Employee name is required." })} />
+        <Input id="employeeName" {...register("employeeName")} />
         {renderError("employeeName")}
       </div>
       <div>
         <Label htmlFor="mobileNumber">Mobile Number</Label>
-        <Input id="mobileNumber" {...register("mobileNumber", { required: "Mobile number is required." })} />
+        <Input id="mobileNumber" {...register("mobileNumber")} />
         {renderError("mobileNumber")}
       </div>
       <div>
@@ -1191,7 +1188,7 @@ export default function StaffAccessConfigPage() {
     <div className="grid gap-4 md:grid-cols-2">
       <div>
         <Label htmlFor="username">Username</Label>
-        <Input id="username" {...register("username", { required: "Username is required." })} />
+        <Input id="username" {...register("username")} />
         {renderError("username")}
       </div>
       <div>
@@ -1203,16 +1200,19 @@ export default function StaffAccessConfigPage() {
           options={userTypeOptions}
           placeholder="Select user type"
         />
-        <input type="hidden" {...register("userTypeId", { required: "User type is required." })} />
+        <input type="hidden" {...register("userTypeId")} />
         {renderError("userTypeId")}
       </div>
-      <PasswordInput
-        id="password"
-        label="Password"
-        value={values.password}
-        onChange={(event) => setValue("password", event.target.value)}
-        placeholder="Enter password"
-      />
+      <div>
+        <PasswordInput
+          id="password"
+          label="Password"
+          value={values.password}
+          onChange={(event) => setValue("password", event.target.value)}
+          placeholder="Enter password"
+        />
+        {renderError("password")}
+      </div>
       <div>
         <PasswordInput
           id="confirmPassword"
@@ -1221,23 +1221,8 @@ export default function StaffAccessConfigPage() {
           onChange={(event) => setValue("confirmPassword", event.target.value)}
           placeholder="Repeat password"
         />
-        <input
-          type="hidden"
-          {...register("password", {
-            required: isEdit ? false : "Password is required.",
-          })}
-        />
-        <input
-          type="hidden"
-          {...register("confirmPassword", {
-            required: isEdit ? false : "Confirm password is required.",
-            validate: (value) => {
-              const password = getValues("password");
-              if (isEdit && !password && !value) return true;
-              return value === password || "Passwords do not match.";
-            },
-          })}
-        />
+        <input type="hidden" {...register("password")} />
+        <input type="hidden" {...register("confirmPassword")} />
         {renderError("confirmPassword")}
       </div>
       <div>
@@ -1262,10 +1247,7 @@ export default function StaffAccessConfigPage() {
           options={governmentRoleOptions}
           placeholder={governmentLevel ? "Select government user type" : "Select a level first"}
         />
-        <input
-          type="hidden"
-          {...register("governmentUserTypeId", { required: "Government user type is required." })}
-        />
+        <input type="hidden" {...register("governmentUserTypeId")} />
         {renderError("governmentUserTypeId")}
       </div>
       <label className="flex items-center gap-3 text-sm font-medium text-gray-700 dark:text-gray-200">

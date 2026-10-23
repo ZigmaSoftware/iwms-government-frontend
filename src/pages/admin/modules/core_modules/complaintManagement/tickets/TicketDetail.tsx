@@ -1,7 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2, RefreshCcw, XCircle } from "lucide-react";
+import type { z } from "zod";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import {
+  ticketChangeStatusSchema,
+  ticketCleanupReviewSchema,
+} from "@/schemas/core_modules/complaintManagement/ticketActions.schema";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -179,6 +185,25 @@ export default function TicketDetail() {
     }
   };
 
+  /** Runs the action's schema; shows the issues and returns false when invalid. */
+  const isValid = (schema: z.ZodType, values: unknown) => {
+    const validation = schema.safeParse(values);
+    if (!validation.success) notify.fire("Invalid details", toNotifyMessage(validation.error), "warning");
+    return validation.success;
+  };
+
+  const reviewCleanup = (decision: "approve" | "reject") => {
+    if (!id || !isValid(ticketCleanupReviewSchema, { remarks: cleanupRemarks })) return;
+    run(decision === "approve" ? "Cleanup verified — ticket closed." : "Cleanup photo rejected.", () =>
+      ticketActions.reviewCleanup(id, decision, { remarks: cleanupRemarks.trim() }),
+    );
+  };
+
+  const changeStatus = () => {
+    if (!id || !isValid(ticketChangeStatusSchema, { status_code: statusCode, remarks: statusRemarks })) return;
+    run("Status updated.", () => ticketActions.changeStatus(id, { status_code: statusCode, remarks: statusRemarks }));
+  };
+
   if (!ticket || !id) return <div className="p-6">Loading...</div>;
 
   // Escalated past the viewer: status changes belong to the level it now
@@ -299,22 +324,14 @@ export default function TicketDetail() {
                     <button
                       disabled={busy || !cleanupRemarks.trim()}
                       className="flex items-center gap-1.5 rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60"
-                      onClick={() =>
-                        run("Cleanup verified — ticket closed.", () =>
-                          ticketActions.reviewCleanup(id, "approve", { remarks: cleanupRemarks.trim() }),
-                        )
-                      }
+                      onClick={() => reviewCleanup("approve")}
                     >
                       <CheckCircle2 className="h-4 w-4" /> Approve &amp; close ticket
                     </button>
                     <button
                       disabled={busy || !cleanupRemarks.trim()}
                       className="flex items-center gap-1.5 rounded border border-red-300 px-4 py-2 text-red-700 hover:bg-red-50 disabled:opacity-60"
-                      onClick={() =>
-                        run("Cleanup photo rejected.", () =>
-                          ticketActions.reviewCleanup(id, "reject", { remarks: cleanupRemarks.trim() }),
-                        )
-                      }
+                      onClick={() => reviewCleanup("reject")}
                     >
                       <XCircle className="h-4 w-4" /> Reject
                     </button>
@@ -359,7 +376,7 @@ export default function TicketDetail() {
                 <Input className="mt-1" value={statusRemarks} onChange={(e) => setStatusRemarks(e.target.value)} placeholder="Remarks" />
               </div>
               <div className="md:col-span-2">
-                <button disabled={busy || !statusCode} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={() => run("Status updated.", () => ticketActions.changeStatus(id, { status_code: statusCode, remarks: statusRemarks }))}>Update Status</button>
+                <button disabled={busy || !statusCode} className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-60" onClick={changeStatus}>Update Status</button>
               </div>
             </div>
           </>

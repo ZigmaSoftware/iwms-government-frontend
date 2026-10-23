@@ -3,6 +3,11 @@ import { BREAKDOWN_REASON_LABELS } from "./types";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import {
+  vehicleBreakdownRejectSchema,
+  vehicleBreakdownVerifySchema,
+} from "@/schemas/core_modules/dailyOperations/vehicleBreakdownAction.schema";
 import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
@@ -406,6 +411,11 @@ export default function VehicleBreakdownList() {
     collectionPointIds?: string[],
   ) => {
     if (!verifyTarget) return;
+    const validation = vehicleBreakdownVerifySchema.safeParse({ remarks, collection_point_ids: collectionPointIds });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setIsVerifying(true);
     try {
       const { data } = await api.patch(
@@ -449,6 +459,11 @@ export default function VehicleBreakdownList() {
   /* ── Reject ─────────────────────────────────────────────────────── */
   const handleRejectConfirm = async (remarks: string) => {
     if (!rejectTarget) return;
+    const validation = vehicleBreakdownRejectSchema.safeParse({ rejection_remarks: remarks });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setIsRejecting(true);
     try {
       await api.patch(

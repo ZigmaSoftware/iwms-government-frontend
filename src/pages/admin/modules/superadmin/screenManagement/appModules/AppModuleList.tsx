@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import { appModuleSchema } from "@/schemas/superadmin/screenManagement/appModule.schema";
 import { useTranslation } from "react-i18next";
 import { FilterMatchMode } from "primereact/api";
 
@@ -50,7 +52,7 @@ export default function AppModuleList() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<
-    Record<string, { label: string; order_no: number }>
+    Record<string, { label: string; order_no: string }>
   >({});
   const status = useStatusFilter();
   const [globalFilterValue, setGlobalFilterValue] = useState("");
@@ -74,7 +76,7 @@ export default function AppModuleList() {
           Object.fromEntries(
             list.map((row) => [
               row.unique_id,
-              { label: row.label, order_no: row.order_no },
+              { label: row.label, order_no: String(row.order_no) },
             ]),
           ),
         );
@@ -88,13 +90,15 @@ export default function AppModuleList() {
   const save = async (row: AppModuleRow) => {
     const draft = drafts[row.unique_id];
     if (!draft) return;
+    const parsed = appModuleSchema.safeParse(draft);
+    if (!parsed.success) {
+      notify.fire(t("common.error"), toNotifyMessage(parsed.error), "error");
+      return;
+    }
     setSavingId(row.unique_id);
     try {
-      await appModuleApi.update(row.unique_id, {
-        label: draft.label.trim() || row.label,
-        order_no: Number(draft.order_no) || 0,
-      });
-      notify.fire(t("common.success"), `${draft.label} saved.`, "success");
+      await appModuleApi.update(row.unique_id, parsed.data);
+      notify.fire(t("common.success"), `${parsed.data.label} saved.`, "success");
       load();
     } catch {
       notify.fire(t("common.error"), "Could not save the module.", "error");
@@ -159,7 +163,7 @@ export default function AppModuleList() {
                 setDrafts((current) => ({
                   ...current,
                   [row.unique_id]: {
-                    ...(current[row.unique_id] ?? { order_no: row.order_no }),
+                    ...(current[row.unique_id] ?? { order_no: String(row.order_no) }),
                     label: event.target.value,
                   },
                 }))
@@ -174,13 +178,13 @@ export default function AppModuleList() {
             <input
               type="number"
               className="w-20 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
-              value={drafts[row.unique_id]?.order_no ?? row.order_no}
+              value={drafts[row.unique_id]?.order_no ?? String(row.order_no)}
               onChange={(event) =>
                 setDrafts((current) => ({
                   ...current,
                   [row.unique_id]: {
                     ...(current[row.unique_id] ?? { label: row.label }),
-                    order_no: Number(event.target.value),
+                    order_no: event.target.value,
                   },
                 }))
               }

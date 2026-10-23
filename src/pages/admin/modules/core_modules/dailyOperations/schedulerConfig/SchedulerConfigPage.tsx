@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api";
 import { adminEndpoints } from "@/helpers/admin/endpoints";
 import Notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import { schedulerConfigSchema } from "@/schemas/core_modules/dailyOperations/schedulerConfig.schema";
 import ComponentCard from "@/components/common/ComponentCard";
 import { Label } from "@/components/ui/label";
 
@@ -74,15 +76,19 @@ export default function SchedulerConfigPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!config.run_time) {
-      Notify.fire({ title: "Please enter a valid time", icon: "warning" });
+    const parsed = schedulerConfigSchema.safeParse({
+      run_time: config.run_time ?? "",
+      is_enabled: config.is_enabled,
+    });
+    if (!parsed.success) {
+      Notify.fire({ title: toNotifyMessage(parsed.error), icon: "warning" });
       return;
     }
     setSaving(true);
     try {
       const res = await api.patch(configUrl, {
-        run_time: config.run_time,
-        is_enabled: config.is_enabled,
+        run_time: parsed.data.run_time,
+        is_enabled: parsed.data.is_enabled,
       });
       setConfig(res.data);
       Notify.fire({ title: "Scheduler time updated successfully", icon: "success" });

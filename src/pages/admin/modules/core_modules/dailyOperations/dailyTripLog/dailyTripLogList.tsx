@@ -3,6 +3,11 @@ import type { DailyTripLogRecord } from "./types";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import {
+  dailyTripLogChangeStatusSchema,
+  dailyTripLogVerifySchema,
+} from "@/schemas/core_modules/dailyOperations/dailyTripLogAction.schema";
 import { useTranslation } from "react-i18next";
 
 import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
@@ -721,6 +726,11 @@ export default function DailyTripLogList() {
   /* ── verify confirm (from modal) ── */
   const handleVerifyConfirm = async (remarks: string) => {
     if (!modalState) return;
+    const validation = dailyTripLogVerifySchema.safeParse({ remarks });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setIsVerifying(true);
     try {
       await api.patch(
@@ -752,6 +762,11 @@ export default function DailyTripLogList() {
 
   /* ── inline status change (Draft ↔ Verify) ── */
   const handleStatusChange = async (row: DailyTripLogRecord, newStatus: string) => {
+    const validation = dailyTripLogChangeStatusSchema.safeParse({ log_status: newStatus });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     const result = await notify.fire({
       title: `Change status to ${newStatus}?`,
       text: `This will move the log from "${row.log_status}" to "${newStatus}".`,
