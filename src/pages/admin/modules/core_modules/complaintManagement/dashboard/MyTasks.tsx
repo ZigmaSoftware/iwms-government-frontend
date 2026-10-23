@@ -2,6 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Camera, CheckCircle2, Clock, Eye, Inbox, MapPin, RefreshCcw, Timer, XCircle } from "lucide-react";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import {
+  ticketCleanupReviewSchema,
+  ticketReopenSchema,
+  ticketResolveSchema,
+} from "@/schemas/core_modules/complaintManagement/ticketActions.schema";
+import { firstIssueMessage, REMARKS_MAX_LENGTH } from "@/schemas/core_modules/shared/remarks.schema";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -359,6 +366,11 @@ export default function MyTasks() {
   );
 
   const handleResolve = async (id: string, remarks: string) => {
+    const validation = ticketResolveSchema.safeParse({ resolution_note: remarks });
+    if (!validation.success) {
+      notify.fire("Invalid details", toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setBusyId(id);
     try {
       await ticketActions.resolve(id, { resolution_note: remarks || undefined });
@@ -387,8 +399,8 @@ export default function MyTasks() {
       inputLabel: "Remarks (required)",
       inputValue: remarks,
       inputPlaceholder: decision === "approve" ? "e.g. Checked on site, spot is clean" : "e.g. Garbage still there",
-      inputMaxLength: 1000,
-      inputValidator: (value: string) => (value.trim() ? null : "Please enter remarks."),
+      inputMaxLength: REMARKS_MAX_LENGTH,
+      inputValidator: (value: string) => firstIssueMessage(ticketCleanupReviewSchema.shape.remarks, value),
     });
     if (!confirm.isConfirmed) return;
 
@@ -415,9 +427,8 @@ export default function MyTasks() {
       input: "textarea",
       inputLabel: "Reason for reopening",
       inputPlaceholder: "Enter why this ticket is being reopened",
-      inputMaxLength: 1000,
-      inputValidator: (value: string) =>
-        value.trim() ? null : "Please enter the reason for reopening.",
+      inputMaxLength: REMARKS_MAX_LENGTH,
+      inputValidator: (value: string) => firstIssueMessage(ticketReopenSchema.shape.reopen_reason, value),
     });
     if (!confirmReopen.isConfirmed) return;
 

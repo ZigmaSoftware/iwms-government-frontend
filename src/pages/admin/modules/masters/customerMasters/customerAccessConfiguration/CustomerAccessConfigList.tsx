@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import { customerAccessConfigSchema } from "@/schemas/masters/customerMasters/customerAccessConfig.schema";
 import { useTranslation } from "react-i18next";
 import { FilterMatchMode } from "primereact/api";
 
@@ -139,14 +141,19 @@ export default function CustomerAccessConfigList() {
 
   const save = async () => {
     if (!editing) return;
+    const parsed = customerAccessConfigSchema.safeParse({
+      customer_unique_id: editing,
+      app_module_ids: draftModules,
+      app_screen_ids: draftScreens,
+    });
+    if (!parsed.success) {
+      notify.fire(t("common.error"), toNotifyMessage(parsed.error), "error");
+      return;
+    }
     setSaving(true);
     try {
       const existing = configs[editing];
-      const payload = {
-        customer_unique_id: editing,
-        app_module_ids: draftModules,
-        app_screen_ids: draftScreens,
-      };
+      const payload = parsed.data;
       if (existing) {
         await customerAccessConfigurationApi.update(editing, payload);
       } else {

@@ -4,6 +4,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import { staffHierarchySchema } from "@/schemas/superadmin/roleManagement/staffHierarchy.schema";
 import { useTranslation } from "react-i18next";
 
 import ComponentCard from "@/components/common/ComponentCard";
@@ -200,27 +202,46 @@ export default function StaffHierarchyForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!roleId) {
-      notify.fire(t("common.error"), t("common.all_fields_required"), "error");
-      return;
-    }
-
-    const payload = {
+    const parsed = staffHierarchySchema.safeParse({
       governmentusertype_id: roleId,
-      reports_to_governmentusertype_id: reportsToId || null,
-      hierarchy_level: Math.max(Number(hierarchyLevel) || 1, 1),
+      reports_to_governmentusertype_id: reportsToId,
+      hierarchy_level: hierarchyLevel,
       is_active: isActive,
       escalation_enabled: escalationEnabled,
-      // Blank location = applies everywhere; the narrowest location chosen
-      // overrides broader rows for staff in that area.
-      country_id: geo.countryId || null,
-      state_id: geo.stateId || null,
-      district_id: geo.districtId || null,
-      area_type_id: geo.areaTypeId || null,
+      country_id: geo.countryId,
+      state_id: geo.stateId,
+      district_id: geo.districtId,
+      area_type_id: geo.areaTypeId,
       ...Object.fromEntries(
         LOCAL_BODY_LEVELS.map(({ value }) => [
           value,
-          geo.localBodyLevel === value && geo.localBodyId ? geo.localBodyId : null,
+          geo.localBodyLevel === value ? geo.localBodyId : "",
+        ]),
+      ),
+    });
+
+    if (!parsed.success) {
+      notify.fire(t("common.error"), toNotifyMessage(parsed.error), "error");
+      return;
+    }
+
+    const values = parsed.data;
+    const payload = {
+      governmentusertype_id: values.governmentusertype_id,
+      reports_to_governmentusertype_id: values.reports_to_governmentusertype_id || null,
+      hierarchy_level: values.hierarchy_level,
+      is_active: values.is_active,
+      escalation_enabled: values.escalation_enabled,
+      // Blank location = applies everywhere; the narrowest location chosen
+      // overrides broader rows for staff in that area.
+      country_id: values.country_id || null,
+      state_id: values.state_id || null,
+      district_id: values.district_id || null,
+      area_type_id: values.area_type_id || null,
+      ...Object.fromEntries(
+        LOCAL_BODY_LEVELS.map(({ value }) => [
+          value,
+          values[value] || null,
         ]),
       ),
     };

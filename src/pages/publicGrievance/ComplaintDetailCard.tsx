@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 
 import { publicGrievanceApi } from "@/features/complaintTicketing/api";
+import { cleanupVerificationSchema, firstIssueMessage } from "@/schemas/publicGrievance/publicGrievance.schema";
 import type { GrievanceAreaDetail, GrievancePin } from "@/features/complaintTicketing/types";
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -175,16 +176,17 @@ export default function ComplaintDetailCard({
   };
 
   const submitCleanup = async () => {
-    if (!file) {
-      setVerifyError("Add a photo of the cleaned spot.");
+    const parsed = cleanupVerificationSchema.safeParse({ photo: file, note });
+    if (!parsed.success || !parsed.data.photo) {
+      setVerifyError(parsed.success ? "Add a photo of the cleaned spot." : firstIssueMessage(parsed.error));
       return;
     }
     setSending(true);
     setVerifyError("");
     try {
       const form = new FormData();
-      form.append("photo", file);
-      if (note.trim()) form.append("note", note.trim());
+      form.append("photo", parsed.data.photo);
+      if (parsed.data.note) form.append("note", parsed.data.note);
       const res = await publicGrievanceApi.verifyCleanup(pin.ticket_no, form);
       onPatch({ cleanup_pending: res.photo });
       setVerifyDone(res.message);

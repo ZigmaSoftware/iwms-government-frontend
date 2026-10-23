@@ -32,6 +32,13 @@ import axios from "axios";
 import ZigmaLogo from "@/images/logo.png";
 import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { publicGrievanceApi } from "@/features/complaintTicketing/api";
+import {
+  firstIssueMessage,
+  grievanceComplaintSchema,
+  grievanceDetailsSchema,
+  grievanceLocationSchema,
+  grievanceStatusSchema,
+} from "@/schemas/publicGrievance/publicGrievance.schema";
 import type {
   PublicGrievanceCategory,
   PublicGrievanceLocationOption,
@@ -650,25 +657,21 @@ export default function PublicGrievance() {
   };
 
   const validateStep = (current: Step): string => {
-    if (current === 1) {
-      if (!personName.trim()) return "Please enter your name.";
-      if (!gender) return "Please select your gender.";
-      if (shareMobile && !phone.trim()) return "Please enter your mobile number.";
-      if (shareEmail && !email.trim()) return "Please enter your email address.";
-      return "";
-    }
-    if (current === 2) {
-      if (!latitude || !longitude) return "Please pin the complaint location on the map.";
-      return "";
-    }
-    if (current === 3) {
-      if (!categoryId) return "Please select a complaint type.";
-      if (subcategoriesForCategory.length > 0 && !subcategoryId)
-        return "Please select a complaint sub-type.";
-      if (!description.trim()) return "Please describe the complaint.";
-      return "";
-    }
-    return "";
+    const result =
+      current === 1
+        ? grievanceDetailsSchema.safeParse({ personName, gender, shareMobile, phone, shareEmail, email })
+        : current === 2
+          ? grievanceLocationSchema.safeParse({ latitude, longitude, street, landmark })
+          : current === 3
+            ? grievanceComplaintSchema.safeParse({
+                categoryId,
+                subcategoryId,
+                hasSubcategories: subcategoriesForCategory.length > 0,
+                description,
+                photo,
+              })
+            : null;
+    return result && !result.success ? firstIssueMessage(result.error) : "";
   };
 
   const jumpToStep = (target: Step) => {
@@ -699,6 +702,15 @@ export default function PublicGrievance() {
     if (step !== 4) {
       goNext();
       return;
+    }
+    // Review step: re-check every step, since the citizen can jump back and edit.
+    for (const current of [1, 2, 3] as Step[]) {
+      const message = validateStep(current);
+      if (message) {
+        jumpToStep(current); // clears stepError, so set the message after
+        setStepError(message);
+        return;
+      }
     }
 
     setError("");
@@ -758,11 +770,12 @@ export default function PublicGrievance() {
     event.preventDefault();
     setStatusError("");
     setStatusResults(null);
-    const query = statusQuery.trim();
-    if (!query) {
-      setStatusError(statusMode === "ticket" ? "Enter a complaint number." : "Enter a mobile number.");
+    const parsed = grievanceStatusSchema.safeParse({ mode: statusMode, query: statusQuery });
+    if (!parsed.success) {
+      setStatusError(firstIssueMessage(parsed.error));
       return;
     }
+    const query = parsed.data.query;
 
     setIsCheckingStatus(true);
     try {

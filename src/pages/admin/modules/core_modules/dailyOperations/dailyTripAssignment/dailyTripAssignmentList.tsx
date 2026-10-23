@@ -4,6 +4,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import { schedulerConfigSchema } from "@/schemas/core_modules/dailyOperations/schedulerConfig.schema";
 import { useTranslation } from "react-i18next";
 
 import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
@@ -420,16 +422,17 @@ export default function DailyTripAssignmentList() {
   };
 
   const saveSchedulerConfig = async () => {
-    if (!schedulerRunTime) {
-      notify.fire({ icon: "warning", title: "Select auto-generation time" });
+    const parsed = schedulerConfigSchema.safeParse({
+      run_time: schedulerRunTime,
+      is_enabled: schedulerEnabled,
+    });
+    if (!parsed.success) {
+      notify.fire({ icon: "warning", title: toNotifyMessage(parsed.error) });
       return;
     }
     setIsSavingSchedulerConfig(true);
     try {
-      const { data } = await api.patch(adminEndpoints.schedulerConfig, {
-        run_time: schedulerRunTime,
-        is_enabled: schedulerEnabled,
-      });
+      const { data } = await api.patch(adminEndpoints.schedulerConfig, parsed.data);
       setSchedulerRunTime(String(data.run_time ?? schedulerRunTime).slice(0, 5));
       setSchedulerEnabled(Boolean(data.is_enabled ?? schedulerEnabled));
       loadSchedulerStatus();

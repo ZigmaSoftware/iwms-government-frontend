@@ -7,6 +7,8 @@ import type {
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import notify from "@/lib/notify";
+import { toNotifyMessage } from "@/lib/zodErrors";
+import { proceedNextTripSchema } from "@/schemas/core_modules/dailyOperations/dailyTripLogAction.schema";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "primereact/button";
@@ -454,9 +456,17 @@ export default function DailyTripLogReportPage() {
 
   const handleProceedConfirm = async (remarks: string) => {
     if (!assignmentId || !proceedMode) return;
+    const isHouseholdMode = proceedMode === "household";
+    const validation = proceedNextTripSchema.safeParse({
+      collection_point_ids: isHouseholdMode ? undefined : Array.from(selectedCpIds),
+      remarks,
+    });
+    if (!validation.success) {
+      notify.fire(t("common.warning"), toNotifyMessage(validation.error), "warning");
+      return;
+    }
     setIsProceeding(true);
     try {
-      const isHouseholdMode = proceedMode === "household";
       const response = await api.post(
         `/schedule-operations/daily-trip-assignments/${assignmentId}/proceed-next-trip/`,
         {
