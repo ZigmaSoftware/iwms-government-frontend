@@ -30,6 +30,8 @@ import { downloadRecordsPdf } from "@/utils/exportPdf";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 
@@ -383,87 +385,85 @@ export default function WasteCollectedDataList() {
         stripedRows
         showGridlines
         emptyMessage={t("admin.household_collection_event.empty_message")}
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "60px" }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
         <Column
           field="customer_name"
           header={t("admin.household_collection_event.customer_name")}
-          body={(row: WasteCollection) => capitalize(row.customer_name) || "-"}
-        />
-        <Column
-          field="contact_no"
-          header={t("common.mobile")}
-          body={(row: WasteCollection) => row.contact_no || "-"}
+          style={{ width: "15%" }}
+          body={(row: WasteCollection) => (
+            <StackCell
+              primary={capitalize(row.customer_name)}
+              lines={[{ icon: "pi-phone", title: t("common.mobile"), value: row.contact_no }]}
+            />
+          )}
         />
         <Column
           field="collection_date"
           header={t("admin.household_collection_event.collection_date", "Collection Date")}
           body={formatCollectionDateTime}
           sortable={SORTABLE_FIELDS.has("collection_date")}
-          style={{ minWidth: 170 }}
-        />
-        <Column
-          field="dry_waste"
-          header={t("admin.household_collection_event.dry_waste")}
-        />
-        <Column
-          field="wet_waste"
-          header={t("admin.household_collection_event.wet_waste")}
-        />
-        <Column
-          field="mixed_waste"
-          header={t("admin.household_collection_event.mixed_waste")}
-        />
-        <Column
-          field="sanitary_waste"
-          header={t("admin.household_collection_event.sanitary_waste")}
+          style={{ width: "11%" }}
         />
         <Column
           field="total_quantity"
           header={t("admin.household_collection_event.quantity")}
           sortable={SORTABLE_FIELDS.has("total_quantity")}
+          style={{ width: "18%" }}
+          body={(row: WasteCollection) => (
+            <StackCell
+              primary={row.total_quantity}
+              lines={[
+                { label: t("admin.household_collection_event.dry_waste"), value: row.dry_waste },
+                { label: t("admin.household_collection_event.wet_waste"), value: row.wet_waste },
+                { label: t("admin.household_collection_event.mixed_waste"), value: row.mixed_waste },
+                { label: t("admin.household_collection_event.sanitary_waste"), value: row.sanitary_waste },
+              ]}
+            />
+          )}
         />
         <Column
           field="status"
           header={t("admin.household_collection_event.status")}
           body={(row: WasteCollection) => <CollectionStatusBadge value={row.status} />}
           sortable={SORTABLE_FIELDS.has("status")}
+          style={{ width: "10%" }}
         />
-        <Column
-          field="district_name"
-          header={t("common.district")}
-          body={(row: WasteCollection) => capitalize(row.district_name) || "-"}
-        />
-        <Column
-          field="area_type_name"
-          header={t("common.area_type")}
-          body={(row: WasteCollection) => row.area_type_name || "-"}
-        />
-        <Column
-          field="location_name"
-          header={t("common.location")}
-          body={(row: WasteCollection) =>
-            row.location_name
-              ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
-              : "-"
-          }
-        />
+        {locationColumn<WasteCollection>({
+          header: t("common.location"),
+          style: { width: "16%" },
+          levels: [
+            { label: t("common.district"), value: (row) => capitalize(row.district_name) },
+            { label: t("common.area_type"), value: (row) => row.area_type_name },
+            {
+              label: t("common.location"),
+              value: (row) =>
+                row.location_name
+                  ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
+                  : null,
+            },
+          ],
+        })}
         <Column
           field="vehicle"
           header={t("common.vehicle", "Vehicle")}
-          body={(row: WasteCollection) => row.vehicle?.vehicle_no ?? "-"}
+          style={{ width: "9%" }}
+          body={(row: WasteCollection) => (
+            <span className="break-words">{row.vehicle?.vehicle_no ?? "-"}</span>
+          )}
         />
         <Column
           field="is_active"
           header={t("common.status")}
           body={statusTemplate}
-          style={{ width: "120px" }}
+          style={{ width: "9%" }}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "120px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
 

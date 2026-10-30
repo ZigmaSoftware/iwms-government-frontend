@@ -245,19 +245,25 @@ export default function ComplaintsReportPage() {
   };
 
   /* ── fetch report ── */
+  // Only the latest request may update the page: a slower earlier response
+  // (e.g. for the previous filter) must not overwrite newer results.
+  const requestSeq = useRef(0);
   const fetchReport = async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError("");
     try {
       const { data } = await api.get<ComplaintsReportResponse>(REPORT_URL, {
         params: { ...buildParams(), page: String(page), limit: String(pageSize) },
       });
+      if (seq !== requestSeq.current) return;
       setReport({ ...emptyReport, ...data });
     } catch {
+      if (seq !== requestSeq.current) return;
       setReport(emptyReport);
       setError("Unable to load the complaints report.");
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   };
 
@@ -266,10 +272,6 @@ export default function ComplaintsReportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applied, activeTab, search, page, pageSize]);
 
-  /* Back to page 1 whenever anything other than the page itself changes. */
-  useEffect(() => {
-    setPage(1);
-  }, [applied, activeTab, search, pageSize]);
 
   /* ── derived ── */
   const { kpis, period } = report;
@@ -343,16 +345,35 @@ export default function ComplaintsReportPage() {
     }
   };
 
+  /* Any change other than the page itself goes back to page 1 in the same
+     update, so it costs one fetch, not two. */
   const resetFilters = () => {
     const fresh = initialFilters();
     setDraft(fresh);
     setApplied(fresh);
+    setLocationOpen(false);
+    setPage(1);
   };
 
-  /* filters apply as soon as they change (no separate Go / Apply step) */
+  /* date / category / source apply as soon as they change */
   const setFilter = (patch: Partial<Filters>) => {
     setDraft((d) => ({ ...d, ...patch }));
     setApplied((a) => ({ ...a, ...patch }));
+    setPage(1);
+  };
+
+  /* location is picked level by level, so it applies only on "Apply" */
+  const [locationOpen, setLocationOpen] = useState(false);
+  const applyLocation = (location: TicketLocationFilterValue) => {
+    setDraft((d) => ({ ...d, location }));
+    setApplied((a) => ({ ...a, location }));
+    setLocationOpen(false);
+    setPage(1);
+  };
+  const onLocationOpenChange = (open: boolean) => {
+    // closing without Apply drops the unapplied picks
+    if (!open) setDraft((d) => ({ ...d, location: applied.location }));
+    setLocationOpen(open);
   };
 
   /* the page fills the space left in the admin shell (no page scroll);
@@ -390,6 +411,7 @@ export default function ComplaintsReportPage() {
   const [bottomTab, setBottomTab] = useState<"register" | "areas">("register");
 
   const locationFiltered = !!(applied.location.state || applied.location.district || applied.location.city);
+  const draftLocationFiltered = !!(draft.location.state || draft.location.district || draft.location.city);
   const card = "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm";
   const label = "mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400";
   const fieldCls = "h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-teal-100";
@@ -431,8 +453,8 @@ export default function ComplaintsReportPage() {
             {scopeLabel}{periodLabel && ` · ${periodLabel}`}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2 print:hidden">
-          <div className="shrink-0">
+        <div className="flex w-full flex-wrap items-end gap-2 print:hidden lg:w-auto lg:justify-end">
+          <div className="w-full sm:w-auto">
             <span className={label}>Date range</span>
             <div className={`${fieldCls} flex items-center gap-1`}>
               <input
@@ -441,7 +463,7 @@ export default function ComplaintsReportPage() {
                 max={draft.toDate || undefined}
                 onChange={(e) => setFilter({ fromDate: e.target.value })}
                 aria-label="From date"
-                className="w-[104px] bg-transparent outline-none"
+                className="min-w-0 flex-1 bg-transparent outline-none sm:w-[104px] sm:flex-none"
               />
               <span className="text-slate-400">–</span>
               <input
@@ -451,51 +473,60 @@ export default function ComplaintsReportPage() {
                 max={isoDate(new Date())}
                 onChange={(e) => setFilter({ toDate: e.target.value })}
                 aria-label="To date"
-                className="w-[104px] bg-transparent outline-none"
+                className="min-w-0 flex-1 bg-transparent outline-none sm:w-[104px] sm:flex-none"
               />
             </div>
           </div>
 
-          <div>
+          <div className="min-w-0 flex-1 basis-[140px] sm:flex-none sm:basis-auto">
             <span className={label}>Location</span>
-            <Popover>
+            <Popover open={locationOpen} onOpenChange={onLocationOpenChange}>
               <PopoverTrigger asChild>
-                <button type="button" className={`${fieldCls} flex max-w-[170px] items-center gap-1.5 ${locationFiltered ? "border-teal-600" : ""}`}>
+                <button type="button" className={`${fieldCls} flex w-full items-center gap-1.5 sm:max-w-[170px] ${locationFiltered ? "border-teal-600" : ""}`}>
                   <MapPin className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                  <span className="truncate">{locationFiltered ? scopeLabel : "All areas"}</span>
+                  <span className="min-w-0 flex-1 truncate text-left">{locationFiltered ? scopeLabel : "All areas"}</span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-[520px] p-3">
+              <PopoverContent align="end" collisionPadding={16} className="w-[min(520px,calc(100vw-2rem))] p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <p className="text-xs font-bold text-slate-600">Filter by location</p>
-                  {locationFiltered && (
-                    <button type="button" onClick={() => setFilter({ location: emptyTicketLocationFilter })} className="text-xs font-semibold text-teal-700 hover:underline">
+                  {(locationFiltered || draftLocationFiltered) && (
+                    <button type="button" onClick={() => applyLocation(emptyTicketLocationFilter)} className="text-xs font-semibold text-teal-700 hover:underline">
                       Clear
                     </button>
                   )}
                 </div>
-                <TicketLocationFilters value={draft.location} onChange={(location) => setFilter({ location })} />
+                <TicketLocationFilters value={draft.location} onChange={(location) => setDraft((d) => ({ ...d, location }))} />
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => onLocationOpenChange(false)} className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={() => applyLocation(draft.location)} className="h-8 rounded-lg bg-teal-600 px-3 text-xs font-semibold text-white hover:bg-teal-700">
+                    Apply
+                  </button>
+                </div>
               </PopoverContent>
             </Popover>
           </div>
 
-          <div>
+          <div className="min-w-0 flex-1 basis-[140px] sm:flex-none sm:basis-auto">
             <span className={label}>Category</span>
-            <select value={draft.categoryId} onChange={(e) => setFilter({ categoryId: e.target.value })} className={`${fieldCls} max-w-[150px]`}>
+            <select value={draft.categoryId} onChange={(e) => setFilter({ categoryId: e.target.value })} className={`${fieldCls} w-full sm:max-w-[150px]`}>
               <option value="">All categories</option>
               {report.filter_options.categories.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
-          <div>
+          <div className="min-w-0 flex-1 basis-[140px] sm:flex-none sm:basis-auto">
             <span className={label}>Source</span>
-            <select value={draft.sourceId} onChange={(e) => setFilter({ sourceId: e.target.value })} className={`${fieldCls} max-w-[130px]`}>
+            <select value={draft.sourceId} onChange={(e) => setFilter({ sourceId: e.target.value })} className={`${fieldCls} w-full sm:max-w-[130px]`}>
               <option value="">All sources</option>
               {report.filter_options.sources.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
+          <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => void fetchReport()} disabled={loading} className={iconBtn} aria-label="Refresh" title="Refresh">
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           </button>
@@ -511,6 +542,7 @@ export default function ComplaintsReportPage() {
           <button type="button" onClick={handlePdf} disabled={!report.count || !!exporting} className={iconBtn} title="Download PDF">
             <Download className="h-3.5 w-3.5" /> <span className="hidden 2xl:inline">{exporting === "pdf" ? "…" : "PDF"}</span>
           </button>
+          </div>
         </div>
       </div>
 
@@ -631,7 +663,7 @@ export default function ComplaintsReportPage() {
                       key={tab.key}
                       type="button"
                       aria-pressed={selected}
-                      onClick={() => setActiveTab(tab.key)}
+                      onClick={() => { setActiveTab(tab.key); setPage(1); }}
                       className={`flex h-7 items-center gap-1 rounded-md border px-2 text-[11px] font-semibold transition-colors ${
                         selected ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
                       }`}
@@ -646,10 +678,11 @@ export default function ComplaintsReportPage() {
           </div>
           {bottomTab === "register" ? (
             <form
-              className="flex h-8 w-56 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 print:hidden"
+              className="flex h-8 w-full items-center gap-2 sm:w-56 rounded-lg border border-slate-200 bg-white px-2.5 print:hidden"
               onSubmit={(e) => {
                 e.preventDefault();
                 setSearch(searchInput.trim());
+                setPage(1);
               }}
             >
               <Search className="h-3.5 w-3.5 text-slate-400" />
@@ -658,7 +691,10 @@ export default function ComplaintsReportPage() {
                 value={searchInput}
                 onChange={(e) => {
                   setSearchInput(e.target.value);
-                  if (!e.target.value) setSearch("");
+                  if (!e.target.value) {
+                    setSearch("");
+                    setPage(1);
+                  }
                 }}
                 placeholder="Search complaint ID"
                 aria-label="Search complaint ID"
@@ -761,7 +797,7 @@ export default function ComplaintsReportPage() {
                     <button
                       key={size}
                       type="button"
-                      onClick={() => setPageSize(size)}
+                      onClick={() => { setPageSize(size); setPage(1); }}
                       aria-pressed={pageSize === size}
                       className={`h-6 rounded-md border px-1.5 text-[11px] font-semibold tabular-nums ${
                         pageSize === size ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 text-slate-500"

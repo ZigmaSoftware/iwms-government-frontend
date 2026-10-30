@@ -173,41 +173,45 @@ export default function MasterList({ kind }: Props) {
         emptyMessage="No records found"
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-        {kind === "module" && <Column field="module_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_code")} />}
-        {kind === "module" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} />}
-        {kind === "category" && <Column field="category_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} />}
-        {kind === "category" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} />}
-        {kind === "category" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} />}
-        {kind === "category" && <Column field="default_priority_code" header="Default Priority" />}
-        {kind === "subcategory" && <Column field="subcategory_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_code")} />}
-        {kind === "subcategory" && <Column field="subcategory_name" header="Subcategory" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_name")} />}
-        {kind === "subcategory" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} />}
-        {kind === "priority" && <Column field="priority_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} />}
-        {kind === "priority" && <Column field="priority_name" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_name")} />}
-        {kind === "status" && <Column field="status_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("status_code")} />}
-        {kind === "status" && <Column field="status_name" header="Status" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("status_name")} />}
-        {kind === "status" && <Column header="Final" body={(row) => yesNo(row.is_final)} />}
-        {kind === "status" && <Column header="Allow Reopen" body={(row) => yesNo(row.allow_reopen)} />}
-        {kind === "source" && <Column field="source_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_code")} />}
-        {kind === "source" && <Column field="source_name" header="Source" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_name")} />}
-        {kind === "slaRule" && <Column header="Location" body={(row) => row.scope_label || "All areas"} />}
-        {kind === "slaRule" && <Column field="category_code" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} />}
-        {kind === "slaRule" && <Column field="priority_code" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} />}
-        {kind === "slaRule" && <Column header="Working Hours" body={(row) => yesNo(row.working_hours_only)} />}
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
+        {kind === "module" && <Column field="module_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_code")} style={{ width: "30%" }} />}
+        {kind === "module" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} style={{ width: "48%" }} />}
+        {kind === "category" && <Column field="category_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} style={{ width: "18%" }} />}
+        {kind === "category" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} style={{ width: "25%" }} />}
+        {kind === "category" && <Column field="module_name" header="Module" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("module_name")} style={{ width: "20%" }} />}
+        {kind === "category" && <Column field="default_priority_code" header="Default Priority" style={{ width: "15%" }} />}
+        {kind === "subcategory" && <Column field="subcategory_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_code")} style={{ width: "20%" }} />}
+        {kind === "subcategory" && <Column field="subcategory_name" header="Subcategory" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("subcategory_name")} style={{ width: "33%" }} />}
+        {kind === "subcategory" && <Column field="category_name" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_name")} style={{ width: "25%" }} />}
+        {kind === "priority" && <Column field="priority_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} style={{ width: "30%" }} />}
+        {kind === "priority" && <Column field="priority_name" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_name")} style={{ width: "48%" }} />}
+        {kind === "status" && <Column field="status_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("status_code")} style={{ width: "20%" }} />}
+        {kind === "status" && <Column field="status_name" header="Status" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("status_name")} style={{ width: "30%" }} />}
+        {kind === "status" && <Column header="Final" body={(row) => yesNo(row.is_final)} style={{ width: "13%" }} />}
+        {kind === "status" && <Column header="Allow Reopen" body={(row) => yesNo(row.allow_reopen)} style={{ width: "15%" }} />}
+        {kind === "source" && <Column field="source_code" header="Code" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_code")} style={{ width: "30%" }} />}
+        {kind === "source" && <Column field="source_name" header="Source" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("source_name")} style={{ width: "48%" }} />}
+        {kind === "slaRule" && <Column header="Location" body={(row) => row.scope_label || "All areas"} style={{ width: "22%" }} />}
+        {kind === "slaRule" && <Column field="category_code" header="Category" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("category_code")} style={{ width: "14%" }} />}
+        {kind === "slaRule" && <Column field="priority_code" header="Priority" sortable={SORTABLE_FIELDS_BY_KIND[kind].has("priority_code")} style={{ width: "12%" }} />}
+        {kind === "slaRule" && <Column header="Working Hours" body={(row) => yesNo(row.working_hours_only)} style={{ width: "10%" }} />}
         {kind === "slaRule" && (
           <Column
             header="Escalation Levels"
-            body={(row) =>
-              (row.escalation_levels || [])
-                .map((level: ComplaintSlaEscalationLevel) => `L${level.level}: ${level.resolve_within_minutes}m`)
-                .join(", ") || "-"
-            }
+            style={{ width: "20%" }}
+            body={(row) => (
+              <span className="break-words">
+                {(row.escalation_levels || [])
+                  .map((level: ComplaintSlaEscalationLevel) => `L${level.level}: ${level.resolve_within_minutes}m`)
+                  .join(", ") || "-"}
+              </span>
+            )}
           />
         )}
-        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "8%" }} />
         <Column
           header="Actions"
           body={(row) => (
@@ -218,7 +222,7 @@ export default function MasterList({ kind }: Props) {
               deleteLabel="Delete"
             />
           )}
-          style={{ width: "100px" }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

@@ -260,6 +260,7 @@ export default function CountryList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         onServerExport={onServerExport}
         className="p-datatable-sm"
       >
@@ -267,13 +268,14 @@ export default function CountryList() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "6%" }}
         />
 
         {showCol("continent_name") && (
           <Column
             field="continent_name"
             header={t("admin.nav.continent")}
+            style={{ width: "20%" }}
             body={(r) => capitalize(r.continent_name)}
           />
         )}
@@ -283,6 +285,7 @@ export default function CountryList() {
             field="name"
             header={t("admin.nav.country")}
             sortable={SORTABLE_FIELDS.has("name")}
+            style={{ width: "26%" }}
             body={(r) => capitalize(r.name)}
           />
         )}
@@ -291,6 +294,7 @@ export default function CountryList() {
           <Column
             field="currency"
             header={t("common.currency")}
+            style={{ width: "15%" }}
           />
         )}
 
@@ -298,6 +302,7 @@ export default function CountryList() {
           <Column
             field="mob_code"
             header={t("common.mobile_code")}
+            style={{ width: "14%" }}
           />
         )}
 
@@ -305,12 +310,14 @@ export default function CountryList() {
           <Column
             header={t("common.status")}
             body={statusTemplate}
+            style={{ width: "10%" }}
           />
         )}
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
+          style={{ width: "9%" }}
         />
 
       </DataTable>

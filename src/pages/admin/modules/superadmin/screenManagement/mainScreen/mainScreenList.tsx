@@ -191,6 +191,7 @@ export default function MainScreenList() {
           }
           stripedRows
           showGridlines
+          fitWidth
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.main_screen"),
           })}
@@ -199,33 +200,51 @@ export default function MainScreenList() {
           <Column
             header={t("common.s_no")}
             body={(_, { rowIndex }) => rowIndex + 1}
-            style={{ width: 80 }}
+            style={{ width: "5%" }}
           />
 
           <Column
             field="mainscreen_name"
             header={t("common.item_name", { item: t("admin.nav.main_screen") })}
             sortable
+            style={{ width: "18%" }}
           />
           <Column
             field="mainscreentype_name"
             header={t("admin.nav.main_screen_type")}
             sortable
+            style={{ width: "15%" }}
           />
-          <Column field="icon_name" header={t("common.icon_name")} sortable />
-          <Column field="order_no" header={t("common.order_no")} sortable />
-          <Column field="description" header={t("common.description")} sortable />
+          <Column
+            field="icon_name"
+            header={t("common.icon_name")}
+            sortable
+            style={{ width: "14%" }}
+          />
+          <Column
+            field="order_no"
+            header={t("common.order_no")}
+            sortable
+            style={{ width: "8%" }}
+          />
+          <Column
+            field="description"
+            header={t("common.description")}
+            sortable
+            style={{ width: "23%" }}
+            body={(row) => <span className="break-words">{row.description}</span>}
+          />
 
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: 120 }}
+            style={{ width: "9%" }}
           />
 
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: 150 }}
+            style={{ width: "8%" }}
           />
         </DataTable>
     </div>

@@ -301,12 +301,13 @@ export default function UserScreenPermissionList() {
         emptyMessage={t("common.no_items_found", {
           item: t("admin.user_screen_permission.permission_label"),
         })}
+        fitWidth
         className="p-datatable-sm"
       >
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: 80 }}
+          style={{ width: "6%" }}
         />
 
         <Column
@@ -314,30 +315,35 @@ export default function UserScreenPermissionList() {
           body={mainScreenCountTemplate}
           sortable
           sortField="mainscreen_ids.length"
+          style={{ width: "20%" }}
         />
 
         <Column
           field="local_body_type_label"
           header="Local Body Type"
           sortable
+          style={{ width: "20%" }}
         />
 
         <Column
           field="local_body_label"
           header="Local Body"
           sortable
+          style={{ width: "26%" }}
+          body={(row: GroupedRow) => <span className="break-words">{row.local_body_label}</span>}
         />
 
         <Column
           field="permission_type_label"
           header="Permission Type"
           sortable
+          style={{ width: "18%" }}
         />
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: 150 }}
+          style={{ width: "10%" }}
         />
       </DataTable>
     </div>

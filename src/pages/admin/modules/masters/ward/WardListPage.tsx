@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { getEncryptedRoute } from "@/utils/routeCache";
@@ -41,15 +43,6 @@ const LOCAL_BODY_TYPE_LABELS: Record<string, string> = {
 };
 
 const SORTABLE_FIELDS = new Set(["ward_name", "is_active"]);
-
-const columns = [
-  { field: "state_name", header: "State" },
-  { field: "district_name", header: "District" },
-  { field: "area_type_name", header: "Area Type" },
-  { field: "local_body_type", header: "Local Body Type" },
-  { field: "local_body_name", header: "Local Body" },
-  { field: "ward_name", header: "Ward Name" },
-];
 
 export default function WardListPage() {
   const navigate = useNavigate();
@@ -210,26 +203,47 @@ export default function WardListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No Ward records found."
         onServerExport={onServerExport}
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
-        {columns.map((column) => (
-          <Column
-            key={column.field}
-            field={column.field}
-            header={column.header}
-            sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: WardListRecord) =>
-              column.field === "local_body_type"
-                ? displayValue(LOCAL_BODY_TYPE_LABELS[String(row.local_body_type ?? "")])
-                : displayValue(row[column.field])
-            }
-          />
-        ))}
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
+        <Column
+          field="ward_name"
+          header="Ward Name"
+          sortable={SORTABLE_FIELDS.has("ward_name")}
+          style={{ width: "22%" }}
+          body={(row: WardListRecord) => <span className="break-words">{displayValue(row.ward_name)}</span>}
+        />
+        <Column
+          field="local_body_name"
+          header="Local Body"
+          style={{ width: "25%" }}
+          body={(row: WardListRecord) => (
+            <StackCell
+              primary={displayValue(row.local_body_name)}
+              lines={[
+                {
+                  label: "Type",
+                  title: "Local Body Type",
+                  value: displayValue(LOCAL_BODY_TYPE_LABELS[String(row.local_body_type ?? "")]),
+                },
+                { label: "Area", title: "Area Type", value: displayValue(row.area_type_name) },
+              ]}
+            />
+          )}
+        />
+        {locationColumn<WardListRecord>({
+          header: "Location",
+          style: { width: "26%" },
+          levels: [
+            { label: "State", value: (row) => displayValue(row.state_name) },
+            { label: "District", value: (row) => displayValue(row.district_name) },
+          ],
+        })}
+        <Column header="Status" body={statusTemplate} style={{ width: "11%" }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: "10%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

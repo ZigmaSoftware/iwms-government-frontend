@@ -365,10 +365,11 @@ export default function ComplaintAuditList() {
           loading={loading}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
           emptyMessage={t("admin.complaint_audit.empty_message", "No complaints found")}
         >
-          <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
+          <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "4%" }} />
           <Column
             header={t("admin.complaint_audit.ticket", "Ticket")}
             body={(r: ComplaintAuditRecord) => (
@@ -378,6 +379,7 @@ export default function ComplaintAuditList() {
                 <div className="text-xs text-gray-400">{formatArea(r)}</div>
               </div>
             )}
+            style={{ width: "17%" }}
           />
           <Column
             header={t("admin.complaint_audit.category", "Category")}
@@ -387,6 +389,7 @@ export default function ComplaintAuditList() {
                 {r.subcategory_name && <div className="text-xs text-gray-500">{r.subcategory_name}</div>}
               </div>
             )}
+            style={{ width: "13%" }}
           />
           <Column
             header={t("admin.complaint_audit.status", "Status")}
@@ -409,6 +412,7 @@ export default function ComplaintAuditList() {
                 )}
               </div>
             )}
+            style={{ width: "10%" }}
           />
           <Column
             header={t("admin.complaint_audit.raised", "Raised")}
@@ -418,51 +422,55 @@ export default function ComplaintAuditList() {
                 <div className="text-xs text-gray-500">{r.created_by_name || r.reporter_name || "-"}</div>
               </div>
             )}
+            style={{ width: "13%" }}
           />
           <Column
             header={t("admin.complaint_audit.resolution_remarks", "Resolution remarks")}
             body={(r: ComplaintAuditRecord) => (
-              <span className="text-xs" title={r.resolution_remarks ?? ""}>
+              <span className="break-words text-xs" title={r.resolution_remarks ?? ""}>
                 {truncate(r.resolution_remarks) || "-"}
               </span>
             )}
-            style={{ minWidth: 180 }}
+            style={{ width: "16%" }}
           />
           <Column
-            header={t("admin.complaint_audit.reopens", "Reopens")}
-            body={(r: ComplaintAuditRecord) =>
-              r.reopen_count ? (
-                <div className="leading-tight" title={r.last_reopen_reason ?? ""}>
-                  <div className="font-medium text-purple-700">{r.reopen_count}</div>
-                  <div className="text-xs text-gray-500">{truncate(r.last_reopen_reason, 40)}</div>
-                </div>
-              ) : (
-                <span className="text-gray-400">0</span>
-              )
-            }
-            style={{ minWidth: 120 }}
-          />
-          <Column
-            header={t("admin.complaint_audit.escalations", "Escalations")}
-            body={(r: ComplaintAuditRecord) =>
-              r.escalation_count ? (
-                <div className="leading-tight">
-                  <div className="font-medium text-red-700">{r.escalation_count}</div>
-                  <div className="text-xs text-gray-500">
-                    {t("admin.complaint_audit.up_to_level", "up to L{{level}}", {
-                      level: r.max_escalation_level,
-                    })}
-                    {r.auto_escalation_count
-                      ? ` · ${t("admin.complaint_audit.auto_count", "{{count}} auto", {
-                          count: r.auto_escalation_count,
-                        })}`
-                      : ""}
+            header={`${t("admin.complaint_audit.reopens", "Reopens")} / ${t("admin.complaint_audit.escalations", "Escalations")}`}
+            body={(r: ComplaintAuditRecord) => (
+              <div className="space-y-1 leading-tight">
+                {r.reopen_count ? (
+                  <div title={r.last_reopen_reason ?? ""}>
+                    <div className="text-xs">
+                      <span className="text-gray-500">{t("admin.complaint_audit.reopens", "Reopens")}:</span>{" "}
+                      <span className="font-medium text-purple-700">{r.reopen_count}</span>
+                    </div>
+                    <div className="break-words text-xs text-gray-500">{truncate(r.last_reopen_reason, 40)}</div>
                   </div>
-                </div>
-              ) : (
-                <span className="text-gray-400">0</span>
-              )
-            }
+                ) : (
+                  <div className="text-xs text-gray-400">{t("admin.complaint_audit.reopens", "Reopens")}: 0</div>
+                )}
+                {r.escalation_count ? (
+                  <div>
+                    <div className="text-xs">
+                      <span className="text-gray-500">{t("admin.complaint_audit.escalations", "Escalations")}:</span>{" "}
+                      <span className="font-medium text-red-700">{r.escalation_count}</span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {t("admin.complaint_audit.up_to_level", "up to L{{level}}", {
+                        level: r.max_escalation_level,
+                      })}
+                      {r.auto_escalation_count
+                        ? ` · ${t("admin.complaint_audit.auto_count", "{{count}} auto", {
+                            count: r.auto_escalation_count,
+                          })}`
+                        : ""}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400">{t("admin.complaint_audit.escalations", "Escalations")}: 0</div>
+                )}
+              </div>
+            )}
+            style={{ width: "12%" }}
           />
           <Column
             header={t("admin.complaint_audit.time_taken", "Time taken")}
@@ -488,6 +496,7 @@ export default function ComplaintAuditList() {
                 </span>
               )
             }
+            style={{ width: "9%" }}
           />
           <Column
             header={t("common.actions")}
@@ -504,7 +513,7 @@ export default function ComplaintAuditList() {
                 </button>
               </div>
             )}
-            style={{ width: 100 }}
+            style={{ width: "6%" }}
           />
         </DataTable>
       </div>

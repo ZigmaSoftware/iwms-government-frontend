@@ -59,6 +59,7 @@ export default function DepartmentListPage() {
         onSort={onSort}
         loading={isLoading}
         onExportRequest={onExportRequest}
+        fitWidth
         filterPanel={combineFilters(status)}
         header={
           <FilterBar
@@ -69,18 +70,25 @@ export default function DepartmentListPage() {
           />
         }
       >
-        <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} />
-        <Column field="department_name" header="Department Name" sortable={SORTABLE_FIELDS.has("department_name")} />
-        <Column field="department_code" header="Code" sortable={SORTABLE_FIELDS.has("department_code")} />
-        <Column field="description" header="Description" />
+        <Column header="S.No" body={(_, opts) => opts.rowIndex + 1} style={{ width: "6%" }} />
+        <Column field="department_name" header="Department Name" sortable={SORTABLE_FIELDS.has("department_name")} style={{ width: "25%" }} />
+        <Column field="department_code" header="Code" sortable={SORTABLE_FIELDS.has("department_code")} style={{ width: "15%" }} />
+        <Column
+          field="description"
+          header="Description"
+          style={{ width: "36%" }}
+          body={(row: DepartmentListRecord) => <span className="break-words">{row.description == null ? "" : String(row.description)}</span>}
+        />
         <Column
           header="Status"
+          style={{ width: "10%" }}
           body={(row: DepartmentListRecord) => (
             <Switch checked={Boolean(row.is_active)} onCheckedChange={(value) => void onToggleStatus(row, value)} />
           )}
         />
         <Column
           header="Action"
+          style={{ width: "8%" }}
           body={(row: DepartmentListRecord) => (
             <RowActionsMenu
               onEdit={() => navigateToEdit(String(row.unique_id))}

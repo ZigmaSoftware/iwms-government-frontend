@@ -168,13 +168,24 @@ export default function CustomerNotificationList() {
         stripedRows
         paginator
         rows={10}
+        fitWidth
       >
-        <Column field="customer_name" header="Customer" />
-        <Column field="contact_no" header="Contact" style={{ width: "11rem" }} />
-        <Column field="username" header="Username" style={{ width: "12rem" }} />
+        <Column
+          field="customer_name"
+          header="Customer"
+          style={{ width: "25%" }}
+          body={(row: NotificationRow) => <span className="break-words">{row.customer_name}</span>}
+        />
+        <Column field="contact_no" header="Contact" style={{ width: "14%" }} />
+        <Column
+          field="username"
+          header="Username"
+          style={{ width: "15%" }}
+          body={(row: NotificationRow) => <span className="break-words">{row.username}</span>}
+        />
         <Column
           header="Device"
-          style={{ width: "9rem" }}
+          style={{ width: "11%" }}
           body={(row: NotificationRow) =>
             row.has_fcm_token ? (
               <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
@@ -189,12 +200,12 @@ export default function CustomerNotificationList() {
         />
         <Column
           header="Last test"
-          style={{ width: "13rem" }}
+          style={{ width: "18%" }}
           body={(row: NotificationRow) => formatDateTime(row.last_tested_at)}
         />
         <Column
           header=""
-          style={{ width: "11rem" }}
+          style={{ width: "17%" }}
           body={(row: NotificationRow) => (
             <div className="flex justify-end gap-2">
               <Button

@@ -615,28 +615,31 @@ export default function DailyTripLogReportPage() {
             value={hhCollections}
             dataKey="unique_id"
             className="p-datatable-sm"
+            fitWidth
             paginator
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
             exportable={false}
           >
-            <Column field="sequence" header="#" style={{ width: 50 }} />
+            <Column field="sequence" header="#" style={{ width: "5%" }} />
             <Column
               header="Customer"
+              style={{ width: "25%" }}
               body={(hh: any) => hh.customer_name ?? hh.customer_unique_id ?? "-"}
             />
             <Column
               header="Waste Type Breakdown"
+              style={{ width: "32%" }}
               body={(hh: any) => <WasteChips items={hh.waste_type_breakdown} />}
             />
             <Column
               header="Collection Time"
-              style={{ width: 140 }}
+              style={{ width: "13%" }}
               body={(hh: any) => formatCollectionTime(hh.collected_at)}
             />
             <Column
               header="Image"
-              style={{ width: 140 }}
+              style={{ width: "11%" }}
               body={(hh: any) => (
                 <CollectionImageLinks
                   images={[
@@ -652,7 +655,7 @@ export default function DailyTripLogReportPage() {
             />
             <Column
               header="Status"
-              style={{ width: 160 }}
+              style={{ width: "14%" }}
               body={(hh: any) => (
                 <div className="flex flex-col gap-1 items-start">
                   <StopStatusBadge value={hh.status} />
@@ -693,26 +696,28 @@ export default function DailyTripLogReportPage() {
             value={cps}
             dataKey="unique_id"
             className="p-datatable-sm"
+            fitWidth
             emptyMessage="No collection points."
             paginator
             rows={10}
             rowsPerPageOptions={[10, 25, 50]}
             exportable={false}
           >
-            <Column field="sequence" header="#" style={{ width: 50 }} />
-            <Column field="cp_name" header="Collection Point" />
+            <Column field="sequence" header="#" style={{ width: "5%" }} />
+            <Column field="cp_name" header="Collection Point" style={{ width: "25%" }} />
             <Column
               header="Waste Type Breakdown"
+              style={{ width: "28%" }}
               body={(cp: any) => <WasteChips items={cp.waste_type_breakdown} />}
             />
             <Column
               header="Collection Time"
-              style={{ width: 140 }}
+              style={{ width: "12%" }}
               body={(cp: any) => formatCollectionTime(cp.collected_at)}
             />
             <Column
               header="Image"
-              style={{ width: 140 }}
+              style={{ width: "10%" }}
               body={(cp: any) => (
                 <CollectionImageLinks
                   images={collectionPointImages.get(cp.unique_id) ?? cp.capture_images}
@@ -721,7 +726,7 @@ export default function DailyTripLogReportPage() {
             />
             <Column
               header="Status"
-              style={{ width: 160 }}
+              style={{ width: "12%" }}
               body={(cp: any) => (
                 <div className="flex flex-col gap-1 items-start">
                   <StopStatusBadge value={cp.status} />
@@ -737,7 +742,7 @@ export default function DailyTripLogReportPage() {
             {canProceedTrip && (
               <Column
                 header="Carry Over"
-                style={{ width: 100 }}
+                style={{ width: "8%" }}
                 align="center"
                 body={(cp: any) =>
                   isStopPending(cp.status) ? (

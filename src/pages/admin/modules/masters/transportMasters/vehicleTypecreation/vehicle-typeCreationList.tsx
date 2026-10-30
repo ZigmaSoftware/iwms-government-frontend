@@ -244,6 +244,7 @@ export default function VehicleTypeCreationList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.vehicle_type.empty_message")}
         onServerExport={onServerExport}
@@ -251,7 +252,7 @@ export default function VehicleTypeCreationList() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "8%" }}
         />
 
         {showCol("vehicleType") && (
@@ -260,7 +261,7 @@ export default function VehicleTypeCreationList() {
             header={t("admin.vehicle_type.label")}
             sortable={SORTABLE_FIELDS.has("vehicleType")}
             body={(row: VehicleTypeRecord) => capitalize(row.vehicleType)}
-            style={{ minWidth: "200px" }}
+            style={{ width: "70%" }}
           />
         )}
 
@@ -268,14 +269,14 @@ export default function VehicleTypeCreationList() {
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "140px" }}
+            style={{ width: "12%" }}
           />
         )}
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "10%", textAlign: "center" }}
         />
       </DataTable>
     </div>

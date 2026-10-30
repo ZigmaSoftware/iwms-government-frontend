@@ -488,7 +488,7 @@ export default {
     "qr_title": "स्टाफ QR",
     "qr_label": "QR",
     "qr_show": "QR दिखाएं",
-    "zigma_id": "Zigma आईडी",
+    "zigma_id": "यूनिक आईडी",
     "contact": "संपर्क",
     "delete_confirm": "यह स्टाफ रिकॉर्ड स्थायी रूप से हटाया जाएगा।",
     "delete_failed": "स्टाफ हटाने में विफल",

@@ -217,18 +217,19 @@ export default function MainScreenTypeList() {
           })}
           stripedRows
           showGridlines
+          fitWidth
           onServerExport={onServerExport}
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
           <Column
             field="type_name"
             header={t("admin.nav.main_screen_type")}
             sortable
-            style={{ minWidth: "200px" }}
+            style={{ width: "70%" }}
           />
-          <Column header={t("common.status")} body={statusTemplate} style={{ width: "150px" }} />
-          <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px" }} />
+          <Column header={t("common.status")} body={statusTemplate} style={{ width: "12%" }} />
+          <Column header={t("common.actions")} body={actionTemplate} style={{ width: "12%" }} />
         </DataTable>
 
     </div>

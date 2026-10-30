@@ -36,10 +36,10 @@ const displayValue = (value: unknown) =>
 const SORTABLE_FIELDS = new Set(["corporation_name", "is_active"]);
 
 const columns = [
-  { field: "state_name", header: "State" },
-  { field: "district_name", header: "District" },
-  { field: "area_type_name", header: "Area Type" },
-  { field: "corporation_name", header: "Corporation Name" },
+  { field: "state_name", header: "State", width: "16%" },
+  { field: "district_name", header: "District", width: "17%" },
+  { field: "area_type_name", header: "Area Type", width: "14%" },
+  { field: "corporation_name", header: "Corporation Name", width: "26%" },
 ];
 
 export default function CorporationListPage() {
@@ -206,22 +206,24 @@ export default function CorporationListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No Corporation records found."
         onServerExport={onServerExport}
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
         {columns.map((column) => (
           <Column
             key={column.field}
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: CorporationListRecord) => displayValue(row[column.field])}
+            style={{ width: column.width }}
+            body={(row: CorporationListRecord) => <span className="break-words">{displayValue(row[column.field])}</span>}
           />
         ))}
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "11%" }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: "10%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

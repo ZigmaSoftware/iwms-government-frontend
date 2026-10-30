@@ -11,6 +11,7 @@ import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
 import { adminApi } from "@/helpers/admin/registry";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { api } from "@/api";
@@ -204,16 +205,20 @@ export default function TripAttendanceList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.trip_attendance.empty_message")}
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
+        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "6%" }} />
         {showCol("daily_trip_assignment_id") && (
           <Column
             header={t("admin.trip_attendance.daily_trip_assignment")}
             body={(row: TripAttendanceRecord) =>
-              tripLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id
+              <span className="break-words">
+                {tripLookup[row.daily_trip_assignment_id] ?? row.daily_trip_assignment_id}
+              </span>
             }
+            style={{ width: "17%" }}
             filter
             showFilterMatchModes={false}
           />
@@ -221,7 +226,10 @@ export default function TripAttendanceList() {
         {showCol("staff_id") && (
           <Column
             header={t("admin.trip_attendance.staff")}
-            body={(row: TripAttendanceRecord) => staffLookup[row.staff_id] ?? row.staff_id}
+            body={(row: TripAttendanceRecord) => (
+              <span className="break-words">{staffLookup[row.staff_id] ?? row.staff_id}</span>
+            )}
+            style={{ width: "15%" }}
             filter
             showFilterMatchModes={false}
           />
@@ -230,49 +238,64 @@ export default function TripAttendanceList() {
           <Column
             header={t("admin.trip_attendance.vehicle")}
             body={(row: TripAttendanceRecord) =>
-              vehicleLookup[row.vehicle_id] ?? row.vehicle_id
+              <span className="break-words">{vehicleLookup[row.vehicle_id] ?? row.vehicle_id}</span>
             }
+            style={{ width: "13%" }}
             filter
             showFilterMatchModes={false}
           />
         )}
-        {showCol("attendance_time") && (
+        {(showCol("attendance_time") || showCol("source") || showCol("created_at")) && (
           <Column
-            header={t("admin.trip_attendance.attendance_time")}
-            body={(row: TripAttendanceRecord) => formatDateTime(row.attendance_time)}
+            header={
+              showCol("attendance_time")
+                ? t("admin.trip_attendance.attendance_time")
+                : showCol("source")
+                  ? t("admin.trip_attendance.source")
+                  : t("common.created_at")
+            }
+            body={(row: TripAttendanceRecord) => (
+              <StackCell
+                primary={showCol("attendance_time") && formatDateTime(row.attendance_time)}
+                lines={[
+                  showCol("source") && {
+                    label: t("admin.trip_attendance.source"),
+                    value: resolveSource(row.source),
+                  },
+                  showCol("created_at") && {
+                    label: t("common.created_at"),
+                    value: formatDateTime(row.created_at),
+                  },
+                ]}
+              />
+            )}
+            style={{ width: "18%" }}
             filter
             showFilterMatchModes={false}
           />
         )}
-        {showCol("latitude") && (
-          <Column field="latitude" header={t("admin.trip_attendance.latitude")} />
-        )}
-        {showCol("longitude") && (
-          <Column field="longitude" header={t("admin.trip_attendance.longitude")} />
-        )}
-        {showCol("source") && (
+        {(showCol("latitude") || showCol("longitude")) && (
           <Column
-            header={t("admin.trip_attendance.source")}
-            body={(row: TripAttendanceRecord) => resolveSource(row.source)}
-            filter
-            showFilterMatchModes={false}
+            header={`${t("admin.trip_attendance.latitude")} / ${t("admin.trip_attendance.longitude")}`}
+            body={(row: TripAttendanceRecord) => (
+              <StackCell
+                lines={[
+                  showCol("latitude") && { label: t("admin.trip_attendance.latitude"), value: row.latitude },
+                  showCol("longitude") && { label: t("admin.trip_attendance.longitude"), value: row.longitude },
+                ]}
+              />
+            )}
+            style={{ width: "13%" }}
           />
         )}
         {showCol("photo") && (
           <Column
             header={t("admin.trip_attendance.photo")}
             body={(row: TripAttendanceRecord) => resolvePhotoLink(row.photo)}
+            style={{ width: "9%" }}
           />
         )}
-        {showCol("created_at") && (
-          <Column
-            header={t("common.created_at")}
-            body={(row: TripAttendanceRecord) => formatDateTime(row.created_at)}
-            filter
-            showFilterMatchModes={false}
-          />
-        )}
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 120 }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "9%" }} />
       </DataTable>
     </div>
   );

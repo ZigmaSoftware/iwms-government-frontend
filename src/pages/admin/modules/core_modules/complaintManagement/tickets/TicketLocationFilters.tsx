@@ -31,7 +31,20 @@ const areaTypeCategoryFromName = (name: string): "urban" | "rural" | "" => {
   return "";
 };
 
-const SELECT_CLASS = "h-9 rounded-md border px-2 text-sm";
+const SELECT_CLASS = "h-9 max-w-full rounded-md border px-2 text-sm";
+
+// Geo lists rarely change: cache per key so reopening the filter (which
+// remounts it) restores the dropdowns at once instead of refetching.
+const geoCache = new Map<string, Promise<unknown>>();
+const cached = <T,>(key: string, load: () => Promise<T>): Promise<T> => {
+  if (!geoCache.has(key)) {
+    geoCache.set(key, load().catch((err) => {
+      geoCache.delete(key);
+      throw err;
+    }));
+  }
+  return geoCache.get(key) as Promise<T>;
+};
 
 /** State -> District -> Area Type -> Local body type -> Local body filter
  *  shared by the Tickets list and My Tasks. */
@@ -48,9 +61,32 @@ export default function TicketLocationFilters({
   const [cities, setCities] = useState<LocalBodyOption[]>([]);
 
   useEffect(() => {
-    geoApi.states().then(setStates).catch(() => setStates([]));
-    geoApi.districts().then(setDistricts).catch(() => setDistricts([]));
+    cached("states", geoApi.states).then(setStates).catch(() => setStates([]));
+    cached("districts", geoApi.districts).then(setDistricts).catch(() => setDistricts([]));
   }, []);
+
+  // Option lists follow the value (not the change handlers), so a remount
+  // with an existing selection shows its area types / local bodies again.
+  useEffect(() => {
+    setAreaTypes([]);
+    if (!value.district) return;
+    let live = true;
+    cached(`area:${value.district}`, () => geoApi.areaTypes(value.district))
+      .then((rows) => live && setAreaTypes(rows))
+      .catch(() => live && setAreaTypes([]));
+    return () => { live = false; };
+  }, [value.district]);
+
+  useEffect(() => {
+    setCities([]);
+    if (!value.district || !value.areaType || !value.localBodyType) return;
+    let live = true;
+    const { district, areaType, localBodyType } = value;
+    cached(`lb:${district}:${areaType}:${localBodyType}`, () => geoApi.localBodies(district, areaType, localBodyType))
+      .then((rows) => live && setCities(rows))
+      .catch(() => live && setCities([]));
+    return () => { live = false; };
+  }, [value.district, value.areaType, value.localBodyType]);
 
   const filteredDistricts = useMemo(
     () => districts.filter((item) => !value.state || item.state_id === value.state),
@@ -65,32 +101,15 @@ export default function TicketLocationFilters({
   );
   const availableLocalBodyTypes = selectedAreaCategory ? AREA_TYPE_LEVELS[selectedAreaCategory] : LOCAL_BODY_TYPES;
 
-  const onStateChange = (state: string) => {
-    onChange({ ...emptyTicketLocationFilter, state });
-    setAreaTypes([]);
-    setCities([]);
-  };
+  const onStateChange = (state: string) => onChange({ ...emptyTicketLocationFilter, state });
 
-  const onDistrictChange = async (district: string) => {
+  const onDistrictChange = (district: string) =>
     onChange({ ...emptyTicketLocationFilter, state: value.state, district });
-    setAreaTypes([]);
-    setCities([]);
-    if (district) setAreaTypes(await geoApi.areaTypes(district).catch(() => []));
-  };
 
-  const onAreaTypeChange = (areaType: string) => {
-    onChange({ ...value, areaType, localBodyType: "", city: "" });
-    setCities([]);
-  };
+  const onAreaTypeChange = (areaType: string) => onChange({ ...value, areaType, localBodyType: "", city: "" });
 
-  const onLocalBodyTypeChange = async (type: string) => {
-    const localBodyType = type as LocalBodyType | "";
-    onChange({ ...value, localBodyType, city: "" });
-    setCities([]);
-    if (value.district && value.areaType && localBodyType) {
-      setCities(await geoApi.localBodies(value.district, value.areaType, localBodyType).catch(() => []));
-    }
-  };
+  const onLocalBodyTypeChange = (type: string) =>
+    onChange({ ...value, localBodyType: type as LocalBodyType | "", city: "" });
 
   return (
     <div className="flex flex-wrap items-center gap-2">

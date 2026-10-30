@@ -20,6 +20,7 @@ import { api } from "@/api";
 import { retripRequestApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { FilterSection, type ActiveFilterChip } from "@/components/common/ListToolbar";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
 
@@ -503,59 +504,71 @@ export default function TripRetripRequestList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No Re-Trip requests found."
       >
         <Column
           header={t("common.s_no")}
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "5%" }}
         />
-        <Column field="unique_id" header="Request ID" style={{ minWidth: 150 }} />
         <Column
-          field="assignment_unique_id"
-          header="Trip"
-          style={{ minWidth: 160 }}
+          field="unique_id"
+          header="Request"
+          style={{ width: "20%" }}
           body={(r: TripRetripRequestRecord) => (
-            <div className="text-sm text-gray-800">
-              {r.assignment_unique_id}
-              {r.trip_date && <div className="text-xs text-gray-400">{r.trip_date}</div>}
-            </div>
+            <StackCell
+              primary={<span className="break-all">{r.unique_id}</span>}
+              lines={[
+                { label: "Trip", value: <span className="break-all">{r.assignment_unique_id}</span> },
+                { icon: "pi-calendar", title: "Trip Date", value: r.trip_date },
+                { icon: "pi-user", title: "Requested By", value: r.requested_by_name },
+              ]}
+            />
           )}
         />
-        <Column field="area_name" header="Area" style={{ minWidth: 140 }} body={(r: any) => r.area_name || "-"} />
-        <Column field="vehicle_no" header="Vehicle" style={{ minWidth: 110 }} body={(r: any) => r.vehicle_no || "-"} />
         <Column
-          field="collection_type"
-          header="Type"
-          style={{ minWidth: 100 }}
+          field="area_name"
+          header="Area & Vehicle"
+          style={{ width: "18%" }}
           body={(r: TripRetripRequestRecord) => (
-            <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 capitalize">
-              {r.collection_type ?? "-"}
-            </span>
+            <StackCell
+              primary={r.area_name}
+              lines={[
+                { label: "Vehicle", value: r.vehicle_no },
+                r.collection_type && {
+                  label: "Type",
+                  value: (
+                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 capitalize">
+                      {r.collection_type}
+                    </span>
+                  ),
+                },
+              ]}
+            />
           )}
         />
         <Column
           header="Pending Stops"
-          style={{ minWidth: 120 }}
+          style={{ width: "9%" }}
           body={(r: TripRetripRequestRecord) => (
             <span className="font-semibold text-amber-700">
               {r.pending_bin_count + r.pending_household_count}
             </span>
           )}
         />
-        <Column field="reason" header="Reason" style={{ minWidth: 220 }} body={(r: any) => (
-          <span className="text-xs text-gray-700">{r.reason}</span>
+        <Column field="reason" header="Reason" style={{ width: "27%" }} body={(r: any) => (
+          <span className="break-words text-xs text-gray-700">{r.reason}</span>
         )} />
-        <Column field="requested_by_name" header="Requested By" style={{ minWidth: 140 }} body={(r: any) => r.requested_by_name || "-"} />
         <Column
           field="status"
           header="Status"
           sortable
-          style={{ minWidth: 110 }}
+          style={{ width: "11%" }}
           body={(r: TripRetripRequestRecord) => <StatusBadge value={r.status} />}
         />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ minWidth: 110 }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "10%", textAlign: "center" }} />
       </DataTable>
 
       {/* Approve Dialog */}

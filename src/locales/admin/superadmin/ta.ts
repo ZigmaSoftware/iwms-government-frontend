@@ -489,7 +489,7 @@ export default {
     "qr_title": "பணியாளர் QR",
     "qr_label": "QR",
     "qr_show": "QR காண்பிக்க",
-    "zigma_id": "Zigma ஐடி",
+    "zigma_id": "தனித்துவ ஐடி",
     "contact": "தொடர்பு",
     "delete_confirm": "இந்த பணியாளர் பதிவு நிரந்தரமாக நீக்கப்படும்.",
     "delete_failed": "பணியாளர் நீக்கம் தோல்வி",

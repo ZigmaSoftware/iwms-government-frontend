@@ -13,6 +13,8 @@ import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { useTranslation } from "react-i18next";
@@ -701,8 +703,8 @@ export default function VehicleCreationListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
-        tableStyle={{ minWidth: "1120px" }}
         onServerExport={onServerExport}
         emptyMessage={t("admin.vehicle_creation.empty_message")}
       >
@@ -712,116 +714,119 @@ export default function VehicleCreationListPage() {
             _: VehicleCreationRecord,
             { rowIndex }: { rowIndex: number },
           ) => rowIndex + 1}
-          style={{ width: "80px" }}
+          style={{ width: "5%" }}
         />
-        {showCol("vehicle_no") && (
+        {(showCol("vehicle_no") || showCol("vehicle_type_name") || showCol("vehicle_condition")) && (
           <Column
             field="vehicle_no"
             header={t("admin.vehicle_creation.vehicle_no")}
-            sortable={SORTABLE_FIELDS.has("vehicle_no")}
+            sortable={showCol("vehicle_no") && SORTABLE_FIELDS.has("vehicle_no")}
+            style={{ width: "18%" }}
+            body={(row: VehicleCreationRecord) => (
+              <StackCell
+                primary={showCol("vehicle_no") && row.vehicle_no}
+                lines={[
+                  showCol("vehicle_type_name") && {
+                    icon: "pi-truck",
+                    title: t("admin.vehicle_creation.vehicle_type"),
+                    value: row.vehicle_type_name,
+                  },
+                  showCol("vehicle_condition") && {
+                    label: t("admin.vehicle_creation.vehicle_condition"),
+                    value: conditionLabel(row.vehicle_condition),
+                  },
+                ]}
+              />
+            )}
           />
         )}
-        {showCol("vehicle_type_name") && (
-          <Column
-            field="vehicle_type_name"
-            header={t("admin.vehicle_creation.vehicle_type")}
-          />
-        )}
-        {showCol("fuel_type_name") && (
+        {(showCol("fuel_type_name") ||
+          showCol("capacity") ||
+          showCol("mileage_per_liter") ||
+          showCol("fuel_tank_capacity")) && (
           <Column
             field="fuel_type_name"
-            header={t("admin.vehicle_creation.fuel_type")}
+            header="Specifications"
+            style={{ width: "20%" }}
+            body={(row: VehicleCreationRecord) => (
+              <StackCell
+                lines={[
+                  showCol("fuel_type_name") && {
+                    label: t("admin.vehicle_creation.fuel_type"),
+                    value: row.fuel_type_name,
+                  },
+                  showCol("capacity") && {
+                    label: t("admin.vehicle_creation.capacity"),
+                    value: row.capacity,
+                  },
+                  showCol("mileage_per_liter") && {
+                    label: t("admin.vehicle_creation.mileage_per_liter"),
+                    value: row.mileage_per_liter,
+                  },
+                  showCol("fuel_tank_capacity") && {
+                    label: t("admin.vehicle_creation.fuel_tank_capacity"),
+                    value: row.fuel_tank_capacity,
+                  },
+                ]}
+              />
+            )}
           />
         )}
-        {showCol("ulb_name") && (
-          <Column
-            field="_ulb_name"
-            header="ULB"
-            body={(row: VehicleCreationRecord & { _ulb_name?: string; _ulb_level?: string }) =>
-              row._ulb_name ? (
-                <span>
-                  {row._ulb_name} <span className="text-xs text-gray-400">({row._ulb_level})</span>
-                </span>
-              ) : (
-                "-"
-              )
-            }
-          />
-        )}
-        {showCol("rlb_name") && (
-          <Column
-            field="_rlb_name"
-            header="RLB"
-            body={(row: VehicleCreationRecord & { _rlb_name?: string; _rlb_level?: string }) =>
-              row._rlb_name ? (
-                <span>
-                  {row._rlb_name} <span className="text-xs text-gray-400">({row._rlb_level})</span>
-                </span>
-              ) : (
-                "-"
-              )
-            }
-          />
-        )}
-        {showCol("capacity") && (
-          <Column
-            field="capacity"
-            header={t("admin.vehicle_creation.capacity")}
-          />
-        )}
-        {showCol("mileage_per_liter") && (
-          <Column
-            field="mileage_per_liter"
-            header={t("admin.vehicle_creation.mileage_per_liter")}
-          />
-        )}
-        {showCol("fuel_tank_capacity") && (
-          <Column
-            field="fuel_tank_capacity"
-            header={t("admin.vehicle_creation.fuel_tank_capacity")}
-          />
-        )}
-        {showCol("vehicle_condition") && (
-          <Column
-            field="vehicle_condition"
-            header={t("admin.vehicle_creation.vehicle_condition")}
-            body={(row: VehicleCreationRecord) =>
-              conditionLabel(row.vehicle_condition)
-            }
-          />
-        )}
+        {locationColumn<VehicleCreationRecord & { _ulb_name?: string; _ulb_level?: string; _rlb_name?: string; _rlb_level?: string }>({
+          header: t("common.location") || "Location",
+          style: { width: "17%" },
+          levels: [
+            showCol("ulb_name") && {
+              label: "ULB",
+              value: (row) =>
+                row._ulb_name ? (
+                  <span>
+                    {row._ulb_name} <span className="text-xs text-gray-400">({row._ulb_level})</span>
+                  </span>
+                ) : null,
+            },
+            showCol("rlb_name") && {
+              label: "RLB",
+              value: (row) =>
+                row._rlb_name ? (
+                  <span>
+                    {row._rlb_name} <span className="text-xs text-gray-400">({row._rlb_level})</span>
+                  </span>
+                ) : null,
+            },
+          ],
+        })}
         {showCol("insurance_expiry_date") && (
           <Column
             field="insurance_expiry_date"
             header={t("admin.vehicle_creation.insurance_expiry_date")}
+            style={{ width: "13%" }}
             body={(row: VehicleCreationRecord) => (
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col items-start gap-1">
                 <span>{formatDate(row.insurance_expiry_date)}</span>
                 <ExpiryBadge label="Insurance" date={row.insurance_expiry_date} />
               </div>
             )}
           />
         )}
-        {showCol("rc_upload") && (
+        {(showCol("rc_upload") || showCol("vehicle_insurance_file")) && (
           <Column
-            field="rc_upload"
-            header={t("admin.vehicle_creation.rc_upload")}
-            body={(row: VehicleCreationRecord) =>
-              renderFilePreview(row.rc_upload)
-            }
-            style={{ width: "96px" }}
-            bodyStyle={{ textAlign: "center" }}
-          />
-        )}
-        {showCol("vehicle_insurance_file") && (
-          <Column
-            field="vehicle_insurance_file"
-            header={t("admin.vehicle_creation.vehicle_insurance_file")}
-            body={(row: VehicleCreationRecord) =>
-              renderFilePreview(row.vehicle_insurance_file)
-            }
-            style={{ width: "110px" }}
-            bodyStyle={{ textAlign: "center" }}
+            header="Documents"
+            style={{ width: "12%" }}
+            body={(row: VehicleCreationRecord) => (
+              <StackCell
+                lines={[
+                  showCol("rc_upload") && {
+                    label: t("admin.vehicle_creation.rc_upload"),
+                    value: row.rc_upload ? renderFilePreview(row.rc_upload) : null,
+                  },
+                  showCol("vehicle_insurance_file") && {
+                    label: t("admin.vehicle_creation.vehicle_insurance_file"),
+                    value: row.vehicle_insurance_file ? renderFilePreview(row.vehicle_insurance_file) : null,
+                  },
+                ]}
+              />
+            )}
           />
         )}
         {showCol("is_active") && (
@@ -829,14 +834,14 @@ export default function VehicleCreationListPage() {
             field="is_active"
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "92px" }}
+            style={{ width: "8%" }}
             bodyStyle={{ textAlign: "center" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "88px" }}
+          style={{ width: "7%" }}
           bodyStyle={{ textAlign: "center" }}
         />
       </DataTable>

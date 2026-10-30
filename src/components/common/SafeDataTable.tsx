@@ -26,6 +26,7 @@ import {
   type ReactNode,
 } from "react";
 import notify from "@/lib/notify";
+import { cn } from "@/lib/utils";
 import { getCurrentAdminBulkImportApi } from "@/helpers/admin/bulkImportRoutes";
 import { useScreenAccess } from "@/contexts/screenPermission";
 import { recordExcelAudit } from "@/helpers/admin/commonAudit";
@@ -101,6 +102,12 @@ type SafeDataTableProps<TValue extends SafeTableRows> =
      * adds a "Download QR" item for lists with QR codes.
      */
     documentActions?: DocumentActions;
+    /**
+     * Fit the table to the page width instead of scrolling sideways: fixed
+     * layout, so give each Column a percentage `style.width` and let cells
+     * wrap (group related fields into one stacked cell — see TableCells).
+     */
+    fitWidth?: boolean;
   };
 
 const toSafeRows = <TValue extends SafeTableRows>(
@@ -570,18 +577,18 @@ const DataTableHeaderActions = ({
         />
       )}
       <div className="flex min-w-0 flex-wrap items-center gap-3">
-        <div className={filters ? "min-w-0" : "min-w-0 flex-1"}>{header}</div>
-        {filters && (
-          <FilterPanel
-            activeCount={filters.activeCount}
-            onApply={filters.onApply}
-            onReset={filters.onReset}
-            width={filters.width}
-          >
-            {filters.content}
-          </FilterPanel>
-        )}
-        <div className="ml-auto shrink-0">
+        <div className="min-w-0 flex-1">{header}</div>
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          {filters && (
+            <FilterPanel
+              activeCount={filters.activeCount}
+              onApply={filters.onApply}
+              onReset={filters.onReset}
+              width={filters.width}
+            >
+              {filters.content}
+            </FilterPanel>
+          )}
           <DocumentsMenu {...actions} />
         </div>
         {canImport && (
@@ -624,6 +631,7 @@ export const DataTable = <TValue extends SafeTableRows>(
     onPdfRequest,
     filterPanel,
     documentActions,
+    fitWidth = false,
     ...tableProps
   } = props;
   // Uploading a file needs "add" AND "import" together.
@@ -671,6 +679,20 @@ export const DataTable = <TValue extends SafeTableRows>(
         currentPageReportTemplate={t(PAGE_REPORT_KEY, PAGE_REPORT_FALLBACK)}
         rowsPerPageOptions={DEFAULT_ROWS_PER_PAGE_OPTIONS}
         {...tableProps}
+        {...(fitWidth && {
+          tableStyle: {
+            tableLayout: "fixed",
+            width: "100%",
+            maxWidth: "100%",
+            ...tableProps.tableStyle,
+          },
+          // Gridline borders poke a few px past a full-width fixed table,
+          // which is enough to show a pointless horizontal scrollbar.
+          className: cn(
+            tableProps.className,
+            "[&_.p-datatable-wrapper]:overflow-x-hidden!",
+          ),
+        })}
         header={header}
         value={safeRows}
       />
