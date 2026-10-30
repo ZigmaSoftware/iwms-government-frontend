@@ -692,7 +692,7 @@ export default {
     "qr_title": "Staff QR",
     "qr_label": "QR",
     "qr_show": "Show QR",
-    "zigma_id": "Zigma ID",
+    "zigma_id": "Unique ID",
     "contact": "Contact",
     "delete_confirm": "This staff record will be deleted permanently.",
     "delete_failed": "Failed to delete staff",

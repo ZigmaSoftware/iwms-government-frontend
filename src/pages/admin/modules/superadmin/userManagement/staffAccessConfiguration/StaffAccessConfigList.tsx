@@ -5,6 +5,7 @@ import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import ComponentCard from "@/components/common/ComponentCard";
 import notify from "@/lib/notify";
 import { adminApi } from "@/helpers/admin/registry";
@@ -241,15 +242,32 @@ export default function StaffAccessConfigList() {
         filterPanel={combineFilters(geo, status)}
         emptyMessage="No staff access configurations found."
         responsiveLayout="scroll"
+        fitWidth
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-        <Column header="ID" body={idTemplate} />
-        <Column field="employee_name" header="Name" body={nameTemplate} sortable />
-        <Column header="Username" body={usernameTemplate} />
-        <Column header="Role" body={roleTemplate} />
-        <Column header="Permissions" body={permissionTemplate} />
-        <Column header="Status" body={statusTemplate} />
-        <Column header="Action" body={actionTemplate} style={{ width: "100px", textAlign: "center" }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
+        <Column
+          field="employee_name"
+          header="Name"
+          sortable
+          style={{ width: "38%" }}
+          body={(row: StaffAccessRecord) => (
+            <StackCell
+              primary={nameTemplate(row)}
+              lines={[
+                { icon: "pi-user", title: "Username", value: usernameTemplate(row) },
+                { icon: "pi-id-card", title: "ID", value: idTemplate(row) },
+              ]}
+            />
+          )}
+        />
+        <Column
+          header="Role"
+          body={(row: StaffAccessRecord) => <span className="break-words">{roleTemplate(row)}</span>}
+          style={{ width: "22%" }}
+        />
+        <Column header="Permissions" body={permissionTemplate} style={{ width: "12%" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "12%" }} />
+        <Column header="Action" body={actionTemplate} style={{ width: "10%", textAlign: "center" }} />
       </DataTable>
     </ComponentCard>
   );

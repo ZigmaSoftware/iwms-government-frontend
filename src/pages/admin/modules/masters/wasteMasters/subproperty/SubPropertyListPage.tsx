@@ -261,18 +261,20 @@ export default function SubPropertyList() {
           }
           stripedRows
           showGridlines
+          fitWidth
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.sub_property"),
           })}
           onServerExport={onServerExport}
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
 
           {showCol("property_name") && (
             <Column
               field="property_name"
               header={t("admin.nav.property")}
+              style={{ width: "34%" }}
               body={(row: SubPropertyRecord) => capitalize(row.property_name)}
             />
           )}
@@ -282,6 +284,7 @@ export default function SubPropertyList() {
               field="sub_property_name"
               header={t("admin.nav.sub_property")}
               sortable
+              style={{ width: "39%" }}
               body={(row: SubPropertyRecord) => capitalize(row.sub_property_name)}
             />
           )}
@@ -290,14 +293,14 @@ export default function SubPropertyList() {
             <Column
               header={t("common.status")}
               body={statusTemplate}
-              style={{ width: "140px" }}
+              style={{ width: "11%" }}
             />
           )}
 
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: "150px", textAlign: "center" }}
+            style={{ width: "10%", textAlign: "center" }}
           />
         </DataTable>
 

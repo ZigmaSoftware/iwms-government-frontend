@@ -314,7 +314,7 @@ export default function LoginAuditList() {
           stripedRows
           showGridlines
           emptyMessage={t("common.no_records")}
-          tableStyle={{ tableLayout: "fixed", width: "100%", minWidth: "1100px" }}
+          fitWidth
           className="p-datatable-sm"
         >
           {columns}

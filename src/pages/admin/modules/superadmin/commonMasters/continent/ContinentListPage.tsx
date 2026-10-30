@@ -281,12 +281,13 @@ export default function ContinentList() {
         stripedRows
         showGridlines
         onServerExport={onServerExport}
+        fitWidth
         className="p-datatable-sm"
       >
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "8%" }}
         />
 
         {showCol("name") && (
@@ -295,7 +296,7 @@ export default function ContinentList() {
             header={t("common.item_name", { item: t("admin.nav.continent") })}
             body={(record: ContinentRecord) => record.name}
             sortable={SORTABLE_FIELDS.has("name")}
-            style={{ minWidth: "200px" }}
+            style={{ width: "70%" }}
           />
         )}
 
@@ -303,14 +304,14 @@ export default function ContinentList() {
           <Column
             header={t("common.status")}
             body={statusBodyTemplate}
-            style={{ width: "150px", textAlign: "center" }}
+            style={{ width: "12%", textAlign: "center" }}
           />
         )}
 
         <Column
           header={t("common.actions")}
           body={actionBodyTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "10%", textAlign: "center" }}
         />
       </DataTable>
     </div>

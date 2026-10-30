@@ -262,20 +262,24 @@ export default function PropertyList() {
           }
           stripedRows
           showGridlines
+          fitWidth
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.property"),
           })}
           onServerExport={onServerExport}
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
 
           {showCol("property_name") && (
             <Column
               field="property_name"
               header={t("common.item_name", { item: t("admin.nav.property") })}
               sortable={SORTABLE_FIELDS.has("property_name")}
-              body={(row: PropertyRecord) => capitalize(row.property_name)}
+              style={{ width: "30%" }}
+              body={(row: PropertyRecord) => (
+                <span className="break-words">{capitalize(row.property_name)}</span>
+              )}
             />
           )}
 
@@ -283,7 +287,10 @@ export default function PropertyList() {
             <Column
               field="description"
               header={t("common.description")}
-              body={(row: PropertyRecord) => row.description ?? ""}
+              style={{ width: "43%" }}
+              body={(row: PropertyRecord) => (
+                <span className="break-words">{row.description ?? ""}</span>
+              )}
             />
           )}
 
@@ -291,14 +298,14 @@ export default function PropertyList() {
             <Column
               header={t("common.status")}
               body={statusTemplate}
-              style={{ width: "140px" }}
+              style={{ width: "11%" }}
             />
           )}
 
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: "150px", textAlign: "center" }}
+            style={{ width: "10%", textAlign: "center" }}
           />
         </DataTable>
 

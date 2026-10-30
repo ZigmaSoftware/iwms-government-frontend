@@ -220,28 +220,29 @@ export default function UserTypePage() {
           stripedRows
           showGridlines
           onServerExport={onServerExport}
+          fitWidth
           className="p-datatable-sm"
         >
           <Column
             header={t("common.s_no")}
             body={indexTemplate}
-            style={{ width: "80px" }}
+            style={{ width: "8%" }}
           />
           <Column
             field="name"
             header={t("admin.nav.user_type")}
             sortable
-            style={{ minWidth: "200px" }}
+            style={{ width: "70%" }}
           />
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "12%" }}
           />
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "10%" }}
           />
         </DataTable>
 

@@ -5,6 +5,7 @@ import type { DataTableFilterMeta, DataTablePageEvent } from "primereact/datatab
 
 import { api } from "@/api";
 import { DataTable, type TableFilters } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
 import notify from "@/lib/notify";
 import { staffCreationApi } from "@/helpers/admin";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -310,22 +311,56 @@ export default function DailyAttendanceRegList() {
         filterPanel={filterPanel}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No attendance records found."
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_: DailyAttendanceGroup, options: { rowIndex: number }) => options.rowIndex + 1} />
-        <Column field="emp_id" header="Employee ID" sortable />
-        <Column field="name" header="Name" sortable />
-        <Column field="recognition_date" header="Date" sortable />
-        <Column field="user_type" header="User Type" sortable />
-        <Column field="staff_user_type" header="Staff User Type" sortable />
-        <Column field="first_in_time" header="First In" body={(row: DailyAttendanceGroup) => formatTime12h(row.first_in_time)} sortable />
-        <Column field="last_out_time" header="Last Out" body={(row: DailyAttendanceGroup) => formatTime12h(row.last_out_time)} sortable />
-        <Column header="Worked Hours" body={(row: DailyAttendanceGroup) => getWorkedHours(row.first_in_time, row.last_out_time)} />
-        <Column field="punch_count" header="Punch Count" sortable />
+        <Column header="S.No" body={(_: DailyAttendanceGroup, options: { rowIndex: number }) => options.rowIndex + 1} style={{ width: "5%" }} />
+        <Column
+          field="name"
+          header="Staff"
+          sortable
+          style={{ width: "22%" }}
+          body={(row: DailyAttendanceGroup) => (
+            <StackCell
+              primary={row.name}
+              lines={[{ icon: "pi-id-card", title: "Employee ID", value: row.emp_id }]}
+            />
+          )}
+        />
+        <Column field="recognition_date" header="Date" sortable style={{ width: "11%" }} />
+        <Column
+          field="user_type"
+          header="User Type"
+          sortable
+          style={{ width: "17%" }}
+          body={(row: DailyAttendanceGroup) => (
+            <StackCell
+              primary={row.user_type}
+              lines={[{ label: "Staff type", title: "Staff User Type", value: row.staff_user_type }]}
+            />
+          )}
+        />
+        <Column
+          field="first_in_time"
+          header="First In / Last Out"
+          sortable
+          style={{ width: "15%" }}
+          body={(row: DailyAttendanceGroup) => (
+            <StackCell
+              lines={[
+                { label: "In", title: "First In", value: formatTime12h(row.first_in_time) },
+                { label: "Out", title: "Last Out", value: formatTime12h(row.last_out_time) },
+              ]}
+            />
+          )}
+        />
+        <Column header="Worked Hours" body={(row: DailyAttendanceGroup) => getWorkedHours(row.first_in_time, row.last_out_time)} style={{ width: "10%" }} />
+        <Column field="punch_count" header="Punch Count" sortable style={{ width: "9%" }} />
         <Column
           field="captured_image"
           header="Capture"
+          style={{ width: "11%" }}
           body={(row: DailyAttendanceGroup) => {
             const source = row.captured_image;
             return typeof source === "string" && source ? (

@@ -136,7 +136,7 @@ const createStaffQrPdf = async (staff: Staff): Promise<jsPDF> => {
     summaryY += 44;
   }
   const summary: Array<[string, unknown]> = [
-    ["Zigma ID", staff.unique_id ?? staff.staff_unique_id],
+    ["Unique ID", staff.unique_id ?? staff.staff_unique_id],
     ["Employee ID", staff.emp_id],
     ["Status", staff.active_status ? "Active" : "Inactive"],
     ["Contact", staff.contact_mobile],

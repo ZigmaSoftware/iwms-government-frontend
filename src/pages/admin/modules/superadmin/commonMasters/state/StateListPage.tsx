@@ -39,8 +39,8 @@ const BACKEND_ORDER_FIELD: Record<string, string> = {
 };
 
 const columns = [
-  { field: "state_name", header: "State Name" },
-  { field: "state_code", header: "State Code" },
+  { field: "state_name", header: "State Name", width: "45%" },
+  { field: "state_code", header: "State Code", width: "30%" },
 ];
 
 export default function StateListPage() {
@@ -199,21 +199,23 @@ export default function StateListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No State records found."
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
         {columns.map((column) => (
           <Column
             key={column.field}
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
+            style={{ width: column.width }}
             body={(row: StateListRecord) => displayValue(row[column.field])}
           />
         ))}
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "10%" }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: "9%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

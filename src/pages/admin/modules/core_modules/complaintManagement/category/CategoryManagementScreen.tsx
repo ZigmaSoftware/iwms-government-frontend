@@ -31,6 +31,13 @@ import { combineFilters, useStatusFilter } from "@/components/filters/useOptionF
  * back-compat and is exactly where "Add/Edit Subcategory" here still
  * navigates to.
  */
+const CATEGORY_COLUMN_WIDTHS: Record<string, string> = {
+  category_code: "15%",
+  category_name: "28%",
+  module_name: "20%",
+  default_priority_code: "13%",
+};
+
 export default function CategoryManagementScreen() {
   const navigate = useNavigate();
   const routes = getEncryptedRoute();
@@ -168,13 +175,21 @@ export default function CategoryManagementScreen() {
         emptyMessage="No categories found"
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
         {MASTER_CONFIG.category.columns.map((column) => (
-          <Column key={column.field} field={column.field} header={column.header} sortable={column.sortable} />
+          <Column
+            key={column.field}
+            field={column.field}
+            header={column.header}
+            sortable={column.sortable}
+            style={{ width: CATEGORY_COLUMN_WIDTHS[column.field] ?? "15%" }}
+            body={(row) => <span className="break-words">{row[column.field] ?? "-"}</span>}
+          />
         ))}
-        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+        <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "9%" }} />
         <Column
           header="Actions"
           body={(row) => (
@@ -187,7 +202,7 @@ export default function CategoryManagementScreen() {
               />
             </div>
           )}
-          style={{ width: "100px" }}
+          style={{ width: "9%" }}
         />
       </DataTable>
 
@@ -217,13 +232,20 @@ export default function CategoryManagementScreen() {
             emptyMessage="No subcategories found for this category"
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
-            <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-            <Column field="subcategory_code" header="Code" sortable />
-            <Column field="subcategory_name" header="Subcategory" sortable />
-            <Column field="default_priority_code" header="Default Priority" />
-            <Column header="Active" body={(row) => yesNo(row.is_active !== false)} />
+            <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
+            <Column field="subcategory_code" header="Code" sortable style={{ width: "20%" }} />
+            <Column
+              field="subcategory_name"
+              header="Subcategory"
+              sortable
+              style={{ width: "38%" }}
+              body={(row) => <span className="break-words">{row.subcategory_name}</span>}
+            />
+            <Column field="default_priority_code" header="Default Priority" style={{ width: "18%" }} />
+            <Column header="Active" body={(row) => yesNo(row.is_active !== false)} style={{ width: "9%" }} />
             <Column
               header="Actions"
               body={(row) => (
@@ -234,7 +256,7 @@ export default function CategoryManagementScreen() {
                   deleteLabel="Delete"
                 />
               )}
-              style={{ width: "100px" }}
+              style={{ width: "9%" }}
             />
           </DataTable>
         )}

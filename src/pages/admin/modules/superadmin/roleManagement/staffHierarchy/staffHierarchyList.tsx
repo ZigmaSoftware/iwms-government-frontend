@@ -175,7 +175,7 @@ export default function StaffHierarchyList() {
   };
 
   const roleTemplate = (row: StaffHierarchyRow) => (
-    <div>
+    <div className="break-words">
       <div>{row.governmentusertype_name ?? "—"}</div>
       {row.governmentusertype_level && (
         <div className="text-xs text-gray-500">{row.governmentusertype_level}</div>
@@ -185,7 +185,7 @@ export default function StaffHierarchyList() {
 
   const reportsToTemplate = (row: StaffHierarchyRow) =>
     row.reports_to_governmentusertype_name ? (
-      <div>
+      <div className="break-words">
         <div>{row.reports_to_governmentusertype_name}</div>
         {row.reports_to_governmentusertype_level && (
           <div className="text-xs text-gray-500">{row.reports_to_governmentusertype_level}</div>
@@ -197,7 +197,7 @@ export default function StaffHierarchyList() {
 
   const scopeTemplate = (row: StaffHierarchyRow) =>
     row.scope_label ? (
-      <div>
+      <div className="break-words">
         <div>{row.scope_label}</div>
         {row.scope_level && <div className="text-xs text-gray-500">{row.scope_level}</div>}
       </div>
@@ -270,45 +270,46 @@ export default function StaffHierarchyList() {
         onServerExport={onServerExport}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage={t("common.no_items_found", {
           item: t("admin.nav.staff_hierarchy"),
         })}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
         <Column
           field="scope_label"
           header={t("admin.staff_hierarchy.location")}
           body={scopeTemplate}
-          style={{ minWidth: 220 }}
+          style={{ width: "22%" }}
         />
         <Column
           field="governmentusertype_name"
           header={t("admin.staff_hierarchy.role")}
           body={roleTemplate}
-          style={{ minWidth: 180 }}
+          style={{ width: "18%" }}
         />
         <Column
           field="reports_to_governmentusertype_name"
           header={t("admin.staff_hierarchy.reports_to")}
           body={reportsToTemplate}
-          style={{ minWidth: 180 }}
+          style={{ width: "18%" }}
         />
         <Column
           field="hierarchy_level"
           header={t("admin.staff_hierarchy.level")}
           sortable
-          style={{ width: 120 }}
+          style={{ width: "8%" }}
         />
         <Column
           header={t("admin.staff_hierarchy.escalation")}
           body={(row: StaffHierarchyRow) =>
             t(row.escalation_enabled === false ? "admin.staff_hierarchy.escalation_no" : "admin.staff_hierarchy.escalation_yes")
           }
-          style={{ width: 160 }}
+          style={{ width: "10%" }}
         />
-        <Column header={t("common.status")} body={statusTemplate} style={{ width: 120 }} />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 150 }} />
+        <Column header={t("common.status")} body={statusTemplate} style={{ width: "9%" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "9%" }} />
       </DataTable>
     </div>
   );

@@ -13,6 +13,7 @@ import { Button } from "primereact/button";
 import { useTranslation } from "react-i18next";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { capitalize } from "@/utils/capitalize";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
@@ -114,7 +115,7 @@ const addressText = (
 };
 
 const staffExcelRow = (staff: Staff) => ({
-  "Zigma ID": staff.unique_id,
+  "Unique ID": staff.unique_id,
   "Staff Unique ID": staff.staff_unique_id,
   "Employee ID": staff.emp_id,
   "Employee Name": staff.employee_name,
@@ -537,74 +538,67 @@ export default function StaffCreationList() {
           })}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
 
           {showCol("unique_id") && (
             <Column
               field="unique_id"
               header={t("admin.staff_creation.zigma_id")}
               sortable={SORTABLE_FIELDS.has("staff_unique_id")}
-              body={(row: Staff) => capitalize(row.unique_id)}
-            />
-          )}
-
-          {showCol("employee_name") && (
-            <Column
-              field="employee_name"
-              header={t("admin.staff_creation.employee_name")}
-              sortable={SORTABLE_FIELDS.has("employee_name")}
-              body={(row: Staff) => capitalize(row.employee_name)}
+              style={{ width: "13%" }}
+              body={(row: Staff) => <span className="break-all">{capitalize(row.unique_id)}</span>}
             />
           )}
 
           <Column
-            field="emp_id"
-            header="Employee ID"
-            body={(row: Staff) => capitalize(String(row.emp_id ?? "")) || "-"}
+            field="employee_name"
+            header={t("admin.staff_creation.employee_name")}
+            sortable={showCol("employee_name") && SORTABLE_FIELDS.has("employee_name")}
+            style={{ width: "27%" }}
+            body={(row: Staff) => (
+              <StackCell
+                primary={showCol("employee_name") && capitalize(row.employee_name)}
+                lines={[
+                  { label: "Employee ID", value: capitalize(String(row.emp_id ?? "")) },
+                  showCol("contact_mobile") && {
+                    icon: "pi-phone",
+                    title: t("admin.staff_creation.contact"),
+                    value: row.contact_mobile,
+                  },
+                  showCol("doj") && { label: t("admin.staff_creation.doj"), value: row.doj },
+                ]}
+              />
+            )}
           />
 
           <Column
             field="user_type_name"
             header="Staff Type"
-            body={(row: Staff) => capitalize(staffTypeName(row)) || "-"}
+            style={{ width: "25%" }}
+            body={(row: Staff) => {
+              const govUserType = humanizeGovUserType(governmentStaffTypeName(row));
+              return (
+                <StackCell
+                  primary={capitalize(staffTypeName(row))}
+                  lines={[
+                    govUserType && {
+                      label: t("admin.staff_creation.government_user_type"),
+                      value: govUserType,
+                    },
+                  ]}
+                />
+              );
+            }}
           />
-
-          <Column
-            field="governmentusertype_name"
-            header="Government Staff Type"
-            body={(row: Staff) => governmentStaffTypeName(row) || "-"}
-          />
-
-
-          {showCol("governmentusertype_id") && (
-            <Column
-              field="governmentusertype_name"
-              header={t("admin.staff_creation.government_user_type")}
-              body={(row: Staff) => humanizeGovUserType(governmentStaffTypeName(row)) || "-"}
-            />
-          )}
-
-          {showCol("doj") && (
-            <Column
-              field="doj"
-              header={t("admin.staff_creation.doj")}
-            />
-          )}
-
-          {showCol("contact_mobile") && (
-            <Column
-              header={t("admin.staff_creation.contact")}
-              body={(row: Staff) => row.contact_mobile || "-"}
-            />
-          )}
 
           {showCol("active_status") && (
             <Column
               header={t("common.status")}
               body={statusTemplate}
-              style={{ width: 120 }}
+              style={{ width: "10%" }}
             />
           )}
 
@@ -612,14 +606,14 @@ export default function StaffCreationList() {
             <Column
               header={t("admin.staff_creation.qr_label")}
               body={qrTemplate}
-              style={{ width: 120 }}
+              style={{ width: "10%" }}
             />
           )}
 
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: 140 }}
+            style={{ width: "10%" }}
           />
         </DataTable>
       </div>

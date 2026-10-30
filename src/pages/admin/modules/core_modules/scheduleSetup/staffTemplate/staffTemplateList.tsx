@@ -250,17 +250,19 @@ export default function StaffTemplateList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.staff_template.empty_message")}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
 
         {showCol("unique_id") && (
           <Column
             field="unique_id"
             header={t("admin.staff_template.columns.template_id")}
-            body={(r: StaffTemplate) => r.display_code ?? r.unique_id}
+            body={(r: StaffTemplate) => <span className="break-all">{r.display_code ?? r.unique_id}</span>}
             sortable
+            style={{ width: "20%" }}
           />
         )}
 
@@ -268,7 +270,8 @@ export default function StaffTemplateList() {
           <Column
             field="driver_name"
             header={t("admin.staff_template.columns.primary_driver")}
-            body={(r: StaffTemplate) => r.driver_name}
+            body={(r: StaffTemplate) => <span className="break-words">{r.driver_name}</span>}
+            style={{ width: "22%" }}
           />
         )}
 
@@ -276,7 +279,8 @@ export default function StaffTemplateList() {
           <Column
             field="operator_name"
             header={t("admin.staff_template.columns.primary_operator")}
-            body={(r: StaffTemplate) => r.operator_name}
+            body={(r: StaffTemplate) => <span className="break-words">{r.operator_name}</span>}
+            style={{ width: "22%" }}
           />
         )}
 
@@ -284,7 +288,7 @@ export default function StaffTemplateList() {
           <Column
             header={t("admin.staff_template.columns.extra_staff")}
             body={(r: StaffTemplate) => r.extra_operator_id?.length ?? 0}
-            style={{ width: 130 }}
+            style={{ width: "10%" }}
           />
         )}
 
@@ -292,14 +296,14 @@ export default function StaffTemplateList() {
           <Column
             header={t("common.status")}
             body={statusBodyTemplate}
-            style={{ width: 120 }}
+            style={{ width: "10%" }}
           />
         )}
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: 120 }}
+          style={{ width: "10%" }}
         />
       </DataTable>
     </div>

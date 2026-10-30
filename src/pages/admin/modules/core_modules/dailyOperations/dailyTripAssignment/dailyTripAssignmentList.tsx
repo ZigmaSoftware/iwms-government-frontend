@@ -24,6 +24,7 @@ import { exportRecordsToExcel, getAdminScreenExcelFilename } from "@/utils/expor
 import { drawQrCode } from "@/utils/exportPdf";
 import { ListPageHeader } from "@/components/common/ListPageHeader";
 import { FilterBar } from "@/components/common/FilterBar";
+import { StackCell } from "@/components/common/TableCells";
 import { Can } from "@/contexts/ScreenPermissionContext";
 import { confirmDeleteWithReason, withDeleteReason } from "@/utils/deleteReason";
 const COLLECTION_TYPE_FILTER_LABELS: Record<"all" | Exclude<CollectionTypeKey, "unknown">, string> = {
@@ -920,54 +921,60 @@ export default function DailyTripAssignmentList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No trip assignments found."
       >
-        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="unique_id" header="ID" style={{ minWidth: 160 }} />
+        <Column header={t("common.s_no")} body={(_: any, { rowIndex }: any) => rowIndex + 1} style={{ width: "4%" }} />
         <Column
-          field="_trip_plan"
-          header="Trip Plan"
-          body={(row: DailyTripAssignmentRecord) => row.trip_plan?.display_code ?? row.trip_plan_id ?? "—"}
+          field="trip_date"
+          header="Trip"
+          sortable={SORTABLE_FIELDS.has("trip_date")}
+          style={{ width: "17%" }}
+          body={(row: DailyTripAssignmentRecord) => (
+            <StackCell
+              primary={row.unique_id}
+              lines={[
+                { label: "Trip Plan", value: row.trip_plan?.display_code ?? row.trip_plan_id },
+                { icon: "pi-calendar", title: "Trip Date", value: row.trip_date },
+                { label: "Trip #", value: String(row.trip_count ?? 1) },
+                row.breakdown_info && { label: "Breakdown", value: <BreakdownCell row={row} /> },
+                row.retrip_info && { label: "Re-Trip", value: <RetripCell retrip={row.retrip_info} /> },
+              ]}
+            />
+          )}
         />
         <Column
           field="_staff"
-          header="Effective Staff"
-          body={(row: DailyTripAssignmentRecord) =>
-            row.effective_staff?.display_code
-              ? <span className="font-medium text-amber-700">{row.effective_staff.display_code}</span>
-              : (row.staff_template?.display_code ?? row.staff_template_id ?? "—")
-          }
-        />
-        <Column
-          field="_staff_names"
-          header="Operator / Driver"
+          header="Crew"
+          style={{ width: "15%" }}
           body={(row: DailyTripAssignmentRecord) => {
             const staff = row.effective_staff ?? row.staff_template;
             return (
-              <span className="text-sm text-gray-800">
-                <div>Operator: {staff?.operator ?? "—"}</div>
-                <div>Driver: {staff?.driver ?? "—"}</div>
-              </span>
+              <StackCell
+                primary={
+                  row.effective_staff?.display_code
+                    ? <span className="font-medium text-amber-700">{row.effective_staff.display_code}</span>
+                    : (row.staff_template?.display_code ?? row.staff_template_id)
+                }
+                lines={[
+                  { label: "Operator", value: staff?.operator },
+                  { label: "Driver", value: staff?.driver },
+                  { icon: "pi-truck", title: "Vehicle", value: row.vehicle?.vehicle_no },
+                ]}
+              />
             );
           }}
-          style={{ minWidth: 170 }}
-        />
-        <Column
-          field="_vehicle"
-          header="Vehicle"
-          body={(row: DailyTripAssignmentRecord) => row.vehicle?.vehicle_no ?? "—"}
-          style={{ minWidth: 120 }}
         />
         <Column
           field="_location"
           header="Location"
-          style={{ minWidth: 170 }}
+          style={{ width: "13%" }}
           body={(row: DailyTripAssignmentRecord) => {
             const info = locationInfo(row);
             if (!info) return <span className="text-sm text-gray-400">—</span>;
             return (
-              <span className="text-sm text-gray-800">
+              <span className="break-words text-sm text-gray-800">
                 {info.name}
                 <span className="ml-1 text-xs text-indigo-500 font-medium">({info.tag})</span>
               </span>
@@ -977,70 +984,38 @@ export default function DailyTripAssignmentList() {
         <Column
           field="_collection_type_label"
           header="Collection Type"
-          body={(row: DailyTripAssignmentRecord) => <CollectionTypeBadge rec={row} />}
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="_collection_point_count"
-          header="Collection Points"
-          body={(row: DailyTripAssignmentRecord) => getPointCount(row)}
-          style={{ width: 150 }}
-        />
-        <Column
-          field="trip_date"
-          header="Trip Date"
-          sortable={SORTABLE_FIELDS.has("trip_date")}
-          style={{ minWidth: 110 }}
+          style={{ width: "13%" }}
+          body={(row: DailyTripAssignmentRecord) => (
+            <StackCell
+              primary={<CollectionTypeBadge rec={row} />}
+              lines={[{ label: "Collection Points", value: String(getPointCount(row)) }]}
+            />
+          )}
         />
         <Column
           field="scheduled_time"
-          header="Start Time"
-          body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.scheduled_time)}
+          header="Time"
           sortable={SORTABLE_FIELDS.has("scheduled_time")}
-          style={{ minWidth: 110 }}
+          style={{ width: "14%" }}
+          body={(row: DailyTripAssignmentRecord) => (
+            <StackCell
+              primary={formatTime12Hour(row.scheduled_time)}
+              lines={[
+                { icon: "pi-play", title: "Actual Start", value: formatTime12Hour(row.actual_start_time ?? undefined) },
+                { icon: "pi-stop", title: "Actual End", value: formatTime12Hour(row.actual_end_time ?? undefined) },
+                { icon: "pi-clock", title: "Trip Time", value: formatDuration(row.total_trip_time_seconds) },
+              ]}
+            />
+          )}
         />
         <Column
           field="status"
           header="Status"
           body={statusTemplate}
           sortable={SORTABLE_FIELDS.has("status")}
-          style={{ minWidth: 160 }}
+          style={{ width: "15%" }}
         />
-        <Column
-          field="actual_start_time"
-          header="Actual Start"
-          body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.actual_start_time ?? undefined)}
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="actual_end_time"
-          header="Actual End"
-          body={(row: DailyTripAssignmentRecord) => formatTime12Hour(row.actual_end_time ?? undefined)}
-          style={{ minWidth: 110 }}
-        />
-        <Column
-          field="_trip_time"
-          header="Trip Time"
-          body={(row: DailyTripAssignmentRecord) => formatDuration(row.total_trip_time_seconds)}
-          style={{ minWidth: 100 }}
-        />
-        <Column
-          field="trip_count"
-          header="Trip #"
-          body={(row: DailyTripAssignmentRecord) => row.trip_count ?? 1}
-          style={{ width: 80 }}
-        />
-        <Column
-          header="Breakdown"
-          body={(row: DailyTripAssignmentRecord) => <BreakdownCell row={row} />}
-          style={{ minWidth: 180 }}
-        />
-        <Column
-          header="Re-Trip"
-          body={(row: DailyTripAssignmentRecord) => <RetripCell retrip={row.retrip_info} />}
-          style={{ minWidth: 150 }}
-        />
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: 80 }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "9%" }} />
       </DataTable>
     </div>
   );

@@ -117,13 +117,20 @@ export default function UnassignedStaffPoolList() {
             className="mb-4"
           />
         }
+        fitWidth
       >
-        <Column field="operator_name" header="Operator" />
-        <Column field="driver_name" header="Driver" />
-        <Column field="daily_trip_assignment_name" header="Daily Trip Assignment" />
-        <Column field="status" header="Status" />
+        <Column field="operator_name" header="Operator" style={{ width: "24%" }} />
+        <Column field="driver_name" header="Driver" style={{ width: "24%" }} />
+        <Column
+          field="daily_trip_assignment_name"
+          header="Daily Trip Assignment"
+          style={{ width: "32%" }}
+          body={(row: Row) => <span className="break-words">{row.daily_trip_assignment_name}</span>}
+        />
+        <Column field="status" header="Status" style={{ width: "11%" }} />
         <Column
           header="Action"
+          style={{ width: "9%" }}
           body={(row: Row) => (
             <RowActionsMenu
               onEdit={() => navigate(editPath(row.unique_id))}

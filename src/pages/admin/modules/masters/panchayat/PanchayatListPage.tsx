@@ -200,22 +200,24 @@ export default function PanchayatListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No Panchayat records found."
         onServerExport={onServerExport}
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
         {columns.map((column) => (
           <Column
             key={column.field}
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
-            body={(row: PanchayatListRecord) => displayValue(row[column.field])}
+            style={{ width: `${73 / columns.length}%` }}
+            body={(row: PanchayatListRecord) => <span className="break-words">{displayValue(row[column.field])}</span>}
           />
         ))}
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "11%" }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: "10%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

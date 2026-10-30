@@ -233,31 +233,32 @@ export default function UserScreenActionList() {
           })}
           stripedRows
           showGridlines
+          fitWidth
           onServerExport={onServerExport}
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
           <Column
             field="action_name"
             header={t("common.action_name")}
             sortable={SORTABLE_FIELDS.has("action_name")}
-            style={{ minWidth: "200px" }}
+            style={{ width: "37%" }}
           />
           <Column
             field="variable_name"
             header={t("common.variable_name")}
             sortable={SORTABLE_FIELDS.has("variable_name")}
-            style={{ minWidth: "200px" }}
+            style={{ width: "36%" }}
           />
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "11%" }}
           />
           <Column
             header={t("common.actions")}
             body={actionButtonsTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "10%" }}
           />
         </DataTable>
 
