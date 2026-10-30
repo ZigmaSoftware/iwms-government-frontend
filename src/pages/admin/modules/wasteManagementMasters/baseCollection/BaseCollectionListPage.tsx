@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "@/helpers/admin/registry";
 
 import { DataTable } from "@/components/common/SafeDataTable";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { FilterMatchMode } from "primereact/api";
@@ -293,31 +295,44 @@ export default function BaseCollectionListPage({ scope }: Props) {
           emptyMessage={`No ${scopeLabel.toLowerCase()} collection records found.`}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
         >
           <Column
             header="S.No"
             body={indexTemplate}
-            style={{ width: "80px" }}
+            style={{ width: "6%" }}
           />
 
           <Column
             field="collection_dates"
             header="Date"
             sortable
-            body={(row: SummaryRow) =>
-              row.collection_dates.length
-                ? [...row.collection_dates].sort().reverse().join(", ")
-                : "-"
-            }
+            style={{ width: "30%" }}
+            body={(row: SummaryRow) => (
+              <span className="break-words">
+                {row.collection_dates.length
+                  ? [...row.collection_dates].sort().reverse().join(", ")
+                  : "-"}
+              </span>
+            )}
           />
 
-          <Column field="name" header={scopeLabel} sortable />
+          <Column
+            field="name"
+            header={scopeLabel}
+            sortable
+            style={{ width: "20%" }}
+            body={(row: SummaryRow) => (
+              <span className="break-words">{row.name}</span>
+            )}
+          />
           {isWard && (
             <Column
               field="zone_name"
               header="Zone"
               sortable
+              style={{ width: "14%" }}
               body={(row: SummaryRow) => capitalize(row.zone_name)}
             />
           )}
@@ -325,18 +340,18 @@ export default function BaseCollectionListPage({ scope }: Props) {
             field="count"
             header="Records"
             sortable
-            style={{ width: "120px" }}
+            style={{ width: "10%" }}
           />
           <Column
             field="total_weight"
             header="Total Weight"
             sortable
             body={(row: SummaryRow) => row.total_weight.toFixed(2)}
-            style={{ width: "150px" }}
+            style={{ width: "12%" }}
           />
           <Column
             header="Actions"
-            style={{ textAlign: "center", width: "100px" }}
+            style={{ textAlign: "center", width: "8%" }}
             body={(row: SummaryRow) =>
               viewActionTemplate(() => drillToRecords(row))
             }
@@ -367,33 +382,36 @@ export default function BaseCollectionListPage({ scope }: Props) {
             emptyMessage={`No records found for this ${scopeLabel.toLowerCase()}.`}
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
           >
             <Column
               header="S.No"
               body={indexTemplate}
-              style={{ width: "80px" }}
+              style={{ width: "6%" }}
             />
-            <Column
-              field={locationField}
-              header={scopeLabel}
-              sortable
-              body={(row: CollectionRecord) =>
-                normalizeText(row[locationField])
-              }
-            />
-            {isWard && (
-              <Column
-                field="zone_name"
-                header="Zone"
-                sortable
-                body={(row: CollectionRecord) => capitalize(row.zone_name)}
-              />
-            )}
+            {locationColumn<CollectionRecord>({
+              header: "Location",
+              field: locationField,
+              sortable: true,
+              sortField: locationField,
+              style: { width: "20%" },
+              levels: [
+                {
+                  label: scopeLabel,
+                  value: (row) => normalizeText(row[locationField]),
+                },
+                isWard && {
+                  label: "Zone",
+                  value: (row) => capitalize(row.zone_name),
+                },
+              ],
+            })}
             <Column
               field="collection_date"
               header="Date"
               sortable
+              style={{ width: "11%" }}
               body={(row: CollectionRecord) =>
                 normalizeText(row.collection_date)
               }
@@ -402,47 +420,62 @@ export default function BaseCollectionListPage({ scope }: Props) {
               field="wastetype_name"
               header="Waste Type"
               sortable
-              body={(row: CollectionRecord) =>
-                normalizeText(row.wastetype_name)
-              }
+              style={{ width: "13%" }}
+              body={(row: CollectionRecord) => (
+                <span className="break-words">
+                  {normalizeText(row.wastetype_name)}
+                </span>
+              )}
             />
             <Column
               field={weightField}
               header="Weight"
               sortable
+              style={{ width: "10%" }}
               body={(row: CollectionRecord) =>
                 getRecordWeight(row, scope).toFixed(2)
               }
             />
             <Column
-              field="bin_name"
-              header="Bin"
-              sortable
-              body={(row: CollectionRecord) => normalizeText(row.bin_name)}
-            />
-            <Column
               field="collection_point_name"
-              header="Collection Point"
+              header="Collection Point / Bin"
               sortable
-              body={(row: CollectionRecord) =>
-                normalizeText(row.collection_point_name)
-              }
+              sortField="collection_point_name"
+              style={{ width: "20%" }}
+              body={(row: CollectionRecord) => (
+                <StackCell
+                  primary={normalizeText(row.collection_point_name)}
+                  lines={[
+                    {
+                      icon: "pi-trash",
+                      title: "Bin",
+                      label: "Bin",
+                      value: normalizeText(row.bin_name),
+                    },
+                  ]}
+                />
+              )}
             />
             <Column
               field="trip_id"
               header="Trip"
               sortable
-              body={(row: CollectionRecord) => normalizeText(row.trip_id)}
+              style={{ width: "10%" }}
+              body={(row: CollectionRecord) => (
+                <span className="break-words">{normalizeText(row.trip_id)}</span>
+              )}
             />
             <Column
-              field="latitude"
-              header="Latitude"
-              body={(row: CollectionRecord) => normalizeText(row.latitude)}
-            />
-            <Column
-              field="longitude"
-              header="Longitude"
-              body={(row: CollectionRecord) => normalizeText(row.longitude)}
+              header="Coordinates"
+              style={{ width: "10%" }}
+              body={(row: CollectionRecord) => (
+                <StackCell
+                  lines={[
+                    { label: "Lat", value: normalizeText(row.latitude) },
+                    { label: "Lng", value: normalizeText(row.longitude) },
+                  ]}
+                />
+              )}
             />
           </DataTable>
           {backButton}

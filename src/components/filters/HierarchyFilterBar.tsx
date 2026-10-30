@@ -31,7 +31,9 @@ interface HierarchyFilterBarProps {
    * to `readAll({ params })`. The backend (`filter_flat_geo_queryset_by_params`)
    * already honours these keys.
    */
-  onChange: (params: HierarchyFilterParams) => void;
+  /** `scoped`: every selected level is pinned by the user's own data scope
+   *  (the load-time pre-seed), as opposed to a pick the user made. */
+  onChange: (params: HierarchyFilterParams, scoped: boolean) => void;
   className?: string;
   /** Show the inline "Clear" link next to the Local Body field. Defaults to true. */
   showClear?: boolean;
@@ -98,7 +100,12 @@ const HierarchyFilterBar = forwardRef<HierarchyFilterBarHandle, HierarchyFilterB
     Object.entries(payload).forEach(([key, value]) => {
       if (value) params[key] = String(value);
     });
-    onChange(params);
+    const scoped =
+      (!geo.stateId || stateScope.mode === "locked") &&
+      (!geo.districtId || districtScope.mode === "locked") &&
+      (!geo.areaTypeId || areaTypeScope.mode === "locked") &&
+      (!geo.hierarchyId || Boolean(lockedLocalBody));
+    onChange(params, scoped);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo.stateId, geo.districtId, geo.areaTypeId, geo.hierarchyLevel, geo.hierarchyId]);
 

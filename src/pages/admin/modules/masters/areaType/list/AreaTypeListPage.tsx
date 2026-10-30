@@ -93,20 +93,22 @@ export default function AreaTypeListPage() {
         showGridlines
         emptyMessage="No Area Type records found."
         onExportRequest={onExportRequest}
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
         {LIST_COLUMNS.map((column) => (
           <Column
             key={column.field}
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
+            style={{ width: "25%" }}
             body={(row: AreaTypeListRecord) => areaTypeColumnBody(row, column.field)}
           />
         ))}
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "10%" }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: "9%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

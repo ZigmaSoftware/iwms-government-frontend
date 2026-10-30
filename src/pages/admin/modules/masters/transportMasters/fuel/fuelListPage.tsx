@@ -240,13 +240,14 @@ export default function FuelList() {
         emptyMessage={t("admin.fuel.empty_message")}
         stripedRows
         showGridlines
+        fitWidth
         onServerExport={onServerExport}
         className="p-datatable-sm"
       >
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "6%" }}
         />
 
         {showCol("fuel_type") && (
@@ -255,7 +256,7 @@ export default function FuelList() {
             header={t("admin.fuel.fuel_type")}
             sortable={SORTABLE_FIELDS.has("fuel_type")}
             body={(row: Fuel) => capitalize(row.fuel_type)}
-            style={{ minWidth: "200px" }}
+            style={{ width: "30%" }}
           />
         )}
 
@@ -263,8 +264,8 @@ export default function FuelList() {
           <Column
             field="description"
             header={t("common.description")}
-            body={(row: Fuel) => row.description || "-"}
-            style={{ minWidth: "250px" }}
+            body={(row: Fuel) => <span className="break-words">{row.description || "-"}</span>}
+            style={{ width: "45%" }}
           />
         )}
 
@@ -273,14 +274,14 @@ export default function FuelList() {
             field="is_active"
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "150px" }}
+            style={{ width: "10%" }}
           />
         )}
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px" }}
+          style={{ width: "9%" }}
         />
       </DataTable>
     </div>

@@ -194,6 +194,7 @@ export default function CustomerAccessConfigList() {
           loading={loading}
           dataKey="unique_id"
           stripedRows
+          fitWidth
           paginator
           rows={10}
           filters={filters}
@@ -207,20 +208,30 @@ export default function CustomerAccessConfigList() {
             />
           }
         >
-          <Column field="customer_name" header="Customer" />
+          <Column
+            field="customer_name"
+            header="Customer"
+            style={{ width: "34%" }}
+            body={(row: CustomerOption) => (
+              <span className="break-words">{row.customer_name}</span>
+            )}
+          />
           <Column
             field="contact_no"
             header="Contact"
-            style={{ width: "11rem" }}
+            style={{ width: "17%" }}
           />
           <Column
             field="username"
             header="Username"
-            style={{ width: "11rem" }}
+            style={{ width: "17%" }}
+            body={(row: CustomerOption) => (
+              <span className="break-words">{row.username}</span>
+            )}
           />
           <Column
             header="App access"
-            style={{ width: "12rem" }}
+            style={{ width: "18%" }}
             body={(row: CustomerOption) =>
               row.has_access_configuration ? (
                 <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
@@ -235,7 +246,7 @@ export default function CustomerAccessConfigList() {
           />
           <Column
             header=""
-            style={{ width: "8rem" }}
+            style={{ width: "14%" }}
             body={(row: CustomerOption) => (
               <Button
                 label="Configure"

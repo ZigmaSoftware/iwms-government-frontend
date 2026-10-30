@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
@@ -284,81 +286,81 @@ export default function CollectionPointListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("common.no_items_found", { item: t("admin.nav.collection_point") })}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
         {showCol("cp_name") && (
           <Column
             field="cp_name"
             header={t("admin.nav.collection_point")}
             sortable={SORTABLE_FIELDS.has("cp_name")}
-            body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.cp_name ?? row.collection_point_name))}
+            style={{ width: "25%" }}
+            body={(row: CollectionPointRecord) => (
+              <span className="break-words">
+                {capitalize(toOptionalString(row.cp_name ?? row.collection_point_name))}
+              </span>
+            )}
           />
         )}
-        {showCol("state_name") && (
+        {locationColumn<CollectionPointRecord>({
+          header: t("common.location"),
+          style: { width: "35%" },
+          levels: [
+            showCol("state_name") && {
+              label: t("common.state"),
+              value: (row) => capitalize(toOptionalString(row.state_name)),
+            },
+            showCol("district_name") && {
+              label: t("common.district"),
+              value: (row) => capitalize(toOptionalString(row.district_name)),
+            },
+            showCol("ulb_name") && {
+              label: "ULB",
+              value: (row) =>
+                row._ulb_name ? (
+                  <span>
+                    {capitalize(String(row._ulb_name))}{" "}
+                    <span className="text-xs text-gray-400">({String(row._ulb_level)})</span>
+                  </span>
+                ) : null,
+            },
+            showCol("rlb_name") && {
+              label: "RLB",
+              value: (row) =>
+                row._rlb_name ? (
+                  <span>
+                    {capitalize(String(row._rlb_name))}{" "}
+                    <span className="text-xs text-gray-400">({String(row._rlb_level)})</span>
+                  </span>
+                ) : null,
+            },
+            showCol("ward_names") && {
+              label: "Wards",
+              value: (row) => toDisplay(row._ward_names),
+            },
+          ],
+        })}
+        {(showCol("latitude") || showCol("longitude")) && (
           <Column
-            field="state_name"
-            header={t("common.state")}
-            body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.state_name))}
+            field="latitude"
+            header="Coordinates"
+            style={{ width: "17%" }}
+            body={(row: CollectionPointRecord) => (
+              <StackCell
+                lines={[
+                  showCol("latitude") && { label: "Lat", value: toDisplay(row.latitude) },
+                  showCol("longitude") && { label: "Long", value: toDisplay(row.longitude) },
+                ]}
+              />
+            )}
           />
-        )}
-        {showCol("district_name") && (
-          <Column
-            field="district_name"
-            header={t("common.district")}
-            body={(row: CollectionPointRecord) => capitalize(toOptionalString(row.district_name))}
-          />
-        )}
-        {showCol("ulb_name") && (
-          <Column
-            field="_ulb_name"
-            header="ULB"
-            body={(row: CollectionPointRecord) =>
-              row._ulb_name ? (
-                <span>
-                  {capitalize(String(row._ulb_name))}{" "}
-                  <span className="text-xs text-gray-400">({String(row._ulb_level)})</span>
-                </span>
-              ) : (
-                "-"
-              )
-            }
-          />
-        )}
-        {showCol("rlb_name") && (
-          <Column
-            field="_rlb_name"
-            header="RLB"
-            body={(row: CollectionPointRecord) =>
-              row._rlb_name ? (
-                <span>
-                  {capitalize(String(row._rlb_name))}{" "}
-                  <span className="text-xs text-gray-400">({String(row._rlb_level)})</span>
-                </span>
-              ) : (
-                "-"
-              )
-            }
-          />
-        )}
-        {showCol("ward_names") && (
-          <Column
-            field="_ward_names"
-            header="Wards"
-            body={(row: CollectionPointRecord) => toDisplay(row._ward_names)}
-          />
-        )}
-        {showCol("latitude") && (
-          <Column field="latitude" header="Latitude" body={(row: CollectionPointRecord) => toDisplay(row.latitude)} />
-        )}
-        {showCol("longitude") && (
-          <Column field="longitude" header="Longitude" body={(row: CollectionPointRecord) => toDisplay(row.longitude)} />
         )}
         {showCol("is_active") && (
-          <Column header={t("common.status")} body={statusTemplate} style={{ width: "140px" }} />
+          <Column header={t("common.status")} body={statusTemplate} style={{ width: "10%" }} />
         )}
-        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "150px", textAlign: "center" }} />
+        <Column header={t("common.actions")} body={actionTemplate} style={{ width: "8%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

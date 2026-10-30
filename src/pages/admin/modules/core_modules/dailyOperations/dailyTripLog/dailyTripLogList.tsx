@@ -1155,11 +1155,8 @@ export default function DailyTripLogList() {
           stripedRows
           showGridlines
           emptyMessage="No trip logs found."
-          tableStyle={{ tableLayout: "fixed", width: "100%", maxWidth: "100%" }}
-          // The columns already fit the width (fixed layout, wrapping cells);
-          // only the gridline borders poke a few px past it, which was enough
-          // to show a horizontal scrollbar.
-          className="p-datatable-sm [&_.p-datatable-wrapper]:overflow-x-hidden!"
+          fitWidth
+          className="p-datatable-sm"
         >
           <Column
             header={t("common.s_no")}
@@ -1201,7 +1198,7 @@ export default function DailyTripLogList() {
                       .join(" · ")}
                   </p>
                   {row._ward ? (
-                    <p className="truncate text-[11px] text-indigo-500" title={row._ward}>
+                    <p className="break-words text-[11px] text-indigo-500" title={row._ward}>
                       Ward: {row._ward}
                     </p>
                   ) : null}
@@ -1215,7 +1212,7 @@ export default function DailyTripLogList() {
             style={{ width: "14%" }}
             body={(row: EnrichedTripLog) => (
               <div className="min-w-0 space-y-0.5 text-xs">
-                <p className="truncate font-semibold text-gray-800">
+                <p className="break-words font-semibold text-gray-800">
                   {row._base_template || "-"}
                   {row._alt_template ? (
                     <span className="ml-1 font-medium text-orange-600" title="Alternative (substitute) template">
@@ -1224,7 +1221,7 @@ export default function DailyTripLogList() {
                   ) : null}
                 </p>
                 <p
-                  className="truncate text-gray-600"
+                  className="break-words text-gray-600"
                   title={`Driver: ${row._driver || "-"} · Operator: ${row._operator || "-"}`}
                 >
                   <i className="pi pi-user mr-1 text-[10px] text-gray-400" />
@@ -1233,7 +1230,7 @@ export default function DailyTripLogList() {
                   {row._operator || "-"}
                 </p>
                 {row._vehicle ? (
-                  <p className="truncate font-mono text-[10px] font-semibold text-gray-500">{row._vehicle}</p>
+                  <p className="break-words font-mono text-[10px] font-semibold text-gray-500">{row._vehicle}</p>
                 ) : null}
               </div>
             )}

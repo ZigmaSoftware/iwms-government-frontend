@@ -51,10 +51,10 @@ export function useHierarchyFilter(onAppliedChange?: () => void) {
           setAppliedLabels(next);
         }
       }}
-      onChange={(params) => {
+      onChange={(params, scoped) => {
         setDraft(params);
-        if (!seeded.current && Object.keys(params).length) {
-          // first emission = data-scope pre-seed: the list opens narrowed
+        if (!seeded.current && scoped && Object.keys(params).length) {
+          // data-scope pre-seed: the list opens narrowed; user picks wait for Apply
           setApplied(params);
         }
         if (applyNext.current) {

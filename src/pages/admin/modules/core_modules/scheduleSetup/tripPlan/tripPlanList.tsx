@@ -11,6 +11,7 @@ import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primerea
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Switch } from "@/components/ui/switch";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
 import { tripPlanApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { normalizeList } from "@/utils/forms";
@@ -227,20 +228,52 @@ export default function TripPlanList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No trip plans found"
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 70 }} />
-        <Column field="display_code" header="Plan Code" sortable={SORTABLE_FIELDS.has("display_code")} />
-        <Column field="_location" header="Location" />
-        <Column field="_collection_type" header="Collection Type" />
-        <Column field="_staff" header="Staff Template" />
-        <Column field="_vehicle" header="Vehicle" />
-        <Column field="_waste_type" header="Waste Type" />
-        <Column field="scheduled_time" header="Time" body={(row: TripPlanRecord) => formatTime12Hour(row.scheduled_time)} />
-        <Column field="approval_status" header="Approval" sortable={SORTABLE_FIELDS.has("approval_status")} />
-        <Column header="Status" body={statusBody} style={{ width: 120 }} />
-        <Column header={t("common.actions")} style={{ width: 120 }} body={(row: TripPlanRecord) => (
+        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "5%" }} />
+        <Column
+          field="display_code"
+          header="Plan Code"
+          sortable={SORTABLE_FIELDS.has("display_code")}
+          style={{ width: "19%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row.display_code}
+              lines={[
+                { title: "Collection Type", value: row._collection_type },
+                { icon: "pi-clock", title: "Time", value: formatTime12Hour(row.scheduled_time) },
+              ]}
+            />
+          )}
+        />
+        <Column
+          field="_location"
+          header="Location"
+          style={{ width: "16%" }}
+          body={(row: (typeof rows)[number]) => <span className="break-words">{row._location}</span>}
+        />
+        <Column
+          field="_staff"
+          header="Staff Template / Vehicle"
+          style={{ width: "21%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._staff}
+              lines={[{ icon: "pi-truck", title: "Vehicle", value: row._vehicle }]}
+            />
+          )}
+        />
+        <Column
+          field="_waste_type"
+          header="Waste Type"
+          style={{ width: "14%" }}
+          body={(row: (typeof rows)[number]) => <span className="break-words">{row._waste_type}</span>}
+        />
+        <Column field="approval_status" header="Approval" sortable={SORTABLE_FIELDS.has("approval_status")} style={{ width: "10%" }} />
+        <Column header="Status" body={statusBody} style={{ width: "9%" }} />
+        <Column header={t("common.actions")} style={{ width: "6%" }} body={(row: TripPlanRecord) => (
           <RowActionsMenu
             onEdit={() => navigate(editPath(row.unique_id), { state: { record: row } })}
             onDelete={() => void handleDelete(row.unique_id)}

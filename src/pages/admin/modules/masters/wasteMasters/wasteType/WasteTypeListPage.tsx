@@ -238,6 +238,7 @@ export default function WasteTypeListPage() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         onServerExport={onServerExport}
         emptyMessage={t("common.no_items_found", {
@@ -247,7 +248,7 @@ export default function WasteTypeListPage() {
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "8%" }}
         />
         {/* <Column
           field="unique_id"
@@ -260,6 +261,7 @@ export default function WasteTypeListPage() {
             field="waste_type_name"
             header={t("common.item_name", { item: t("common.waste_type") })}
             sortable
+            style={{ width: "70%" }}
             body={(row: WasteTypeListRecord) => capitalize(row.waste_type_name)}
           />
         )}
@@ -267,13 +269,13 @@ export default function WasteTypeListPage() {
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "140px" }}
+            style={{ width: "12%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "10%", textAlign: "center" }}
         />
       </DataTable>
     </div>

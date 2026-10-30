@@ -18,6 +18,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Column } from "primereact/column";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -909,156 +911,150 @@ export default function CommonAuditList() {
             loading={loading}
             stripedRows
             showGridlines
+            fitWidth
             className="p-datatable-sm"
             emptyMessage={t("admin.common_audit.empty_message")}
           >
             <Column
               header={t("common.s_no")}
               body={(_, { rowIndex }) => rowIndex + 1}
-              style={{ width: 70 }}
+              style={{ width: "5%" }}
             />
             <Column
               field="module_name"
               header={t("admin.common_audit.module_name")}
               sortable
-            />
-            <Column
-              field="endpoint_name"
-              header={t("admin.common_audit.endpoint_name")}
+              style={{ width: "19%" }}
+              body={(r: CommonAuditRecord) => (
+                <StackCell
+                  primary={r.module_name}
+                  lines={[
+                    {
+                      icon: "pi-link",
+                      title: t("admin.common_audit.endpoint_name"),
+                      value: r.endpoint_name,
+                    },
+                    {
+                      label: t("admin.common_audit.object_id"),
+                      value: r.object_id,
+                    },
+                  ]}
+                />
+              )}
             />
             <Column
               field="method"
               header={t("admin.common_audit.method")}
               body={methodTemplate}
+              style={{ width: "8%" }}
             />
-            <Column
-              field="object_id"
-              header={t("admin.common_audit.object_id")}
-              body={(r: CommonAuditRecord) => r.object_id ?? "-"}
-            />
-            <Column
-              field="district_name"
-              header={t("common.district")}
-              body={(r: CommonAuditRecord) => r.district_name ?? "-"}
-            />
-            <Column
-              field="local_body_name"
-              header={t("admin.common_audit.local_body", "Local Body")}
-              body={(r: CommonAuditRecord) =>
-                r.local_body_name ? (
-                  <div className="leading-tight">
-                    <div>{r.local_body_name}</div>
-                    {r.local_body_level ? (
-                      <div className="text-xs text-gray-500">
-                        {r.local_body_level}
+            {locationColumn<CommonAuditRecord>({
+              header: t("common.location"),
+              style: { width: "15%" },
+              levels: [
+                { label: t("common.district"), value: (r) => r.district_name },
+                {
+                  label: t("admin.common_audit.local_body", "Local Body"),
+                  value: (r) =>
+                    r.local_body_name ? (
+                      <div className="leading-tight">
+                        <div>{r.local_body_name}</div>
+                        {r.local_body_level ? (
+                          <div className="text-xs text-gray-500">
+                            {r.local_body_level}
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  "-"
-                )
-              }
-            />
+                    ) : null,
+                },
+              ],
+            })}
             <Column
               field="createdBy"
               header={t("admin.common_audit.created_by")}
-              body={(r: CommonAuditRecord) => {
-                const name = r.created_by_name ?? r.createdBy;
-                if (!name) return "-";
-                return (
-                  <div className="leading-tight">
-                    <div className="font-medium text-gray-800">{name}</div>
-                    {r.created_by_id ? (
-                      <div className="text-xs text-gray-500">{r.created_by_id}</div>
-                    ) : null}
-                  </div>
-                );
-              }}
-            />
-            <Column
-              field="ip_address"
-              header={t("admin.common_audit.ip_address", "IP Address")}
-              body={(r: CommonAuditRecord) => r.ip_address ?? "-"}
-            />
-            <Column
-              field="user_agent"
-              header={t("admin.common_audit.user_agent", "User Agent")}
+              style={{ width: "20%" }}
               body={(r: CommonAuditRecord) => (
-                <span
-                  className="block max-w-[220px] truncate"
-                  title={r.user_agent ?? undefined}
-                >
-                  {r.user_agent ?? "-"}
-                </span>
+                <StackCell
+                  primary={r.created_by_name ?? r.createdBy}
+                  lines={[
+                    r.created_by_id,
+                    {
+                      icon: "pi-globe",
+                      title: t("admin.common_audit.ip_address", "IP Address"),
+                      value: r.ip_address,
+                    },
+                    {
+                      icon: "pi-desktop",
+                      title: t("admin.common_audit.user_agent", "User Agent"),
+                      value: r.user_agent ? (
+                        <span className="min-w-0 break-all">{r.user_agent}</span>
+                      ) : null,
+                    },
+                  ]}
+                />
               )}
             />
             <Column
               field="success"
               header={t("admin.common_audit.success", "Success")}
-              body={(r: CommonAuditRecord) =>
-                r.success === false ? (
-                  <span
-                    title={r.reason ?? undefined}
-                    className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
-                  >
-                    {t("admin.common_audit.status_failed", "Failed")}
-                  </span>
-                ) : (
-                  <span className="rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
-                    {t("admin.common_audit.status_success", "Successful")}
-                  </span>
-                )
-              }
-            />
-            <Column
-              field="reason"
-              header={t("admin.common_audit.reason", "Reason")}
+              style={{ width: "15%" }}
               body={(r: CommonAuditRecord) => {
-                // One column for both: DELETE rows carry the user's
+                // One line for both: DELETE rows carry the user's
                 // justification in delete_reason; failed writes carry the
                 // error in reason. The two are never set on the same row.
-                const value =
+                const reason =
                   r.method === "DELETE"
                     ? (r.delete_reason ?? r.reason)
                     : (r.reason ?? r.delete_reason);
-                return (
-                  <span
-                    className="block max-w-[260px] truncate"
-                    title={value ?? undefined}
-                  >
-                    {value ?? "-"}
-                  </span>
-                );
-              }}
-            />
-            <Column
-              header={t("admin.common_audit.files", "Files")}
-              body={(r: CommonAuditRecord) => {
                 const count = countAuditFiles(r);
-                if (!count) return <span className="text-gray-300">-</span>;
                 return (
-                  <span
-                    title={t("admin.common_audit.files_attached", `${count} file(s) attached — open details to view`)}
-                    className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
-                  >
-                    <Paperclip className="h-3 w-3" />
-                    {count}
-                  </span>
+                  <StackCell
+                    primary={
+                      r.success === false ? (
+                        <span
+                          title={r.reason ?? undefined}
+                          className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700"
+                        >
+                          {t("admin.common_audit.status_failed", "Failed")}
+                        </span>
+                      ) : (
+                        <span className="rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          {t("admin.common_audit.status_success", "Successful")}
+                        </span>
+                      )
+                    }
+                    lines={[
+                      {
+                        label: t("admin.common_audit.reason", "Reason"),
+                        value: reason,
+                      },
+                      count
+                        ? {
+                            title: t("admin.common_audit.files_attached", `${count} file(s) attached — open details to view`),
+                            value: (
+                              <span className="inline-flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                                <Paperclip className="h-3 w-3" />
+                                {count}
+                              </span>
+                            ),
+                          }
+                        : null,
+                    ]}
+                  />
                 );
               }}
-              style={{ width: 90 }}
-              bodyStyle={{ textAlign: "center" }}
             />
             <Column
               field="createdAt"
               header={t("admin.common_audit.created_at")}
               body={(r: CommonAuditRecord) => formatDateTime(r.createdAt)}
               sortable
+              style={{ width: "10%" }}
             />
             <Column
               header={t("common.actions")}
               body={actionTemplate}
-              style={{ width: 120 }}
+              style={{ width: "8%" }}
             />
           </DataTable>
         </CardContent>

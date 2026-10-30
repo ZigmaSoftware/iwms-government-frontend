@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { StackCell } from "@/components/common/TableCells";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
@@ -331,46 +332,46 @@ export default function PanchayatLeaderListPage() {
         }}
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No PLB Leader found."
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={indexTemplate} style={{ width: "70px" }} />
-
-        <Column
-          field="username"
-          header="Username"
-          sortable
-          body={(r: PanchayatLeader) => capitalize(r.username)}
-        />
+        <Column header="S.No" body={indexTemplate} style={{ width: "6%" }} />
 
         <Column
           field="leader_name"
+          sortField="username"
           header="Leader Name"
-          body={(r: PanchayatLeader) => capitalize(r.leader_name) || "-"}
+          sortable
+          style={{ width: "40%" }}
+          body={(r: PanchayatLeader) => (
+            <StackCell
+              primary={capitalize(r.leader_name)}
+              lines={[
+                { icon: "pi-user", title: "Username", value: capitalize(r.username) },
+                { icon: "pi-envelope", title: "Email", value: r.email },
+              ]}
+            />
+          )}
         />
 
         <Column
           field="panchayat_name"
           header="PLB (Participating Local Bodies)"
+          style={{ width: "33%" }}
           body={(r: PanchayatLeader) => capitalize(r.panchayat_name) || "-"}
-        />
-
-        <Column
-          field="email"
-          header="Email"
-          body={(r: PanchayatLeader) => r.email || "-"}
         />
 
         <Column
           header="Status"
           body={statusTemplate}
-          style={{ width: "120px" }}
+          style={{ width: "11%" }}
         />
 
         <Column
           header="Actions"
           body={actionTemplate}
-          style={{ width: "100px", textAlign: "center" }}
+          style={{ width: "10%", textAlign: "center" }}
         />
       </DataTable>
 

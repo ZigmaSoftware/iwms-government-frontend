@@ -269,17 +269,18 @@ export default function StaffUserTypeList() {
           }
           stripedRows
           showGridlines
+          fitWidth
           emptyMessage={t("common.no_items_found", {
             item: t("admin.nav.staff_user_type"),
           })}
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 80 }} />
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
           <Column
             field="usertype_name"
             header={t("admin.nav.user_type")}
             sortable
-            style={{ minWidth: 150 }}
+            style={{ width: "24%" }}
           />
           {/* <Column
             field="category"
@@ -293,14 +294,14 @@ export default function StaffUserTypeList() {
             header="Level"
             body={(row: any) => row.level_display ?? row.level ?? "—"}
             sortable
-            style={{ minWidth: 150 }}
+            style={{ width: "22%" }}
           />
           <Column
             field="name"
             header={t("admin.nav.staff_user_type")}
             body={(row: any) => row.name_display ?? row.name ?? "—"}
             sortable
-            style={{ minWidth: 180 }}
+            style={{ width: "27%" }}
           />
 
           
@@ -308,13 +309,13 @@ export default function StaffUserTypeList() {
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: 120 }}
+            style={{ width: "11%" }}
           />
 
           <Column
             header={t("common.actions")}
             body={actionTemplate}
-            style={{ width: 150 }}
+            style={{ width: "10%" }}
           />
 
         </DataTable>

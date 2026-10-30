@@ -18,6 +18,7 @@ import { Dialog } from "primereact/dialog";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { createCrudRoutePaths } from "@/utils/routePaths";
 import { api } from "@/api";
@@ -572,63 +573,59 @@ export default function VehicleBreakdownList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No breakdown records found."
       >
         <Column
           header={t("common.s_no")}
           body={(_: any, { rowIndex }: any) => rowIndex + 1}
-          style={{ width: 60 }}
+          style={{ width: "5%" }}
         />
         <Column
           field="unique_id"
-          header="Breakdown ID"
-          style={{ minWidth: 150 }}
-        />
-        <Column
-          field="trip_assignment_id"
-          header="Trip"
-          style={{ minWidth: 160 }}
+          header="Breakdown"
+          style={{ width: "20%" }}
           body={(r: any) => (
-            <div className="text-sm text-gray-800">
-              {r.trip_assignment_id}
-              {r._trip_date && <div className="text-xs text-gray-400">{r._trip_date}</div>}
-            </div>
+            <StackCell
+              primary={r.unique_id}
+              lines={[
+                { label: "Trip", title: "Trip", value: r.trip_assignment_id },
+                { icon: "pi-calendar", title: "Trip Date", value: r._trip_date },
+              ]}
+            />
           )}
         />
         <Column
           field="_location"
           header="Location"
-          style={{ minWidth: 140 }}
-          body={(r: any) => r._location || "-"}
+          style={{ width: "13%" }}
+          body={(r: any) => <span className="break-words">{r._location || "-"}</span>}
         />
         <Column
           field="_breakdown_vehicle"
-          header="Vehicle (Broken → Replacement)"
-          style={{ minWidth: 200 }}
+          header="Vehicle & Crew"
+          style={{ width: "21%" }}
           body={(r: any) => (
-            <div className="flex items-center gap-1.5 text-sm">
-              <span className="font-semibold text-red-700">{r._breakdown_vehicle}</span>
-              <i className="pi pi-arrow-right text-[10px] text-gray-400" />
-              <span className="font-semibold text-green-700">{r._replacement_vehicle}</span>
-            </div>
-          )}
-        />
-        <Column
-          field="_repl_driver"
-          header="Replacement Crew"
-          style={{ minWidth: 170 }}
-          body={(r: any) => (
-            <div className="text-xs text-gray-700 leading-snug">
-              <div><span className="text-gray-400">Drv:</span> {r._repl_driver || "-"}</div>
-              <div><span className="text-gray-400">Opr:</span> {r._repl_operator || "-"}</div>
-            </div>
+            <StackCell
+              primary={
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-red-700" title="Broken Vehicle">{r._breakdown_vehicle}</span>
+                  <i className="pi pi-arrow-right text-[10px] text-gray-400" />
+                  <span className="text-green-700" title="Replacement Vehicle">{r._replacement_vehicle}</span>
+                </span>
+              }
+              lines={[
+                { label: "Drv", title: "Replacement Driver", value: r._repl_driver },
+                { label: "Opr", title: "Replacement Operator", value: r._repl_operator },
+              ]}
+            />
           )}
         />
         <Column
           field="_breakdown_reason"
           header="Reason"
-          style={{ minWidth: 140 }}
+          style={{ width: "13%" }}
           body={(r: any) => (
             <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
               {r._breakdown_reason}
@@ -639,20 +636,20 @@ export default function VehicleBreakdownList() {
           field="status"
           header="Status"
           sortable
-          style={{ minWidth: 170 }}
+          style={{ width: "12%" }}
           body={(r: VehicleBreakdownRecord) => <StatusBadge value={r.status} />}
         />
         <Column
           field="approval_status"
           header="Approval"
           sortable
-          style={{ minWidth: 110 }}
+          style={{ width: "10%" }}
           body={(r: VehicleBreakdownRecord) => <ApprovalBadge value={r.approval_status} />}
         />
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ minWidth: 220 }}
+          style={{ width: "6%" }}
         />
       </DataTable>
 

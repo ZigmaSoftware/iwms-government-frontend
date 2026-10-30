@@ -123,16 +123,17 @@ export default function FeedbackList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         emptyMessage="No feedback found"
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "80px" }} />
-        <Column field="ticket_no" header="Ticket" body={(row) => row.ticket_no || row.ticket || "-"} />
-        <Column field="customer_name" header="Customer" body={(row) => row.customer_name || row.customer || "-"} />
-        <Column field="rating" header="Rating" sortable />
-        <Column header="Issue Solved" body={(row) => yesNo(row.is_issue_solved)} />
-        <Column field="feedback_text" header="Feedback" />
-        <Column field="submitted_at" header="Submitted" sortable={SORTABLE_FIELDS.has("submitted_at")} body={(row) => formatDateTime(row.submitted_at)} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
+        <Column field="ticket_no" header="Ticket" style={{ width: "14%" }} body={(row) => <span className="break-words">{row.ticket_no || row.ticket || "-"}</span>} />
+        <Column field="customer_name" header="Customer" style={{ width: "16%" }} body={(row) => <span className="break-words">{row.customer_name || row.customer || "-"}</span>} />
+        <Column field="rating" header="Rating" sortable style={{ width: "8%" }} />
+        <Column header="Issue Solved" style={{ width: "10%" }} body={(row) => yesNo(row.is_issue_solved)} />
+        <Column field="feedback_text" header="Feedback" style={{ width: "30%" }} body={(row) => <span className="break-words">{row.feedback_text || "-"}</span>} />
+        <Column field="submitted_at" header="Submitted" style={{ width: "16%" }} sortable={SORTABLE_FIELDS.has("submitted_at")} body={(row) => formatDateTime(row.submitted_at)} />
       </DataTable>
     </div>
   );

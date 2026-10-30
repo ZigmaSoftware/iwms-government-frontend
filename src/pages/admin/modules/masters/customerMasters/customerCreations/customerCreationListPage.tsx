@@ -11,6 +11,8 @@ import { MultiSelect } from "@/components/form/MultiSelect";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -628,65 +630,78 @@ export default function CustomerCreationListPage() {
           emptyMessage={t("admin.customer_creation.empty_message")}
           stripedRows
           showGridlines
+          fitWidth
           className="p-datatable-sm"
         >
-          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
-          {showCol("customer_name") && (
+          <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
+          {(showCol("customer_name") || showCol("contact_no")) && (
             <Column
               field="customer_name"
               header={t("admin.customer_creation.customer")}
-              sortable={SORTABLE_FIELDS.has("customer_name")}
+              sortable={showCol("customer_name") && SORTABLE_FIELDS.has("customer_name")}
+              style={{ width: "21%" }}
+              body={(row: Customer) => (
+                <StackCell
+                  primary={showCol("customer_name") && row.customer_name}
+                  lines={[
+                    showCol("contact_no") && {
+                      icon: "pi-phone",
+                      title: t("common.mobile"),
+                      value: row.contact_no,
+                    },
+                  ]}
+                />
+              )}
             />
           )}
-          {showCol("contact_no") && (
-            <Column field="contact_no" header={t("common.mobile")} />
-          )}
-          {showCol("property_name") && (
+          {(showCol("property_name") || showCol("sub_property_name")) && (
             <Column
               field="property_name"
               header={t("admin.customer_creation.property") || "Property"}
-              body={(row: Customer) => (row.property_name ? capitalize(row.property_name) : "-")}
+              style={{ width: "16%" }}
+              body={(row: Customer) => (
+                <StackCell
+                  primary={showCol("property_name") && row.property_name && capitalize(row.property_name)}
+                  lines={[
+                    showCol("sub_property_name") &&
+                      row.sub_property_name && {
+                        label: t("admin.customer_creation.sub_property") || "Sub Property",
+                        value: capitalize(row.sub_property_name),
+                      },
+                  ]}
+                />
+              )}
             />
           )}
-          {showCol("sub_property_name") && (
-            <Column
-              field="sub_property_name"
-              header={t("admin.customer_creation.sub_property") || "Sub Property"}
-              body={(row: Customer) => (row.sub_property_name ? capitalize(row.sub_property_name) : "-")}
-            />
-          )}
-          {showCol("location_name") && (
-            <Column
-              field="location_name"
-              header={t("common.location") || "Location"}
-              body={(row: Customer) => localBodyLabel(row)}
-            />
-          )}
-          {showCol("ward_name") && (
-            <Column
-              field="ward_name"
-              header="Ward"
-              body={(row: Customer) => row.ward_name || "-"}
-            />
-          )}
+          {locationColumn<Customer>({
+            header: t("common.location") || "Location",
+            style: { width: "18%" },
+            levels: [
+              showCol("location_name") && { label: "Local Body", value: (row) => localBodyLabel(row) },
+              showCol("ward_name") && { label: "Ward", value: (row) => row.ward_name },
+            ],
+          })}
           {showCol("waste_types") && (
             <Column
               field="waste_types"
               header={t("common.waste_type")}
-              body={(row: Customer) =>
-                row.waste_types?.length
-                  ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
-                  : "-"
-              }
+              style={{ width: "14%" }}
+              body={(row: Customer) => (
+                <span className="break-words">
+                  {row.waste_types?.length
+                    ? row.waste_types.map((wasteType) => wasteType.waste_type_name).join(", ")
+                    : "-"}
+                </span>
+              )}
             />
           )}
           {showCol("qr_code") && (
-            <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "100px" }} />
+            <Column header={t("admin.customer_creation.qr_label")} body={qrTemplate} style={{ width: "8%" }} />
           )}
           {showCol("is_active") && (
-            <Column field="is_active" header={t("common.status")} body={statusTemplate} />
+            <Column field="is_active" header={t("common.status")} body={statusTemplate} style={{ width: "9%" }} />
           )}
-          <Column header={t("common.actions")} body={actionTemplate} style={{ textAlign: "center" }} />
+          <Column header={t("common.actions")} body={actionTemplate} style={{ width: "9%", textAlign: "center" }} />
         </DataTable>
       </div>
 

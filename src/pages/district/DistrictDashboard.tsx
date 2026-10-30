@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_ROOT } from "@/config/configApi";
 import { saveAs } from "file-saver";
 import * as XLSX from "xlsx";
 import { Download, LogOut, Search, TableProperties } from "lucide-react";
@@ -23,9 +24,6 @@ import { clearLoginSessionTracking } from "@/utils/loginSession";
                              waste-type split, grievances, fleet
    The header stays put; the dashboard body scrolls beneath it.
    ──────────────────────────────────────────────────────────────────── */
-
-const IS_PROD = import.meta.env.VITE_PROD === "true";
-const API_ROOT = IS_PROD ? import.meta.env.VITE_API_PROD : import.meta.env.VITE_API_LOCAL;
 
 const dbApi = axios.create({ baseURL: API_ROOT });
 dbApi.interceptors.request.use((config) => {
@@ -129,6 +127,7 @@ export default function DistrictDashboard() {
   /* ── data ── */
   const [mapData, setMapData] = useState<LeaderMapPayload | null>(null);
   const [summary, setSummary] = useState<LeaderSummary | null>(null);
+  const [summaryError, setSummaryError] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -137,6 +136,11 @@ export default function DistrictDashboard() {
       .get<LeaderMapPayload>("/districtbody/map/", { params: { month: month || currentMonth(), source } })
       .then(({ data }) => {
         if (cancelled) return;
+        if (!data || !Array.isArray(data.districts) || !Array.isArray(data.local_bodies)) {
+          setMapData(null);
+          setError("Unable to load the district's local bodies: invalid map response.");
+          return;
+        }
         setError("");
         setMapData(data);
         if (data?.district_name) localStorage.setItem("db_district_name", data.district_name);
@@ -149,8 +153,27 @@ export default function DistrictDashboard() {
     let cancelled = false;
     dbApi
       .get<LeaderSummary>("/districtbody/summary/", { params: { source } })
-      .then(({ data }) => { if (!cancelled) setSummary(data); })
-      .catch(() => { if (!cancelled) setSummary(null); });
+      .then(({ data }) => {
+        if (cancelled) return;
+        // A misconfigured API URL can return the SPA HTML with HTTP 200.
+        // Check the response before any panels read its nested properties.
+        if (!data?.periods?.today || !data.periods.week || !data.periods.month ||
+          !Array.isArray(data.trend) || !Array.isArray(data.waste_types) ||
+          !Array.isArray(data.today_breakdown) || !Array.isArray(data.month_breakdown) ||
+          !Array.isArray(data.grievances?.by_status) || !data.fleet) {
+          setSummary(null);
+          setSummaryError("Unable to load the district summary: invalid API response.");
+          return;
+        }
+        setSummary(data);
+        setSummaryError("");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSummary(null);
+          setSummaryError("Unable to load the district summary.");
+        }
+      });
     return () => { cancelled = true; };
   }, [source]);
 
@@ -490,6 +513,7 @@ export default function DistrictDashboard() {
         {tab !== "overview" ? renderComparison() : (
         <div className="flex flex-col gap-3 lg:h-full">
         {error && <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{error}</div>}
+        {summaryError && <div className="shrink-0 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">{summaryError}</div>}
 
         {/* KPI row: one card per local-body type · total · period collection */}
         <div className="grid shrink-0 grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-[repeat(5,minmax(0,1fr))_minmax(0,1.05fr)_minmax(0,1.7fr)]">
@@ -518,7 +542,7 @@ export default function DistrictDashboard() {
           </div>
           <div className="col-span-2 grid min-w-0 grid-cols-3 divide-x divide-slate-100 rounded-xl border border-slate-200 bg-white py-3 shadow-sm md:col-span-3 xl:col-span-1">
             {(["today", "week", "month"] as const).map((k) => {
-              const p = summary?.periods[k];
+              const p = summary?.periods?.[k];
               const w = weightParts(p?.weight ?? 0);
               return (
                 <div key={k} className="min-w-0 px-3">
@@ -576,7 +600,9 @@ export default function DistrictDashboard() {
               }
               className="shrink-0"
             >
-              {!summary ? (
+              {summaryError ? (
+                <EmptyNote>Summary unavailable.</EmptyNote>
+              ) : !summary ? (
                 <Spinner />
               ) : opsTab === "collection" ? (
                 <>
@@ -640,7 +666,9 @@ export default function DistrictDashboard() {
             </Card>
 
             <Card title="7-day collection trend" right={<span className="text-[11px] text-gray-500">kg / day</span>} className="shrink-0" bodyClassName="h-[240px]">
-          {summary ? (
+          {summaryError ? (
+            <EmptyNote>Summary unavailable.</EmptyNote>
+          ) : summary ? (
             <MultiLineTrend
               data={trendData}
               series={(summary.waste_types ?? []).map((w) => ({ key: w, color: wasteLineColors[w] }))}

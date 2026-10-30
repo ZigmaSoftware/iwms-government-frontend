@@ -202,20 +202,22 @@ export default function PanchayatUnionListPage() {
         showGridlines
         emptyMessage="No Panchayat Union records found."
         onServerExport={onServerExport}
+        fitWidth
         className="p-datatable-sm"
       >
-        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: 80 }} />
+        <Column header="S.No" body={(_, options) => options.rowIndex + 1} style={{ width: "6%" }} />
         {columns.map((column) => (
           <Column
             key={column.field}
             field={column.field}
             header={column.header}
             sortable={SORTABLE_FIELDS.has(column.field)}
+            style={{ width: "19%" }}
             body={(row: PanchayatUnionListRecord) => displayValue(row[column.field])}
           />
         ))}
-        <Column header="Status" body={statusTemplate} style={{ width: 120 }} />
-        <Column header="Actions" body={actionTemplate} style={{ width: 120, textAlign: "center" }} />
+        <Column header="Status" body={statusTemplate} style={{ width: "9%" }} />
+        <Column header="Actions" body={actionTemplate} style={{ width: "9%", textAlign: "center" }} />
       </DataTable>
     </div>
   );

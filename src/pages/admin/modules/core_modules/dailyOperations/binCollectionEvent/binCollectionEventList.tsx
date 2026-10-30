@@ -10,6 +10,7 @@ import { Column } from "primereact/column";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { RowActionsMenu } from "@/components/common/RowActionsMenu";
+import { StackCell } from "@/components/common/TableCells";
 import { binCollectionEventApi } from "@/helpers/admin";
 import { getEncryptedRoute } from "@/utils/routeCache";
 import { useHierarchyFilter } from "@/components/filters/useHierarchyFilter";
@@ -371,52 +372,82 @@ export default function BinCollectionEventList() {
         header={header}
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage="No bin collection events found"
       >
-        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: 60 }} />
-        <Column field="_trip_plan" header="Trip Plan" />
-        <Column field="_collection_point" header="Collection Point" />
+        <Column header={t("common.s_no")} body={(_, { rowIndex }) => rowIndex + 1} style={{ width: "5%" }} />
+        <Column
+          field="_trip_plan"
+          header="Trip Plan"
+          style={{ width: "21%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._trip_plan}
+              lines={[
+                { icon: "pi-map-marker", title: "Collection Point", value: row._collection_point },
+                { label: "Bin", title: "Bin", value: row._bin },
+              ]}
+            />
+          )}
+        />
         <Column
           field="_location"
           header="Local Body"
-          body={(row: BinCERecord) =>
-            row.location_name
-              ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
-              : "-"
-          }
+          style={{ width: "13%" }}
+          body={(row: BinCERecord) => (
+            <span className="break-words">
+              {row.location_name
+                ? `${capitalize(row.location_name)}${row.location_level ? ` (${row.location_level})` : ""}`
+                : "-"}
+            </span>
+          )}
         />
-        <Column field="_bin" header="Bin" />
-        <Column field="_waste_type" header="Waste Type" />
-        <Column field="_vehicle" header="Vehicle" />
+        <Column
+          field="_waste_type"
+          header="Waste Type / Vehicle"
+          style={{ width: "14%" }}
+          body={(row: (typeof rows)[number]) => (
+            <StackCell
+              primary={row._waste_type}
+              lines={[{ icon: "pi-truck", title: "Vehicle", value: row._vehicle }]}
+            />
+          )}
+        />
         <Column
           field="status"
           header="Status"
           sortable={SORTABLE_FIELDS.has("status")}
           body={(row: BinCERecord) => <StatusBadge value={row.status} />}
-          style={{ minWidth: 130 }}
+          style={{ width: "10%" }}
         />
         <Column
           field="status_reason"
           header="Reason"
-          body={(row: BinCERecord) => row.status_reason || row.notes || "-"}
-          style={{ minWidth: 220 }}
-        />
-        <Column
-          header="Weight (kg)"
-          body={(row: BinCERecord) => row.collected_weight_kg ?? "-"}
-          style={{ width: 110 }}
+          body={(row: BinCERecord) => <span className="break-words">{row.status_reason || row.notes || "-"}</span>}
+          style={{ width: "16%" }}
         />
         <Column
           field="collection_date"
-          header="Collection Date"
+          header="Collection Date / Weight"
           sortable={SORTABLE_FIELDS.has("collection_date")}
-          body={formatCollectionDateTime}
-          style={{ width: 170 }}
+          body={(row: BinCERecord) => (
+            <StackCell
+              primary={formatCollectionDateTime(row)}
+              lines={[
+                {
+                  icon: "pi-box",
+                  title: "Weight (kg)",
+                  value: row.collected_weight_kg != null ? `${row.collected_weight_kg} kg` : null,
+                },
+              ]}
+            />
+          )}
+          style={{ width: "14%" }}
         />
         <Column
           header={t("common.actions")}
-          style={{ width: 90 }}
+          style={{ width: "7%" }}
           body={(row: BinCERecord) => (
             <RowActionsMenu
               onEdit={() => navigate(VIEW_PATH(row.unique_id ?? ""))}

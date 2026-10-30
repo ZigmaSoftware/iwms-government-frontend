@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { StackCell } from "@/components/common/TableCells";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 
@@ -167,25 +168,28 @@ export default function AlternativeStaffTemplateList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         className="p-datatable-sm"
         emptyMessage={t("admin.alternative_staff_template.empty_message")}
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: 70 }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "6%" }} />
 
-        {showCol("unique_id") && (
+        {(showCol("unique_id") || showCol("staff_template")) && (
           <Column
             header={t("admin.alternative_staff_template.columns.template_id")}
-            body={(row: AlternativeStaffTemplate) => row.display_code ?? row.unique_id}
             sortable
-          />
-        )}
-
-        {showCol("staff_template") && (
-          <Column
-            header={t("admin.alternative_staff_template.columns.staff_template")}
-            body={(row: AlternativeStaffTemplate) =>
-              row.staff_template_display_code ?? row.staff_template
-            }
+            style={{ width: "24%" }}
+            body={(row: AlternativeStaffTemplate) => (
+              <StackCell
+                primary={showCol("unique_id") && (row.display_code ?? row.unique_id)}
+                lines={[
+                  showCol("staff_template") && {
+                    label: t("admin.alternative_staff_template.columns.staff_template"),
+                    value: row.staff_template_display_code ?? row.staff_template,
+                  },
+                ]}
+              />
+            )}
           />
         )}
 
@@ -198,32 +202,40 @@ export default function AlternativeStaffTemplateList() {
           />
         )} */}
 
-        {showCol("driver_name") && (
+        {(showCol("driver_name") ||
+          showCol("operator_name") ||
+          showCol("extra_operator")) && (
           <Column
             field="driver_name"
-            header={t("admin.alternative_staff_template.columns.driver")}
-            body={(row: AlternativeStaffTemplate) => row.driver_name ?? row.driver}
-          />
-        )}
-
-        {showCol("operator_name") && (
-          <Column
-            field="operator_name"
-            header={t("admin.alternative_staff_template.columns.operator")}
-            body={(row: AlternativeStaffTemplate) => row.operator_name ?? row.operator}
-          />
-        )}
-
-        {showCol("extra_operator") && (
-          <Column
-            header={t("admin.alternative_staff_template.columns.extra_operator")}
+            header="Crew"
+            style={{ width: "36%" }}
             body={(row: AlternativeStaffTemplate) => {
               const names = Array.isArray(row.extra_operator_names)
                 ? row.extra_operator_names
                 : [];
-              if (names.length) return names.join(", ");
-              if (Array.isArray(row.extra_operator)) return row.extra_operator.join(", ");
-              return row.extra_operator || "-";
+              const extraOperators = names.length
+                ? names.join(", ")
+                : Array.isArray(row.extra_operator)
+                  ? row.extra_operator.join(", ")
+                  : row.extra_operator;
+              return (
+                <StackCell
+                  lines={[
+                    showCol("driver_name") && {
+                      label: t("admin.alternative_staff_template.columns.driver"),
+                      value: row.driver_name ?? row.driver,
+                    },
+                    showCol("operator_name") && {
+                      label: t("admin.alternative_staff_template.columns.operator"),
+                      value: row.operator_name ?? row.operator,
+                    },
+                    showCol("extra_operator") && {
+                      label: t("admin.alternative_staff_template.columns.extra_operator"),
+                      value: extraOperators,
+                    },
+                  ]}
+                />
+              );
             }}
           />
         )}
@@ -232,13 +244,17 @@ export default function AlternativeStaffTemplateList() {
           <Column
             field="change_reason"
             header={t("admin.alternative_staff_template.columns.change_reason")}
+            style={{ width: "26%" }}
+            body={(row: AlternativeStaffTemplate) => (
+              <span className="break-words">{row.change_reason || "-"}</span>
+            )}
           />
         )}
 
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: 120 }}
+          style={{ width: "8%" }}
         />
       </DataTable>
     </div>

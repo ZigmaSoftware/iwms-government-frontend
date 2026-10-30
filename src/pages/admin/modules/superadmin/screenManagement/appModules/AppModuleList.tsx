@@ -141,6 +141,7 @@ export default function AppModuleList() {
         loading={loading}
         dataKey="unique_id"
         stripedRows
+        fitWidth
         filters={filters}
         globalFilterFields={["module_key", "label", "route", "description"]}
         header={
@@ -152,9 +153,15 @@ export default function AppModuleList() {
           />
         }
       >
-        <Column field="module_key" header="Key" style={{ width: "14rem" }} />
+        <Column
+          field="module_key"
+          header="Key"
+          style={{ width: "18%" }}
+          body={(row: AppModuleRow) => <span className="break-words">{row.module_key}</span>}
+        />
         <Column
           header="Label"
+          style={{ width: "28%" }}
           body={(row: AppModuleRow) => (
             <input
               className="w-full rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
@@ -173,11 +180,11 @@ export default function AppModuleList() {
         />
         <Column
           header="Order"
-          style={{ width: "7rem" }}
+          style={{ width: "9%" }}
           body={(row: AppModuleRow) => (
             <input
               type="number"
-              className="w-20 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+              className="w-full max-w-20 rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
               value={drafts[row.unique_id]?.order_no ?? String(row.order_no)}
               onChange={(event) =>
                 setDrafts((current) => ({
@@ -191,15 +198,20 @@ export default function AppModuleList() {
             />
           )}
         />
-        <Column field="route" header="Opens" style={{ width: "12rem" }} />
+        <Column
+          field="route"
+          header="Opens"
+          style={{ width: "16%" }}
+          body={(row: AppModuleRow) => <span className="break-words">{row.route}</span>}
+        />
         <Column
           header="Screens"
-          style={{ width: "7rem" }}
+          style={{ width: "9%" }}
           body={(row: AppModuleRow) => `${row.screen_count}`}
         />
         <Column
           header="Active"
-          style={{ width: "8rem" }}
+          style={{ width: "10%" }}
           body={(row: AppModuleRow) => (
             <button
               type="button"
@@ -217,7 +229,7 @@ export default function AppModuleList() {
         />
         <Column
           header=""
-          style={{ width: "7rem" }}
+          style={{ width: "10%" }}
           body={(row: AppModuleRow) => (
             <Button
               label="Save"

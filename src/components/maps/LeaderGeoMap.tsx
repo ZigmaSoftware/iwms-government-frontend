@@ -247,7 +247,7 @@ export default function LeaderGeoMap({
     const unmatched: string[] = [];
     if (data && geo) {
       const match = makeDistrictMatcher(geo);
-      for (const d of data.districts) {
+      for (const d of data.districts ?? []) {
         const f = match(d.name);
         if (!f) { unmatched.push(d.name); continue; }
         featureById.set(d.district_id, f);
@@ -312,12 +312,12 @@ export default function LeaderGeoMap({
     if (!data) return null;
     if (mode === "state" && geo) return L.geoJSON(geo.outline).getBounds();
     if (mode === "district") {
-      const own = data.districts[0];
+      const own = data.districts?.[0];
       const f = own && joined.featureById.get(own.district_id);
       if (f) return L.geoJSON(f).getBounds();
       if (own && own.coordinates.length >= 3) return L.latLngBounds(own.coordinates);
     }
-    const pts = data.local_bodies.flatMap((lb) => lb.coordinates);
+    const pts = (data.local_bodies ?? []).flatMap((lb) => lb.coordinates);
     return pts.length ? L.latLngBounds(pts).pad(0.2) : null;
   }, [data, geo, mode, joined]);
 
@@ -325,7 +325,7 @@ export default function LeaderGeoMap({
   const scopeRings = useMemo((): LatLng[][] | null => {
     if (!data) return null;
     if (mode === "state") return geo ? outerRings(geo.outline) : null;
-    const own = data.districts[0];
+    const own = data.districts?.[0];
     const f = own && joined.featureById.get(own.district_id);
     if (f) return outerRings(f.geometry);
     return own && own.coordinates.length >= 3 ? [own.coordinates] : null;
@@ -380,7 +380,7 @@ export default function LeaderGeoMap({
 
   /* the open district's outline, as the clip boundary for its local bodies */
   const clipFeature = useMemo((): DistrictFeature | null => {
-    const id = mode === "district" ? data?.districts[0]?.district_id : selectedDistrictId;
+    const id = mode === "district" ? data?.districts?.[0]?.district_id : selectedDistrictId;
     return id ? joined.featureById.get(id) ?? null : null;
   }, [mode, data, selectedDistrictId, joined]);
 
@@ -426,7 +426,7 @@ export default function LeaderGeoMap({
       mode === "state"
         ? geo?.features ?? []
         : (() => {
-            const own = data.districts[0];
+            const own = data.districts?.[0];
             const f = own && joined.featureById.get(own.district_id);
             return f ? [f] : [];
           })();
@@ -478,7 +478,7 @@ export default function LeaderGeoMap({
 
     /* district without a boundary file match: fall back to its DB polygon */
     if (mode === "district" && !features.length) {
-      const own = data.districts[0];
+      const own = data.districts?.[0];
       if (own && own.coordinates.length >= 3)
         L.polygon(own.coordinates, { ...districtOutline(pal), interactive: false }).addTo(layer);
     }
@@ -494,7 +494,7 @@ export default function LeaderGeoMap({
       const lbs = drawnLbs
         .filter((d) => matchesFilter(d.lb, lbFilter))
         .sort((x, y) => DRAW_ORDER.indexOf(x.lb.type) - DRAW_ORDER.indexOf(y.lb.type));
-      const districtName = new Map(data.districts.map((d) => [d.district_id, d.name]));
+      const districtName = new Map((data.districts ?? []).map((d) => [d.district_id, d.name]));
       for (const { lb, rings, point } of lbs) {
         const color = pal.typedLocalBodies ? TYPE_COLOR[lb.type] : pal.fill;
         const tip = `<div class="lgm-tip"><b>${esc(lb.name)}</b><span class="lgm-sub">${TYPE_LABEL[lb.type]} · ${

@@ -4,6 +4,8 @@ import { createCrudRoutePaths } from "@/utils/routePaths";
 import { useEffect, useState } from "react";
 import { DataTable } from "@/components/common/SafeDataTable";
 import { Column } from "primereact/column";
+import { StackCell } from "@/components/common/TableCells";
+import { locationColumn } from "@/components/common/LocationColumn";
 import { Button } from "primereact/button";
 import type { DataTablePageEvent, DataTableSortEvent, SortOrder } from "primereact/datatable";
 import { useNavigate } from "react-router-dom";
@@ -430,6 +432,7 @@ export default function BinList() {
         }
         stripedRows
         showGridlines
+        fitWidth
         loading={isLoading}
         onServerExport={onServerExport}
         documentActions={{
@@ -440,14 +443,14 @@ export default function BinList() {
         filterPanel={combineFilters(geo, status)}
         className="p-datatable-sm"
       >
-        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "80px" }} />
+        <Column header={t("common.s_no")} body={indexTemplate} style={{ width: "5%" }} />
         {showCol("bin_name") && (
           <Column
             field="bin_name"
             header={t("common.item_name", { item: t("admin.nav.bin_master") })}
             sortable
-            body={(row: Bin) => capitalize(row.bin_name)}
-            style={{ minWidth: "200px" }}
+            body={(row: Bin) => <span className="break-words">{capitalize(row.bin_name)}</span>}
+            style={{ width: "20%" }}
           />
         )}
         {showCol("bin_capacity") && (
@@ -455,31 +458,29 @@ export default function BinList() {
             field="bin_capacity"
             header={t("common.bin_capacity")}
             sortable
-            style={{ minWidth: "150px" }}
+            style={{ width: "10%" }}
           />
         )}
-        {showCol("panchayat_name") && (
-          <Column
-            field="panchayat_name"
-            header={t("admin.nav.panchayat")}
-            body={(row: Bin) => capitalize(row.panchayat_name || row.panchayat || "-")}
-            style={{ minWidth: "140px" }}
-          />
-        )}
-        {showCol("ward_name") && (
-          <Column
-            field="ward_name"
-            header="Ward"
-            body={(row: Bin) => capitalize(row.ward_name || "-")}
-            style={{ minWidth: "140px" }}
-          />
-        )}
+        {locationColumn<Bin>({
+          header: t("common.location"),
+          style: { width: "20%" },
+          levels: [
+            showCol("panchayat_name") && {
+              label: t("admin.nav.panchayat"),
+              value: (row) => capitalize(row.panchayat_name || row.panchayat || "-"),
+            },
+            showCol("ward_name") && {
+              label: "Ward",
+              value: (row) => capitalize(row.ward_name || "-"),
+            },
+          ],
+        })}
         {showCol("waste_type_name") && (
           <Column
             field="waste_type_name"
             header={t("common.waste_type")}
             body={(row: Bin) => capitalize(wasteTypeTemplate(row))}
-            style={{ minWidth: "160px" }}
+            style={{ width: "13%" }}
           />
         )}
         {showCol("qr_code") && (
@@ -487,23 +488,22 @@ export default function BinList() {
             field="qr_code"
             header={t("admin.bin.qr_label")}
             body={(row: Bin) => qrTemplate(row)}
-            style={{ width: "100px", textAlign: "center" }}
+            style={{ width: "8%", textAlign: "center" }}
           />
         )}
-        {showCol("latitude") && (
+        {(showCol("latitude") || showCol("longitude")) && (
           <Column
             field="latitude"
-            header="Latitude"
-            body={(row: Bin) => row.latitude ?? "-"}
-            style={{ minWidth: "140px" }}
-          />
-        )}
-        {showCol("longitude") && (
-          <Column
-            field="longitude"
-            header="Longitude"
-            body={(row: Bin) => row.longitude ?? "-"}
-            style={{ minWidth: "140px" }}
+            header="Coordinates"
+            body={(row: Bin) => (
+              <StackCell
+                lines={[
+                  showCol("latitude") && { label: "Lat", value: row.latitude ?? "-" },
+                  showCol("longitude") && { label: "Long", value: row.longitude ?? "-" },
+                ]}
+              />
+            )}
+            style={{ width: "10%" }}
           />
         )}
         {showCol("is_active") && (
@@ -511,14 +511,14 @@ export default function BinList() {
             field="is_active"
             header={t("common.status")}
             body={(row: Bin) => statusBodyTemplate(row)}
-            style={{ width: "150px", textAlign: "center" }}
+            style={{ width: "7%", textAlign: "center" }}
           />
         )}
         <Column
           field="actions"
           header={t("common.actions")}
           body={(row: Bin) => actionBodyTemplate(row)}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "7%", textAlign: "center" }}
         />
       </DataTable>
 

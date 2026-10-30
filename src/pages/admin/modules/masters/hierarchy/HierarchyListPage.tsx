@@ -271,18 +271,20 @@ export default function HierarchyListPage() {
         })}
         onServerExport={onServerExport}
         filterPanel={combineFilters(status)}
+        fitWidth
         className="p-datatable-sm"
       >
         <Column
           header={t("common.s_no")}
           body={indexTemplate}
-          style={{ width: "80px" }}
+          style={{ width: "8%" }}
         />
         {showCol("level_name") && (
           <Column
             field="level_name"
             header={t("common.item_name", { item: t("admin.nav.hierarchy") })}
             sortable={SORTABLE_FIELDS.has("level_name")}
+            style={{ width: "70%" }}
             body={(row: HierarchyRecord) => capitalize(row.level_name)}
           />
         )}
@@ -290,13 +292,13 @@ export default function HierarchyListPage() {
           <Column
             header={t("common.status")}
             body={statusTemplate}
-            style={{ width: "140px" }}
+            style={{ width: "12%" }}
           />
         )}
         <Column
           header={t("common.actions")}
           body={actionTemplate}
-          style={{ width: "150px", textAlign: "center" }}
+          style={{ width: "10%", textAlign: "center" }}
         />
       </DataTable>
     </div>
